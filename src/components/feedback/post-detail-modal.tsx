@@ -1,29 +1,47 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { ChevronUp, MessageSquare, Bell, BellOff, ThumbsUp, Reply, ChevronRight } from "lucide-react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import type { FeedbackPost } from "./feedback-board"
+import { useState } from "react";
+import {
+  ChevronUp,
+  MessageSquare,
+  Bell,
+  BellOff,
+  ThumbsUp,
+  Reply,
+  ChevronRight,
+  X,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import type { FeedbackPost, PostStatus } from "./feedback-board";
 
 interface PostDetailModalProps {
-  post: FeedbackPost
-  isOpen: boolean
-  onClose: () => void
+  post: FeedbackPost;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 interface Comment {
-  id: string
-  author: string
-  avatar: string
-  content: string
-  createdAt: string
-  likes: number
+  id: string;
+  author: string;
+  avatar: string;
+  content: string;
+  createdAt: string;
+  likes: number;
 }
 
 const mockComments: Comment[] = [
@@ -45,39 +63,52 @@ const mockComments: Comment[] = [
     createdAt: "4 months ago",
     likes: 12,
   },
-]
+];
 
-export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps) {
-  const [isUpvoted, setIsUpvoted] = useState(false)
-  const [isSubscribed, setIsSubscribed] = useState(false)
-  const [comment, setComment] = useState("")
-  const [importance, setImportance] = useState<"not-important" | "nice-to-have" | "important" | "essential" | null>(
-    null,
-  )
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "planned":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30"
-      case "soon":
-        return "bg-pink-500/20 text-pink-400 border-pink-500/30"
-      case "completed":
-        return "bg-green-500/20 text-green-400 border-green-500/30"
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30"
-    }
+const getStatusColor = (status: PostStatus) => {
+  switch (status) {
+    case "backlog":
+      return "bg-muted text-muted-foreground";
+    case "next-up":
+      return "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300";
+    case "in-progress":
+      return "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300";
+    case "under-review":
+      return "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300";
+    case "done":
+      return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+    default:
+      return "bg-muted text-muted-foreground";
   }
+};
+
+export function PostDetailModal({
+  post,
+  isOpen,
+  onClose,
+}: PostDetailModalProps) {
+  const [isUpvoted, setIsUpvoted] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [comment, setComment] = useState("");
+  const [importance, setImportance] = useState<
+    "not-important" | "nice-to-have" | "important" | "essential" | null
+  >(null);
 
   const formatNumber = (num: number) => {
     if (num >= 1000) {
-      return (num / 1000).toFixed(1) + "k"
+      return (num / 1000).toFixed(1) + "k";
     }
-    return num.toString()
-  }
+    return num.toString();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-semibold">
+            {post.title}
+          </DialogTitle>
+        </DialogHeader>
         <div className="flex">
           {/* Main Content */}
           <div className="flex-1 p-6">
@@ -88,14 +119,19 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                 {/* Similar Posts Collapsible */}
                 <Collapsible>
                   <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="text-sm text-muted-foreground mb-4 p-0 h-auto">
+                    <Button
+                      variant="ghost"
+                      className="text-sm text-muted-foreground mb-4 p-0 h-auto"
+                    >
                       <ChevronRight className="h-4 w-4 mr-1" />
                       View all similar posts
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 mb-4">
                     <div className="pl-5 space-y-2">
-                      <div className="text-sm text-muted-foreground">Similar posts will be shown here...</div>
+                      <div className="text-sm text-muted-foreground">
+                        Similar posts will be shown here...
+                      </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
@@ -104,44 +140,72 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                 <div className="space-y-4 mb-6">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="font-medium">Progressive Web App for Learning</span>
+                    <span className="font-medium">
+                      Progressive Web App for Learning
+                    </span>
                   </div>
                   <p className="text-muted-foreground">
-                    Add a Web App Manifest to Syllax. This helps students access their learning materials offline and
-                    provides a native app-like experience for studying on mobile devices.
+                    Add a Web App Manifest to Syllax. This helps students access
+                    their learning materials offline and provides a native
+                    app-like experience for studying on mobile devices.
                   </p>
 
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="font-medium">Enhanced Mobile Experience</span>
+                    <span className="font-medium">
+                      Enhanced Mobile Experience
+                    </span>
                   </div>
                   <p className="text-muted-foreground">
-                    To be honest, the only thing I want from a mobile learning app is having it be a separate window
-                    without browser tabs. That's by definition what PWAs provide and would greatly improve the learning
-                    experience...
+                    To be honest, the only thing I want from a mobile learning
+                    app is having it be a separate window without browser tabs.
+                    That's by definition what PWAs provide and would greatly
+                    improve the learning experience...
                   </p>
                 </div>
 
                 {/* Importance Voting */}
                 <div className="mb-6">
                   <div className="flex items-center space-x-2 mb-3">
-                    <span className="text-sm text-muted-foreground">How important is this to you?</span>
+                    <span className="text-sm text-muted-foreground">
+                      How important is this to you?
+                    </span>
                   </div>
                   <div className="flex space-x-2">
                     {[
-                      { key: "not-important", label: "Not important", color: "bg-gray-500" },
-                      { key: "nice-to-have", label: "Nice to have", color: "bg-yellow-500" },
-                      { key: "important", label: "Important", color: "bg-orange-500" },
-                      { key: "essential", label: "Essential", color: "bg-red-500" },
+                      {
+                        key: "not-important",
+                        label: "Not important",
+                        color: "bg-gray-500",
+                      },
+                      {
+                        key: "nice-to-have",
+                        label: "Nice to have",
+                        color: "bg-yellow-500",
+                      },
+                      {
+                        key: "important",
+                        label: "Important",
+                        color: "bg-orange-500",
+                      },
+                      {
+                        key: "essential",
+                        label: "Essential",
+                        color: "bg-red-500",
+                      },
                     ].map((option) => (
                       <Button
                         key={option.key}
-                        variant={importance === option.key ? "default" : "outline"}
+                        variant={
+                          importance === option.key ? "default" : "outline"
+                        }
                         size="sm"
                         onClick={() => setImportance(option.key as any)}
                         className="text-xs"
                       >
-                        <div className={`w-2 h-2 rounded-full ${option.color} mr-2`}></div>
+                        <div
+                          className={`w-2 h-2 rounded-full ${option.color} mr-2`}
+                        ></div>
                         {option.label}
                       </Button>
                     ))}
@@ -163,7 +227,9 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                         <MessageSquare className="h-4 w-4" />
                       </Button>
                     </div>
-                    <Button className="bg-pink-600 hover:bg-pink-700">Comment</Button>
+                    <Button className="bg-pink-600 hover:bg-pink-700">
+                      Comment
+                    </Button>
                   </div>
                 </div>
 
@@ -180,26 +246,44 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                   </TabsList>
 
                   <TabsContent value="comments" className="space-y-4 mt-4">
-                    <div className="text-sm text-muted-foreground mb-4">Top comments</div>
+                    <div className="text-sm text-muted-foreground mb-4">
+                      Top comments
+                    </div>
                     {mockComments.map((comment) => (
                       <div key={comment.id} className="space-y-3">
                         <div className="flex items-start space-x-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={comment.avatar || "/placeholder.svg"} />
+                            <AvatarImage
+                              src={comment.avatar || "/placeholder.svg"}
+                            />
                             <AvatarFallback>{comment.author[0]}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium text-sm">{comment.author}</span>
-                              <span className="text-xs text-muted-foreground">{comment.createdAt}</span>
+                              <span className="font-medium text-sm">
+                                {comment.author}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {comment.createdAt}
+                              </span>
                             </div>
-                            <p className="text-sm text-muted-foreground mb-2">{comment.content}</p>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {comment.content}
+                            </p>
                             <div className="flex items-center space-x-4">
-                              <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-0 text-xs"
+                              >
                                 <ThumbsUp className="h-3 w-3 mr-1" />
                                 {comment.likes}
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-0 text-xs"
+                              >
                                 <Reply className="h-3 w-3 mr-1" />
                                 Reply
                               </Button>
@@ -211,7 +295,9 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                   </TabsContent>
 
                   <TabsContent value="activity">
-                    <div className="text-sm text-muted-foreground">Activity feed content...</div>
+                    <div className="text-sm text-muted-foreground">
+                      Activity feed content...
+                    </div>
                   </TabsContent>
                 </Tabs>
               </div>
@@ -229,7 +315,9 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                   className="flex items-center space-x-1"
                 >
                   <ChevronUp className="h-4 w-4" />
-                  <span>{formatNumber(post.upvotes + (isUpvoted ? 1 : 0))}</span>
+                  <span>
+                    {formatNumber(post.upvotes + (isUpvoted ? 1 : 0))}
+                  </span>
                 </Button>
               </div>
             </div>
@@ -239,22 +327,37 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
                 <span className="text-sm text-muted-foreground">Upvoters</span>
                 <div className="flex items-center space-x-1 mt-1">
                   <ChevronUp className="h-4 w-4 text-pink-500" />
-                  <span className="font-medium">{formatNumber(post.upvotes)}</span>
+                  <span className="font-medium">
+                    {formatNumber(post.upvotes)}
+                  </span>
                 </div>
               </div>
 
               <div>
                 <span className="text-sm text-muted-foreground">Status</span>
                 <div className="mt-1">
-                  <Badge className={getStatusColor(post.status)} variant="outline">
-                    {post.status.toUpperCase()}
+                  <Badge
+                    className={getStatusColor(post.status)}
+                    variant="outline"
+                  >
+                    {post.status === "next-up"
+                      ? "Next up"
+                      : post.status === "in-progress"
+                      ? "In Progress"
+                      : post.status === "under-review"
+                      ? "Under Review"
+                      : post.status.charAt(0).toUpperCase() +
+                        post.status.slice(1)}
                   </Badge>
                 </div>
               </div>
 
               <div>
                 <span className="text-sm text-muted-foreground">Board</span>
-                <div className="mt-1 text-sm">💡 {post.type === "feature" ? "Feature Request" : "Bug Report"}</div>
+                <div className="mt-1 text-sm">
+                  💡{" "}
+                  {post.type === "feature" ? "Feature Request" : "Bug Report"}
+                </div>
               </div>
 
               <div>
@@ -264,12 +367,16 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
 
               <div className="pt-4 border-t border-border">
                 <h3 className="font-medium mb-2">Subscribe to post</h3>
-                <p className="text-sm text-muted-foreground mb-3">Get notified by email when there are changes.</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Get notified by email when there are changes.
+                </p>
                 <Button
                   variant={isSubscribed ? "outline" : "default"}
                   size="sm"
                   onClick={() => setIsSubscribed(!isSubscribed)}
-                  className={isSubscribed ? "" : "bg-pink-600 hover:bg-pink-700"}
+                  className={
+                    isSubscribed ? "" : "bg-pink-600 hover:bg-pink-700"
+                  }
                 >
                   {isSubscribed ? (
                     <>
@@ -287,7 +394,16 @@ export function PostDetailModal({ post, isOpen, onClose }: PostDetailModalProps)
             </div>
           </div>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute right-4 top-4"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </Button>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
