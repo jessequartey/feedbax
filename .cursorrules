@@ -1,0 +1,143 @@
+# Feedbax Code Style and Structure Rules
+
+## Code Style and Structure
+
+- Write concise, technical TypeScript code with accurate examples
+- Use functional and declarative programming patterns; avoid classes
+- Prefer iteration and modularization over code duplication
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError)
+- Structure files in order: exported component, subcomponents, helpers, static content, types
+
+## Naming Conventions
+
+- Use lowercase with dashes for directories (e.g., components/auth-wizard)
+- Favor named exports for components
+- Use PascalCase for component names
+- Use camelCase for variables, functions, and methods
+- Use UPPER_SNAKE_CASE for constants
+
+## TypeScript Usage
+
+- Use TypeScript for all code
+- Prefer interfaces over types
+- Avoid enums; use const maps instead
+- Use functional components with TypeScript interfaces
+- Define prop types using interfaces
+- Use type inference where possible
+- Avoid any type; use unknown instead
+
+## Notion Integration
+
+- Use Notion API client for all database operations
+- Implement proper error handling for API rate limits
+- Use webhooks for real-time updates
+- Cache Notion responses when appropriate
+- Handle API errors gracefully with user-friendly messages
+- Use proper typing for Notion API responses
+- Implement retry logic for failed API calls
+- Use proper pagination for large datasets
+- Handle concurrent requests appropriately
+- Implement proper data validation before sending to Notion
+
+## Notion Database Structure
+
+- Use consistent property names across databases
+- Follow Notion's property type guidelines
+- Implement proper data validation
+- Use relations for connected data
+- Handle rich text content appropriately
+- Implement proper error handling for missing properties
+- Use proper data transformation utilities
+- Handle database schema changes gracefully
+- Implement proper data migration strategies
+- Use proper indexing for frequently queried properties
+
+## Syntax and Formatting
+
+- Use the "function" keyword for pure functions
+- Avoid unnecessary curly braces in conditionals
+- Use concise syntax for simple statements
+- Use declarative JSX
+- Use template literals for string interpolation
+- Use destructuring for props and state
+- Use arrow functions for callbacks
+
+## Error Handling and Validation
+
+- Handle errors and edge cases early
+- Use early returns and guard clauses
+- Implement proper error logging and user-friendly messages
+- Use Zod for form validation
+- Model expected errors as return values in Server Actions
+- Use error boundaries for unexpected errors
+- Implement proper type checking
+
+## UI and Styling
+
+- Use Shadcn UI, Radix, and Tailwind Aria for components
+- Implement responsive design with Tailwind CSS
+- Follow mobile-first approach
+- Use semantic HTML elements
+- Maintain consistent spacing and alignment
+- Use CSS variables for theming
+- Follow accessibility guidelines
+
+## Performance Optimization
+
+- Minimize 'use client', 'useEffect', and 'setState'
+- Favor React Server Components (RSC)
+- Wrap client components in Suspense with fallback
+- Use dynamic loading for non-critical components
+- Optimize images: use WebP format, include size data, implement lazy loading
+- Use proper caching strategies
+- Implement code splitting
+
+## State Management
+
+- Use 'nuqs' for URL search parameter state management
+- Minimize global state
+- Use React Query for server state
+- Implement proper loading states
+- Use optimistic updates where appropriate
+
+## Next.js Best Practices
+
+- Follow Next.js docs for Data Fetching, Rendering, and Routing
+- Use App Router patterns
+- Implement proper metadata
+- Use proper loading and error states
+- Follow Next.js file conventions
+- Use proper route handlers
+- Implement proper middleware
+
+## Testing
+
+- Write unit tests for utilities and hooks
+- Write integration tests for components
+- Use proper mocking strategies
+- Follow testing best practices
+- Use proper test descriptions
+
+## Documentation
+
+- Document complex logic
+- Use proper JSDoc comments
+- Keep README up to date
+- Document component props
+- Document API endpoints
+
+## Git Workflow
+
+- Use conventional commits
+- Write meaningful commit messages
+- Keep PRs focused and small
+- Review code before committing
+- Follow branching strategy
+
+## Deployment
+
+- Deploy on Cloudflare Pages using Wrangler
+- Implement proper CI/CD
+- Use proper environment variables
+- Follow security best practices
+- Monitor performance metrics
