@@ -102,7 +102,15 @@ export function RoadmapBoard({ initialPosts }: RoadmapBoardProps) {
 
         <div className="mt-8 text-right">
           <div className="text-xs text-muted-foreground">
-            ⚡ Powered by Feedbax
+            ⚡ Powered by{" "}
+            <a
+              href="https://github.com/jessequartey/feedbax"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors underline"
+            >
+              Feedbax
+            </a>
           </div>
         </div>
       </div>

@@ -488,7 +488,15 @@ export function ChangelogBoard() {
 
               <Card className="p-4">
                 <div className="text-xs text-muted-foreground text-center">
-                  ⚡ Powered by Feedbax
+                  ⚡ Powered by{" "}
+                  <a
+                    href="https://github.com/jessequartey/feedbax"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-foreground transition-colors underline"
+                  >
+                    Feedbax
+                  </a>
                 </div>
               </Card>
             </div>
