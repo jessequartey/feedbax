@@ -3,7 +3,7 @@
 import { createSafeActionClient } from "next-safe-action";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { createFeedbackPost } from "./notion";
+import { createFeedbackPost, createPageComment } from "./notion";
 import { mockUser } from "@/types/user";
 import type { PostType } from "@/types/feedback";
 
@@ -39,6 +39,7 @@ export const createPostAction = actionClient
       console.log("newPost", newPost);
       // Revalidate the feedback page to show the new post
       revalidatePath("/");
+      revalidatePath("/roadmap");
 
       return {
         success: true,
@@ -47,5 +48,40 @@ export const createPostAction = actionClient
     } catch (error) {
       console.error("Error creating post:", error);
       throw new Error("Failed to create post. Please try again.");
+    }
+  });
+
+// Schema for creating a comment
+const createCommentSchema = z.object({
+  postId: z.string().min(1, "Post ID is required"),
+  content: z
+    .string()
+    .min(1, "Comment content is required")
+    .max(2000, "Comment must be less than 2000 characters"),
+  authorName: z.string().min(1, "Author name is required"),
+});
+
+// Create comment action
+export const createCommentAction = actionClient
+  .schema(createCommentSchema)
+  .action(async ({ parsedInput: data }) => {
+    try {
+      const newComment = await createPageComment(
+        data.postId,
+        data.content,
+        data.authorName
+      );
+
+      // Revalidate the feedback page to show the new comment
+      revalidatePath("/");
+      revalidatePath("/roadmap");
+
+      return {
+        success: true,
+        data: newComment,
+      };
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      throw new Error("Failed to create comment. Please try again.");
     }
   });

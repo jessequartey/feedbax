@@ -13,6 +13,7 @@ import {
   Lightbulb,
   Bug,
   Zap,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -30,6 +31,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { createCommentAction } from "@/lib/actions";
+import { mockUser } from "@/types/user";
+import { toast } from "sonner";
 import type {
   FeedbackPost,
   PostStatus,
@@ -70,6 +74,7 @@ export function PostDetailModal({
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<FeedbackComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [importance, setImportance] = useState<
     "not-important" | "nice-to-have" | "important" | "essential" | null
   >(null);
@@ -136,6 +141,66 @@ export function PostDetailModal({
         return Lightbulb;
     }
   }, [post.type]);
+
+  const handleSubmitComment = async () => {
+    if (!comment.trim()) {
+      toast.error("Please enter a comment");
+      return;
+    }
+
+    if (comment.trim().length > 2000) {
+      toast.error("Comment must be less than 2000 characters");
+      return;
+    }
+
+    if (!post.notionPageId) {
+      toast.error("Cannot add comment to this post");
+      return;
+    }
+
+    setIsSubmittingComment(true);
+
+    const commentData = {
+      postId: post.notionPageId,
+      content: comment.trim(),
+      authorName: mockUser.name,
+    };
+
+    // Create optimistic comment
+    const optimisticComment: FeedbackComment = {
+      id: `temp-${Date.now()}`,
+      postId: post.notionPageId,
+      content: commentData.content,
+      author: commentData.authorName,
+      authorId: mockUser.email,
+      avatar: mockUser.image,
+      createdAt: "Just now",
+    };
+
+    // Add optimistic comment to the list
+    const updatedComments = [optimisticComment, ...comments];
+    setComments(updatedComments);
+
+    try {
+      const result = await createCommentAction(commentData);
+
+      if (result?.data?.success) {
+        toast.success("Comment added successfully! 💬");
+        setComment("");
+        // Refresh comments to get the real comment from server
+        await fetchComments();
+      } else {
+        throw new Error("Failed to create comment");
+      }
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      toast.error("Failed to add comment. Please try again.");
+      // Revert optimistic update on error
+      setComments(comments);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -250,11 +315,23 @@ export function PostDetailModal({
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     className="min-h-20"
+                    disabled={isSubmittingComment}
                   />
 
                   <div className="flex items-center justify-end">
-                    <Button className="bg-pink-600 hover:bg-pink-700">
-                      Comment
+                    <Button
+                      className="bg-pink-600 hover:bg-pink-700"
+                      onClick={handleSubmitComment}
+                      disabled={!comment.trim() || isSubmittingComment}
+                    >
+                      {isSubmittingComment ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        "Comment"
+                      )}
                     </Button>
                   </div>
                 </div>

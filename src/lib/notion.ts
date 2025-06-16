@@ -5,10 +5,11 @@ import type {
   PostStatus,
   FeedbackComment,
 } from "@/types/feedback";
+import { env } from "@/env";
 
 // Initialize Notion client
 export const notion = new Client({
-  auth: process.env.NOTION_API_KEY,
+  auth: env.NOTION_API_KEY,
 });
 
 // Type mapping from Notion to our types
@@ -189,7 +190,7 @@ function formatDate(dateString: string): string {
 export async function getFeedbackPosts(): Promise<FeedbackPost[]> {
   try {
     const response = await notion.databases.query({
-      database_id: process.env.NOTION_DATABASE_ID || "",
+      database_id: env.NOTION_DATABASE_ID || "",
       sorts: [
         {
           property: "Votes",
@@ -228,7 +229,7 @@ export async function createFeedbackPost(data: {
 
     const response = await notion.pages.create({
       parent: {
-        database_id: process.env.NOTION_DATABASE_ID || "",
+        database_id: env.NOTION_DATABASE_ID || "",
       },
       properties: {
         Title: {
@@ -296,5 +297,48 @@ export async function updateFeedbackPostVotes(
   } catch (error) {
     console.error("Error updating feedback post votes:", error);
     throw new Error("Failed to update votes");
+  }
+}
+
+/**
+ * Create a comment on a Notion page
+ */
+export async function createPageComment(
+  pageId: string,
+  content: string,
+  authorName: string
+): Promise<FeedbackComment> {
+  try {
+    const response = await notion.comments.create({
+      parent: {
+        page_id: pageId,
+      },
+      rich_text: [
+        {
+          text: {
+            content: content,
+          },
+        },
+      ],
+    });
+
+    // Type assertion for the response since Notion API types might not be fully typed
+    const comment = response as any;
+
+    return {
+      id: comment.id,
+      postId: pageId,
+      content: content,
+      author: authorName,
+      authorId: comment.created_by?.id,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        authorName
+      )}`,
+      createdAt: formatDate(comment.created_time || new Date().toISOString()),
+      notionBlockId: comment.id,
+    };
+  } catch (error) {
+    console.error("Error creating comment in Notion:", error);
+    throw new Error("Failed to create comment");
   }
 }

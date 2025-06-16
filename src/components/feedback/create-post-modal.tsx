@@ -104,6 +104,16 @@ export function CreatePostModal({
 
       if (result?.data?.success) {
         toast.success("Post created successfully! 🎉");
+
+        // Replace the optimistic post with the real post data
+        const realPost = result.data.data;
+        if (realPost) {
+          const updatedPosts = currentPosts.map((post) =>
+            post.id === optimisticPost.id ? realPost : post
+          );
+          onOptimisticUpdate(updatedPosts);
+        }
+
         // Reset form
         setTitle("");
         setContent("");
