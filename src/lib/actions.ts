@@ -7,6 +7,8 @@ import {
   createFeedbackPost,
   createPageComment,
   updateFeedbackPostVotes,
+  updateFeedbackPostInterests,
+  notion,
 } from "./notion";
 // Removed mockUser import - using actual user data from forms
 import type { PostType } from "@/types/feedback";
@@ -41,7 +43,6 @@ export const createPostAction = actionClient
         submitter: data.submitterEmail,
       });
 
-      console.log("newPost", newPost);
       // Revalidate the feedback page to show the new post
       revalidatePath("/");
       revalidatePath("/roadmap");
@@ -79,6 +80,9 @@ export const createCommentAction = actionClient
         avatar: data.authorAvatar,
       });
 
+      // Auto-subscribe user to the post
+      await autoSubscribeUserToPost(data.postId, data.authorEmail);
+
       // Revalidate the feedback page to show the new comment
       revalidatePath("/");
       revalidatePath("/roadmap");
@@ -97,6 +101,7 @@ export const createCommentAction = actionClient
 const votePostSchema = z.object({
   postId: z.string().min(1, "Post ID is required"),
   currentVotes: z.number().min(0, "Current votes must be a positive number"),
+  userEmail: z.string().email("Valid email is required"),
 });
 
 // Vote post action
@@ -107,6 +112,9 @@ export const votePostAction = actionClient
       // Update the vote count in Notion (increment by 1)
       const newVoteCount = data.currentVotes + 1;
       await updateFeedbackPostVotes(data.postId, newVoteCount);
+
+      // Auto-subscribe user to the post
+      await autoSubscribeUserToPost(data.postId, data.userEmail);
 
       // Revalidate the pages to show the updated vote count
       revalidatePath("/");
@@ -124,3 +132,138 @@ export const votePostAction = actionClient
       throw new Error("Failed to vote on post. Please try again.");
     }
   });
+
+// Schema for subscribing to post interests
+const subscribeToPostSchema = z.object({
+  postId: z.string().min(1, "Post ID is required"),
+  userEmail: z.string().email("Valid email is required"),
+  isSubscribing: z.boolean(),
+});
+
+// Subscribe to post action
+export const subscribeToPostAction = actionClient
+  .schema(subscribeToPostSchema)
+  .action(async ({ parsedInput: data }) => {
+    try {
+      // First, fetch the current post to get existing interests
+      const page = await notion.pages.retrieve({
+        page_id: data.postId,
+      });
+
+      // Extract current interests from the page
+      const properties = (page as any).properties;
+      const currentInterestsText =
+        properties.Interests?.rich_text?.[0]?.plain_text || "";
+
+      // Parse current interests
+      const currentInterests = currentInterestsText
+        .split(",")
+        .map((email: string) => email.trim())
+        .filter((email: string) => email.length > 0);
+
+      let updatedInterests: string[];
+
+      if (data.isSubscribing) {
+        // Add user email if not already present
+        if (!currentInterests.includes(data.userEmail)) {
+          updatedInterests = [...currentInterests, data.userEmail];
+        } else {
+          updatedInterests = currentInterests;
+        }
+      } else {
+        // Remove user email from interests
+        updatedInterests = currentInterests.filter(
+          (email: string) => email !== data.userEmail
+        );
+      }
+
+      // Update interests in Notion
+      await updateFeedbackPostInterests(data.postId, updatedInterests);
+
+      // Revalidate the pages to show the updated subscription status
+      revalidatePath("/");
+      revalidatePath("/roadmap");
+
+      return {
+        success: true,
+        data: {
+          postId: data.postId,
+          isSubscribed: updatedInterests.includes(data.userEmail),
+        },
+      };
+    } catch (error) {
+      console.error("Error updating post subscription:", error);
+      throw new Error("Failed to update subscription. Please try again.");
+    }
+  });
+
+// Schema for rating post importance
+const rateImportanceSchema = z.object({
+  postId: z.string().min(1, "Post ID is required"),
+  userEmail: z.string().email("Valid email is required"),
+  importance: z.enum([
+    "not-important",
+    "nice-to-have",
+    "important",
+    "essential",
+  ]),
+});
+
+// Rate importance action
+export const rateImportanceAction = actionClient
+  .schema(rateImportanceSchema)
+  .action(async ({ parsedInput: data }) => {
+    try {
+      // Auto-subscribe user to the post when they rate importance
+      await autoSubscribeUserToPost(data.postId, data.userEmail);
+
+      // Note: We're not storing the importance rating in Notion for now
+      // This could be extended to store ratings in a separate property
+
+      return {
+        success: true,
+        data: {
+          postId: data.postId,
+          importance: data.importance,
+        },
+      };
+    } catch (error) {
+      console.error("Error rating post importance:", error);
+      throw new Error("Failed to rate post importance. Please try again.");
+    }
+  });
+
+/**
+ * Helper function to automatically add user to interests when they interact with a post
+ */
+async function autoSubscribeUserToPost(
+  postId: string,
+  userEmail: string
+): Promise<void> {
+  try {
+    // Fetch the current post to get existing interests
+    const page = await notion.pages.retrieve({
+      page_id: postId,
+    });
+
+    // Extract current interests from the page
+    const properties = (page as any).properties;
+    const currentInterestsText =
+      properties.Interests?.rich_text?.[0]?.plain_text || "";
+
+    // Parse current interests
+    const currentInterests = currentInterestsText
+      .split(",")
+      .map((email: string) => email.trim())
+      .filter((email: string) => email.length > 0);
+
+    // Add user email if not already present
+    if (!currentInterests.includes(userEmail)) {
+      const updatedInterests = [...currentInterests, userEmail];
+      await updateFeedbackPostInterests(postId, updatedInterests);
+    }
+  } catch (error) {
+    console.error("Error auto-subscribing user to post:", error);
+    // Don't throw error as this is a background operation
+  }
+}

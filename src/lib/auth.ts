@@ -58,3 +58,10 @@ export function clearUserCookie(): void {
 export function isAuthenticated(): boolean {
   return getUserCookie() !== null;
 }
+
+/**
+ * Get the user cookie key for server-side access
+ */
+export function getUserCookieKey(): string {
+  return USER_COOKIE_KEY;
+}
