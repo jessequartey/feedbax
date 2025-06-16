@@ -35,10 +35,8 @@ function AuthPageContent() {
       };
 
       // Add a small delay to show loading state
-      setTimeout(() => {
-        setUserCookie(user);
-        router.push("/");
-      }, 1000);
+      setUserCookie(user);
+      router.push("/");
       return;
     }
 
