@@ -19,6 +19,7 @@ import {
 import type { FeedbackPost } from "@/types/feedback";
 import { PostCard } from "./post-card";
 import { useState, useCallback, useMemo } from "react";
+import { useVoting } from "@/lib/hooks/use-voting";
 
 /**
  * FeedbackList Component Props
@@ -67,6 +68,10 @@ export function FeedbackList({
   // Local state for search functionality
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredPosts, setFilteredPosts] = useState(posts);
+
+  // Voting hook
+  const { hasVoted, voteOnPost, isVotingOnPost, getOptimisticVoteCount } =
+    useVoting();
 
   // Filter posts based on search query
   const handleSearch = useCallback(
@@ -154,6 +159,17 @@ export function FeedbackList({
     setSearchQuery("");
     setFilteredPosts(posts);
   }, [posts]);
+
+  // Handle upvote
+  const handleUpvote = useCallback(
+    async (postId: string) => {
+      const post = posts.find((p) => p.id === postId);
+      if (post) {
+        await voteOnPost(post);
+      }
+    },
+    [posts, voteOnPost]
+  );
 
   if (isLoading) {
     return (
@@ -271,7 +287,13 @@ export function FeedbackList({
         {filteredPosts.length > 0 ? (
           filteredPosts.map((post) => (
             <div key={post.id} role="listitem">
-              <PostCard post={post} onClick={() => onPostClick(post)} />
+              <PostCard
+                post={{ ...post, upvotes: getOptimisticVoteCount(post) }}
+                onClick={() => onPostClick(post)}
+                onUpvote={handleUpvote}
+                isUpvoted={hasVoted(post.id)}
+                upvoteDisabled={isVotingOnPost(post.id)}
+              />
             </div>
           ))
         ) : (

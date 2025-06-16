@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/collapsible";
 import { createCommentAction } from "@/lib/actions";
 import { useAuth } from "@/lib/use-auth";
+import { useVoting } from "@/lib/hooks/use-voting";
 import { toast } from "sonner";
 import type {
   FeedbackPost,
@@ -71,7 +72,8 @@ export function PostDetailModal({
   onClose,
 }: PostDetailModalProps) {
   const { user } = useAuth();
-  const [isUpvoted, setIsUpvoted] = useState(false);
+  const { hasVoted, voteOnPost, isVotingOnPost, getOptimisticVoteCount } =
+    useVoting();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<FeedbackComment[]>([]);
@@ -450,30 +452,25 @@ export function PostDetailModal({
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-2">
                 <Button
-                  variant={isUpvoted ? "default" : "outline"}
+                  variant={hasVoted(post.id) ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setIsUpvoted(!isUpvoted)}
+                  onClick={async () => {
+                    await voteOnPost(post);
+                  }}
+                  disabled={isVotingOnPost(post.id)}
                   className="flex items-center space-x-1"
                 >
-                  <ChevronUp className="h-4 w-4" />
-                  <span>
-                    {formatNumber(post.upvotes + (isUpvoted ? 1 : 0))}
-                  </span>
+                  {isVotingOnPost(post.id) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4" />
+                  )}
+                  <span>{formatNumber(getOptimisticVoteCount(post))}</span>
                 </Button>
               </div>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <span className="text-sm text-muted-foreground">Upvoters</span>
-                <div className="flex items-center space-x-1 mt-1">
-                  <ChevronUp className="h-4 w-4 text-pink-500" />
-                  <span className="font-medium">
-                    {formatNumber(post.upvotes)}
-                  </span>
-                </div>
-              </div>
-
               <div>
                 <span className="text-sm text-muted-foreground">Status</span>
                 <div className="mt-1">

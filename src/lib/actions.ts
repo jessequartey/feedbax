@@ -3,7 +3,11 @@
 import { createSafeActionClient } from "next-safe-action";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { createFeedbackPost, createPageComment } from "./notion";
+import {
+  createFeedbackPost,
+  createPageComment,
+  updateFeedbackPostVotes,
+} from "./notion";
 // Removed mockUser import - using actual user data from forms
 import type { PostType } from "@/types/feedback";
 
@@ -86,5 +90,37 @@ export const createCommentAction = actionClient
     } catch (error) {
       console.error("Error creating comment:", error);
       throw new Error("Failed to create comment. Please try again.");
+    }
+  });
+
+// Schema for voting on a post
+const votePostSchema = z.object({
+  postId: z.string().min(1, "Post ID is required"),
+  currentVotes: z.number().min(0, "Current votes must be a positive number"),
+});
+
+// Vote post action
+export const votePostAction = actionClient
+  .schema(votePostSchema)
+  .action(async ({ parsedInput: data }) => {
+    try {
+      // Update the vote count in Notion (increment by 1)
+      const newVoteCount = data.currentVotes + 1;
+      await updateFeedbackPostVotes(data.postId, newVoteCount);
+
+      // Revalidate the pages to show the updated vote count
+      revalidatePath("/");
+      revalidatePath("/roadmap");
+
+      return {
+        success: true,
+        data: {
+          postId: data.postId,
+          newVoteCount,
+        },
+      };
+    } catch (error) {
+      console.error("Error voting on post:", error);
+      throw new Error("Failed to vote on post. Please try again.");
     }
   });
