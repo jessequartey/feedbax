@@ -231,7 +231,9 @@ export function ChangelogBoard() {
                 <p>
                   Track all the latest updates, new features, and bug fixes.
                 </p>
-                <p>We're constantly improving Syllax based on your feedback!</p>
+                <p>
+                  We&apos;re constantly improving Syllax based on your feedback!
+                </p>
               </div>
             </div>
 
@@ -283,12 +285,13 @@ export function ChangelogBoard() {
             {searchQuery && (
               <div className="text-sm text-muted-foreground mb-4">
                 {filteredEntries.length === 0 ? (
-                  <span>No entries found for "{searchQuery}"</span>
+                  <span>No entries found for &quot;{searchQuery}&quot;</span>
                 ) : (
                   <span>
                     {filteredEntries.length} entr
-                    {filteredEntries.length !== 1 ? "ies" : "y"} found for "
-                    {searchQuery}"
+                    {filteredEntries.length !== 1 ? "ies" : "y"} found for
+                    &quot;
+                    {searchQuery}&quot;
                   </span>
                 )}
               </div>

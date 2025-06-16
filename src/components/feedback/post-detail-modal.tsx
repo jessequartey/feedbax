@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ChevronUp,
   MessageSquare,
@@ -13,6 +13,8 @@ import {
   Lightbulb,
   Bug,
   Zap,
+  Loader2,
+  Shield,
 } from "lucide-react";
 import {
   Dialog,
@@ -30,43 +32,21 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { FeedbackPost, PostStatus, PostType } from "@/types/feedback";
+import { createCommentAction } from "@/lib/actions";
+import { mockUser } from "@/types/user";
+import { toast } from "sonner";
+import type {
+  FeedbackPost,
+  PostStatus,
+  PostType,
+  FeedbackComment,
+} from "@/types/feedback";
 
 interface PostDetailModalProps {
   post: FeedbackPost;
   isOpen: boolean;
   onClose: () => void;
 }
-
-interface Comment {
-  id: string;
-  author: string;
-  avatar: string;
-  content: string;
-  createdAt: string;
-  likes: number;
-}
-
-const mockComments: Comment[] = [
-  {
-    id: "1",
-    author: "Emerald Geyser",
-    avatar: "/placeholder.svg?height=32&width=32",
-    content:
-      "This would probably be the biggest win for me. I will often use the ChatGPT app both for quick tasks on the go as well as asking the question in the app when away from my computer and then returning to it on desktop when I get back to my computer. Not having a mobile app is the biggest thing that is keeping me using ChatGPT on the daily. As soon as a T3 app is available I will be able to switch full time to T3. I even went as far as trying to make my own using expo as a wrapper but failed due to Auth.",
-    createdAt: "4 months ago",
-    likes: 45,
-  },
-  {
-    id: "2",
-    author: "Tomato Astrometry",
-    avatar: "/placeholder.svg?height=32&width=32",
-    content:
-      "I don't really get what's the benefit of a standalone mobile app over just a PWA in this case. You could just install the app to your home screen and if you guys fix some of the bugs and adjust some UI things here and there that would be like 95% of what an app would offer as",
-    createdAt: "4 months ago",
-    likes: 12,
-  },
-];
 
 const getStatusColor = (status: PostStatus) => {
   switch (status) {
@@ -93,9 +73,38 @@ export function PostDetailModal({
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [comment, setComment] = useState("");
+  const [comments, setComments] = useState<FeedbackComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [importance, setImportance] = useState<
     "not-important" | "nice-to-have" | "important" | "essential" | null
   >(null);
+
+  // Fetch comments when modal opens
+  useEffect(() => {
+    if (isOpen && post.notionPageId) {
+      fetchComments();
+    }
+  }, [isOpen, post.notionPageId]);
+
+  const fetchComments = async () => {
+    if (!post.notionPageId) return;
+
+    setIsLoadingComments(true);
+    try {
+      const response = await fetch(`/api/comments/${post.notionPageId}`);
+      if (response.ok) {
+        const data = (await response.json()) as { comments: FeedbackComment[] };
+        setComments(data.comments);
+      } else {
+        console.error("Failed to fetch comments:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
 
   const formatNumber = (num: number) => {
     if (num >= 1000) {
@@ -133,6 +142,68 @@ export function PostDetailModal({
         return Lightbulb;
     }
   }, [post.type]);
+
+  const handleSubmitComment = async () => {
+    if (!comment.trim()) {
+      toast.error("Please enter a comment");
+      return;
+    }
+
+    if (comment.trim().length > 2000) {
+      toast.error("Comment must be less than 2000 characters");
+      return;
+    }
+
+    if (!post.notionPageId) {
+      toast.error("Cannot add comment to this post");
+      return;
+    }
+
+    setIsSubmittingComment(true);
+
+    const commentData = {
+      postId: post.notionPageId,
+      content: comment.trim(),
+      authorName: mockUser.name,
+      authorEmail: mockUser.email,
+      authorAvatar: mockUser.image,
+    };
+
+    // Create optimistic comment
+    const optimisticComment: FeedbackComment = {
+      id: `temp-${Date.now()}`,
+      postId: post.notionPageId,
+      content: commentData.content,
+      author: commentData.authorName,
+      authorId: mockUser.email,
+      avatar: mockUser.image,
+      createdAt: "Just now",
+    };
+
+    // Add optimistic comment to the list
+    const updatedComments = [optimisticComment, ...comments];
+    setComments(updatedComments);
+
+    try {
+      const result = await createCommentAction(commentData);
+
+      if (result?.data?.success) {
+        toast.success("Comment added successfully! 💬");
+        setComment("");
+        // Refresh comments to get the real comment from server
+        await fetchComments();
+      } else {
+        throw new Error("Failed to create comment");
+      }
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      toast.error("Failed to add comment. Please try again.");
+      // Revert optimistic update on error
+      setComments(comments);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -247,11 +318,23 @@ export function PostDetailModal({
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
                     className="min-h-20"
+                    disabled={isSubmittingComment}
                   />
 
                   <div className="flex items-center justify-end">
-                    <Button className="bg-pink-600 hover:bg-pink-700">
-                      Comment
+                    <Button
+                      className="bg-pink-600 hover:bg-pink-700"
+                      onClick={handleSubmitComment}
+                      disabled={!comment.trim() || isSubmittingComment}
+                    >
+                      {isSubmittingComment ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        "Comment"
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -262,64 +345,93 @@ export function PostDetailModal({
                     <TabsTrigger value="comments">
                       Comments{" "}
                       <Badge variant="secondary" className="ml-2">
-                        50
+                        {comments.length}
                       </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="activity">Activity feed</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="comments" className="space-y-4 mt-4">
-                    <div className="text-sm text-muted-foreground mb-4">
-                      Top comments
-                    </div>
-                    {mockComments.map((comment) => (
-                      <div key={comment.id} className="space-y-3">
-                        <div className="flex items-start space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={comment.avatar || "/placeholder.svg"}
-                            />
-                            <AvatarFallback>{comment.author[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium text-sm">
-                                {comment.author}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {comment.createdAt}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-2">
-                              {comment.content}
-                            </p>
-                            <div className="flex items-center space-x-4">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                              >
-                                <ThumbsUp className="h-3 w-3 mr-1" />
-                                {comment.likes}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                              >
-                                <Reply className="h-3 w-3 mr-1" />
-                                Reply
-                              </Button>
-                            </div>
-                          </div>
+                    {isLoadingComments ? (
+                      <div className="text-center py-4">
+                        <div className="text-sm text-muted-foreground">
+                          Loading comments...
                         </div>
                       </div>
-                    ))}
+                    ) : comments.length > 0 ? (
+                      <div className="space-y-4">
+                        {comments.map((comment) => (
+                          <div
+                            key={comment.id}
+                            className={`flex items-start space-x-3 p-4 border rounded-lg ${
+                              comment.isAuthorResponse
+                                ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20"
+                                : ""
+                            }`}
+                          >
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={comment.avatar} />
+                              <AvatarFallback>
+                                {comment.isAuthorResponse ? (
+                                  <Shield className="h-4 w-4 text-blue-600" />
+                                ) : (
+                                  comment.author[0]
+                                )}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-sm">
+                                  {comment.author}
+                                </span>
+                                {comment.isAuthorResponse && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                                  >
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Admin
+                                  </Badge>
+                                )}
+                                <span className="text-xs text-muted-foreground">
+                                  {comment.createdAt}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {comment.content}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium mb-2">
+                          No comments yet
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Be the first to share your thoughts on this feedback.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            document.querySelector("textarea")?.focus()
+                          }
+                        >
+                          Write the first comment
+                        </Button>
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="activity">
-                    <div className="text-sm text-muted-foreground">
-                      Activity feed content...
+                    <div className="text-center py-8">
+                      <div className="text-sm text-muted-foreground">
+                        Activity feed will show status changes, updates, and
+                        other events.
+                      </div>
                     </div>
                   </TabsContent>
                 </Tabs>

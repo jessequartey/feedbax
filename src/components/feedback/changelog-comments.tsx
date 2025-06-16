@@ -1,27 +1,32 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { MessageSquare, ThumbsUp, Reply, Send } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { useState } from "react";
+import { MessageSquare, ThumbsUp, Reply, Send } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Comment {
-  id: string
-  author: string
-  avatar: string
-  content: string
-  createdAt: string
-  likes: number
-  replies?: Comment[]
+  id: string;
+  author: string;
+  avatar: string;
+  content: string;
+  createdAt: string;
+  likes: number;
+  replies?: Comment[];
 }
 
 interface ChangelogCommentsProps {
-  entryId: string
-  isOpen: boolean
-  onClose: () => void
+  entryId: string;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const mockComments: Comment[] = [
@@ -72,29 +77,29 @@ const mockComments: Comment[] = [
     createdAt: "8 hours ago",
     likes: 6,
   },
-]
+];
 
-export function ChangelogComments({ entryId, isOpen, onClose }: ChangelogCommentsProps) {
-  const [newComment, setNewComment] = useState("")
-  const [replyTo, setReplyTo] = useState<string | null>(null)
-  const [replyContent, setReplyContent] = useState("")
+export function ChangelogComments({ isOpen, onClose }: ChangelogCommentsProps) {
+  const [newComment, setNewComment] = useState("");
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState("");
 
   const handleSubmitComment = () => {
     if (newComment.trim()) {
       // Handle comment submission
-      console.log("New comment:", newComment)
-      setNewComment("")
+      console.log("New comment:", newComment);
+      setNewComment("");
     }
-  }
+  };
 
   const handleSubmitReply = (commentId: string) => {
     if (replyContent.trim()) {
       // Handle reply submission
-      console.log("Reply to", commentId, ":", replyContent)
-      setReplyContent("")
-      setReplyTo(null)
+      console.log("Reply to", commentId, ":", replyContent);
+      setReplyContent("");
+      setReplyTo(null);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -116,7 +121,10 @@ export function ChangelogComments({ entryId, isOpen, onClose }: ChangelogComment
               className="min-h-20"
             />
             <div className="flex justify-end">
-              <Button onClick={handleSubmitComment} disabled={!newComment.trim()}>
+              <Button
+                onClick={handleSubmitComment}
+                disabled={!newComment.trim()}
+              >
                 <Send className="h-4 w-4 mr-2" />
                 Post Comment
               </Button>
@@ -135,12 +143,22 @@ export function ChangelogComments({ entryId, isOpen, onClose }: ChangelogComment
                     </Avatar>
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium text-sm">{comment.author}</span>
-                        <span className="text-xs text-muted-foreground">{comment.createdAt}</span>
+                        <span className="font-medium text-sm">
+                          {comment.author}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {comment.createdAt}
+                        </span>
                       </div>
-                      <p className="text-sm text-muted-foreground">{comment.content}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {comment.content}
+                      </p>
                       <div className="flex items-center space-x-4">
-                        <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-xs"
+                        >
                           <ThumbsUp className="h-3 w-3 mr-1" />
                           {comment.likes}
                         </Button>
@@ -165,7 +183,11 @@ export function ChangelogComments({ entryId, isOpen, onClose }: ChangelogComment
                             className="min-h-16 text-sm"
                           />
                           <div className="flex justify-end space-x-2">
-                            <Button variant="ghost" size="sm" onClick={() => setReplyTo(null)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReplyTo(null)}
+                            >
                               Cancel
                             </Button>
                             <Button
@@ -183,18 +205,35 @@ export function ChangelogComments({ entryId, isOpen, onClose }: ChangelogComment
                       {comment.replies && comment.replies.length > 0 && (
                         <div className="ml-4 space-y-3 border-l-2 border-border pl-4">
                           {comment.replies.map((reply) => (
-                            <div key={reply.id} className="flex items-start space-x-3">
+                            <div
+                              key={reply.id}
+                              className="flex items-start space-x-3"
+                            >
                               <Avatar className="h-6 w-6">
-                                <AvatarImage src={reply.avatar || "/placeholder.svg"} />
-                                <AvatarFallback>{reply.author[0]}</AvatarFallback>
+                                <AvatarImage
+                                  src={reply.avatar || "/placeholder.svg"}
+                                />
+                                <AvatarFallback>
+                                  {reply.author[0]}
+                                </AvatarFallback>
                               </Avatar>
                               <div className="flex-1 space-y-1">
                                 <div className="flex items-center space-x-2">
-                                  <span className="font-medium text-xs">{reply.author}</span>
-                                  <span className="text-xs text-muted-foreground">{reply.createdAt}</span>
+                                  <span className="font-medium text-xs">
+                                    {reply.author}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {reply.createdAt}
+                                  </span>
                                 </div>
-                                <p className="text-xs text-muted-foreground">{reply.content}</p>
-                                <Button variant="ghost" size="sm" className="h-auto p-0 text-xs">
+                                <p className="text-xs text-muted-foreground">
+                                  {reply.content}
+                                </p>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-auto p-0 text-xs"
+                                >
                                   <ThumbsUp className="h-3 w-3 mr-1" />
                                   {reply.likes}
                                 </Button>
@@ -212,5 +251,5 @@ export function ChangelogComments({ entryId, isOpen, onClose }: ChangelogComment
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
