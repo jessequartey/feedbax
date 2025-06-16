@@ -38,36 +38,6 @@ interface PostDetailModalProps {
   onClose: () => void;
 }
 
-interface Comment {
-  id: string;
-  author: string;
-  avatar: string;
-  content: string;
-  createdAt: string;
-  likes: number;
-}
-
-const mockComments: Comment[] = [
-  {
-    id: "1",
-    author: "Emerald Geyser",
-    avatar: "/placeholder.svg?height=32&width=32",
-    content:
-      "This would probably be the biggest win for me. I will often use the ChatGPT app both for quick tasks on the go as well as asking the question in the app when away from my computer and then returning to it on desktop when I get back to my computer. Not having a mobile app is the biggest thing that is keeping me using ChatGPT on the daily. As soon as a T3 app is available I will be able to switch full time to T3. I even went as far as trying to make my own using expo as a wrapper but failed due to Auth.",
-    createdAt: "4 months ago",
-    likes: 45,
-  },
-  {
-    id: "2",
-    author: "Tomato Astrometry",
-    avatar: "/placeholder.svg?height=32&width=32",
-    content:
-      "I don't really get what's the benefit of a standalone mobile app over just a PWA in this case. You could just install the app to your home screen and if you guys fix some of the bugs and adjust some UI things here and there that would be like 95% of what an app would offer as",
-    createdAt: "4 months ago",
-    likes: 12,
-  },
-];
-
 const getStatusColor = (status: PostStatus) => {
   switch (status) {
     case "backlog":
@@ -262,64 +232,45 @@ export function PostDetailModal({
                     <TabsTrigger value="comments">
                       Comments{" "}
                       <Badge variant="secondary" className="ml-2">
-                        50
+                        {post.comments}
                       </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="activity">Activity feed</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="comments" className="space-y-4 mt-4">
-                    <div className="text-sm text-muted-foreground mb-4">
-                      Top comments
-                    </div>
-                    {mockComments.map((comment) => (
-                      <div key={comment.id} className="space-y-3">
-                        <div className="flex items-start space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={comment.avatar || "/placeholder.svg"}
-                            />
-                            <AvatarFallback>{comment.author[0]}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="font-medium text-sm">
-                                {comment.author}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {comment.createdAt}
-                              </span>
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-2">
-                              {comment.content}
-                            </p>
-                            <div className="flex items-center space-x-4">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                              >
-                                <ThumbsUp className="h-3 w-3 mr-1" />
-                                {comment.likes}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-0 text-xs"
-                              >
-                                <Reply className="h-3 w-3 mr-1" />
-                                Reply
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
+                    {post.comments > 0 ? (
+                      <div className="text-sm text-muted-foreground mb-4">
+                        Comments will be integrated with Notion soon...
                       </div>
-                    ))}
+                    ) : (
+                      <div className="text-center py-8">
+                        <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium mb-2">
+                          No comments yet
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Be the first to share your thoughts on this feedback.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            document.querySelector("textarea")?.focus()
+                          }
+                        >
+                          Write the first comment
+                        </Button>
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="activity">
-                    <div className="text-sm text-muted-foreground">
-                      Activity feed content...
+                    <div className="text-center py-8">
+                      <div className="text-sm text-muted-foreground">
+                        Activity feed will show status changes, updates, and
+                        other events.
+                      </div>
                     </div>
                   </TabsContent>
                 </Tabs>

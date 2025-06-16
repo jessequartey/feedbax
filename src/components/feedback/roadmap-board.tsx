@@ -7,15 +7,18 @@ import { PostDetailModal } from "./post-detail-modal";
 import { RoadmapColumn } from "./roadmap-column";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { FeedbackPost } from "./feedback-board";
-import { feedbackPosts } from "@/content/feedback-content";
+import type { FeedbackPost } from "@/types/feedback";
 
-export function RoadmapBoard() {
+interface RoadmapBoardProps {
+  initialPosts: FeedbackPost[];
+}
+
+export function RoadmapBoard({ initialPosts }: RoadmapBoardProps) {
   const [selectedPost, setSelectedPost] = useState<FeedbackPost | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const getPostsByStatus = (status: string) => {
-    return feedbackPosts.filter((post) => {
+    return initialPosts.filter((post) => {
       const matchesStatus = post.status === status;
       const matchesSearch =
         post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||

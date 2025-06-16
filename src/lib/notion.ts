@@ -43,8 +43,9 @@ export function transformNotionPageToFeedbackPost(page: any): FeedbackPost {
   const notionStatus = properties.Status?.status?.name || "Backlog";
   const status = statusMapping[notionStatus] || "backlog";
 
-  // Extract votes
-  const upvotes = properties.Votes?.number || 0;
+  // Extract votes - handle both number and null cases
+  const upvotes =
+    typeof properties.Votes?.number === "number" ? properties.Votes.number : 0;
 
   // Extract submitter email or use default
   const submitterEmail =
@@ -53,10 +54,16 @@ export function transformNotionPageToFeedbackPost(page: any): FeedbackPost {
     "";
   const author = submitterEmail || "Anonymous";
 
-  // Extract dates
-  const createdAt = properties["Created At"]?.created_time || page.created_time;
+  // Extract dates with better fallback handling
+  const createdAt =
+    properties["Created At"]?.created_time ||
+    properties.splv?.created_time || // fallback to property ID
+    page.created_time;
+
   const updatedAt =
-    properties["Updated At"]?.date?.start || page.last_edited_time;
+    properties["Updated At"]?.date?.start ||
+    properties.ZIRF?.date?.start || // fallback to property ID
+    page.last_edited_time;
 
   // Generate avatar URL (using a placeholder service)
   const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
@@ -85,12 +92,26 @@ export function transformNotionPageToFeedbackPost(page: any): FeedbackPost {
  * Format date to relative time string
  */
 function formatDate(dateString: string): string {
+  if (!dateString) return "Unknown";
+
   const date = new Date(dateString);
+
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    console.warn("Invalid date string:", dateString);
+    return "Unknown";
+  }
+
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
 
-  if (diffInDays === 0) {
+  if (diffInHours < 1) {
+    return "Just now";
+  } else if (diffInHours < 24) {
+    return diffInHours === 1 ? "1 hour ago" : `${diffInHours} hours ago`;
+  } else if (diffInDays === 0) {
     return "Today";
   } else if (diffInDays === 1) {
     return "1 day ago";
