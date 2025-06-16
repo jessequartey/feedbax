@@ -33,7 +33,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { createCommentAction } from "@/lib/actions";
-import { mockUser } from "@/types/user";
+import { useAuth } from "@/lib/use-auth";
 import { toast } from "sonner";
 import type {
   FeedbackPost,
@@ -70,6 +70,7 @@ export function PostDetailModal({
   isOpen,
   onClose,
 }: PostDetailModalProps) {
+  const { user } = useAuth();
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [comment, setComment] = useState("");
@@ -144,6 +145,11 @@ export function PostDetailModal({
   }, [post.type]);
 
   const handleSubmitComment = async () => {
+    if (!user) {
+      toast.error("Please sign in to comment");
+      return;
+    }
+
     if (!comment.trim()) {
       toast.error("Please enter a comment");
       return;
@@ -164,9 +170,9 @@ export function PostDetailModal({
     const commentData = {
       postId: post.notionPageId,
       content: comment.trim(),
-      authorName: mockUser.name,
-      authorEmail: mockUser.email,
-      authorAvatar: mockUser.image,
+      authorName: user.name,
+      authorEmail: user.email,
+      authorAvatar: user.image || "",
     };
 
     // Create optimistic comment
@@ -175,8 +181,8 @@ export function PostDetailModal({
       postId: post.notionPageId,
       content: commentData.content,
       author: commentData.authorName,
-      authorId: mockUser.email,
-      avatar: mockUser.image,
+      authorId: user.email,
+      avatar: user.image || undefined,
       createdAt: "Just now",
     };
 

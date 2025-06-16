@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createPostAction } from "@/lib/actions";
-import { mockUser } from "@/types/user";
+import { useAuth } from "@/lib/use-auth";
 import { toast } from "sonner";
 import type { PostType, FeedbackPost } from "@/types/feedback";
 
@@ -37,6 +37,7 @@ export function CreatePostModal({
   currentPosts,
   onOptimisticUpdate,
 }: CreatePostModalProps) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [postType, setPostType] = useState<PostType>("feature");
@@ -45,6 +46,8 @@ export function CreatePostModal({
 
   const handleOptimisticPost = useCallback(
     (newPostData: { title: string; description: string; type: PostType }) => {
+      if (!user) return null;
+
       // Create optimistic post
       const optimisticPost: FeedbackPost = {
         id: `temp-${Date.now()}`, // Temporary ID
@@ -55,9 +58,9 @@ export function CreatePostModal({
         upvotes: 1, // Start with 1 vote as per requirement
         downvotes: 0,
         comments: 0,
-        author: mockUser.name,
-        authorId: mockUser.email,
-        avatar: mockUser.image,
+        author: user.name,
+        authorId: user.email,
+        avatar: user.image || "",
         createdAt: "Just now",
         updatedAt: "Just now",
         tags: [],
@@ -67,10 +70,15 @@ export function CreatePostModal({
       onOptimisticUpdate(updatedPosts);
       return optimisticPost;
     },
-    [currentPosts, onOptimisticUpdate]
+    [currentPosts, onOptimisticUpdate, user]
   );
 
   const handleSubmit = async () => {
+    if (!user) {
+      toast.error("Please sign in to create a post");
+      return;
+    }
+
     // Client-side validation - title is required, description is optional
     if (!title.trim()) {
       toast.error("Please enter a title for your post");
@@ -93,10 +101,16 @@ export function CreatePostModal({
       title: title.trim(),
       description: content.trim() || "No description provided",
       type: postType,
+      submitterEmail: user.email,
     };
 
     // Create optimistic post
     const optimisticPost = handleOptimisticPost(postData);
+
+    if (!optimisticPost) {
+      setIsPending(false);
+      return;
+    }
 
     try {
       // Execute the server action
@@ -138,10 +152,12 @@ export function CreatePostModal({
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <DialogTitle className="sr-only">Create New Post</DialogTitle>
           <div className="flex items-center space-x-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={mockUser.image} alt={mockUser.name} />
-              <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
-            </Avatar>
+            {user && (
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user.image} alt={user.name} />
+                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+              </Avatar>
+            )}
             <Select
               value={postType}
               onValueChange={(value: PostType) => setPostType(value)}
