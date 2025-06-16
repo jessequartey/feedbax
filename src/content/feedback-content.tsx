@@ -121,6 +121,34 @@ export const feedbackPosts: FeedbackPost[] = [
     createdAt: "2 days ago",
     tags: ["documentation"],
   },
+  {
+    id: "9",
+    title: "Mobile Responsive Issues",
+    description:
+      "The sidebar doesn't collapse properly on mobile devices and some buttons are too small to tap easily.",
+    type: "bug",
+    status: "next-up",
+    upvotes: 15,
+    comments: 3,
+    author: "Sarah Chen",
+    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Sarah%20Chen",
+    createdAt: "1 day ago",
+    tags: ["mobile", "ui", "responsive"],
+  },
+  {
+    id: "10",
+    title: "Search Function Not Working",
+    description:
+      "When typing in the search box, no results are returned even for exact matches. The search seems to be broken.",
+    type: "bug",
+    status: "in-progress",
+    upvotes: 22,
+    comments: 5,
+    author: "Mike Johnson",
+    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Mike%20Johnson",
+    createdAt: "3 hours ago",
+    tags: ["search", "functionality"],
+  },
 ];
 
 export const roadmapItems = {
