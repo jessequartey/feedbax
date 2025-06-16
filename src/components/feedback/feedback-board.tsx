@@ -7,9 +7,12 @@ import { FeedbackList } from "./feedback-list";
 import { CreatePostModal } from "./create-post-modal";
 import { PostDetailModal } from "./post-detail-modal";
 import { FeedbackWelcome } from "./feedback-welcome";
-import { feedbackPosts } from "@/content/feedback-content";
 import { Badge } from "@/components/ui/badge";
 import type { FeedbackPost, PostType, PostStatus } from "@/types/feedback";
+
+interface FeedbackBoardProps {
+  initialPosts: FeedbackPost[];
+}
 
 /**
  * FeedbackBoard Component
@@ -26,9 +29,9 @@ import type { FeedbackPost, PostType, PostStatus } from "@/types/feedback";
  *
  * @returns JSX.Element The feedback board interface
  */
-export function FeedbackBoard() {
+export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
   // State management
-  const [posts] = useState<FeedbackPost[]>(feedbackPosts);
+  const [posts] = useState<FeedbackPost[]>(initialPosts);
   const [selectedBoard, setSelectedBoard] = useState<"all" | "feature" | "bug">(
     "all"
   );
