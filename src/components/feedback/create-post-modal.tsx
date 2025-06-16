@@ -108,7 +108,7 @@ export function CreatePostModal({
         // Replace the optimistic post with the real post data
         const realPost = result.data.data;
         if (realPost) {
-          const updatedPosts = currentPosts.map((post) =>
+          const updatedPosts = [optimisticPost, ...currentPosts].map((post) =>
             post.id === optimisticPost.id ? realPost : post
           );
           onOptimisticUpdate(updatedPosts);

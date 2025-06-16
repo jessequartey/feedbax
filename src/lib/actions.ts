@@ -59,6 +59,8 @@ const createCommentSchema = z.object({
     .min(1, "Comment content is required")
     .max(2000, "Comment must be less than 2000 characters"),
   authorName: z.string().min(1, "Author name is required"),
+  authorEmail: z.string().email("Valid email is required"),
+  authorAvatar: z.string().url("Valid avatar URL is required"),
 });
 
 // Create comment action
@@ -69,7 +71,11 @@ export const createCommentAction = actionClient
       const newComment = await createPageComment(
         data.postId,
         data.content,
-        data.authorName
+        {
+          name: data.authorName,
+          email: data.authorEmail,
+          avatar: data.authorAvatar,
+        }
       );
 
       // Revalidate the feedback page to show the new comment

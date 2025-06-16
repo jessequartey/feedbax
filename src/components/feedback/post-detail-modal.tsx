@@ -14,6 +14,7 @@ import {
   Bug,
   Zap,
   Loader2,
+  Shield,
 } from "lucide-react";
 import {
   Dialog,
@@ -164,6 +165,8 @@ export function PostDetailModal({
       postId: post.notionPageId,
       content: comment.trim(),
       authorName: mockUser.name,
+      authorEmail: mockUser.email,
+      authorAvatar: mockUser.image,
     };
 
     // Create optimistic comment
@@ -360,12 +363,20 @@ export function PostDetailModal({
                         {comments.map((comment) => (
                           <div
                             key={comment.id}
-                            className="flex items-start space-x-3 p-4 border rounded-lg"
+                            className={`flex items-start space-x-3 p-4 border rounded-lg ${
+                              comment.isAuthorResponse
+                                ? "border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20"
+                                : ""
+                            }`}
                           >
                             <Avatar className="h-8 w-8">
                               <AvatarImage src={comment.avatar} />
                               <AvatarFallback>
-                                {comment.author[0]}
+                                {comment.isAuthorResponse ? (
+                                  <Shield className="h-4 w-4 text-blue-600" />
+                                ) : (
+                                  comment.author[0]
+                                )}
                               </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 space-y-2">
@@ -373,6 +384,15 @@ export function PostDetailModal({
                                 <span className="font-medium text-sm">
                                   {comment.author}
                                 </span>
+                                {comment.isAuthorResponse && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                                  >
+                                    <Shield className="h-3 w-3 mr-1" />
+                                    Admin
+                                  </Badge>
+                                )}
                                 <span className="text-xs text-muted-foreground">
                                   {comment.createdAt}
                                 </span>

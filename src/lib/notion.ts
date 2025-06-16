@@ -55,21 +55,55 @@ export async function getPageComments(
       block_id: pageId,
     });
 
-    return response.results.map((comment: any) => ({
-      id: comment.id,
-      postId: pageId,
-      content: comment.rich_text?.[0]?.plain_text || "",
-      author: comment.created_by?.name || "Anonymous",
-      authorId: comment.created_by?.id,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-        comment.created_by?.name || "Anonymous"
-      )}`,
-      createdAt: formatDate(comment.created_time),
-      updatedAt: comment.last_edited_time
-        ? formatDate(comment.last_edited_time)
-        : undefined,
-      notionBlockId: comment.id,
-    }));
+    return response.results.map((comment: any) => {
+      const fullContent = comment.rich_text?.[0]?.plain_text || "";
+
+      // Parse embedded user metadata
+      const metadataMatch = fullContent.match(
+        /\n\n---\nAuthor: (.+?) \((.+?)\)$/
+      );
+      let content = fullContent;
+      let authorName = "Anonymous";
+      let authorEmail = "";
+      let isAdmin = false;
+
+      if (metadataMatch) {
+        // Extract content without metadata
+        content = fullContent.replace(/\n\n---\nAuthor: .+$/, "");
+        authorName = metadataMatch[1];
+        authorEmail = metadataMatch[2];
+      } else {
+        // This is likely an admin comment from Notion (no embedded metadata)
+        authorName = "Admin";
+        isAdmin = true;
+      }
+
+      // Generate avatar - use admin icon for admin comments
+      let avatar;
+      if (isAdmin) {
+        // Use a shield icon or admin-specific avatar
+        avatar = `https://api.dicebear.com/7.x/shapes/svg?seed=admin&backgroundColor=3b82f6&shape1Color=ffffff`;
+      } else {
+        avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          authorName
+        )}`;
+      }
+
+      return {
+        id: comment.id,
+        postId: pageId,
+        content: content,
+        author: authorName,
+        authorId: authorEmail || comment.created_by?.id,
+        avatar: avatar,
+        createdAt: formatDate(comment.created_time),
+        updatedAt: comment.last_edited_time
+          ? formatDate(comment.last_edited_time)
+          : undefined,
+        notionBlockId: comment.id,
+        isAuthorResponse: isAdmin,
+      };
+    });
   } catch (error) {
     console.error("Error fetching comments:", error);
     return [];
@@ -306,9 +340,16 @@ export async function updateFeedbackPostVotes(
 export async function createPageComment(
   pageId: string,
   content: string,
-  authorName: string
+  author: {
+    name: string;
+    email: string;
+    avatar: string;
+  }
 ): Promise<FeedbackComment> {
   try {
+    // Create the comment content with user metadata embedded
+    const commentContent = `${content}\n\n---\nAuthor: ${author.name} (${author.email})`;
+
     const response = await notion.comments.create({
       parent: {
         page_id: pageId,
@@ -316,7 +357,7 @@ export async function createPageComment(
       rich_text: [
         {
           text: {
-            content: content,
+            content: commentContent,
           },
         },
       ],
@@ -328,12 +369,10 @@ export async function createPageComment(
     return {
       id: comment.id,
       postId: pageId,
-      content: content,
-      author: authorName,
-      authorId: comment.created_by?.id,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-        authorName
-      )}`,
+      content: content, // Return original content without metadata
+      author: author.name,
+      authorId: author.email,
+      avatar: author.avatar,
       createdAt: formatDate(comment.created_time || new Date().toISOString()),
       notionBlockId: comment.id,
     };
