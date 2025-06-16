@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   ChevronUp,
   MessageSquare,
@@ -10,6 +10,9 @@ import {
   Reply,
   ChevronRight,
   X,
+  Lightbulb,
+  Bug,
+  Zap,
 } from "lucide-react";
 import {
   Dialog,
@@ -27,7 +30,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { FeedbackPost, PostStatus } from "./feedback-board";
+import type { FeedbackPost, PostStatus, PostType } from "@/types/feedback";
 
 interface PostDetailModalProps {
   post: FeedbackPost;
@@ -101,77 +104,98 @@ export function PostDetailModal({
     return num.toString();
   };
 
+  const getPostTypeText = useCallback((type: PostType): string => {
+    switch (type) {
+      case "feature":
+        return "Feature Request";
+      case "bug":
+        return "Bug Report";
+      case "improvement":
+        return "Improvement";
+      case "question":
+        return "Question";
+      default:
+        return type;
+    }
+  }, []);
+
+  const PostTypeIcon = useMemo(() => {
+    switch (post.type) {
+      case "feature":
+        return Lightbulb;
+      case "bug":
+        return Bug;
+      case "improvement":
+        return Zap;
+      case "question":
+        return MessageSquare;
+      default:
+        return Lightbulb;
+    }
+  }, [post.type]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
-            {post.title}
-          </DialogTitle>
+      <DialogContent className="md:min-w-4xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{post.title}</DialogTitle>
         </DialogHeader>
-        <div className="flex">
+        <div className="flex flex-col lg:flex-row">
           {/* Main Content */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-4 md:p-6">
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
-                <h1 className="text-2xl font-bold mb-4">{post.title}</h1>
+                {/* Post Type Badge */}
+                <div className="flex items-center space-x-2 mb-4">
+                  <PostTypeIcon className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                  <Badge
+                    variant="secondary"
+                    className="text-xs md:text-sm font-medium px-2 md:px-3 py-1"
+                  >
+                    {getPostTypeText(post.type)}
+                  </Badge>
+                </div>
 
-                {/* Similar Posts Collapsible */}
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="text-sm text-muted-foreground mb-4 p-0 h-auto"
-                    >
-                      <ChevronRight className="h-4 w-4 mr-1" />
-                      View all similar posts
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 mb-4">
-                    <div className="pl-5 space-y-2">
-                      <div className="text-sm text-muted-foreground">
-                        Similar posts will be shown here...
+                <h1 className="text-xl md:text-2xl font-bold mb-4">
+                  {post.title}
+                </h1>
+
+                {/* Post Description */}
+                {post.description && (
+                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+                    {post.description}
+                  </p>
+                )}
+
+                {/* Similar Posts Section */}
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold mb-4">Similar Posts</h2>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="text-sm text-muted-foreground mb-4 p-0 h-auto"
+                      >
+                        <ChevronRight className="h-4 w-4 mr-1" />
+                        View all similar posts
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2 mb-4">
+                      <div className="pl-5 space-y-2">
+                        <div className="text-sm text-muted-foreground">
+                          Similar posts will be shown here...
+                        </div>
                       </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-
-                {/* Post Content */}
-                <div className="space-y-4 mb-6">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="font-medium">
-                      Progressive Web App for Learning
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Add a Web App Manifest to Syllax. This helps students access
-                    their learning materials offline and provides a native
-                    app-like experience for studying on mobile devices.
-                  </p>
-
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="font-medium">
-                      Enhanced Mobile Experience
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">
-                    To be honest, the only thing I want from a mobile learning
-                    app is having it be a separate window without browser tabs.
-                    That's by definition what PWAs provide and would greatly
-                    improve the learning experience...
-                  </p>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
 
                 {/* Importance Voting */}
                 <div className="mb-6">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <span className="text-sm text-muted-foreground">
-                      How important is this to you?
-                    </span>
-                  </div>
-                  <div className="flex space-x-2">
+                  <h3 className="text-sm font-medium text-foreground mb-3">
+                    How important is this to you?
+                  </h3>
+                  <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2">
                     {[
                       {
                         key: "not-important",
@@ -201,7 +225,11 @@ export function PostDetailModal({
                         }
                         size="sm"
                         onClick={() => setImportance(option.key as any)}
-                        className="text-xs"
+                        className={`text-xs transition-all ${
+                          importance === option.key
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "hover:bg-muted"
+                        }`}
                       >
                         <div
                           className={`w-2 h-2 rounded-full ${option.color} mr-2`}
@@ -221,12 +249,7 @@ export function PostDetailModal({
                     className="min-h-20"
                   />
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-1">
-                      <Button variant="ghost" size="sm">
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
+                  <div className="flex items-center justify-end">
                     <Button className="bg-pink-600 hover:bg-pink-700">
                       Comment
                     </Button>
@@ -305,7 +328,7 @@ export function PostDetailModal({
           </div>
 
           {/* Sidebar */}
-          <div className="w-80 border-l border-border p-6 bg-muted/20">
+          <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border p-4 md:p-6 bg-muted/20">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-2">
                 <Button
@@ -354,9 +377,9 @@ export function PostDetailModal({
 
               <div>
                 <span className="text-sm text-muted-foreground">Board</span>
-                <div className="mt-1 text-sm">
-                  💡{" "}
-                  {post.type === "feature" ? "Feature Request" : "Bug Report"}
+                <div className="mt-1 flex items-center space-x-2">
+                  <PostTypeIcon className="h-4 w-4" />
+                  <span className="text-sm">{getPostTypeText(post.type)}</span>
                 </div>
               </div>
 
@@ -394,15 +417,6 @@ export function PostDetailModal({
             </div>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-4 top-4"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </Button>
       </DialogContent>
     </Dialog>
   );

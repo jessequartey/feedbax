@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { FeedbackHeader } from "./feedback-header";
+import { useState, useCallback, useMemo } from "react";
+import { FeedbackHeader } from "./header";
 import { FeedbackSidebar } from "./feedback-sidebar";
 import { FeedbackList } from "./feedback-list";
 import { CreatePostModal } from "./create-post-modal";
@@ -9,30 +9,25 @@ import { PostDetailModal } from "./post-detail-modal";
 import { FeedbackWelcome } from "./feedback-welcome";
 import { feedbackPosts } from "@/content/feedback-content";
 import { Badge } from "@/components/ui/badge";
+import type { FeedbackPost, PostType, PostStatus } from "@/types/feedback";
 
-export type PostType = "feature" | "bug";
-export type PostStatus =
-  | "backlog"
-  | "next-up"
-  | "in-progress"
-  | "under-review"
-  | "done";
-
-export interface FeedbackPost {
-  id: string;
-  title: string;
-  description?: string;
-  type: PostType;
-  status: PostStatus;
-  upvotes: number;
-  comments: number;
-  author: string;
-  avatar: string;
-  createdAt: string;
-  tags?: string[];
-}
-
+/**
+ * FeedbackBoard Component
+ *
+ * Main component for displaying and managing feedback posts.
+ * Provides functionality for viewing, filtering, and interacting with feedback items.
+ *
+ * Features:
+ * - Filter posts by type (all, feature, bug)
+ * - Sort posts by different criteria
+ * - Create new feedback posts
+ * - View detailed post information
+ * - Responsive design with sidebar navigation
+ *
+ * @returns JSX.Element The feedback board interface
+ */
 export function FeedbackBoard() {
+  // State management
   const [posts] = useState<FeedbackPost[]>(feedbackPosts);
   const [selectedBoard, setSelectedBoard] = useState<"all" | "feature" | "bug">(
     "all"
@@ -41,12 +36,51 @@ export function FeedbackBoard() {
   const [selectedPost, setSelectedPost] = useState<FeedbackPost | null>(null);
   const [sortBy, setSortBy] = useState<"top" | "new" | "trending">("top");
 
-  const filteredPosts = posts.filter((post) => {
-    if (selectedBoard === "all") return true;
-    return post.type === selectedBoard;
-  });
+  // Memoized filtered posts for performance
+  const filteredPosts = useMemo(() => {
+    return posts.filter((post) => {
+      if (selectedBoard === "all") return true;
+      return post.type === selectedBoard;
+    });
+  }, [posts, selectedBoard]);
 
-  const getStatusColor = (status: PostStatus) => {
+  // Event handlers with useCallback for performance
+  const handleBoardChange = useCallback((board: "all" | "feature" | "bug") => {
+    setSelectedBoard(board);
+  }, []);
+
+  const handleCreatePost = useCallback(() => {
+    setIsCreateModalOpen(true);
+  }, []);
+
+  const handlePostClick = useCallback((post: FeedbackPost) => {
+    setSelectedPost(post);
+  }, []);
+
+  const handleCloseCreateModal = useCallback(() => {
+    setIsCreateModalOpen(false);
+  }, []);
+
+  const handleCloseDetailModal = useCallback(() => {
+    setSelectedPost(null);
+  }, []);
+
+  // Computed statistics for sidebar
+  const postStats = useMemo(
+    () => ({
+      total: posts.length,
+      features: posts.filter((p) => p.type === "feature").length,
+      bugs: posts.filter((p) => p.type === "bug").length,
+    }),
+    [posts]
+  );
+
+  /**
+   * Get status color classes for badges
+   * @param status - The post status
+   * @returns CSS classes for styling the status badge
+   */
+  const getStatusColor = useCallback((status: PostStatus) => {
     switch (status) {
       case "backlog":
         return "bg-muted text-muted-foreground";
@@ -61,13 +95,13 @@ export function FeedbackBoard() {
       default:
         return "bg-muted text-muted-foreground";
     }
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
       <FeedbackHeader
         selectedBoard={selectedBoard}
-        onBoardChange={setSelectedBoard}
+        onBoardChange={handleBoardChange}
       />
 
       <div className="container mx-auto px-4 py-6">
@@ -78,18 +112,18 @@ export function FeedbackBoard() {
               posts={filteredPosts}
               sortBy={sortBy}
               setSortBy={setSortBy}
-              onCreatePost={() => setIsCreateModalOpen(true)}
-              onPostClick={setSelectedPost}
+              onCreatePost={handleCreatePost}
+              onPostClick={handlePostClick}
             />
           </div>
 
           <div className="lg:col-span-1">
             <FeedbackSidebar
               selectedBoard={selectedBoard}
-              onBoardChange={setSelectedBoard}
-              totalPosts={posts.length}
-              featurePosts={posts.filter((p) => p.type === "feature").length}
-              bugPosts={posts.filter((p) => p.type === "bug").length}
+              onBoardChange={handleBoardChange}
+              totalPosts={postStats.total}
+              featurePosts={postStats.features}
+              bugPosts={postStats.bugs}
             />
           </div>
         </div>
@@ -97,14 +131,14 @@ export function FeedbackBoard() {
 
       <CreatePostModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={handleCloseCreateModal}
       />
 
       {selectedPost && (
         <PostDetailModal
           post={selectedPost}
           isOpen={!!selectedPost}
-          onClose={() => setSelectedPost(null)}
+          onClose={handleCloseDetailModal}
         />
       )}
     </div>

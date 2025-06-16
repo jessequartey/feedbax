@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Search, Filter, Zap, CheckCircle, Clock, Archive } from "lucide-react";
-import { FeedbackHeader } from "./feedback-header";
+import { FeedbackHeader } from "./header";
 import { PostDetailModal } from "./post-detail-modal";
 import { RoadmapColumn } from "./roadmap-column";
 import { Button } from "@/components/ui/button";

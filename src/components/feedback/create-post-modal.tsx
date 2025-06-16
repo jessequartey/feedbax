@@ -1,29 +1,45 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Bold, Italic, List, Link, Code, ImageIcon, Video, Paperclip } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState } from "react";
+import {
+  Bold,
+  Italic,
+  List,
+  Link,
+  Code,
+  ImageIcon,
+  Video,
+  Paperclip,
+} from "lucide-react";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { PostType } from "@/types/feedback";
 
 interface CreatePostModalProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
-  const [title, setTitle] = useState("")
-  const [content, setContent] = useState("")
-  const [postType, setPostType] = useState<"feature" | "bug">("feature")
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [postType, setPostType] = useState<PostType>("feature");
 
   const handleSubmit = () => {
     // Handle post creation
-    console.log({ title, content, postType })
-    onClose()
-  }
+    console.log({ title, content, postType });
+    onClose();
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -34,13 +50,18 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
               <AvatarImage src="/placeholder.svg?height=32&width=32" />
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
-            <Select value={postType} onValueChange={(value: "feature" | "bug") => setPostType(value)}>
+            <Select
+              value={postType}
+              onValueChange={(value: PostType) => setPostType(value)}
+            >
               <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="feature">Feature Request</SelectItem>
-                <SelectItem value="bug">Bug Reports</SelectItem>
+                <SelectItem value="bug">Bug Report</SelectItem>
+                <SelectItem value="improvement">Improvement</SelectItem>
+                <SelectItem value="question">Question</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -56,11 +77,11 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
           <div className="space-y-2">
             <Textarea
-              placeholder="Help us improve Syllax! Please describe your feature request or bug report:
+              placeholder="Help us improve Syllax! Please describe your feedback:
 
 1. Search before posting! Your feedback has likely been submitted already
-2. If you have multiple features to request, please create separate requests for each.
-3. If submitting a bug, PLEASE SELECT &quot;BUG REPORT&quot; WHEN REPORTING"
+2. If you have multiple items to request, please create separate posts for each.
+3. If submitting a bug, please include steps to reproduce and expected behavior"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="min-h-32 resize-none"
@@ -95,7 +116,11 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
               </div>
 
               <div className="flex items-center justify-end">
-                <Button onClick={handleSubmit} className="bg-pink-600 hover:bg-pink-700" disabled={!title.trim()}>
+                <Button
+                  onClick={handleSubmit}
+                  className="bg-pink-600 hover:bg-pink-700"
+                  disabled={!title.trim()}
+                >
                   Submit Post
                 </Button>
               </div>
@@ -104,5 +129,5 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

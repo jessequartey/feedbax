@@ -1,22 +1,45 @@
-# Feedbax
+# 🚀 Feedbax
+
+![Feedbax Preview](./public/feedbax-opengraph.jpg)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Notion API](https://img.shields.io/badge/Notion-API-black)](https://developers.notion.com/)
+[![Cloudflare](https://img.shields.io/badge/Cloudflare-Pages-orange)](https://pages.cloudflare.com/)
 
-Feedbax is an open-source feedback and roadmap system built with Next.js and Notion. It provides a Featurebase-style interface for collecting and managing user feedback while leveraging Notion as the backend database.
+**Feedbax** is a modern, open-source feedback and roadmap system built with Next.js and Notion. It provides a beautiful, Featurebase-style interface for collecting, managing, and responding to user feedback while leveraging Notion as a powerful backend database.
 
-## Features
+> 🎯 **Perfect for**: Product teams, SaaS companies, open-source projects, and any organization that wants to build in public and engage with their community.
 
-- 📝 Submit and manage feedback items
-- 👍 Upvote and comment on suggestions
-- 🗺️ Public roadmap view
-- 🔄 Real-time updates via Notion webhooks
-- 🎨 Modern UI with Shadcn UI and Tailwind CSS
-- 🔒 Lightweight SSO integration
-- 📱 Mobile-first responsive design
-- 🚀 Built with Next.js 14 and TypeScript
+## ✨ Features
+
+### 🎯 Core Features
+
+- **📝 Feedback Management**: Submit, organize, and track feedback items with rich metadata
+- **👍 Interactive Voting**: Upvote/downvote system with real-time vote tracking
+- **💬 Threaded Comments**: Nested comment system for detailed discussions
+- **🗺️ Public Roadmap**: Beautiful roadmap view with status tracking and filtering
+- **📊 Analytics Dashboard**: Insights into feedback trends and user engagement
+- **🔄 Real-time Updates**: Live updates via Notion webhooks and optimistic UI
+- **🏷️ Smart Tagging**: Organize feedback with custom tags and categories
+
+### 🎨 User Experience
+
+- **🎨 Modern UI**: Clean, accessible interface built with Shadcn UI and Tailwind CSS
+- **📱 Mobile-First**: Responsive design that works perfectly on all devices
+- **🌙 Dark Mode**: Beautiful dark/light theme support with system preference detection
+- **⚡ Performance**: Optimized for speed with Next.js 15 and edge runtime
+- **♿ Accessibility**: WCAG 2.1 AA compliant with full keyboard navigation
+
+### 🔧 Developer Experience
+
+- **🚀 Next.js 15**: Latest features with App Router and Server Components
+- **📘 TypeScript**: Full type safety with comprehensive type definitions
+- **🏗️ Clean Architecture**: Proper separation of concerns with DAL, services, and UI layers
+- **🧪 Testing Ready**: Structured for easy unit, integration, and E2E testing
+- **📚 Documentation**: Comprehensive docs and inline code documentation
+- **🔒 Security**: Built-in validation, sanitization, and error handling
 
 ## Getting Started
 

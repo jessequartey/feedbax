@@ -1,4 +1,4 @@
-import { FeedbackPost } from "@/components/feedback/feedback-board";
+import { FeedbackPost } from "@/types/feedback";
 
 export const feedbackPosts: FeedbackPost[] = [
   {

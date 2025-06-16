@@ -1,18 +1,32 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Search, Filter } from "lucide-react"
-import { FeedbackHeader } from "./feedback-header"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import ReactMarkdown from "react-markdown"
+import { useState, useCallback, useMemo } from "react";
+import {
+  Search,
+  SlidersHorizontal,
+  GitBranch,
+  Clock,
+  Bell,
+  Sparkles,
+  Settings,
+  TrendingUp,
+} from "lucide-react";
+import { FeedbackHeader } from "./header";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import ReactMarkdown from "react-markdown";
 
+/**
+ * Changelog item interface
+ * Represents a single changelog entry with metadata
+ */
 export interface ChangelogItem {
-  id: string
-  date: string
-  content: string
-  tags?: string[]
+  id: string;
+  date: string;
+  content: string;
+  tags?: string[];
 }
 
 const mockChangelogData: ChangelogItem[] = [
@@ -34,7 +48,7 @@ The AI platform lets your students learn from anywhere with a unified learning e
 **Included in all of your plans** ✨
 
 Cut the sky-high tutoring costs and expensive learning platform bills. Bring your education to Syllax and save thousands per semester.`,
-    tags: ["New", "Improved"],
+    tags: ["New"],
   },
   {
     id: "2",
@@ -127,191 +141,357 @@ Introducing powerful new tools to help you study more effectively and track your
 These tools are designed to help you study smarter, not harder.`,
     tags: ["New"],
   },
-]
+];
 
+/**
+ * ChangelogBoard Component
+ *
+ * Displays a chronological list of changelog entries with search functionality.
+ * Follows the same clean design patterns as other feedback pages.
+ *
+ * @returns JSX.Element The changelog board interface
+ */
 export function ChangelogBoard() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [activeDate, setActiveDate] = useState<string>("")
-  const containerRef = useRef<HTMLDivElement>(null)
-  const dateRefs = useRef<{ [key: string]: HTMLDivElement }>({})
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredEntries = mockChangelogData.filter((entry) => {
-    const matchesSearch = entry.content.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSearch
-  })
+  // Memoized filtered entries for performance
+  const filteredEntries = useMemo(() => {
+    if (!searchQuery.trim()) return mockChangelogData;
 
-  // Handle sticky date behavior
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!containerRef.current) return
+    return mockChangelogData.filter((entry) => {
+      const searchLower = searchQuery.toLowerCase();
+      return (
+        entry.content.toLowerCase().includes(searchLower) ||
+        entry.tags?.some((tag) => tag.toLowerCase().includes(searchLower))
+      );
+    });
+  }, [searchQuery]);
 
-      const container = containerRef.current
-      const scrollTop = container.scrollTop
-      const containerTop = container.getBoundingClientRect().top
+  /**
+   * Format date string for display
+   * @param dateString - ISO date string
+   * @returns Formatted date string (e.g., "January 15th, 2024")
+   */
+  const formatDate = useCallback((dateString: string): string => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleDateString("en-US", { month: "long" });
+    const year = date.getFullYear();
 
-      let currentDate = ""
+    const suffix =
+      day > 3 && day < 21
+        ? "th"
+        : day % 10 === 1
+        ? "st"
+        : day % 10 === 2
+        ? "nd"
+        : day % 10 === 3
+        ? "rd"
+        : "th";
 
-      // Find which date section is currently visible
-      Object.entries(dateRefs.current).forEach(([date, element]) => {
-        if (element) {
-          const elementTop = element.getBoundingClientRect().top - containerTop
-          if (elementTop <= 100) {
-            // 100px offset for sticky positioning
-            currentDate = date
-          }
-        }
-      })
+    return `${month} ${day}${suffix}, ${year}`;
+  }, []);
 
-      setActiveDate(currentDate)
+  /**
+   * Handle search input changes
+   * @param value - The search query
+   */
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+  }, []);
+
+  /**
+   * Get appropriate icon for changelog entry tags
+   * @param tags - Array of tags
+   * @returns Appropriate icon component
+   */
+  const getEntryIcon = useCallback((tags?: string[]) => {
+    if (tags?.includes("New")) {
+      return <Sparkles className="h-5 w-5 text-primary" />;
     }
-
-    const container = containerRef.current
-    if (container) {
-      container.addEventListener("scroll", handleScroll)
-      handleScroll() // Initial call
-      return () => container.removeEventListener("scroll", handleScroll)
+    if (tags?.includes("Improved")) {
+      return <TrendingUp className="h-5 w-5 text-primary" />;
     }
-  }, [filteredEntries])
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  }
-
-  const getDateSuffix = (day: number) => {
-    if (day > 3 && day < 21) return "th"
-    switch (day % 10) {
-      case 1:
-        return "st"
-      case 2:
-        return "nd"
-      case 3:
-        return "rd"
-      default:
-        return "th"
-    }
-  }
-
-  const formatDateShort = (dateString: string) => {
-    const date = new Date(dateString)
-    const day = date.getDate()
-    const month = date.toLocaleDateString("en-US", { month: "long" })
-    const year = date.getFullYear()
-    return `${month} ${day}${getDateSuffix(day)}, ${year}`
-  }
+    return <GitBranch className="h-5 w-5 text-primary" />;
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
       <FeedbackHeader />
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">Changelog</h1>
-          <p className="text-lg text-muted-foreground mb-6">Follow new updates and improvements to Syllax.</p>
-          <div className="flex items-center justify-center gap-4">
-            <Button className="bg-primary hover:bg-primary/90">Subscribe to updates</Button>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search entries..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-64"
-              />
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            {/* Welcome Section */}
+            <div className="bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-500/20 rounded-lg p-6 mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-2">
+                Changelog - Stay updated with Syllax improvements! 📋
+              </h2>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>
+                  Track all the latest updates, new features, and bug fixes.
+                </p>
+                <p>We're constantly improving Syllax based on your feedback!</p>
+              </div>
             </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
 
-        {/* Content */}
-        <div className="flex gap-8">
-          {/* Sticky Date Sidebar */}
-          <div className="w-48 flex-shrink-0">
-            <div className="sticky top-8">
-              {filteredEntries.map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`p-4 rounded-lg mb-2 transition-colors cursor-pointer ${
-                    activeDate === entry.date
-                      ? "bg-primary/10 text-primary border-l-2 border-primary"
-                      : "text-muted-foreground hover:bg-muted/50"
-                  }`}
-                  onClick={() => {
-                    const element = dateRefs.current[entry.date]
-                    if (element) {
-                      element.scrollIntoView({ behavior: "smooth", block: "start" })
-                    }
-                  }}
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <div className="relative flex-1 max-w-md">
+                <Search
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  placeholder="Search changelog..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="pl-10"
+                  aria-label="Search changelog entries"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center space-x-3">
+                <Button
+                  className="bg-primary hover:bg-primary/90"
+                  aria-label="Subscribe to changelog updates"
                 >
-                  <div className="font-medium text-sm">{formatDateShort(entry.date)}</div>
-                  {entry.tags && (
-                    <div className="flex gap-1 mt-2">
-                      {entry.tags.map((tag) => (
-                        <Badge key={tag} variant={tag === "New" ? "default" : "secondary"} className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
+                  <Bell className="h-4 w-4 mr-2" />
+                  Subscribe to updates
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label="Filter changelog entries"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Results summary */}
+            {searchQuery && (
+              <div className="text-sm text-muted-foreground mb-4">
+                {filteredEntries.length === 0 ? (
+                  <span>No entries found for "{searchQuery}"</span>
+                ) : (
+                  <span>
+                    {filteredEntries.length} entr
+                    {filteredEntries.length !== 1 ? "ies" : "y"} found for "
+                    {searchQuery}"
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Changelog Entries */}
+            <div className="space-y-6">
+              {filteredEntries.length > 0 ? (
+                filteredEntries.map((entry) => (
+                  <Card key={entry.id} className="p-6">
+                    {/* Entry Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
+                          {getEntryIcon(entry.tags)}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-foreground">
+                            {formatDate(entry.date)}
+                          </div>
+                          <div className="flex items-center text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Release
+                          </div>
+                        </div>
+                      </div>
+                      {entry.tags && (
+                        <div className="flex gap-1 flex-wrap">
+                          {entry.tags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant={tag === "New" ? "default" : "secondary"}
+                              className="text-xs"
+                            >
+                              {tag === "New" && (
+                                <Sparkles className="h-3 w-3 mr-1" />
+                              )}
+                              {tag === "Improved" && (
+                                <Settings className="h-3 w-3 mr-1" />
+                              )}
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Entry Content */}
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => (
+                            <h1 className="text-xl font-bold mb-4 text-foreground">
+                              {children}
+                            </h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-lg font-semibold mb-3 mt-6 text-foreground">
+                              {children}
+                            </h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-base font-semibold mb-2 mt-4 text-foreground">
+                              {children}
+                            </h3>
+                          ),
+                          p: ({ children }) => (
+                            <p className="text-muted-foreground mb-3 leading-relaxed">
+                              {children}
+                            </p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="list-disc list-inside mb-4 text-muted-foreground space-y-1">
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal list-inside mb-4 text-muted-foreground space-y-1">
+                              {children}
+                            </ol>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-semibold text-foreground">
+                              {children}
+                            </strong>
+                          ),
+                          code: ({ children }) => (
+                            <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+                              {children}
+                            </code>
+                          ),
+                        }}
+                      >
+                        {entry.content}
+                      </ReactMarkdown>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <Card className="p-12 text-center">
+                  <div className="text-muted-foreground text-lg mb-2">
+                    {searchQuery
+                      ? "No entries found"
+                      : "No changelog entries yet"}
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {searchQuery
+                      ? "Try adjusting your search terms or clear the search to see all entries."
+                      : "Check back soon for updates!"}
+                  </p>
+                  {searchQuery && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      Clear search
+                    </Button>
                   )}
-                </div>
-              ))}
+                </Card>
+              )}
             </div>
           </div>
 
-          {/* Main Content */}
-          <div ref={containerRef} className="flex-1 max-h-[calc(100vh-200px)] overflow-y-auto pr-4">
-            <div className="space-y-16">
-              {filteredEntries.map((entry) => (
-                <div
-                  key={entry.id}
-                  ref={(el) => {
-                    if (el) dateRefs.current[entry.date] = el
-                  }}
-                  className="scroll-mt-8"
-                >
-                  <div className="prose prose-lg dark:prose-invert max-w-none">
-                    <ReactMarkdown
-                      components={{
-                        h1: ({ children }) => <h1 className="text-3xl font-bold mb-6 text-foreground">{children}</h1>,
-                        h2: ({ children }) => (
-                          <h2 className="text-2xl font-semibold mb-4 mt-8 text-foreground">{children}</h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 className="text-xl font-semibold mb-3 mt-6 text-foreground">{children}</h3>
-                        ),
-                        p: ({ children }) => <p className="text-muted-foreground mb-4 leading-relaxed">{children}</p>,
-                        ul: ({ children }) => (
-                          <ul className="list-disc list-inside mb-4 text-muted-foreground space-y-1">{children}</ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol className="list-decimal list-inside mb-4 text-muted-foreground space-y-1">{children}</ol>
-                        ),
-                        strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
-                        code: ({ children }) => (
-                          <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
-                        ),
-                      }}
-                    >
-                      {entry.content}
-                    </ReactMarkdown>
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="space-y-4">
+              <Card className="p-4">
+                <h3 className="font-semibold mb-3">Quick Stats</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Total Updates
+                    </span>
+                    <span className="font-medium">
+                      {mockChangelogData.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      This Month
+                    </span>
+                    <span className="font-medium">3</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      New Features
+                    </span>
+                    <span className="font-medium">
+                      {
+                        mockChangelogData.filter((entry) =>
+                          entry.tags?.includes("New")
+                        ).length
+                      }
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Improvements
+                    </span>
+                    <span className="font-medium">
+                      {
+                        mockChangelogData.filter((entry) =>
+                          entry.tags?.includes("Improved")
+                        ).length
+                      }
+                    </span>
                   </div>
                 </div>
-              ))}
+              </Card>
+
+              <Card className="p-4">
+                <h3 className="font-semibold mb-3">Release Types</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="default" className="text-xs">
+                      <Sparkles className="h-3 w-3 mr-1" />
+                      New
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      New features and additions
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary" className="text-xs">
+                      <Settings className="h-3 w-3 mr-1" />
+                      Improved
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      Enhancements and fixes
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="text-xs text-muted-foreground text-center">
+                  ⚡ Powered by Feedbax
+                </div>
+              </Card>
             </div>
           </div>
-        </div>
-
-        <div className="mt-16 text-center">
-          <div className="text-xs text-muted-foreground">⚡ Powered by Feedbax</div>
         </div>
       </div>
     </div>
-  )
+  );
 }

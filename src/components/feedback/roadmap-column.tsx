@@ -1,57 +1,84 @@
-"use client"
+"use client";
 
-import type { LucideIcon } from "lucide-react"
-import { RoadmapCard } from "./roadmap-card"
-import type { FeedbackPost } from "./feedback-board"
+import type { LucideIcon } from "lucide-react";
+import { RoadmapCard } from "./roadmap-card";
+import type { FeedbackPost } from "@/types/feedback";
 
 interface RoadmapColumnProps {
-  title: string
-  icon: LucideIcon
-  posts: FeedbackPost[]
-  className?: string
-  onPostClick: (post: FeedbackPost) => void
+  title: string;
+  icon: LucideIcon;
+  posts: FeedbackPost[];
+  className?: string;
+  onPostClick: (post: FeedbackPost) => void;
 }
 
-export function RoadmapColumn({ title, icon: Icon, posts, className, onPostClick }: RoadmapColumnProps) {
+export function RoadmapColumn({
+  title,
+  icon: Icon,
+  posts,
+  className,
+  onPostClick,
+}: RoadmapColumnProps) {
   const getHeaderStyle = (title: string) => {
     switch (title) {
       case "Backlog":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+        return "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700";
       case "Next up":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200"
+        return "bg-violet-100 text-violet-700 border border-violet-200 dark:bg-violet-900/40 dark:text-violet-300 dark:border-violet-700/50";
       case "In Progress":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200"
+        return "bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700/50";
       case "Done":
-        return "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200"
+        return "bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700/50";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+        return "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800/80 dark:text-slate-300 dark:border-slate-700";
     }
-  }
+  };
 
   const getColumnStyle = (title: string) => {
     switch (title) {
       case "Backlog":
-        return "bg-gray-50/50 border-gray-200 dark:bg-gray-900/20 dark:border-gray-700"
+        return "bg-slate-50/80 border-slate-200/60 dark:bg-slate-900/30 dark:border-slate-700/50";
       case "Next up":
-        return "bg-purple-50/50 border-purple-200 dark:bg-purple-900/10 dark:border-purple-700"
+        return "bg-violet-50/80 border-violet-200/60 dark:bg-violet-950/30 dark:border-violet-800/50";
       case "In Progress":
-        return "bg-blue-50/50 border-blue-200 dark:bg-blue-900/10 dark:border-blue-700"
+        return "bg-blue-50/80 border-blue-200/60 dark:bg-blue-950/30 dark:border-blue-800/50";
       case "Done":
-        return "bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-700"
+        return "bg-emerald-50/80 border-emerald-200/60 dark:bg-emerald-950/30 dark:border-emerald-800/50";
       default:
-        return "bg-gray-50/50 border-gray-200 dark:bg-gray-900/20 dark:border-gray-700"
+        return "bg-slate-50/80 border-slate-200/60 dark:bg-slate-900/30 dark:border-slate-700/50";
     }
-  }
+  };
+
+  const getCountStyle = (title: string) => {
+    switch (title) {
+      case "Backlog":
+        return "bg-slate-200/60 text-slate-700 dark:bg-slate-700/60 dark:text-slate-300";
+      case "Next up":
+        return "bg-violet-200/60 text-violet-700 dark:bg-violet-800/60 dark:text-violet-300";
+      case "In Progress":
+        return "bg-blue-200/60 text-blue-700 dark:bg-blue-800/60 dark:text-blue-300";
+      case "Done":
+        return "bg-emerald-200/60 text-emerald-700 dark:bg-emerald-800/60 dark:text-emerald-300";
+      default:
+        return "bg-slate-200/60 text-slate-700 dark:bg-slate-700/60 dark:text-slate-300";
+    }
+  };
 
   return (
-    <div className="space-y-3">
-      <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${getHeaderStyle(title)}`}>
+    <div className="space-y-4">
+      <div
+        className={`flex items-center justify-between px-4 py-3 rounded-xl shadow-sm ${getHeaderStyle(
+          title
+        )}`}
+      >
         <div className="flex items-center space-x-2">
           <Icon className="h-4 w-4" aria-hidden="true" />
-          <h2 className="font-medium text-sm">{title}</h2>
+          <h2 className="font-semibold text-sm">{title}</h2>
         </div>
         <span
-          className="text-xs font-medium bg-white/20 dark:bg-black/20 px-2 py-1 rounded-full"
+          className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getCountStyle(
+            title
+          )}`}
           aria-label={`${posts.length} items in ${title}`}
         >
           {posts.length}
@@ -59,19 +86,25 @@ export function RoadmapColumn({ title, icon: Icon, posts, className, onPostClick
       </div>
 
       <div
-        className={`min-h-96 p-3 rounded-lg border ${getColumnStyle(title)} space-y-3`}
+        className={`min-h-96 p-4 rounded-xl border-2 border-dashed ${getColumnStyle(
+          title
+        )} space-y-3 transition-colors`}
         role="region"
         aria-label={`${title} column with ${posts.length} items`}
       >
         {posts.map((post) => (
-          <RoadmapCard key={post.id} post={post} onClick={() => onPostClick(post)} />
+          <RoadmapCard
+            key={post.id}
+            post={post}
+            onClick={() => onPostClick(post)}
+          />
         ))}
         {posts.length === 0 && (
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            No items in this column
+          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm font-medium">
+            No items yet
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
