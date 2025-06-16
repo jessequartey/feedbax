@@ -1,20 +1,20 @@
-"use client"
+"use client";
 
-import { Eye, Lightbulb, Bug } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Eye, Lightbulb, Bug } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface FeedbackSidebarProps {
-  selectedBoard: "all" | "feature" | "bug"
-  onBoardChange: (board: "all" | "feature" | "bug") => void
-  totalPosts: number
-  featurePosts: number
-  bugPosts: number
+  selectedBoard?: "all" | "feature" | "bug";
+  onBoardChange?: (board: "all" | "feature" | "bug") => void;
+  totalPosts: number;
+  featurePosts: number;
+  bugPosts: number;
 }
 
 export function FeedbackSidebar({
-  selectedBoard,
-  onBoardChange,
+  selectedBoard = "all",
+  onBoardChange = () => {},
   totalPosts,
   featurePosts,
   bugPosts,
@@ -31,7 +31,9 @@ export function FeedbackSidebar({
           >
             <Eye className="h-4 w-4 mr-2" />
             View all posts
-            <span className="ml-auto text-xs text-muted-foreground">{totalPosts}</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {totalPosts}
+            </span>
           </Button>
 
           <Button
@@ -41,7 +43,9 @@ export function FeedbackSidebar({
           >
             <Lightbulb className="h-4 w-4 mr-2" />
             Feature Request
-            <span className="ml-auto text-xs text-muted-foreground">{featurePosts}</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {featurePosts}
+            </span>
           </Button>
 
           <Button
@@ -51,14 +55,18 @@ export function FeedbackSidebar({
           >
             <Bug className="h-4 w-4 mr-2" />
             Bug Reports
-            <span className="ml-auto text-xs text-muted-foreground">{bugPosts}</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {bugPosts}
+            </span>
           </Button>
         </div>
       </Card>
 
       <Card className="p-4">
-        <div className="text-xs text-muted-foreground text-center">⚡ Powered by Feedbax</div>
+        <div className="text-xs text-muted-foreground text-center">
+          ⚡ Powered by Feedbax
+        </div>
       </Card>
     </div>
-  )
+  );
 }

@@ -256,11 +256,11 @@ export function FeedbackList({
       {enableSearch && searchQuery && (
         <div className="text-sm text-muted-foreground">
           {filteredPosts.length === 0 ? (
-            <span>No posts found for "{searchQuery}"</span>
+            <span>No posts found for &quot;{searchQuery}&quot;</span>
           ) : (
             <span>
               {filteredPosts.length} post{filteredPosts.length !== 1 ? "s" : ""}{" "}
-              found for "{searchQuery}"
+              found for &quot;{searchQuery}&quot;
             </span>
           )}
         </div>

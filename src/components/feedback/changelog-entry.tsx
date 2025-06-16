@@ -1,25 +1,35 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { MessageSquare, ChevronDown, ChevronUp, Tag, ExternalLink, Play } from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
-import ReactMarkdown from "react-markdown"
-import type { ChangelogItem } from "./changelog-board"
+import { useState } from "react";
+import {
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  Tag,
+  ExternalLink,
+  Play,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import ReactMarkdown from "react-markdown";
+import type { ChangelogItem } from "./changelog-board";
 
 interface ChangelogEntryProps {
-  entry: ChangelogItem
-  isExpanded: boolean
-  onToggle: () => void
+  entry: ChangelogItem;
+  isExpanded: boolean;
+  onToggle: () => void;
 }
 
-export function ChangelogEntry({ entry, isExpanded, onToggle }: ChangelogEntryProps) {
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null)
-
-  const previewContent = entry.content.split("\n").slice(0, 3).join("\n") + "..."
+export function ChangelogEntry({
+  entry,
+  isExpanded,
+  onToggle,
+}: ChangelogEntryProps) {
+  const previewContent =
+    entry.content.split("\n").slice(0, 3).join("\n") + "...";
 
   return (
     <Card className="p-6 space-y-4">
@@ -33,10 +43,14 @@ export function ChangelogEntry({ entry, isExpanded, onToggle }: ChangelogEntryPr
             </Avatar>
             <div>
               <p className="text-sm font-medium">{entry.author}</p>
-              {entry.version && <p className="text-xs text-muted-foreground">{entry.version}</p>}
+              {entry.version && (
+                <p className="text-xs text-muted-foreground">{entry.version}</p>
+              )}
             </div>
           </div>
-          <h2 className="text-xl font-semibold mb-2 leading-tight">{entry.title}</h2>
+          <h2 className="text-xl font-semibold mb-2 leading-tight">
+            {entry.title}
+          </h2>
           {entry.tags && (
             <div className="flex flex-wrap gap-1 mb-3">
               {entry.tags.map((tag) => (
@@ -52,7 +66,9 @@ export function ChangelogEntry({ entry, isExpanded, onToggle }: ChangelogEntryPr
 
       {/* Content */}
       <div className="prose prose-sm dark:prose-invert max-w-none">
-        <ReactMarkdown>{isExpanded ? entry.content : previewContent}</ReactMarkdown>
+        <ReactMarkdown>
+          {isExpanded ? entry.content : previewContent}
+        </ReactMarkdown>
       </div>
 
       {/* Media */}
@@ -94,7 +110,9 @@ export function ChangelogEntry({ entry, isExpanded, onToggle }: ChangelogEntryPr
                     <Play className="h-12 w-12 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-black/50 text-white px-3 py-1 rounded text-sm">Video Demo</div>
+                    <div className="bg-black/50 text-white px-3 py-1 rounded text-sm">
+                      Video Demo
+                    </div>
                   </div>
                 </div>
               ))}
@@ -105,16 +123,30 @@ export function ChangelogEntry({ entry, isExpanded, onToggle }: ChangelogEntryPr
 
       {/* Actions */}
       <div className="flex items-center justify-between pt-4 border-t border-border">
-        <Button variant="ghost" size="sm" onClick={onToggle} className="flex items-center space-x-2">
-          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggle}
+          className="flex items-center space-x-2"
+        >
+          {isExpanded ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
           <span>{isExpanded ? "Show Less" : "Read More"}</span>
         </Button>
 
-        <Button variant="ghost" size="sm" onClick={onToggle} className="flex items-center space-x-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggle}
+          className="flex items-center space-x-2"
+        >
           <MessageSquare className="h-4 w-4" />
           <span>{entry.comments} Comments</span>
         </Button>
       </div>
     </Card>
-  )
+  );
 }
