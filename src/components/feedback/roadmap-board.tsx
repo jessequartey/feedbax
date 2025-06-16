@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useVoting } from "@/lib/hooks/use-voting";
 import { Search, Filter, Zap, CheckCircle, Clock, Archive } from "lucide-react";
 import { FeedbackHeader } from "./header";
 import { PostDetailModal } from "./post-detail-modal";
@@ -16,6 +17,21 @@ interface RoadmapBoardProps {
 export function RoadmapBoard({ initialPosts }: RoadmapBoardProps) {
   const [selectedPost, setSelectedPost] = useState<FeedbackPost | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Voting hook
+  const { hasVoted, voteOnPost, isVotingOnPost, getOptimisticVoteCount } =
+    useVoting();
+
+  // Handle upvote
+  const handleUpvote = useCallback(
+    async (postId: string) => {
+      const post = initialPosts.find((p) => p.id === postId);
+      if (post) {
+        await voteOnPost(post);
+      }
+    },
+    [initialPosts, voteOnPost]
+  );
 
   const getPostsByStatus = (status: string) => {
     return initialPosts.filter((post) => {
@@ -96,6 +112,10 @@ export function RoadmapBoard({ initialPosts }: RoadmapBoardProps) {
               icon={column.icon}
               posts={column.posts}
               onPostClick={setSelectedPost}
+              onUpvote={handleUpvote}
+              hasVoted={hasVoted}
+              isVotingOnPost={isVotingOnPost}
+              getOptimisticVoteCount={getOptimisticVoteCount}
             />
           ))}
         </div>

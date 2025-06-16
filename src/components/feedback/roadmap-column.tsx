@@ -10,6 +10,10 @@ interface RoadmapColumnProps {
   posts: FeedbackPost[];
   className?: string;
   onPostClick: (post: FeedbackPost) => void;
+  onUpvote?: (postId: string) => void;
+  hasVoted?: (postId: string) => boolean;
+  isVotingOnPost?: (postId: string) => boolean;
+  getOptimisticVoteCount?: (post: FeedbackPost) => number;
 }
 
 export function RoadmapColumn({
@@ -18,6 +22,10 @@ export function RoadmapColumn({
   posts,
   className,
   onPostClick,
+  onUpvote,
+  hasVoted,
+  isVotingOnPost,
+  getOptimisticVoteCount,
 }: RoadmapColumnProps) {
   const getHeaderStyle = (title: string) => {
     switch (title) {
@@ -95,8 +103,15 @@ export function RoadmapColumn({
         {posts.map((post) => (
           <RoadmapCard
             key={post.id}
-            post={post}
+            post={
+              getOptimisticVoteCount
+                ? { ...post, upvotes: getOptimisticVoteCount(post) }
+                : post
+            }
             onClick={() => onPostClick(post)}
+            onUpvote={onUpvote}
+            isUpvoted={hasVoted?.(post.id)}
+            upvoteDisabled={isVotingOnPost?.(post.id)}
           />
         ))}
         {posts.length === 0 && (

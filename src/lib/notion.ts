@@ -224,7 +224,7 @@ function formatDate(dateString: string): string {
 export async function getFeedbackPosts(): Promise<FeedbackPost[]> {
   try {
     const response = await notion.databases.query({
-      database_id: env.NOTION_DATABASE_ID || "",
+      database_id: env.NOTION_DATABASE_ID,
       sorts: [
         {
           property: "Votes",

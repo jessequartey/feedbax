@@ -9,9 +9,18 @@ import type { FeedbackPost } from "@/types/feedback";
 interface RoadmapCardProps {
   post: FeedbackPost;
   onClick: () => void;
+  onUpvote?: (postId: string) => void;
+  isUpvoted?: boolean;
+  upvoteDisabled?: boolean;
 }
 
-export function RoadmapCard({ post, onClick }: RoadmapCardProps) {
+export function RoadmapCard({
+  post,
+  onClick,
+  onUpvote,
+  isUpvoted = false,
+  upvoteDisabled = false,
+}: RoadmapCardProps) {
   const formatNumber = (num: number) => {
     if (num >= 1000) {
       return (num / 1000).toFixed(1) + "k";
@@ -42,6 +51,13 @@ export function RoadmapCard({ post, onClick }: RoadmapCardProps) {
         return "Enhancement";
       default:
         return type;
+    }
+  };
+
+  const handleUpvote = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onUpvote && !upvoteDisabled) {
+      onUpvote(post.id);
     }
   };
 
@@ -94,14 +110,31 @@ export function RoadmapCard({ post, onClick }: RoadmapCardProps) {
           </div>
 
           <Button
-            variant="ghost"
+            variant={isUpvoted ? "default" : "ghost"}
             size="sm"
-            className="h-auto p-1.5 flex items-center space-x-1 hover:bg-primary/10 rounded-md transition-colors"
-            aria-label={`${formatNumber(post.upvotes)} upvotes`}
+            className={`h-auto p-1.5 flex items-center space-x-1 rounded-md transition-colors ${
+              isUpvoted
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-primary/10"
+            } ${upvoteDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            aria-label={`${isUpvoted ? "Remove upvote from" : "Upvote"} ${
+              post.title
+            }. Current upvotes: ${post.upvotes}`}
             tabIndex={-1}
+            onClick={handleUpvote}
+            disabled={upvoteDisabled}
           >
-            <ChevronUp className="h-3 w-3 text-primary" aria-hidden="true" />
-            <span className="text-xs font-semibold text-primary">
+            <ChevronUp
+              className={`h-3 w-3 transition-transform duration-200 ${
+                isUpvoted ? "scale-110 text-primary-foreground" : "text-primary"
+              }`}
+              aria-hidden="true"
+            />
+            <span
+              className={`text-xs font-semibold ${
+                isUpvoted ? "text-primary-foreground" : "text-primary"
+              }`}
+            >
               {formatNumber(post.upvotes)}
             </span>
           </Button>

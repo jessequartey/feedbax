@@ -31,16 +31,30 @@ interface FeedbackBoardProps {
 export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
   // State management
   const [posts, setPosts] = useState<FeedbackPost[]>(initialPosts);
+  const [selectedBoard, setSelectedBoard] = useState<"all" | "feature" | "bug">(
+    "all"
+  );
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<FeedbackPost | null>(null);
   const [sortBy, setSortBy] = useState<"top" | "new" | "trending">("top");
 
   // Memoized filtered posts for performance
   const filteredPosts = useMemo(() => {
-    return posts;
-  }, [posts]);
+    // First filter out done posts (don't show completed items in main feedback list)
+    const activePosts = posts.filter((post) => post.status !== "done");
+
+    // Then filter by board type
+    if (selectedBoard === "all") {
+      return activePosts;
+    }
+
+    return activePosts.filter((post) => post.type === selectedBoard);
+  }, [posts, selectedBoard]);
 
   // Event handlers with useCallback for performance
+  const handleBoardChange = useCallback((board: "all" | "feature" | "bug") => {
+    setSelectedBoard(board);
+  }, []);
 
   const handleCreatePost = useCallback(() => {
     setIsCreateModalOpen(true);
@@ -62,19 +76,26 @@ export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
     setPosts(updatedPosts);
   }, []);
 
-  // Computed statistics for sidebar
+  // Computed statistics for sidebar (exclude done posts from counts)
+  const activePosts = useMemo(
+    () => posts.filter((post) => post.status !== "done"),
+    [posts]
+  );
   const postStats = useMemo(
     () => ({
-      total: posts.length,
-      features: posts.filter((p) => p.type === "feature").length,
-      bugs: posts.filter((p) => p.type === "bug").length,
+      total: activePosts.length,
+      features: activePosts.filter((p) => p.type === "feature").length,
+      bugs: activePosts.filter((p) => p.type === "bug").length,
     }),
-    [posts]
+    [activePosts]
   );
 
   return (
     <div className="min-h-screen bg-background">
-      <FeedbackHeader />
+      <FeedbackHeader
+        selectedBoard={selectedBoard}
+        onBoardChange={handleBoardChange}
+      />
 
       <div className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -91,6 +112,8 @@ export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
 
           <div className="lg:col-span-1">
             <FeedbackSidebar
+              selectedBoard={selectedBoard}
+              onBoardChange={handleBoardChange}
               totalPosts={postStats.total}
               featurePosts={postStats.features}
               bugPosts={postStats.bugs}

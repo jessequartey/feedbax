@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/collapsible";
 import { createCommentAction } from "@/lib/actions";
 import { useAuth } from "@/lib/use-auth";
+import { useVoting } from "@/lib/hooks/use-voting";
 import { toast } from "sonner";
 import type {
   FeedbackPost,
@@ -71,7 +72,8 @@ export function PostDetailModal({
   onClose,
 }: PostDetailModalProps) {
   const { user } = useAuth();
-  const [isUpvoted, setIsUpvoted] = useState(false);
+  const { hasVoted, voteOnPost, isVotingOnPost, getOptimisticVoteCount } =
+    useVoting();
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<FeedbackComment[]>([]);
@@ -447,33 +449,60 @@ export function PostDetailModal({
 
           {/* Sidebar */}
           <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border p-4 md:p-6 bg-muted/20">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant={isUpvoted ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsUpvoted(!isUpvoted)}
-                  className="flex items-center space-x-1"
+            <div className="mb-6">
+              <span className="text-sm text-muted-foreground">Upvotes</span>
+              <div
+                className={`flex items-center space-x-1 cursor-pointer transition-all duration-200 p-2 rounded-md mt-1 ${
+                  hasVoted(post.id)
+                    ? "bg-pink-50 dark:bg-pink-950/20"
+                    : "hover:bg-muted"
+                } ${
+                  isVotingOnPost(post.id) ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+                onClick={async () => {
+                  if (!isVotingOnPost(post.id)) {
+                    await voteOnPost(post);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${
+                  hasVoted(post.id) ? "Remove upvote from" : "Upvote"
+                } ${post.title}. Current upvotes: ${getOptimisticVoteCount(
+                  post
+                )}`}
+                onKeyDown={(e) => {
+                  if (
+                    (e.key === "Enter" || e.key === " ") &&
+                    !isVotingOnPost(post.id)
+                  ) {
+                    e.preventDefault();
+                    voteOnPost(post);
+                  }
+                }}
+              >
+                {isVotingOnPost(post.id) ? (
+                  <Loader2 className="h-4 w-4 text-pink-500 animate-spin" />
+                ) : (
+                  <ChevronUp
+                    className={`h-4 w-4 transition-all duration-200 ${
+                      hasVoted(post.id)
+                        ? "text-pink-600 scale-110"
+                        : "text-pink-500 hover:text-pink-600"
+                    }`}
+                  />
+                )}
+                <span
+                  className={`font-medium transition-colors duration-200 ${
+                    hasVoted(post.id) ? "text-pink-600" : "text-foreground"
+                  }`}
                 >
-                  <ChevronUp className="h-4 w-4" />
-                  <span>
-                    {formatNumber(post.upvotes + (isUpvoted ? 1 : 0))}
-                  </span>
-                </Button>
+                  {formatNumber(getOptimisticVoteCount(post))}
+                </span>
               </div>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <span className="text-sm text-muted-foreground">Upvoters</span>
-                <div className="flex items-center space-x-1 mt-1">
-                  <ChevronUp className="h-4 w-4 text-pink-500" />
-                  <span className="font-medium">
-                    {formatNumber(post.upvotes)}
-                  </span>
-                </div>
-              </div>
-
               <div>
                 <span className="text-sm text-muted-foreground">Status</span>
                 <div className="mt-1">
