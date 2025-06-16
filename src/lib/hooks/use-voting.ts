@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAction } from "next-safe-action/hooks";
 import { votePostAction } from "@/lib/actions";
 import { hasVotedOnPost, addVotedPost, removeVotedPost } from "@/lib/voting";
+import { useAuth } from "@/lib/use-auth";
 import { toast } from "sonner";
 import type { FeedbackPost } from "@/types/feedback";
 
@@ -12,6 +13,7 @@ import type { FeedbackPost } from "@/types/feedback";
  * Manages local storage validation and optimistic updates
  */
 export function useVoting() {
+  const { user } = useAuth();
   const [votedPosts, setVotedPosts] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [optimisticVotes, setOptimisticVotes] = useState<
@@ -21,7 +23,7 @@ export function useVoting() {
   const { execute: executeVote, isExecuting } = useAction(votePostAction, {
     onSuccess: ({ data }) => {
       if (data?.data) {
-        toast.success("Vote recorded! 👍");
+        toast.success("Vote recorded! You'll be notified of updates 👍");
         // Remove loading state
         setIsLoading((prev) => ({ ...prev, [data.data.postId]: false }));
         // Clear optimistic vote count since real data will come from revalidation
@@ -105,9 +107,21 @@ export function useVoting() {
    */
   const voteOnPost = useCallback(
     async (post: FeedbackPost) => {
+      // Check if user is authenticated
+      if (!user) {
+        toast.error("Please sign in to vote on posts");
+        return false;
+      }
+
       // Check if user has already voted
       if (hasVotedOnPost(post.id)) {
         toast.info("You've already voted on this post!");
+        return false;
+      }
+
+      // Check if post has notionPageId for the action
+      if (!post.notionPageId) {
+        toast.error("Cannot vote on this post");
         return false;
       }
 
@@ -120,10 +134,11 @@ export function useVoting() {
       setIsLoading((prev) => ({ ...prev, [post.id]: true }));
 
       try {
-        // Execute the vote action
+        // Execute the vote action with user email
         await executeVote({
-          postId: post.id,
+          postId: post.notionPageId,
           currentVotes: post.upvotes,
+          userEmail: user.email,
         });
 
         return true;
@@ -133,7 +148,7 @@ export function useVoting() {
         return false;
       }
     },
-    [executeVote]
+    [executeVote, user]
   );
 
   /**

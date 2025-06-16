@@ -41,6 +41,77 @@
 - **📚 Documentation**: Comprehensive docs and inline code documentation
 - **🔒 Security**: Built-in validation, sanitization, and error handling
 
+## Interest Tracking Feature
+
+The interest tracking feature allows users to subscribe to feedback posts and get notified when there are updates. Here's how it works:
+
+### Implementation Details
+
+1. **Database Schema**:
+
+   - Added `Interests` field as a rich text property in Notion
+   - Stores emails in comma-separated format: `,email1@example.com,email2@example.com`
+
+2. **Privacy & Security**:
+
+   - User emails are **never sent to the client** for privacy protection
+   - Only a boolean `subscribed` field is sent to indicate if the current user is subscribed
+   - All email list operations happen server-side
+   - Server fetches current interests from Notion before making updates
+
+3. **Frontend Integration**:
+
+   - Subscribe/unsubscribe button in post detail modal
+   - Optimistic updates for immediate user feedback
+   - Visual indicators for subscription status
+   - No exposure of other users' email addresses
+
+4. **Backend Processing**:
+   - Server action `subscribeToPostAction` handles subscription logic
+   - Fetches current interests from Notion before updating
+   - Automatic parsing and formatting of interest lists
+   - Console logging for debugging and monitoring
+
+### Usage
+
+1. Open any feedback post in the detail modal
+2. Click "Get notified" to subscribe to updates
+3. Click "Unsubscribe" to remove yourself from notifications
+4. The system tracks all interested users for future notification features
+
+### Technical Implementation
+
+```typescript
+// Privacy-focused: Only boolean subscription status sent to client
+interface FeedbackPost {
+  // ... other fields
+  subscribed?: boolean; // Whether the current user is subscribed
+}
+
+// Server-side: Email operations happen securely on the server
+const subscribeToPostAction = async (data) => {
+  // Fetch current interests from Notion
+  const currentInterests = await fetchCurrentInterests(data.postId);
+
+  // Add/remove user email server-side
+  const updatedInterests = data.isSubscribing
+    ? addUserToInterests(currentInterests, data.userEmail)
+    : removeUserFromInterests(currentInterests, data.userEmail);
+
+  // Update Notion with new interests list
+  await updateNotionInterests(data.postId, updatedInterests);
+};
+```
+
+### Privacy Benefits
+
+- **No Email Exposure**: Other users' emails are never sent to the client
+- **Server-Side Operations**: All email list manipulations happen securely on the server
+- **Current User Context**: Server determines subscription status based on authenticated user
+- **Secure Updates**: Direct server-to-Notion communication for interest updates
+
+The interests are logged to console when fetching feedback posts for debugging purposes.
+
 ## Getting Started
 
 ### Prerequisites
@@ -113,6 +184,7 @@ NEXT_PUBLIC_APP_URL=your_app_url
    - Submitter (text)
    - Tags (multi-select)
    - Merged Into (relation)
+   - Interests (rich text) - **New field for interest tracking**
 
 2. Share the database with your integration
 

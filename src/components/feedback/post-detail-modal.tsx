@@ -32,7 +32,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { createCommentAction } from "@/lib/actions";
+import {
+  createCommentAction,
+  subscribeToPostAction,
+  rateImportanceAction,
+} from "@/lib/actions";
 import { useAuth } from "@/lib/use-auth";
 import { useVoting } from "@/lib/hooks/use-voting";
 import { toast } from "sonner";
@@ -75,6 +79,7 @@ export function PostDetailModal({
   const { hasVoted, voteOnPost, isVotingOnPost, getOptimisticVoteCount } =
     useVoting();
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<FeedbackComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
@@ -82,6 +87,12 @@ export function PostDetailModal({
   const [importance, setImportance] = useState<
     "not-important" | "nice-to-have" | "important" | "essential" | null
   >(null);
+  const [isRatingImportance, setIsRatingImportance] = useState(false);
+
+  // Set subscription status from post data
+  useEffect(() => {
+    setIsSubscribed(post.subscribed || false);
+  }, [post.subscribed]);
 
   // Fetch comments when modal opens
   useEffect(() => {
@@ -198,6 +209,8 @@ export function PostDetailModal({
       if (result?.data?.success) {
         toast.success("Comment added successfully! 💬");
         setComment("");
+        // Update subscription status since user is now auto-subscribed
+        setIsSubscribed(true);
         // Refresh comments to get the real comment from server
         await fetchComments();
       } else {
@@ -211,6 +224,105 @@ export function PostDetailModal({
     } finally {
       setIsSubmittingComment(false);
     }
+  };
+
+  const handleSubscriptionToggle = async () => {
+    if (!user) {
+      toast.error("Please sign in to subscribe to notifications");
+      return;
+    }
+
+    if (!post.notionPageId) {
+      toast.error("Cannot subscribe to this post");
+      return;
+    }
+
+    setIsSubscribing(true);
+    const newSubscriptionState = !isSubscribed;
+
+    // Optimistic update
+    setIsSubscribed(newSubscriptionState);
+
+    try {
+      const result = await subscribeToPostAction({
+        postId: post.notionPageId,
+        userEmail: user.email,
+        isSubscribing: newSubscriptionState,
+      });
+
+      if (result?.data?.success) {
+        toast.success(
+          newSubscriptionState
+            ? "You'll be notified of updates! 🔔"
+            : "Unsubscribed from notifications"
+        );
+
+        // Update subscription state from server response
+        setIsSubscribed(result.data.data.isSubscribed);
+      } else {
+        throw new Error("Failed to update subscription");
+      }
+    } catch (error) {
+      console.error("Error updating subscription:", error);
+      toast.error("Failed to update subscription. Please try again.");
+      // Revert optimistic update on error
+      setIsSubscribed(!newSubscriptionState);
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const handleImportanceRating = async (
+    importanceLevel:
+      | "not-important"
+      | "nice-to-have"
+      | "important"
+      | "essential"
+  ) => {
+    if (!user) {
+      toast.error("Please sign in to rate importance");
+      return;
+    }
+
+    if (!post.notionPageId) {
+      toast.error("Cannot rate this post");
+      return;
+    }
+
+    setIsRatingImportance(true);
+    setImportance(importanceLevel);
+
+    try {
+      const result = await rateImportanceAction({
+        postId: post.notionPageId,
+        userEmail: user.email,
+        importance: importanceLevel,
+      });
+
+      if (result?.data?.success) {
+        toast.success("Thanks for rating! You'll be notified of updates 🔔");
+        // Update subscription status since user is now auto-subscribed
+        setIsSubscribed(true);
+      } else {
+        throw new Error("Failed to rate importance");
+      }
+    } catch (error) {
+      console.error("Error rating importance:", error);
+      toast.error("Failed to rate importance. Please try again.");
+      // Revert optimistic update on error
+      setImportance(null);
+    } finally {
+      setIsRatingImportance(false);
+    }
+  };
+
+  const handleVoteOnPost = async (post: FeedbackPost) => {
+    const success = await voteOnPost(post);
+    if (success) {
+      // Update subscription status since user is now auto-subscribed
+      setIsSubscribed(true);
+    }
+    return success;
   };
 
   return (
@@ -303,17 +415,31 @@ export function PostDetailModal({
                           importance === option.key ? "default" : "outline"
                         }
                         size="sm"
-                        onClick={() => setImportance(option.key as any)}
+                        onClick={() =>
+                          handleImportanceRating(option.key as any)
+                        }
+                        disabled={isRatingImportance}
                         className={`text-xs transition-all ${
                           importance === option.key
                             ? "bg-primary text-primary-foreground shadow-sm"
                             : "hover:bg-muted"
+                        } ${
+                          isRatingImportance
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
                         }`}
                       >
                         <div
                           className={`w-2 h-2 rounded-full ${option.color} mr-2`}
                         ></div>
-                        {option.label}
+                        {isRatingImportance && importance === option.key ? (
+                          <>
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            Rating...
+                          </>
+                        ) : (
+                          option.label
+                        )}
                       </Button>
                     ))}
                   </div>
@@ -461,7 +587,7 @@ export function PostDetailModal({
                 }`}
                 onClick={async () => {
                   if (!isVotingOnPost(post.id)) {
-                    await voteOnPost(post);
+                    await handleVoteOnPost(post);
                   }
                 }}
                 role="button"
@@ -477,7 +603,7 @@ export function PostDetailModal({
                     !isVotingOnPost(post.id)
                   ) {
                     e.preventDefault();
-                    voteOnPost(post);
+                    handleVoteOnPost(post);
                   }
                 }}
               >
@@ -543,12 +669,18 @@ export function PostDetailModal({
                 <Button
                   variant={isSubscribed ? "outline" : "default"}
                   size="sm"
-                  onClick={() => setIsSubscribed(!isSubscribed)}
+                  onClick={handleSubscriptionToggle}
+                  disabled={isSubscribing}
                   className={
                     isSubscribed ? "" : "bg-pink-600 hover:bg-pink-700"
                   }
                 >
-                  {isSubscribed ? (
+                  {isSubscribing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {isSubscribed ? "Unsubscribing..." : "Subscribing..."}
+                    </>
+                  ) : isSubscribed ? (
                     <>
                       <BellOff className="h-4 w-4 mr-2" />
                       Unsubscribe

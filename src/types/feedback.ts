@@ -39,6 +39,7 @@ export interface FeedbackPost {
   duplicateOf?: string; // ID of original post if this is a duplicate
   notionPageId?: string; // Notion page ID for integration
   notionUrl?: string; // Direct link to Notion page
+  subscribed?: boolean; // Whether the current user is subscribed to this post
 }
 
 // Comment system types

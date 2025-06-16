@@ -87,7 +87,6 @@ export function ChangelogComments({ isOpen, onClose }: ChangelogCommentsProps) {
   const handleSubmitComment = () => {
     if (newComment.trim()) {
       // Handle comment submission
-      console.log("New comment:", newComment);
       setNewComment("");
     }
   };
@@ -95,7 +94,6 @@ export function ChangelogComments({ isOpen, onClose }: ChangelogCommentsProps) {
   const handleSubmitReply = (commentId: string) => {
     if (replyContent.trim()) {
       // Handle reply submission
-      console.log("Reply to", commentId, ":", replyContent);
       setReplyContent("");
       setReplyTo(null);
     }

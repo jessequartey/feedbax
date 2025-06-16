@@ -111,10 +111,53 @@ export async function getPageComments(
 }
 
 /**
+ * Parse interests string from Notion rich text field
+ * Format: ",email@example.com,another@example.com,third@example.com"
+ */
+function parseInterests(interestsText: string): string[] {
+  if (!interestsText || !interestsText.trim()) {
+    return [];
+  }
+
+  // Remove leading/trailing commas and split by comma
+  const emails = interestsText
+    .split(",")
+    .map((email) => email.trim())
+    .filter((email) => email.length > 0);
+
+  return emails;
+}
+
+/**
+ * Format interests array to Notion rich text format
+ * Format: ",email@example.com,another@example.com,third@example.com"
+ */
+function formatInterests(interests: string[]): string {
+  if (!interests || interests.length === 0) {
+    return "";
+  }
+
+  return "," + interests.join(",");
+}
+
+/**
+ * Check if a user is subscribed to a post
+ */
+function isUserSubscribed(interestsText: string, userEmail?: string): boolean {
+  if (!userEmail || !interestsText) {
+    return false;
+  }
+
+  const interests = parseInterests(interestsText);
+  return interests.includes(userEmail);
+}
+
+/**
  * Transform Notion page data to FeedbackPost format
  */
 export async function transformNotionPageToFeedbackPost(
-  page: any
+  page: any,
+  currentUserEmail?: string
 ): Promise<FeedbackPost> {
   const properties = page.properties;
 
@@ -142,6 +185,10 @@ export async function transformNotionPageToFeedbackPost(
     properties.Submitter?.rich_text?.[0]?.plain_text ||
     "";
   const author = submitterEmail || "Anonymous";
+
+  // Check if current user is subscribed (don't expose all emails to client)
+  const interestsText = properties.Interests?.rich_text?.[0]?.plain_text || "";
+  const subscribed = isUserSubscribed(interestsText, currentUserEmail);
 
   // Extract dates with better fallback handling
   const createdAt =
@@ -177,6 +224,7 @@ export async function transformNotionPageToFeedbackPost(
     updatedAt: formatDate(updatedAt),
     notionPageId: page.id,
     notionUrl: page.url,
+    subscribed,
   };
 }
 
@@ -219,9 +267,41 @@ function formatDate(dateString: string): string {
 }
 
 /**
+ * Update interests for a feedback post
+ */
+export async function updateFeedbackPostInterests(
+  pageId: string,
+  interests: string[]
+): Promise<void> {
+  try {
+    const formattedInterests = formatInterests(interests);
+
+    await notion.pages.update({
+      page_id: pageId,
+      properties: {
+        Interests: {
+          rich_text: [
+            {
+              text: {
+                content: formattedInterests,
+              },
+            },
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error updating feedback post interests:", error);
+    throw new Error("Failed to update interests");
+  }
+}
+
+/**
  * Fetch all feedback posts from Notion database
  */
-export async function getFeedbackPosts(): Promise<FeedbackPost[]> {
+export async function getFeedbackPosts(
+  currentUserEmail?: string
+): Promise<FeedbackPost[]> {
   try {
     const response = await notion.databases.query({
       database_id: env.NOTION_DATABASE_ID,
@@ -235,8 +315,21 @@ export async function getFeedbackPosts(): Promise<FeedbackPost[]> {
 
     // Transform pages with comments count (parallel processing for better performance)
     const posts = await Promise.all(
-      response.results.map(transformNotionPageToFeedbackPost)
+      response.results.map((page) =>
+        transformNotionPageToFeedbackPost(page, currentUserEmail)
+      )
     );
+
+    // Log subscription status for debugging
+    if (currentUserEmail) {
+      posts.forEach((post) => {
+        if (post.subscribed) {
+          console.log(
+            `User ${currentUserEmail} is subscribed to post: "${post.title}"`
+          );
+        }
+      });
+    }
 
     return posts;
   } catch (error) {
