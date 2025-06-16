@@ -1,5 +1,10 @@
 import { Client } from "@notionhq/client";
-import type { FeedbackPost, PostType, PostStatus } from "@/types/feedback";
+import type {
+  FeedbackPost,
+  PostType,
+  PostStatus,
+  FeedbackComment,
+} from "@/types/feedback";
 
 // Initialize Notion client
 export const notion = new Client({
@@ -24,9 +29,58 @@ const statusMapping: Record<string, PostStatus> = {
 };
 
 /**
+ * Get comments count for a Notion page
+ */
+export async function getCommentsCount(pageId: string): Promise<number> {
+  try {
+    const response = await notion.comments.list({
+      block_id: pageId,
+    });
+    return response.results.length;
+  } catch (error) {
+    console.error("Error fetching comments count:", error);
+    return 0;
+  }
+}
+
+/**
+ * Get comments for a Notion page
+ */
+export async function getPageComments(
+  pageId: string
+): Promise<FeedbackComment[]> {
+  try {
+    const response = await notion.comments.list({
+      block_id: pageId,
+    });
+
+    return response.results.map((comment: any) => ({
+      id: comment.id,
+      postId: pageId,
+      content: comment.rich_text?.[0]?.plain_text || "",
+      author: comment.created_by?.name || "Anonymous",
+      authorId: comment.created_by?.id,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        comment.created_by?.name || "Anonymous"
+      )}`,
+      createdAt: formatDate(comment.created_time),
+      updatedAt: comment.last_edited_time
+        ? formatDate(comment.last_edited_time)
+        : undefined,
+      notionBlockId: comment.id,
+    }));
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    return [];
+  }
+}
+
+/**
  * Transform Notion page data to FeedbackPost format
  */
-export function transformNotionPageToFeedbackPost(page: any): FeedbackPost {
+export async function transformNotionPageToFeedbackPost(
+  page: any
+): Promise<FeedbackPost> {
   const properties = page.properties;
 
   // Extract title
@@ -70,6 +124,9 @@ export function transformNotionPageToFeedbackPost(page: any): FeedbackPost {
     author
   )}`;
 
+  // Get comments count from Notion page
+  const commentsCount = await getCommentsCount(page.id);
+
   return {
     id: page.id,
     title,
@@ -78,7 +135,7 @@ export function transformNotionPageToFeedbackPost(page: any): FeedbackPost {
     status,
     upvotes,
     downvotes: 0,
-    comments: 0, // We'll implement comments later
+    comments: commentsCount,
     author,
     avatar,
     createdAt: formatDate(createdAt),
@@ -141,7 +198,12 @@ export async function getFeedbackPosts(): Promise<FeedbackPost[]> {
       ],
     });
 
-    return response.results.map(transformNotionPageToFeedbackPost);
+    // Transform pages with comments count (parallel processing for better performance)
+    const posts = await Promise.all(
+      response.results.map(transformNotionPageToFeedbackPost)
+    );
+
+    return posts;
   } catch (error) {
     console.error("Error fetching feedback posts from Notion:", error);
     throw new Error("Failed to fetch feedback posts");
@@ -208,7 +270,7 @@ export async function createFeedbackPost(data: {
       },
     });
 
-    return transformNotionPageToFeedbackPost(response);
+    return await transformNotionPageToFeedbackPost(response);
   } catch (error) {
     console.error("Error creating feedback post in Notion:", error);
     throw new Error("Failed to create feedback post");

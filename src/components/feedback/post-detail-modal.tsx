@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   ChevronUp,
   MessageSquare,
@@ -30,7 +30,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import type { FeedbackPost, PostStatus, PostType } from "@/types/feedback";
+import type {
+  FeedbackPost,
+  PostStatus,
+  PostType,
+  FeedbackComment,
+} from "@/types/feedback";
 
 interface PostDetailModalProps {
   post: FeedbackPost;
@@ -63,9 +68,37 @@ export function PostDetailModal({
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [comment, setComment] = useState("");
+  const [comments, setComments] = useState<FeedbackComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [importance, setImportance] = useState<
     "not-important" | "nice-to-have" | "important" | "essential" | null
   >(null);
+
+  // Fetch comments when modal opens
+  useEffect(() => {
+    if (isOpen && post.notionPageId) {
+      fetchComments();
+    }
+  }, [isOpen, post.notionPageId]);
+
+  const fetchComments = async () => {
+    if (!post.notionPageId) return;
+
+    setIsLoadingComments(true);
+    try {
+      const response = await fetch(`/api/comments/${post.notionPageId}`);
+      if (response.ok) {
+        const data = (await response.json()) as { comments: FeedbackComment[] };
+        setComments(data.comments);
+      } else {
+        console.error("Failed to fetch comments:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
 
   const formatNumber = (num: number) => {
     if (num >= 1000) {
@@ -232,16 +265,47 @@ export function PostDetailModal({
                     <TabsTrigger value="comments">
                       Comments{" "}
                       <Badge variant="secondary" className="ml-2">
-                        {post.comments}
+                        {comments.length}
                       </Badge>
                     </TabsTrigger>
                     <TabsTrigger value="activity">Activity feed</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="comments" className="space-y-4 mt-4">
-                    {post.comments > 0 ? (
-                      <div className="text-sm text-muted-foreground mb-4">
-                        Comments will be integrated with Notion soon...
+                    {isLoadingComments ? (
+                      <div className="text-center py-4">
+                        <div className="text-sm text-muted-foreground">
+                          Loading comments...
+                        </div>
+                      </div>
+                    ) : comments.length > 0 ? (
+                      <div className="space-y-4">
+                        {comments.map((comment) => (
+                          <div
+                            key={comment.id}
+                            className="flex items-start space-x-3 p-4 border rounded-lg"
+                          >
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={comment.avatar} />
+                              <AvatarFallback>
+                                {comment.author[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium text-sm">
+                                  {comment.author}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {comment.createdAt}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {comment.content}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="text-center py-8">
