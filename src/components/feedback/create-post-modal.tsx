@@ -1,17 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { Loader2 } from "lucide-react";
 import {
-  Bold,
-  Italic,
-  List,
-  Link,
-  Code,
-  ImageIcon,
-  Video,
-  Paperclip,
-} from "lucide-react";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,32 +19,118 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { PostType } from "@/types/feedback";
+import { createPostAction } from "@/lib/actions";
+import { mockUser } from "@/types/user";
+import { toast } from "sonner";
+import type { PostType, FeedbackPost } from "@/types/feedback";
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
+  currentPosts: FeedbackPost[];
+  onOptimisticUpdate: (posts: FeedbackPost[]) => void;
 }
 
-export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
+export function CreatePostModal({
+  isOpen,
+  onClose,
+  currentPosts,
+  onOptimisticUpdate,
+}: CreatePostModalProps) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [postType, setPostType] = useState<PostType>("feature");
 
-  const handleSubmit = () => {
-    // Handle post creation
-    console.log({ title, content, postType });
-    onClose();
+  const [isPending, setIsPending] = useState(false);
+
+  const handleOptimisticPost = useCallback(
+    (newPostData: { title: string; description: string; type: PostType }) => {
+      // Create optimistic post
+      const optimisticPost: FeedbackPost = {
+        id: `temp-${Date.now()}`, // Temporary ID
+        title: newPostData.title,
+        description: newPostData.description || "No description provided",
+        type: newPostData.type,
+        status: "backlog",
+        upvotes: 1, // Start with 1 vote as per requirement
+        downvotes: 0,
+        comments: 0,
+        author: mockUser.name,
+        authorId: mockUser.email,
+        avatar: mockUser.image,
+        createdAt: "Just now",
+        updatedAt: "Just now",
+        tags: [],
+      };
+
+      const updatedPosts = [optimisticPost, ...currentPosts];
+      onOptimisticUpdate(updatedPosts);
+      return optimisticPost;
+    },
+    [currentPosts, onOptimisticUpdate]
+  );
+
+  const handleSubmit = async () => {
+    // Client-side validation - title is required, description is optional
+    if (!title.trim()) {
+      toast.error("Please enter a title for your post");
+      return;
+    }
+
+    if (title.trim().length > 200) {
+      toast.error("Title must be less than 200 characters");
+      return;
+    }
+
+    if (content.trim().length > 2000) {
+      toast.error("Description must be less than 2000 characters");
+      return;
+    }
+
+    setIsPending(true);
+
+    const postData = {
+      title: title.trim(),
+      description: content.trim() || "No description provided",
+      type: postType,
+    };
+
+    // Create optimistic post
+    const optimisticPost = handleOptimisticPost(postData);
+
+    try {
+      // Execute the server action
+      const result = await createPostAction(postData);
+
+      if (result?.data?.success) {
+        toast.success("Post created successfully! 🎉");
+        // Reset form
+        setTitle("");
+        setContent("");
+        setPostType("feature");
+        onClose();
+      } else {
+        throw new Error("Failed to create post");
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+      toast.error("Failed to create post. Please try again.");
+      // Revert optimistic update on error
+      onOptimisticUpdate(currentPosts);
+    } finally {
+      setIsPending(false);
+    }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <DialogTitle className="sr-only">Create New Post</DialogTitle>
           <div className="flex items-center space-x-2">
             <Avatar className="h-8 w-8">
-              <AvatarImage src="/placeholder.svg?height=32&width=32" />
-              <AvatarFallback>U</AvatarFallback>
+              <AvatarImage src={mockUser.image} alt={mockUser.name} />
+              <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
             </Avatar>
             <Select
               value={postType}
@@ -77,7 +159,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
           <div className="space-y-2">
             <Textarea
-              placeholder="Help us improve Syllax! Please describe your feedback:
+              placeholder="
 
 1. Search before posting! Your feedback has likely been submitted already
 2. If you have multiple items to request, please create separate posts for each.
@@ -88,40 +170,20 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
             />
 
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1">
-                <Button variant="ghost" size="sm">
-                  <Bold className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Italic className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <List className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Link className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Code className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <ImageIcon className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Video className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-              </div>
-
               <div className="flex items-center justify-end">
                 <Button
                   onClick={handleSubmit}
                   className="bg-pink-600 hover:bg-pink-700"
-                  disabled={!title.trim()}
+                  disabled={!title.trim() || isPending}
                 >
-                  Submit Post
+                  {isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Submit Post"
+                  )}
                 </Button>
               </div>
             </div>

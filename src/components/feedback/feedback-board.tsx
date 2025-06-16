@@ -31,7 +31,7 @@ interface FeedbackBoardProps {
  */
 export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
   // State management
-  const [posts] = useState<FeedbackPost[]>(initialPosts);
+  const [posts, setPosts] = useState<FeedbackPost[]>(initialPosts);
   const [selectedBoard, setSelectedBoard] = useState<"all" | "feature" | "bug">(
     "all"
   );
@@ -66,6 +66,10 @@ export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
 
   const handleCloseDetailModal = useCallback(() => {
     setSelectedPost(null);
+  }, []);
+
+  const handleOptimisticUpdate = useCallback((updatedPosts: FeedbackPost[]) => {
+    setPosts(updatedPosts);
   }, []);
 
   // Computed statistics for sidebar
@@ -135,6 +139,8 @@ export function FeedbackBoard({ initialPosts }: FeedbackBoardProps) {
       <CreatePostModal
         isOpen={isCreateModalOpen}
         onClose={handleCloseCreateModal}
+        currentPosts={posts}
+        onOptimisticUpdate={handleOptimisticUpdate}
       />
 
       {selectedPost && (

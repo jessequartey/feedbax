@@ -260,7 +260,7 @@ export async function createFeedbackPost(data: {
           },
         },
         Votes: {
-          number: 0,
+          number: 1,
         },
         ...(data.submitter && {
           Submitter: {
