@@ -29,7 +29,7 @@ import {
 import { ThemeToggle } from "./theme-toggle";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
-import { mockUser } from "@/types/user";
+import { UserMenu } from "@/components/auth";
 
 interface FeedbackHeaderProps {
   selectedBoard?: "all" | "feature" | "bug";
@@ -148,10 +148,7 @@ export function FeedbackHeader({
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex items-center space-x-4">
               <ThemeToggle />
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={mockUser.image} alt={mockUser.name} />
-                <AvatarFallback>{mockUser.name.charAt(0)}</AvatarFallback>
-              </Avatar>
+              <UserMenu />
             </div>
 
             {/* Mobile Menu */}
@@ -249,19 +246,8 @@ export function FeedbackHeader({
                       <ThemeToggle />
                     </div>
 
-                    <div className="flex items-center space-x-3 mt-4">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={mockUser.image} alt={mockUser.name} />
-                        <AvatarFallback>
-                          {mockUser.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">{mockUser.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {mockUser.email}
-                        </p>
-                      </div>
+                    <div className="mt-4">
+                      <UserMenu />
                     </div>
                   </div>
                 </div>

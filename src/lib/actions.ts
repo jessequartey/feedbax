@@ -4,7 +4,7 @@ import { createSafeActionClient } from "next-safe-action";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createFeedbackPost, createPageComment } from "./notion";
-import { mockUser } from "@/types/user";
+// Removed mockUser import - using actual user data from forms
 import type { PostType } from "@/types/feedback";
 
 // Create the action client
@@ -22,6 +22,7 @@ const createPostSchema = z.object({
     .optional()
     .default("No description provided"),
   type: z.enum(["feature", "bug", "improvement", "question"] as const),
+  submitterEmail: z.string().email("Valid email is required"),
 });
 
 // Create post action
@@ -33,7 +34,7 @@ export const createPostAction = actionClient
         title: data.title,
         description: data.description,
         type: data.type as PostType,
-        submitter: mockUser.email, // Use the mock user's email as submitter
+        submitter: data.submitterEmail,
       });
 
       console.log("newPost", newPost);
@@ -60,7 +61,7 @@ const createCommentSchema = z.object({
     .max(2000, "Comment must be less than 2000 characters"),
   authorName: z.string().min(1, "Author name is required"),
   authorEmail: z.string().email("Valid email is required"),
-  authorAvatar: z.string().url("Valid avatar URL is required"),
+  authorAvatar: z.string(),
 });
 
 // Create comment action
@@ -68,15 +69,11 @@ export const createCommentAction = actionClient
   .schema(createCommentSchema)
   .action(async ({ parsedInput: data }) => {
     try {
-      const newComment = await createPageComment(
-        data.postId,
-        data.content,
-        {
-          name: data.authorName,
-          email: data.authorEmail,
-          avatar: data.authorAvatar,
-        }
-      );
+      const newComment = await createPageComment(data.postId, data.content, {
+        name: data.authorName,
+        email: data.authorEmail,
+        avatar: data.authorAvatar,
+      });
 
       // Revalidate the feedback page to show the new comment
       revalidatePath("/");
