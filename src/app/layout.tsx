@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   creator: "Feedbax",
   publisher: "Feedbax",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://feedbax.com"
+    process.env.NEXT_PUBLIC_APP_URL || "https://feedbax.pages.dev"
   ),
   openGraph: {
     type: "website",
