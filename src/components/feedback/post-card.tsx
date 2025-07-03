@@ -119,7 +119,7 @@ export function PostCard({
 
   return (
     <Card
-      className="p-4 hover:bg-accent/50 cursor-pointer transition-all duration-200 border-border focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
+      className="group p-5 hover:shadow-lg hover:shadow-primary/5 cursor-pointer transition-all duration-300 border border-border/50 hover:border-border bg-card/50 backdrop-blur-sm hover:bg-card/80 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 rounded-xl"
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -158,7 +158,7 @@ export function PostCard({
           </div>
 
           {/* Title */}
-          <h3 className="font-semibold text-foreground mb-2 hover:text-primary transition-colors line-clamp-2">
+          <h3 className="font-semibold text-foreground mb-2 group-hover:text-primary transition-colors line-clamp-2 text-lg">
             {post.title}
           </h3>
 
@@ -190,9 +190,11 @@ export function PostCard({
           <Button
             variant={isUpvoted ? "default" : "ghost"}
             size="sm"
-            className={`h-auto p-2 flex flex-col transition-all duration-200 ${
-              isUpvoted ? "bg-primary text-primary-foreground" : ""
-            } ${upvoteDisabled ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10"}`}
+            className={`h-auto p-3 flex flex-col transition-all duration-200 rounded-xl hover:scale-105 ${
+              isUpvoted 
+                ? "bg-gradient-to-b from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/25" 
+                : "hover:bg-accent/50 border border-transparent hover:border-border/50"
+            } ${upvoteDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             onClick={handleUpvote}
             disabled={upvoteDisabled}
             aria-label={`${isUpvoted ? "Remove upvote from" : "Upvote"} ${post.title}. Current upvotes: ${post.upvotes}`}
@@ -203,7 +205,7 @@ export function PostCard({
               }`}
               aria-hidden="true"
             />
-            <span className="text-xs font-medium">
+            <span className="text-xs font-bold">
               {formatNumber(post.upvotes)}
             </span>
           </Button>

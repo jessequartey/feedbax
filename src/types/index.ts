@@ -222,12 +222,12 @@ export type EventHandler<T = void> = (event: T) => void;
 export type AsyncEventHandler<T = void> = (event: T) => Promise<void>;
 
 // Component props with children
-export type PropsWithChildren<P = {}> = P & {
+export type PropsWithChildren<P = object> = P & {
   children?: React.ReactNode;
 };
 
 // Component props with className
-export type PropsWithClassName<P = {}> = P & {
+export type PropsWithClassName<P = object> = P & {
   className?: string;
 };
 
@@ -305,7 +305,7 @@ export interface BaseError {
   code: string;
   message: string;
   timestamp: Timestamp;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 // Error severity levels
@@ -332,7 +332,7 @@ export type ErrorCategory =
 export interface FeatureFlag {
   enabled: boolean;
   rolloutPercentage?: number;
-  conditions?: Record<string, any>;
+  conditions?: Record<string, unknown>;
 }
 
 // Feature flags map

@@ -59,7 +59,7 @@ export function CreatePostModal({
         downvotes: 0,
         comments: 0,
         author: user.name,
-        authorId: user.email,
+        authorId: `user-${btoa(user.email).substring(0, 8)}`,
         avatar: user.image || "",
         createdAt: "Just now",
         updatedAt: "Just now",

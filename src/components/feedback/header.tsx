@@ -12,7 +12,6 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,7 +36,6 @@ interface FeedbackHeaderProps {
 }
 
 export function FeedbackHeader({
-  selectedBoard = "all",
   onBoardChange,
 }: FeedbackHeaderProps) {
   const router = useRouter();
@@ -59,21 +57,26 @@ export function FeedbackHeader({
   }
 
   return (
-    <header className="border-b border-border bg-card">
-      <div className="container mx-auto px-4 py-4">
+    <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50 shadow-sm">
+      <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <ZapIcon className="h-6 w-6 text-yellow-400" />
-              <span className="text-xl font-semibold">Feedbax</span>
+            <div className="flex items-center space-x-3 group">
+              <div className="relative">
+                <ZapIcon className="h-7 w-7 text-yellow-500 group-hover:text-yellow-400 transition-colors duration-200" />
+                <div className="absolute -inset-1 bg-yellow-500/20 rounded-full blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+              </div>
+              <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                Feedbax
+              </span>
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-1">
+            <nav className="hidden md:flex items-center space-x-2">
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-muted-foreground"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 rounded-lg"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to App
@@ -86,8 +89,8 @@ export function FeedbackHeader({
                     size="sm"
                     className={
                       isFeedbackPage
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground"
+                        ? "bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20 shadow-sm hover:from-primary/15 hover:to-primary/10"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200"
                     }
                     onClick={() => router.push("/")}
                   >
@@ -121,8 +124,8 @@ export function FeedbackHeader({
                 size="sm"
                 className={
                   isRoadmapPage
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground"
+                    ? "bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20 shadow-sm hover:from-primary/15 hover:to-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200"
                 }
                 onClick={() => router.push("/roadmap")}
               >
@@ -134,8 +137,8 @@ export function FeedbackHeader({
                 size="sm"
                 className={
                   isChangelogPage
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground"
+                    ? "bg-gradient-to-r from-primary/10 to-primary/5 text-primary border border-primary/20 shadow-sm hover:from-primary/15 hover:to-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200"
                 }
                 onClick={() => router.push("/changelog")}
               >
@@ -145,8 +148,14 @@ export function FeedbackHeader({
             </nav>
           </div>
 
-          <div className="flex items-center space-x-4">
-            <div className="hidden md:flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <div className="hidden md:flex items-center space-x-3">
+              <div className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
+                <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                  ✨ Beta
+                </span>
+              </div>
+              <div className="w-px h-6 bg-border/50" />
               <ThemeToggle />
               <UserMenu />
             </div>
@@ -154,7 +163,11 @@ export function FeedbackHeader({
             {/* Mobile Menu */}
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="md:hidden">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="md:hidden rounded-lg hover:bg-accent/50 transition-all duration-200"
+                >
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Open menu</span>
                 </Button>

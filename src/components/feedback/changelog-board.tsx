@@ -27,12 +27,23 @@ export interface ChangelogItem {
   date: string;
   content: string;
   tags?: string[];
+  author: string;
+  avatar?: string;
+  version?: string;
+  title: string;
+  images?: string[];
+  videos?: string[];
+  comments?: number;
 }
 
 const mockChangelogData: ChangelogItem[] = [
   {
     id: "1",
     date: "2024-01-15",
+    title: "Major AI Tutor Improvements & Mobile PWA Support",
+    author: "Jesse Quartey",
+    avatar: "https://pbs.twimg.com/profile_images/1930234776822190080/5oYIe4uz_400x400.jpg",
+    version: "v2.1.0",
     content: `# 🚀 Major AI Tutor Improvements & Mobile PWA Support
 
 The time has come. We're finally ready to introduce you to the **Syllax AI Enhancement Platform**!
@@ -49,10 +60,17 @@ The AI platform lets your students learn from anywhere with a unified learning e
 
 Cut the sky-high tutoring costs and expensive learning platform bills. Bring your education to Syllax and save thousands per semester.`,
     tags: ["New"],
+    images: ["/placeholder.svg"],
+    videos: [],
+    comments: 5,
   },
   {
     id: "2",
     date: "2024-01-10",
+    title: "Study Groups & Collaborative Learning",
+    author: "Jesse Quartey",
+    avatar: "https://pbs.twimg.com/profile_images/1930234776822190080/5oYIe4uz_400x400.jpg",
+    version: "v2.0.0",
     content: `# 📚 Study Groups & Collaborative Learning
 
 We're excited to introduce **Study Groups** - collaborative spaces where students can learn together!
@@ -71,10 +89,17 @@ Perfect for group projects, exam preparation, and peer learning sessions.
 3. Start collaborating with AI-powered assistance
 4. Monitor everyone's learning journey together`,
     tags: ["New"],
+    images: [],
+    videos: [],
+    comments: 3,
   },
   {
     id: "3",
     date: "2024-01-05",
+    title: "UI Redesign & Accessibility Improvements",
+    author: "Sarah Design",
+    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Sarah%20Design",
+    version: "v1.9.0",
     content: `# 🎨 UI Redesign & Accessibility Improvements
 
 We've completely refreshed Syllax with a focus on clarity and accessibility.
@@ -93,10 +118,17 @@ We've completely refreshed Syllax with a focus on clarity and accessibility.
 
 The new design maintains familiarity while providing a more polished experience.`,
     tags: ["Improved"],
+    images: [],
+    videos: [],
+    comments: 7,
   },
   {
     id: "4",
     date: "2023-12-20",
+    title: "Performance & Security Updates",
+    author: "Dev Team",
+    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Dev%20Team",
+    version: "v1.8.5",
     content: `# 🔧 Performance & Security Updates
 
 This month we focused on performance optimizations and security enhancements.
@@ -118,10 +150,17 @@ This month we focused on performance optimizations and security enhancements.
 
 Thank you for your patience and continued feedback!`,
     tags: ["Improved"],
+    images: [],
+    videos: [],
+    comments: 2,
   },
   {
     id: "5",
     date: "2023-12-15",
+    title: "Learning Analytics & Study Tools",
+    author: "Jesse Quartey",
+    avatar: "https://pbs.twimg.com/profile_images/1930234776822190080/5oYIe4uz_400x400.jpg",
+    version: "v1.8.0",
     content: `# 📊 Learning Analytics & Study Tools
 
 Introducing powerful new tools to help you study more effectively and track your progress.
@@ -140,6 +179,9 @@ Introducing powerful new tools to help you study more effectively and track your
 
 These tools are designed to help you study smarter, not harder.`,
     tags: ["New"],
+    images: [],
+    videos: [],
+    comments: 8,
   },
 ];
 

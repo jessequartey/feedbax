@@ -7,7 +7,7 @@ import { FeedbackList } from "./feedback-list";
 import { CreatePostModal } from "./create-post-modal";
 import { PostDetailModal } from "./post-detail-modal";
 import { FeedbackWelcome } from "./feedback-welcome";
-import type { FeedbackPost, PostStatus } from "@/types/feedback";
+import type { FeedbackPost } from "@/types/feedback";
 
 interface FeedbackBoardProps {
   initialPosts: FeedbackPost[];

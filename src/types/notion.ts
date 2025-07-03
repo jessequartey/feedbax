@@ -209,25 +209,25 @@ export interface NotionLastEditedByProperty {
 
 // Property definition types (for database schema)
 export type NotionPropertyDefinition =
-  | { type: "title"; title: {} }
-  | { type: "rich_text"; rich_text: {} }
+  | { type: "title"; title: object }
+  | { type: "rich_text"; rich_text: object }
   | { type: "number"; number: { format?: "number" | "number_with_commas" | "percent" | "dollar" | "canadian_dollar" | "euro" | "pound" | "yen" | "ruble" | "rupee" | "won" | "yuan" | "real" | "lira" | "rupiah" | "franc" | "hong_kong_dollar" | "new_zealand_dollar" | "krona" | "norwegian_krone" | "mexican_peso" | "rand" | "new_taiwan_dollar" | "danish_krone" | "zloty" | "baht" | "forint" | "koruna" | "shekel" | "chilean_peso" | "philippine_peso" | "dirham" | "colombian_peso" | "riyal" | "ringgit" | "leu" | "argentine_peso" | "uruguayan_peso" } }
   | { type: "select"; select: { options: NotionSelectOption[] } }
   | { type: "multi_select"; multi_select: { options: NotionSelectOption[] } }
-  | { type: "date"; date: {} }
-  | { type: "people"; people: {} }
-  | { type: "files"; files: {} }
-  | { type: "checkbox"; checkbox: {} }
-  | { type: "url"; url: {} }
-  | { type: "email"; email: {} }
-  | { type: "phone_number"; phone_number: {} }
+  | { type: "date"; date: object }
+  | { type: "people"; people: object }
+  | { type: "files"; files: object }
+  | { type: "checkbox"; checkbox: object }
+  | { type: "url"; url: object }
+  | { type: "email"; email: object }
+  | { type: "phone_number"; phone_number: object }
   | { type: "formula"; formula: { expression: string } }
-  | { type: "relation"; relation: { database_id: string; type?: "single_property" | "dual_property"; single_property?: {}; dual_property?: { synced_property_name: string; synced_property_id: string } } }
+  | { type: "relation"; relation: { database_id: string; type?: "single_property" | "dual_property"; single_property?: object; dual_property?: { synced_property_name: string; synced_property_id: string } } }
   | { type: "rollup"; rollup: { relation_property_name: string; relation_property_id: string; rollup_property_name: string; rollup_property_id: string; function: string } }
-  | { type: "created_time"; created_time: {} }
-  | { type: "created_by"; created_by: {} }
-  | { type: "last_edited_time"; last_edited_time: {} }
-  | { type: "last_edited_by"; last_edited_by: {} };
+  | { type: "created_time"; created_time: object }
+  | { type: "created_by"; created_by: object }
+  | { type: "last_edited_time"; last_edited_time: object }
+  | { type: "last_edited_by"; last_edited_by: object };
 
 // Supporting types
 export interface NotionRichText {
@@ -315,7 +315,7 @@ export interface NotionListResponse<T> {
   next_cursor?: string | null;
   has_more: boolean;
   type?: string;
-  page_or_database?: {};
+  page_or_database?: object;
   developer_survey?: string;
   request_id: string;
 }
@@ -326,7 +326,7 @@ export interface NotionQueryDatabaseResponse {
   next_cursor?: string | null;
   has_more: boolean;
   type: "page_or_database";
-  page_or_database: {};
+  page_or_database: object;
   request_id: string;
 }
 
@@ -349,11 +349,11 @@ export interface NotionFilter {
   checkbox?: { equals?: boolean; does_not_equal?: boolean };
   select?: { equals?: string; does_not_equal?: string; is_empty?: boolean; is_not_empty?: boolean };
   multi_select?: { contains?: string; does_not_contain?: string; is_empty?: boolean; is_not_empty?: boolean };
-  date?: { equals?: string; before?: string; after?: string; on_or_before?: string; on_or_after?: string; past_week?: {}; past_month?: {}; past_year?: {}; next_week?: {}; next_month?: {}; next_year?: {}; is_empty?: boolean; is_not_empty?: boolean };
+  date?: { equals?: string; before?: string; after?: string; on_or_before?: string; on_or_after?: string; past_week?: object; past_month?: object; past_year?: object; next_week?: object; next_month?: object; next_year?: object; is_empty?: boolean; is_not_empty?: boolean };
   people?: { contains?: string; does_not_contain?: string; is_empty?: boolean; is_not_empty?: boolean };
   files?: { is_empty?: boolean; is_not_empty?: boolean };
   relation?: { contains?: string; does_not_contain?: string; is_empty?: boolean; is_not_empty?: boolean };
-  formula?: { string?: { equals?: string; is_empty?: boolean; is_not_empty?: boolean; starts_with?: string; ends_with?: string; contains?: string; does_not_contain?: string; does_not_equal?: string }; checkbox?: { equals?: boolean; does_not_equal?: boolean }; number?: { equals?: number; does_not_equal?: number; greater_than?: number; less_than?: number; greater_than_or_equal_to?: number; less_than_or_equal_to?: number; is_empty?: boolean; is_not_empty?: boolean }; date?: { equals?: string; before?: string; after?: string; on_or_before?: string; on_or_after?: string; past_week?: {}; past_month?: {}; past_year?: {}; next_week?: {}; next_month?: {}; next_year?: {}; is_empty?: boolean; is_not_empty?: boolean } };
+  formula?: { string?: { equals?: string; is_empty?: boolean; is_not_empty?: boolean; starts_with?: string; ends_with?: string; contains?: string; does_not_contain?: string; does_not_equal?: string }; checkbox?: { equals?: boolean; does_not_equal?: boolean }; number?: { equals?: number; does_not_equal?: number; greater_than?: number; less_than?: number; greater_than_or_equal_to?: number; less_than_or_equal_to?: number; is_empty?: boolean; is_not_empty?: boolean }; date?: { equals?: string; before?: string; after?: string; on_or_before?: string; on_or_after?: string; past_week?: object; past_month?: object; past_year?: object; next_week?: object; next_month?: object; next_year?: object; is_empty?: boolean; is_not_empty?: boolean } };
 }
 
 export interface NotionCompoundFilter {

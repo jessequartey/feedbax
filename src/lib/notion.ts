@@ -55,23 +55,29 @@ export async function getPageComments(
       block_id: pageId,
     });
 
-    return response.results.map((comment: any) => {
+    return response.results.map((comment: { id: string; rich_text?: Array<{ plain_text?: string }>; created_by?: { id?: string }; created_time: string; last_edited_time?: string }) => {
       const fullContent = comment.rich_text?.[0]?.plain_text || "";
 
-      // Parse embedded user metadata
-      const metadataMatch = fullContent.match(
+      // Parse embedded user metadata (updated to handle both old and new formats)
+      const metadataMatchWithEmail = fullContent.match(
         /\n\n---\nAuthor: (.+?) \((.+?)\)$/
       );
+      const metadataMatchWithoutEmail = fullContent.match(
+        /\n\n---\nAuthor: (.+?)$/
+      );
+      
       let content = fullContent;
       let authorName = "Anonymous";
-      let authorEmail = "";
       let isAdmin = false;
 
-      if (metadataMatch) {
-        // Extract content without metadata
+      if (metadataMatchWithEmail) {
+        // Legacy format with email (still parse but don't use email)
         content = fullContent.replace(/\n\n---\nAuthor: .+$/, "");
-        authorName = metadataMatch[1];
-        authorEmail = metadataMatch[2];
+        authorName = metadataMatchWithEmail[1];
+      } else if (metadataMatchWithoutEmail) {
+        // New format without email
+        content = fullContent.replace(/\n\n---\nAuthor: .+$/, "");
+        authorName = metadataMatchWithoutEmail[1];
       } else {
         // This is likely an admin comment from Notion (no embedded metadata)
         authorName = "Admin";
@@ -94,7 +100,7 @@ export async function getPageComments(
         postId: pageId,
         content: content,
         author: authorName,
-        authorId: authorEmail || comment.created_by?.id,
+        authorId: comment.created_by?.id || `user-${comment.id}`,
         avatar: avatar,
         createdAt: formatDate(comment.created_time),
         updatedAt: comment.last_edited_time
@@ -156,50 +162,57 @@ function isUserSubscribed(interestsText: string, userEmail?: string): boolean {
  * Transform Notion page data to FeedbackPost format
  */
 export async function transformNotionPageToFeedbackPost(
-  page: any,
+  page: { 
+    id: string; 
+    properties: Record<string, unknown>; 
+    created_time: string; 
+    last_edited_time: string; 
+    url: string 
+  },
   currentUserEmail?: string
 ): Promise<FeedbackPost> {
   const properties = page.properties;
 
   // Extract title
-  const title = properties.Title?.title?.[0]?.plain_text || "Untitled";
+  const titleProperty = properties.Title as { title?: Array<{ plain_text?: string }> } | undefined;
+  const title = titleProperty?.title?.[0]?.plain_text || "Untitled";
 
   // Extract description
-  const description = properties.Description?.rich_text?.[0]?.plain_text || "";
+  const descriptionProperty = properties.Description as { rich_text?: Array<{ plain_text?: string }> } | undefined;
+  const description = descriptionProperty?.rich_text?.[0]?.plain_text || "";
 
   // Extract and map type
-  const notionType = properties.Type?.select?.name || "Feature request";
+  const typeProperty = properties.Type as { select?: { name?: string } } | undefined;
+  const notionType = typeProperty?.select?.name || "Feature request";
   const type = typeMapping[notionType] || "feature";
 
   // Extract and map status
-  const notionStatus = properties.Status?.status?.name || "Backlog";
+  const statusProperty = properties.Status as { status?: { name?: string } } | undefined;
+  const notionStatus = statusProperty?.status?.name || "Backlog";
   const status = statusMapping[notionStatus] || "backlog";
 
   // Extract votes - handle both number and null cases
-  const upvotes =
-    typeof properties.Votes?.number === "number" ? properties.Votes.number : 0;
+  const votesProperty = properties.Votes as { number?: number } | undefined;
+  const upvotes = typeof votesProperty?.number === "number" ? votesProperty.number : 0;
 
   // Extract submitter email or use default
-  const submitterEmail =
-    properties.Submitter?.email ||
-    properties.Submitter?.rich_text?.[0]?.plain_text ||
-    "";
+  const submitterProperty = properties.Submitter as { email?: string; rich_text?: Array<{ plain_text?: string }> } | undefined;
+  const submitterEmail = submitterProperty?.email || submitterProperty?.rich_text?.[0]?.plain_text || "";
   const author = submitterEmail || "Anonymous";
 
   // Check if current user is subscribed (don't expose all emails to client)
-  const interestsText = properties.Interests?.rich_text?.[0]?.plain_text || "";
+  const interestsProperty = properties.Interests as { rich_text?: Array<{ plain_text?: string }> } | undefined;
+  const interestsText = interestsProperty?.rich_text?.[0]?.plain_text || "";
   const subscribed = isUserSubscribed(interestsText, currentUserEmail);
 
   // Extract dates with better fallback handling
-  const createdAt =
-    properties["Created At"]?.created_time ||
-    properties.splv?.created_time || // fallback to property ID
-    page.created_time;
+  const createdAtProperty = properties["Created At"] as { created_time?: string } | undefined;
+  const splvProperty = properties.splv as { created_time?: string } | undefined;
+  const createdAt = createdAtProperty?.created_time || splvProperty?.created_time || page.created_time;
 
-  const updatedAt =
-    properties["Updated At"]?.date?.start ||
-    properties.ZIRF?.date?.start || // fallback to property ID
-    page.last_edited_time;
+  const updatedAtProperty = properties["Updated At"] as { date?: { start?: string } } | undefined;
+  const zirfProperty = properties.ZIRF as { date?: { start?: string } } | undefined;
+  const updatedAt = updatedAtProperty?.date?.start || zirfProperty?.date?.start || page.last_edited_time;
 
   // Generate avatar URL (using a placeholder service)
   const avatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
@@ -315,9 +328,13 @@ export async function getFeedbackPosts(
 
     // Transform pages with comments count (parallel processing for better performance)
     const posts = await Promise.all(
-      response.results.map((page) =>
-        transformNotionPageToFeedbackPost(page, currentUserEmail)
-      )
+      response.results
+        .filter((page) => 
+          'properties' in page && 'created_time' in page && 'last_edited_time' in page && 'url' in page
+        )
+        .map((page) =>
+          transformNotionPageToFeedbackPost(page as { id: string; properties: Record<string, unknown>; created_time: string; last_edited_time: string; url: string }, currentUserEmail)
+        )
     );
 
     // Log subscription status for debugging
@@ -351,7 +368,7 @@ export async function createFeedbackPost(data: {
     // Map our types back to Notion format
     const notionType =
       Object.entries(typeMapping).find(
-        ([_, value]) => value === data.type
+        ([, value]) => value === data.type
       )?.[0] || "Feature request";
 
     const response = await notion.pages.create({
@@ -398,7 +415,11 @@ export async function createFeedbackPost(data: {
       },
     });
 
-    return await transformNotionPageToFeedbackPost(response);
+    if ('properties' in response && 'created_time' in response && 'last_edited_time' in response && 'url' in response) {
+      return await transformNotionPageToFeedbackPost(response as { id: string; properties: Record<string, unknown>; created_time: string; last_edited_time: string; url: string });
+    } else {
+      throw new Error("Invalid response format from Notion API");
+    }
   } catch (error) {
     console.error("Error creating feedback post in Notion:", error);
     throw new Error("Failed to create feedback post");
@@ -440,8 +461,8 @@ export async function createPageComment(
   }
 ): Promise<FeedbackComment> {
   try {
-    // Create the comment content with user metadata embedded
-    const commentContent = `${content}\n\n---\nAuthor: ${author.name} (${author.email})`;
+    // Create the comment content with user metadata embedded (no email)
+    const commentContent = `${content}\n\n---\nAuthor: ${author.name}`;
 
     const response = await notion.comments.create({
       parent: {
@@ -457,14 +478,17 @@ export async function createPageComment(
     });
 
     // Type assertion for the response since Notion API types might not be fully typed
-    const comment = response as any;
+    const comment = response as { id: string; created_time?: string };
+
+    // Generate a hashed user ID for privacy
+    const hashedUserId = `user-${btoa(author.email).substring(0, 8)}`;
 
     return {
       id: comment.id,
       postId: pageId,
       content: content, // Return original content without metadata
       author: author.name,
-      authorId: author.email,
+      authorId: hashedUserId,
       avatar: author.avatar,
       createdAt: formatDate(comment.created_time || new Date().toISOString()),
       notionBlockId: comment.id,

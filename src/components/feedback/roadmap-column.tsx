@@ -20,7 +20,6 @@ export function RoadmapColumn({
   title,
   icon: Icon,
   posts,
-  className,
   onPostClick,
   onUpvote,
   hasVoted,
