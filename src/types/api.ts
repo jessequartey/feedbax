@@ -3,7 +3,7 @@
  * Types for API requests, responses, and server-side operations
  */
 
-import { FeedbackPost, FeedbackComment, FeedbackVote, FeedbackFilters, SortOptions } from "./feedback";
+import { FeedbackPost, FeedbackComment, FeedbackFilters, SortOptions } from "./feedback";
 
 // API Request types
 export interface CreateFeedbackRequest {
@@ -93,7 +93,7 @@ export interface NotionWebhookPayload {
     type: "database_id";
     database_id: string;
   };
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
 }
 
 export interface WebhookEvent {
@@ -107,7 +107,7 @@ export interface ApiError {
   error: string;
   message: string;
   code?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -214,7 +214,7 @@ export interface ValidationError {
   field: string;
   message: string;
   code: string;
-  value?: any;
+  value?: unknown;
 }
 
 export interface ValidationResult {

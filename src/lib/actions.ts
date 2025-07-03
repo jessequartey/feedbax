@@ -151,9 +151,9 @@ export const subscribeToPostAction = actionClient
       });
 
       // Extract current interests from the page
-      const properties = (page as any).properties;
-      const currentInterestsText =
-        properties.Interests?.rich_text?.[0]?.plain_text || "";
+      const properties = 'properties' in page ? page.properties as Record<string, unknown> : {};
+      const interestsProperty = properties.Interests as { rich_text?: Array<{ plain_text?: string }> } | undefined;
+      const currentInterestsText = interestsProperty?.rich_text?.[0]?.plain_text || "";
 
       // Parse current interests
       const currentInterests = currentInterestsText
@@ -247,9 +247,9 @@ async function autoSubscribeUserToPost(
     });
 
     // Extract current interests from the page
-    const properties = (page as any).properties;
-    const currentInterestsText =
-      properties.Interests?.rich_text?.[0]?.plain_text || "";
+    const properties = 'properties' in page ? page.properties as Record<string, unknown> : {};
+    const interestsProperty = properties.Interests as { rich_text?: Array<{ plain_text?: string }> } | undefined;
+    const currentInterestsText = interestsProperty?.rich_text?.[0]?.plain_text || "";
 
     // Parse current interests
     const currentInterests = currentInterestsText

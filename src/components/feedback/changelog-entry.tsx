@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   MessageSquare,
   ChevronDown,
@@ -9,6 +8,7 @@ import {
   ExternalLink,
   Play,
 } from "lucide-react";
+import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,7 @@ export function ChangelogEntry({
           <div className="flex items-center space-x-3 mb-2">
             <Avatar className="h-8 w-8">
               <AvatarImage src={entry.avatar || "/placeholder.svg"} />
-              <AvatarFallback>{entry.author[0]}</AvatarFallback>
+              <AvatarFallback>{entry.author?.[0]}</AvatarFallback>
             </Avatar>
             <div>
               <p className="text-sm font-medium">{entry.author}</p>
@@ -76,13 +76,15 @@ export function ChangelogEntry({
         <div className="space-y-3">
           {entry.images && entry.images.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {entry.images.map((image, index) => (
+              {entry.images?.map((image: string, index: number) => (
                 <Dialog key={index}>
                   <DialogTrigger asChild>
                     <div className="relative cursor-pointer group">
-                      <img
+                      <Image
                         src={image || "/placeholder.svg"}
                         alt={`Screenshot ${index + 1}`}
+                        width={400}
+                        height={192}
                         className="w-full h-48 object-cover rounded-lg border border-border group-hover:opacity-90 transition-opacity"
                       />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg flex items-center justify-center">
@@ -91,9 +93,11 @@ export function ChangelogEntry({
                     </div>
                   </DialogTrigger>
                   <DialogContent className="max-w-4xl">
-                    <img
+                    <Image
                       src={image || "/placeholder.svg"}
                       alt={`Screenshot ${index + 1}`}
+                      width={800}
+                      height={600}
                       className="w-full h-auto rounded-lg"
                     />
                   </DialogContent>
@@ -104,7 +108,7 @@ export function ChangelogEntry({
 
           {entry.videos && entry.videos.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {entry.videos.map((video, index) => (
+              {entry.videos?.map((video: string, index: number) => (
                 <div key={index} className="relative cursor-pointer group">
                   <div className="w-full h-48 bg-muted rounded-lg border border-border flex items-center justify-center group-hover:bg-muted/80 transition-colors">
                     <Play className="h-12 w-12 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -144,7 +148,7 @@ export function ChangelogEntry({
           className="flex items-center space-x-2"
         >
           <MessageSquare className="h-4 w-4" />
-          <span>{entry.comments} Comments</span>
+          <span>{entry.comments || 0} Comments</span>
         </Button>
       </div>
     </Card>

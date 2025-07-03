@@ -77,14 +77,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${inter.className} antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+            {children}
+          </div>
           <Toaster />
         </ThemeProvider>
       </body>

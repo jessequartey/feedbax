@@ -6,10 +6,7 @@ import {
   MessageSquare,
   Bell,
   BellOff,
-  ThumbsUp,
-  Reply,
   ChevronRight,
-  X,
   Lightbulb,
   Bug,
   Zap,
@@ -94,14 +91,7 @@ export function PostDetailModal({
     setIsSubscribed(post.subscribed || false);
   }, [post.subscribed]);
 
-  // Fetch comments when modal opens
-  useEffect(() => {
-    if (isOpen && post.notionPageId) {
-      fetchComments();
-    }
-  }, [isOpen, post.notionPageId]);
-
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     if (!post.notionPageId) return;
 
     setIsLoadingComments(true);
@@ -118,7 +108,14 @@ export function PostDetailModal({
     } finally {
       setIsLoadingComments(false);
     }
-  };
+  }, [post.notionPageId]);
+
+  // Fetch comments when modal opens
+  useEffect(() => {
+    if (isOpen && post.notionPageId) {
+      fetchComments();
+    }
+  }, [isOpen, post.notionPageId, fetchComments]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000) {
@@ -194,7 +191,7 @@ export function PostDetailModal({
       postId: post.notionPageId,
       content: commentData.content,
       author: commentData.authorName,
-      authorId: user.email,
+      authorId: `user-${btoa(user.email).substring(0, 8)}`,
       avatar: user.image || undefined,
       createdAt: "Just now",
     };
@@ -416,7 +413,7 @@ export function PostDetailModal({
                         }
                         size="sm"
                         onClick={() =>
-                          handleImportanceRating(option.key as any)
+                          handleImportanceRating(option.key as "not-important" | "nice-to-have" | "important" | "essential")
                         }
                         disabled={isRatingImportance}
                         className={`text-xs transition-all ${

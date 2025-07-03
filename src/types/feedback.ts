@@ -190,7 +190,7 @@ export interface DataTransformOptions {
 export interface FeedbackError {
   code: string;
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   timestamp: string;
 }
 

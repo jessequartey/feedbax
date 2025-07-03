@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,6 @@ import { setUserCookie } from "@/lib/auth";
 import { User } from "@/types/auth";
 
 export function AuthOverlay() {
-  const router = useRouter();
   const [formData, setFormData] = useState({
     name: "",
     email: "",

@@ -91,7 +91,7 @@ export function ChangelogComments({ isOpen, onClose }: ChangelogCommentsProps) {
     }
   };
 
-  const handleSubmitReply = (commentId: string) => {
+  const handleSubmitReply = () => {
     if (replyContent.trim()) {
       // Handle reply submission
       setReplyContent("");
@@ -190,7 +190,7 @@ export function ChangelogComments({ isOpen, onClose }: ChangelogCommentsProps) {
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => handleSubmitReply(comment.id)}
+                              onClick={handleSubmitReply}
                               disabled={!replyContent.trim()}
                             >
                               Reply
