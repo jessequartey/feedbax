@@ -10,7 +10,8 @@ export const appConfig = {
   name: "Sylax",
   tagline: "AI-Powered Learning Platform",
   description: "An AI-powered learning platform that helps students learn faster and more effectively.",
-  
+  authCookieKey: "sylax_user",
+
   // URLs
   urls: {
     app: "https://sylax.app",
@@ -185,6 +186,8 @@ export const appConfig = {
     },
   },
 } as const;
+
+
 
 // Type exports for TypeScript
 export type AppConfig = typeof appConfig;

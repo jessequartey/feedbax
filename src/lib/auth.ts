@@ -1,6 +1,7 @@
+import { appConfig } from "@/config";
 import { User } from "@/types/auth";
 
-const USER_COOKIE_KEY = "feedbax_user";
+const USER_COOKIE_KEY = appConfig.authCookieKey;
 
 /**
  * Set user data in cookies
