@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { setUserCookie } from "@/lib/auth";
 import { User } from "@/types/auth";
+import { appConfig } from "@/config";
 
 function AuthPageContent() {
   const router = useRouter();
@@ -51,7 +52,7 @@ function AuthPageContent() {
     }
   }, [searchParams, router]);
 
-  const validateForm = () => {
+  function validateForm() {
     const newErrors: Record<string, string> = {};
 
     if (!formData.name.trim()) {
@@ -60,61 +61,66 @@ function AuthPageContent() {
 
     if (!formData.email.trim()) {
       newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "Please enter a valid email address";
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  function handleInputChange(field: string, value: string) {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors((prev) => ({
+        ...prev,
+        [field]: "",
+      }));
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      return;
+    }
 
     setIsLoading(true);
 
     try {
-      // Create user object
       const user: User = {
         name: formData.name.trim(),
         email: formData.email.trim(),
       };
 
-      // Set user in cookies
+      // Set user cookie
       setUserCookie(user);
 
       // Redirect to home
       router.push("/");
     } catch (error) {
       console.error("Authentication error:", error);
-      setErrors({ general: "Something went wrong. Please try again." });
+      setErrors({ general: "An error occurred. Please try again." });
     } finally {
       setIsLoading(false);
     }
-  };
+  }
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
-  };
-
-  // Show auto-authentication loading state
   if (isAutoAuthenticating) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md p-6">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <h1 className="text-xl font-semibold text-foreground mb-2">
-              Signing you in...
-            </h1>
-            <p className="text-muted-foreground">
-              Please wait while we authenticate your account
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <h2 className="text-lg font-semibold">Authenticating...</h2>
+            <p className="text-muted-foreground mt-2">
+              Please wait while we log you in.
             </p>
           </div>
         </Card>
@@ -127,10 +133,10 @@ function AuthPageContent() {
       <Card className="w-full max-w-md p-6">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-foreground">
-            Welcome to Feedbax
+            {appConfig.auth.welcomeTitle}
           </h1>
           <p className="text-muted-foreground mt-2">
-            Please provide your details to continue
+            {appConfig.auth.welcomeSubtitle}
           </p>
         </div>
 
@@ -173,15 +179,12 @@ function AuthPageContent() {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Signing in...
-              </>
-            ) : (
-              "Continue"
-            )}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading || !formData.name.trim() || !formData.email.trim()}
+          >
+            {isLoading ? "Signing in..." : "Continue"}
           </Button>
         </form>
       </Card>
@@ -191,16 +194,7 @@ function AuthPageContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<div>Loading...</div>}>
       <AuthPageContent />
     </Suspense>
   );

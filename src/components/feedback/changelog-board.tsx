@@ -1,187 +1,63 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
-  Search,
-  SlidersHorizontal,
-  GitBranch,
-  Clock,
-  Bell,
   Sparkles,
-  Settings,
   TrendingUp,
+  GitBranch,
+  Search,
+  Calendar,
+  User,
+  MessageCircle,
+  Tag,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { FeedbackHeader } from "./header";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import ReactMarkdown from "react-markdown";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FeedbackHeader } from "./header";
+import { appConfig } from "@/config";
 
-/**
- * Changelog item interface
- * Represents a single changelog entry with metadata
- */
-export interface ChangelogItem {
+interface ChangelogItem {
   id: string;
   date: string;
+  title: string;
+  author: string;
+  avatar: string;
+  version: string;
   content: string;
   tags?: string[];
-  author: string;
-  avatar?: string;
-  version?: string;
-  title: string;
   images?: string[];
   videos?: string[];
-  comments?: number;
+  comments: number;
 }
 
+// Clean mock data - this should be replaced with actual data fetching
 const mockChangelogData: ChangelogItem[] = [
   {
     id: "1",
     date: "2024-01-15",
-    title: "Major AI Tutor Improvements & Mobile PWA Support",
-    author: "Jesse Quartey",
-    avatar: "https://pbs.twimg.com/profile_images/1930234776822190080/5oYIe4uz_400x400.jpg",
-    version: "v2.1.0",
-    content: `# 🚀 Major AI Tutor Improvements & Mobile PWA Support
+    title: "Welcome to Sylax Feedback",
+    author: "Sylax Team",
+    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Sylax%20Team",
+    version: "v1.0.0",
+    content: `# 🎉 Welcome to Sylax Feedback!
 
-The time has come. We're finally ready to introduce you to the **Syllax AI Enhancement Platform**!
-
-The AI platform lets your students learn from anywhere with a unified learning experience and automate study sessions with powerful AI tutors. It's fast, modern, and built for collaboration.
+We're excited to launch our feedback platform to help shape the future of AI-powered learning.
 
 ## What's New
-- **Enhanced AI Understanding**: Better context awareness for personalized learning
-- **Mobile PWA Support**: Install Syllax on your mobile device for offline access
-- **Performance Improvements**: 40% faster response times across the platform
-- **Bug Fixes**: Resolved quiz saving issues and study timer problems
+- **Feedback System**: Share your ideas and feature requests
+- **Roadmap Visibility**: See what we're working on next
+- **Community Driven**: Help us build the best learning platform together
 
-**Included in all of your plans** ✨
-
-Cut the sky-high tutoring costs and expensive learning platform bills. Bring your education to Syllax and save thousands per semester.`,
-    tags: ["New"],
-    images: ["/placeholder.svg"],
-    videos: [],
-    comments: 5,
-  },
-  {
-    id: "2",
-    date: "2024-01-10",
-    title: "Study Groups & Collaborative Learning",
-    author: "Jesse Quartey",
-    avatar: "https://pbs.twimg.com/profile_images/1930234776822190080/5oYIe4uz_400x400.jpg",
-    version: "v2.0.0",
-    content: `# 📚 Study Groups & Collaborative Learning
-
-We're excited to introduce **Study Groups** - collaborative spaces where students can learn together!
-
-## Key Features
-- Create shared study spaces with classmates
-- Real-time collaboration on assignments and projects  
-- AI assistance that understands group context
-- Track individual and group learning progress
-
-Perfect for group projects, exam preparation, and peer learning sessions.
-
-## Getting Started
-1. Create a new study group from your dashboard
-2. Invite classmates with a simple share code
-3. Start collaborating with AI-powered assistance
-4. Monitor everyone's learning journey together`,
+Share your thoughts and help us make Sylax even better!`,
     tags: ["New"],
     images: [],
     videos: [],
-    comments: 3,
-  },
-  {
-    id: "3",
-    date: "2024-01-05",
-    title: "UI Redesign & Accessibility Improvements",
-    author: "Sarah Design",
-    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Sarah%20Design",
-    version: "v1.9.0",
-    content: `# 🎨 UI Redesign & Accessibility Improvements
-
-We've completely refreshed Syllax with a focus on clarity and accessibility.
-
-## Design Updates
-- **Cleaner Interface**: Reduced visual clutter for better focus
-- **Enhanced Dark Mode**: True dark theme that's comfortable for extended study sessions
-- **Better Typography**: Improved readability with optimized font choices
-- **Responsive Design**: Perfect experience across all devices
-
-## Accessibility
-- WCAG 2.1 AA compliant color contrast
-- Full keyboard navigation support
-- Enhanced screen reader compatibility
-- Clear focus indicators throughout the interface
-
-The new design maintains familiarity while providing a more polished experience.`,
-    tags: ["Improved"],
-    images: [],
-    videos: [],
-    comments: 7,
-  },
-  {
-    id: "4",
-    date: "2023-12-20",
-    title: "Performance & Security Updates",
-    author: "Dev Team",
-    avatar: "https://api.dicebear.com/7.x/initials/svg?seed=Dev%20Team",
-    version: "v1.8.5",
-    content: `# 🔧 Performance & Security Updates
-
-This month we focused on performance optimizations and security enhancements.
-
-## Performance Improvements
-- 60% faster database query responses
-- Improved content delivery speeds with enhanced caching
-- 30% reduction in memory usage across the platform
-
-## Security Updates
-- Enhanced authentication security protocols
-- Updated all dependencies to latest secure versions
-- Improved data encryption for student information
-
-## Bug Fixes
-- Fixed login session timeout issues
-- Resolved file upload problems for large documents
-- Corrected timezone display issues in study schedules
-
-Thank you for your patience and continued feedback!`,
-    tags: ["Improved"],
-    images: [],
-    videos: [],
-    comments: 2,
-  },
-  {
-    id: "5",
-    date: "2023-12-15",
-    title: "Learning Analytics & Study Tools",
-    author: "Jesse Quartey",
-    avatar: "https://pbs.twimg.com/profile_images/1930234776822190080/5oYIe4uz_400x400.jpg",
-    version: "v1.8.0",
-    content: `# 📊 Learning Analytics & Study Tools
-
-Introducing powerful new tools to help you study more effectively and track your progress.
-
-## Learning Analytics
-- **Progress Dashboard**: Visual overview of your learning journey
-- **Time Tracking**: Monitor study time across different subjects
-- **Performance Insights**: Identify strengths and improvement areas
-- **Goal Setting**: Set and track personalized learning objectives
-
-## New Study Tools
-- **AI Flashcard Generator**: Create flashcards from your notes automatically
-- **Practice Quizzes**: Auto-generated quizzes based on study materials
-- **Citation Helper**: Automatic citation generation for research papers
-- **Note Templates**: Pre-designed templates for different subjects
-
-These tools are designed to help you study smarter, not harder.`,
-    tags: ["New"],
-    images: [],
-    videos: [],
-    comments: 8,
+    comments: 0,
   },
 ];
 
@@ -203,6 +79,7 @@ export function ChangelogBoard() {
     return mockChangelogData.filter((entry) => {
       const searchLower = searchQuery.toLowerCase();
       return (
+        entry.title.toLowerCase().includes(searchLower) ||
         entry.content.toLowerCase().includes(searchLower) ||
         entry.tags?.some((tag) => tag.toLowerCase().includes(searchLower))
       );
@@ -265,283 +142,179 @@ export function ChangelogBoard() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-3">
             {/* Welcome Section */}
-            <div className="bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-500/20 rounded-lg p-6 mb-6">
+            <div className="bg-gradient-to-r from-purple-900/20 to-indigo-900/20 border border-purple-500/20 rounded-lg p-6 mb-6">
               <h2 className="text-lg font-semibold text-foreground mb-2">
-                Changelog - Stay updated with Syllax improvements! 📋
+                {appConfig.welcome.changelog.title}
               </h2>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p>
-                  Track all the latest updates, new features, and bug fixes.
-                </p>
-                <p>
-                  We&apos;re constantly improving Syllax based on your feedback!
-                </p>
+                {appConfig.welcome.changelog.subtitle.map((line, index) => (
+                  <p key={index}>{line}</p>
+                ))}
               </div>
             </div>
 
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-              <div className="relative flex-1 max-w-md">
-                <Search
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  placeholder="Search changelog..."
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-10"
-                  aria-label="Search changelog entries"
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
-                    onClick={() => setSearchQuery("")}
-                    aria-label="Clear search"
-                  >
-                    ×
-                  </Button>
-                )}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">
+                  {appConfig.navigation.sections.changelog.title}
+                </h1>
+                <p className="text-muted-foreground mt-1">
+                  {appConfig.navigation.sections.changelog.description}
+                </p>
               </div>
-              <div className="flex items-center space-x-3">
-                <Button
-                  className="bg-primary hover:bg-primary/90"
-                  aria-label="Subscribe to changelog updates"
-                >
-                  <Bell className="h-4 w-4 mr-2" />
-                  Subscribe to updates
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label="Filter changelog entries"
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                </Button>
+
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search updates..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-10 w-full sm:w-64"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Results summary */}
-            {searchQuery && (
-              <div className="text-sm text-muted-foreground mb-4">
-                {filteredEntries.length === 0 ? (
-                  <span>No entries found for &quot;{searchQuery}&quot;</span>
-                ) : (
-                  <span>
-                    {filteredEntries.length} entr
-                    {filteredEntries.length !== 1 ? "ies" : "y"} found for
-                    &quot;
-                    {searchQuery}&quot;
-                  </span>
-                )}
-              </div>
-            )}
+            {/* Results Count */}
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-muted-foreground">
+                {filteredEntries.length === mockChangelogData.length
+                  ? `${filteredEntries.length} updates`
+                  : `${filteredEntries.length} of ${mockChangelogData.length} updates`}
+              </p>
+            </div>
 
             {/* Changelog Entries */}
             <div className="space-y-6">
-              {filteredEntries.length > 0 ? (
+              {filteredEntries.length === 0 ? (
+                <Card className="p-8 text-center">
+                  <div className="text-muted-foreground">
+                    <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">No updates found</h3>
+                    <p className="text-sm">
+                      Try adjusting your search query or check back later for new updates.
+                    </p>
+                  </div>
+                </Card>
+              ) : (
                 filteredEntries.map((entry) => (
-                  <Card key={entry.id} className="p-6">
-                    {/* Entry Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-                          {getEntryIcon(entry.tags)}
+                  <Card key={entry.id} className="overflow-hidden">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={entry.avatar} alt={entry.author} />
+                            <AvatarFallback>
+                              {entry.author.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
                         </div>
-                        <div>
-                          <div className="font-semibold text-foreground">
-                            {formatDate(entry.date)}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {getEntryIcon(entry.tags)}
+                            <h3 className="text-lg font-semibold text-foreground truncate">
+                              {entry.title}
+                            </h3>
                           </div>
-                          <div className="flex items-center text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Release
+
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <User className="h-4 w-4" />
+                              <span>{entry.author}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              <span>{formatDate(entry.date)}</span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {entry.version}
+                            </Badge>
+                            {entry.tags && entry.tags.length > 0 && (
+                              <div className="flex items-center gap-1">
+                                <Tag className="h-4 w-4" />
+                                <div className="flex gap-1">
+                                  {entry.tags.map((tag) => (
+                                    <Badge
+                                      key={tag}
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                      {entry.tags && (
-                        <div className="flex gap-1 flex-wrap">
-                          {entry.tags.map((tag) => (
-                            <Badge
-                              key={tag}
-                              variant={tag === "New" ? "default" : "secondary"}
-                              className="text-xs"
-                            >
-                              {tag === "New" && (
-                                <Sparkles className="h-3 w-3 mr-1" />
-                              )}
-                              {tag === "Improved" && (
-                                <Settings className="h-3 w-3 mr-1" />
-                              )}
-                              {tag}
-                            </Badge>
-                          ))}
+                    </CardHeader>
+
+                    <CardContent>
+                      <div className="prose prose-sm max-w-none dark:prose-invert">
+                        <div
+                          className="text-sm text-muted-foreground leading-relaxed"
+                          dangerouslySetInnerHTML={{
+                            __html: entry.content
+                              .replace(/^# /gm, "## ")
+                              .replace(/\n/g, "<br />"),
+                          }}
+                        />
+                      </div>
+
+                      {entry.comments > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            {entry.comments} comments
+                          </Button>
                         </div>
                       )}
-                    </div>
-
-                    {/* Entry Content */}
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown
-                        components={{
-                          h1: ({ children }) => (
-                            <h1 className="text-xl font-bold mb-4 text-foreground">
-                              {children}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2 className="text-lg font-semibold mb-3 mt-6 text-foreground">
-                              {children}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3 className="text-base font-semibold mb-2 mt-4 text-foreground">
-                              {children}
-                            </h3>
-                          ),
-                          p: ({ children }) => (
-                            <p className="text-muted-foreground mb-3 leading-relaxed">
-                              {children}
-                            </p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul className="list-disc list-inside mb-4 text-muted-foreground space-y-1">
-                              {children}
-                            </ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol className="list-decimal list-inside mb-4 text-muted-foreground space-y-1">
-                              {children}
-                            </ol>
-                          ),
-                          strong: ({ children }) => (
-                            <strong className="font-semibold text-foreground">
-                              {children}
-                            </strong>
-                          ),
-                          code: ({ children }) => (
-                            <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
-                              {children}
-                            </code>
-                          ),
-                        }}
-                      >
-                        {entry.content}
-                      </ReactMarkdown>
-                    </div>
+                    </CardContent>
                   </Card>
                 ))
-              ) : (
-                <Card className="p-12 text-center">
-                  <div className="text-muted-foreground text-lg mb-2">
-                    {searchQuery
-                      ? "No entries found"
-                      : "No changelog entries yet"}
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {searchQuery
-                      ? "Try adjusting your search terms or clear the search to see all entries."
-                      : "Check back soon for updates!"}
-                  </p>
-                  {searchQuery && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setSearchQuery("")}
-                    >
-                      Clear search
-                    </Button>
-                  )}
-                </Card>
               )}
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <div className="space-y-4">
-              <Card className="p-4">
-                <h3 className="font-semibold mb-3">Quick Stats</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Total Updates
-                    </span>
-                    <span className="font-medium">
-                      {mockChangelogData.length}
-                    </span>
+            <Card className="sticky top-24">
+              <CardHeader>
+                <h3 className="text-lg font-semibold">Latest Updates</h3>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    <p>
+                      Stay up to date with the latest changes and improvements to {appConfig.name}.
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      This Month
-                    </span>
-                    <span className="font-medium">3</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      New Features
-                    </span>
-                    <span className="font-medium">
-                      {
-                        mockChangelogData.filter((entry) =>
-                          entry.tags?.includes("New")
-                        ).length
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      Improvements
-                    </span>
-                    <span className="font-medium">
-                      {
-                        mockChangelogData.filter((entry) =>
-                          entry.tags?.includes("Improved")
-                        ).length
-                      }
-                    </span>
-                  </div>
-                </div>
-              </Card>
 
-              <Card className="p-4">
-                <h3 className="font-semibold mb-3">Release Types</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="default" className="text-xs">
-                      <Sparkles className="h-3 w-3 mr-1" />
-                      New
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      New features and additions
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary" className="text-xs">
-                      <Settings className="h-3 w-3 mr-1" />
-                      Improved
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      Enhancements and fixes
-                    </span>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Sparkles className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span>New features and improvements</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <TrendingUp className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span>Performance optimizations</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <GitBranch className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span>Bug fixes and stability</span>
+                    </div>
                   </div>
                 </div>
-              </Card>
-
-              <Card className="p-4">
-                <div className="text-xs text-muted-foreground text-center">
-                  ⚡ Powered by{" "}
-                  <a
-                    href="https://github.com/jessequartey/feedbax"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-foreground transition-colors underline"
-                  >
-                    Feedbax
-                  </a>
-                </div>
-              </Card>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

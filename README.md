@@ -164,6 +164,37 @@ The interests are logged to console when fetching feedback posts for debugging p
 
 ## Configuration
 
+### App Configuration
+
+Feedbax uses a centralized configuration file (`src/config.ts`) that makes it easy to customize the application for your needs. Simply update the values in this file to change:
+
+- **App Identity**: Name, tagline, description, and branding
+- **URLs**: App URL, GitHub repository, documentation links
+- **SEO & Metadata**: Title, description, keywords, and Open Graph settings
+- **Welcome Messages**: Custom welcome text for different sections
+- **Post Types**: Configure available feedback categories
+- **UI Text**: Placeholder text, button labels, and messages
+
+```typescript
+// Example configuration
+export const appConfig = {
+  name: "Your App Name",
+  tagline: "Your App Tagline",
+  urls: {
+    app: "https://yourapp.com",
+    github: "https://github.com/yourname/yourapp",
+  },
+  branding: {
+    logo: "🚀", // Can be emoji or icon
+    colors: {
+      primary: "blue",
+      secondary: "indigo",
+    },
+  },
+  // ... more configuration options
+};
+```
+
 ### Environment Variables
 
 ```env

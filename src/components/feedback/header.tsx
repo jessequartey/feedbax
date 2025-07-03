@@ -9,7 +9,7 @@ import {
   Lightbulb,
   Bug,
   Menu,
-  ZapIcon,
+  Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { UserMenu } from "@/components/auth";
+import { appConfig } from "@/config";
 
 interface FeedbackHeaderProps {
   selectedBoard?: "all" | "feature" | "bug";
@@ -63,11 +64,11 @@ export function FeedbackHeader({
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-3 group">
               <div className="relative">
-                <ZapIcon className="h-7 w-7 text-yellow-500 group-hover:text-yellow-400 transition-colors duration-200" />
-                <div className="absolute -inset-1 bg-yellow-500/20 rounded-full blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                <Brain className="h-7 w-7 text-purple-500 group-hover:text-purple-400 transition-colors duration-200" />
+                <div className="absolute -inset-1 bg-purple-500/20 rounded-full blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               </div>
               <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                Feedbax
+                {appConfig.name}
               </span>
             </div>
 
@@ -77,9 +78,10 @@ export function FeedbackHeader({
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 rounded-lg"
+                onClick={() => window.open(appConfig.navigation.backToApp.url, '_blank')}
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to App
+                {appConfig.navigation.backToApp.text}
               </Button>
 
               <DropdownMenu>
@@ -95,7 +97,7 @@ export function FeedbackHeader({
                     onClick={() => router.push("/")}
                   >
                     <Layers className="h-4 w-4 mr-2" />
-                    Feedback
+                    {appConfig.navigation.sections.feedback.title}
                     {isFeedbackPage && <ChevronDown className="h-4 w-4 ml-2" />}
                   </Button>
                 </DropdownMenuTrigger>
@@ -130,7 +132,7 @@ export function FeedbackHeader({
                 onClick={() => router.push("/roadmap")}
               >
                 <Map className="h-4 w-4 mr-2" />
-                Roadmap
+                {appConfig.navigation.sections.roadmap.title}
               </Button>
               <Button
                 variant="ghost"
@@ -143,18 +145,20 @@ export function FeedbackHeader({
                 onClick={() => router.push("/changelog")}
               >
                 <History className="h-4 w-4 mr-2" />
-                Changelog
+                {appConfig.navigation.sections.changelog.title}
               </Button>
             </nav>
           </div>
 
           <div className="flex items-center space-x-3">
             <div className="hidden md:flex items-center space-x-3">
-              <div className="px-3 py-1 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                <span className="text-xs font-medium text-green-600 dark:text-green-400">
-                  ✨ Beta
-                </span>
-              </div>
+              {appConfig.branding.beta && (
+                <div className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/20">
+                  <span className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                    ✨ Beta
+                  </span>
+                </div>
+              )}
               <div className="w-px h-6 bg-border/50" />
               <ThemeToggle />
               <UserMenu />
@@ -176,7 +180,7 @@ export function FeedbackHeader({
                 <SheetHeader>
                   <SheetTitle className="flex items-center space-x-2">
                     <Layers className="h-5 w-5 text-primary" />
-                    <span>Syllax Navigation</span>
+                    <span>{appConfig.name} Navigation</span>
                   </SheetTitle>
                 </SheetHeader>
 
@@ -184,10 +188,10 @@ export function FeedbackHeader({
                   <Button
                     variant="ghost"
                     className="w-full justify-start text-muted-foreground"
-                    onClick={() => handleNavigation("/")}
+                    onClick={() => window.open(appConfig.navigation.backToApp.url, '_blank')}
                   >
                     <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Syllax
+                    {appConfig.navigation.backToApp.text}
                   </Button>
 
                   <div className="space-y-2">
@@ -197,7 +201,7 @@ export function FeedbackHeader({
                       onClick={() => handleNavigation("/")}
                     >
                       <Layers className="h-4 w-4 mr-2" />
-                      Feedback
+                      {appConfig.navigation.sections.feedback.title}
                     </Button>
 
                     {isFeedbackPage && (
@@ -205,7 +209,7 @@ export function FeedbackHeader({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full justify-start text-sm"
+                          className="w-full justify-start text-muted-foreground"
                           onClick={() => handleBoardChange("all")}
                         >
                           <Eye className="h-4 w-4 mr-2" />
@@ -214,7 +218,7 @@ export function FeedbackHeader({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full justify-start text-sm"
+                          className="w-full justify-start text-muted-foreground"
                           onClick={() => handleBoardChange("feature")}
                         >
                           <Lightbulb className="h-4 w-4 mr-2" />
@@ -223,7 +227,7 @@ export function FeedbackHeader({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full justify-start text-sm"
+                          className="w-full justify-start text-muted-foreground"
                           onClick={() => handleBoardChange("bug")}
                         >
                           <Bug className="h-4 w-4 mr-2" />
@@ -231,37 +235,23 @@ export function FeedbackHeader({
                         </Button>
                       </div>
                     )}
-                  </div>
 
-                  <Button
-                    variant={isRoadmapPage ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => handleNavigation("/roadmap")}
-                  >
-                    <Map className="h-4 w-4 mr-2" />
-                    Roadmap
-                  </Button>
-
-                  <Button
-                    variant={isChangelogPage ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => handleNavigation("/changelog")}
-                  >
-                    <History className="h-4 w-4 mr-2" />
-                    Changelog
-                  </Button>
-
-                  <div className="pt-4 border-t border-border">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Theme
-                      </span>
-                      <ThemeToggle />
-                    </div>
-
-                    <div className="mt-4">
-                      <UserMenu />
-                    </div>
+                    <Button
+                      variant={isRoadmapPage ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => handleNavigation("/roadmap")}
+                    >
+                      <Map className="h-4 w-4 mr-2" />
+                      {appConfig.navigation.sections.roadmap.title}
+                    </Button>
+                    <Button
+                      variant={isChangelogPage ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => handleNavigation("/changelog")}
+                    >
+                      <History className="h-4 w-4 mr-2" />
+                      {appConfig.navigation.sections.changelog.title}
+                    </Button>
                   </div>
                 </div>
               </SheetContent>

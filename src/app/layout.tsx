@@ -4,55 +4,43 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { appConfig } from "@/config";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Feedbax – Featurebase Clone Powered by Notion",
-  description:
-    "Submit feedback, feature requests, and bug reports for Feedbax, a Featurebase clone using Notion as the database.",
-  keywords: [
-    "feedback",
-    "featurebase",
-    "notion",
-    "roadmap",
-    "feature requests",
-    "bug reports",
-    "product management",
-    "customer feedback",
-    "open source",
-  ],
-  authors: [{ name: "Feedbax Team" }],
-  creator: "Feedbax",
-  publisher: "Feedbax",
+  title: appConfig.seo.title,
+  description: appConfig.seo.description,
+  keywords: appConfig.seo.keywords,
+  authors: [{ name: appConfig.seo.author }],
+  creator: appConfig.seo.creator,
+  publisher: appConfig.seo.publisher,
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://feedbax.pages.dev"
+    process.env.NEXT_PUBLIC_APP_URL || appConfig.urls.app
   ),
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "/",
-    title: "Feedbax – Featurebase Clone Powered by Notion",
-    description:
-      "Submit feedback, feature requests, and bug reports for Feedbax, a Featurebase clone using Notion as the database.",
-    siteName: "Feedbax",
+    title: appConfig.seo.title,
+    description: appConfig.seo.description,
+    siteName: appConfig.seo.siteName,
     images: [
       {
-        url: "/feedbax-opengraph.jpg",
+        url: appConfig.seo.ogImage,
         width: 1200,
         height: 675,
-        alt: "Feedbax - Modern feedback and roadmap system",
+        alt: `${appConfig.name} - ${appConfig.tagline}`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Feedbax – Featurebase Clone Powered by Notion",
-    description:
-      "Submit feedback, feature requests, and bug reports for Feedbax, a Featurebase clone using Notion as the database.",
-    images: ["/feedbax-opengraph.jpg"],
-    creator: "@feedbax",
-    site: "@feedbax",
+    title: appConfig.seo.title,
+    description: appConfig.seo.description,
+    images: [appConfig.seo.ogImage],
+    creator: appConfig.seo.twitterHandle,
+    site: appConfig.seo.twitterHandle,
   },
   robots: {
     index: true,
@@ -77,16 +65,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+      <body className={inter.className}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
-            {children}
-          </div>
+          {children}
           <Toaster />
         </ThemeProvider>
       </body>

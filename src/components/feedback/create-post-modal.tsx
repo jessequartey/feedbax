@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createPostAction } from "@/lib/actions";
+import { FeedbackPost } from "@/types/feedback";
 import { useAuth } from "@/lib/use-auth";
 import { toast } from "sonner";
-import type { PostType, FeedbackPost } from "@/types/feedback";
+import { Loader2 } from "lucide-react";
+import { appConfig } from "@/config";
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -40,42 +41,43 @@ export function CreatePostModal({
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [postType, setPostType] = useState<PostType>("feature");
-
+  const [postType, setPostType] = useState<"feature" | "bug">("feature");
   const [isPending, setIsPending] = useState(false);
 
-  const handleOptimisticPost = useCallback(
-    (newPostData: { title: string; description: string; type: PostType }) => {
-      if (!user) return null;
+       const handleOptimisticPost = (postData: {
+    title: string;
+    description: string;
+    type: string;
+    submitterEmail: string;
+  }): FeedbackPost | null => {
+    if (!user) return null;
 
-      // Create optimistic post
-      const optimisticPost: FeedbackPost = {
-        id: `temp-${Date.now()}`, // Temporary ID
-        title: newPostData.title,
-        description: newPostData.description || "No description provided",
-        type: newPostData.type,
-        status: "backlog",
-        upvotes: 1, // Start with 1 vote as per requirement
-        downvotes: 0,
-        comments: 0,
-        author: user.name,
-        authorId: `user-${btoa(user.email).substring(0, 8)}`,
-        avatar: user.image || "",
-        createdAt: "Just now",
-        updatedAt: "Just now",
-        tags: [],
-      };
+    const optimisticPost: FeedbackPost = {
+      id: `optimistic-${Date.now()}`,
+      title: postData.title,
+      description: postData.description,
+      type: postData.type as "feature" | "bug",
+      status: "backlog",
+      upvotes: 0,
+      comments: 0,
+      author: user.name,
+      authorId: `user-${btoa(user.email).substring(0, 8)}`,
+      avatar: user.image || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`,
+      createdAt: new Date().toISOString().split("T")[0],
+      tags: [],
+      subscribed: false,
+    };
 
-      const updatedPosts = [optimisticPost, ...currentPosts];
-      onOptimisticUpdate(updatedPosts);
-      return optimisticPost;
-    },
-    [currentPosts, onOptimisticUpdate, user]
-  );
+    // Add to the beginning of the posts array
+    const updatedPosts = [optimisticPost, ...currentPosts];
+    onOptimisticUpdate(updatedPosts);
+
+    return optimisticPost;
+  };
 
   const handleSubmit = async () => {
     if (!user) {
-      toast.error("Please sign in to create a post");
+      toast.error(appConfig.auth.signInPrompt);
       return;
     }
 
@@ -117,7 +119,7 @@ export function CreatePostModal({
       const result = await createPostAction(postData);
 
       if (result?.data?.success) {
-        toast.success("Post created successfully! 🎉");
+        toast.success(appConfig.postCreation.successMessage);
 
         // Replace the optimistic post with the real post data
         const realPost = result.data.data;
@@ -138,7 +140,7 @@ export function CreatePostModal({
       }
     } catch (error) {
       console.error("Error creating post:", error);
-      toast.error("Failed to create post. Please try again.");
+      toast.error(appConfig.postCreation.errorMessage);
       // Revert optimistic update on error
       onOptimisticUpdate(currentPosts);
     } finally {
@@ -148,36 +150,30 @@ export function CreatePostModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <DialogTitle className="sr-only">Create New Post</DialogTitle>
-          <div className="flex items-center space-x-2">
-            {user && (
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={user.image} alt={user.name} />
-                <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-              </Avatar>
-            )}
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Create New Post</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="type">Post Type</Label>
             <Select
               value={postType}
-              onValueChange={(value: PostType) => setPostType(value)}
+              onValueChange={(value) => setPostType(value as "feature" | "bug")}
             >
-              <SelectTrigger className="w-40">
-                <SelectValue />
+              <SelectTrigger>
+                <SelectValue placeholder="Select post type" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="feature">Feature Request</SelectItem>
                 <SelectItem value="bug">Bug Report</SelectItem>
-                <SelectItem value="improvement">Improvement</SelectItem>
-                <SelectItem value="question">Question</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </DialogHeader>
 
-        <div className="space-y-4">
           <Input
-            placeholder="Title of your post"
+            placeholder={appConfig.postCreation.placeholder.title}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="text-lg font-medium"
@@ -185,11 +181,7 @@ export function CreatePostModal({
 
           <div className="space-y-2">
             <Textarea
-              placeholder="
-
-1. Search before posting! Your feedback has likely been submitted already
-2. If you have multiple items to request, please create separate posts for each.
-3. If submitting a bug, please include steps to reproduce and expected behavior"
+              placeholder={appConfig.postCreation.placeholder.description}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               className="min-h-32 resize-none"
@@ -208,7 +200,7 @@ export function CreatePostModal({
                       Creating...
                     </>
                   ) : (
-                    "Submit Post"
+                    appConfig.postCreation.submitButton
                   )}
                 </Button>
               </div>

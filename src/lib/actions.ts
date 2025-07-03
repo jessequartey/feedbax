@@ -236,6 +236,20 @@ export const rateImportanceAction = actionClient
 /**
  * Helper function to automatically add user to interests when they interact with a post
  */
+// Fetch roadmap data
+export async function fetchRoadmapData() {
+  try {
+    // This would typically fetch from Notion, but for now return mock data
+    return {
+      success: true,
+      data: [], // Empty array as placeholder
+    };
+  } catch (error) {
+    console.error("Error fetching roadmap data:", error);
+    throw new Error("Failed to fetch roadmap data");
+  }
+}
+
 async function autoSubscribeUserToPost(
   postId: string,
   userEmail: string
