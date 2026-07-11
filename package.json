@@ -1,0 +1,23 @@
+{
+  "name": "feedbax",
+  "private": true,
+  "packageManager": "pnpm@10.29.3",
+  "engines": { "node": ">=22.18.0" },
+  "scripts": {
+    "build": "turbo run build",
+    "type-check": "turbo run type-check",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "dev": "turbo run dev --parallel",
+    "clean:cache": "turbo daemon clean && rm -rf .turbo"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.0.1",
+    "globals": "17.4.0",
+    "turbo": "2.10.4",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.56.1",
+    "vitest": "4.1.0"
+  }
+}

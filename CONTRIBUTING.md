@@ -17,4 +17,6 @@ Feedbax is preparing for a v0.0.2 rewrite. Issues, workflow descriptions, and de
 - Deployment targets must be verified in continuous integration.
 - Secrets and personal customer data must never be committed.
 
-Development setup will be documented when the monorepo scaffold lands.
+## Development setup
+
+Install Node 22.18 or newer, enable Corepack, and run `pnpm install --frozen-lockfile`. Before opening a pull request, run `pnpm build`, `pnpm type-check`, `pnpm lint`, and `pnpm test` from the repository root.

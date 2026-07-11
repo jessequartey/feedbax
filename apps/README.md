@@ -1,3 +1,3 @@
 # Applications
 
-Reserved for the portal and documentation/marketing applications. Framework scaffolding will land in a dedicated implementation PR.
+Contains the minimal TanStack Start application shells: `portal` for the feedback product and `site` for documentation and marketing. Both consume shared workspace packages; neither contains product features yet.

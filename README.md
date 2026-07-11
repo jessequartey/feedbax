@@ -4,9 +4,9 @@ Feedbax is becoming a lightweight, self-hostable customer-feedback portal that w
 
 > Own your feedback. Keep your existing workflow.
 
-## Rewrite status
+## Development status
 
-Feedbax is being redesigned for v0.0.2. The previous prototype has been removed from this branch so the connector-based architecture can be built deliberately. This branch does not contain a runnable application yet.
+Feedbax is being redesigned for v0.0.2. The repository now contains the pnpm/Turborepo foundation, minimal TanStack Start application shells, typed package boundaries, and deployment build presets. Product behavior has not been implemented yet.
 
 The first release will use Notion as its backend and provide:
 
@@ -35,7 +35,19 @@ deploy/      Verified hosting presets
 examples/    Integration and identity-handoff examples
 ```
 
-Placeholder directories describe intent only; no framework has been scaffolded.
+## Development
+
+Use Node 22.18 or newer and the pnpm version pinned in `package.json`.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm type-check
+pnpm lint
+pnpm test
+```
+
+Turborepo stores local task results in `.turbo`. Run `pnpm build` twice to observe cache hits, or `pnpm clean:cache` to clear the local task cache.
 
 ## Participate
 

@@ -1,0 +1,1 @@
+{"name":"@feedbax/notion","version":"0.0.0","private":true,"type":"module","exports":{".":{"types":"./dist/index.d.ts","default":"./dist/index.js"}},"scripts":{"build":"tsc -p tsconfig.json","type-check":"tsc -p tsconfig.json --noEmit","lint":"eslint src test","test":"vitest run"},"dependencies":{"@feedbax/core":"workspace:*"}}

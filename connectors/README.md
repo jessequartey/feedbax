@@ -1,3 +1,3 @@
 # Connectors
 
-Reserved for capability-based integrations. Notion will be the v0.0.2 reference connector.
+Contains capability-based backend adapters. The Notion workspace currently exports only its typed connector descriptor and performs no external API calls.

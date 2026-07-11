@@ -1,3 +1,3 @@
 # Examples
 
-Reserved for integration examples, beginning with signed identity handoff from an existing SaaS application.
+Contains compile-time integration examples. `auth-handoff` demonstrates the signed identity handoff contract without implementing token signing or verification.

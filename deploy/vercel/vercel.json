@@ -1,0 +1,1 @@
+{"buildCommand":"pnpm --filter @feedbax/deploy-vercel build","installCommand":"pnpm install --frozen-lockfile","framework":null}

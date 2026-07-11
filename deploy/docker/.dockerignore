@@ -1,0 +1,6 @@
+node_modules
+.git
+.turbo
+**/dist
+**/.output
+coverage
