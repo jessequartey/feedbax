@@ -1,0 +1,11 @@
+**/node_modules/**
+**/.turbo/**
+**/.output/**
+**/.source/**
+**/.vercel/**
+**/.wrangler/**
+**/dist/**
+**/coverage/**
+**/routeTree.gen.ts
+pnpm-lock.yaml
+

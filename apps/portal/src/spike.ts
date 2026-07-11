@@ -13,12 +13,19 @@ export function publicError(status: number, code: string, message: string) {
 }
 
 export function readEnv(name: string): string | undefined {
-  const runtime = globalThis as typeof globalThis & { process?: { env?: Record<string, string | undefined> } }
+  const runtime = globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> }
+  }
   return runtime.process?.env?.[name]
 }
 
 export function envStatus() {
-  return { marker: readEnv('FEEDBAX_SPIKE_MARKER') ?? 'local', notionConfigured: Boolean(readEnv('NOTION_TOKEN') && readEnv('NOTION_RESOURCE_ID')) }
+  return {
+    marker: readEnv('FEEDBAX_SPIKE_MARKER') ?? 'local',
+    notionConfigured: Boolean(
+      readEnv('NOTION_TOKEN') && readEnv('NOTION_RESOURCE_ID'),
+    ),
+  }
 }
 
 export function secureCookie(value: string) {
@@ -31,9 +38,13 @@ export function cookieValue(header: string | null) {
   return match ? decodeURIComponent(match[1] ?? '') : undefined
 }
 
-export function mutationInput(value: unknown): { action: 'increment' } | undefined {
+export function mutationInput(
+  value: unknown,
+): { action: 'increment' } | undefined {
   if (!value || typeof value !== 'object') return undefined
-  return (value as { action?: unknown }).action === 'increment' ? { action: 'increment' } : undefined
+  return (value as { action?: unknown }).action === 'increment'
+    ? { action: 'increment' }
+    : undefined
 }
 
 export function cachePayload() {
@@ -49,13 +60,20 @@ export async function fetchNotion(fetcher: typeof fetch = fetch) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 5000)
   try {
-    const response = await fetcher(`https://api.notion.com/v1/pages/${encodeURIComponent(resourceId)}`, {
-      headers: { authorization: `Bearer ${token}`, 'notion-version': '2026-03-11' },
-      signal: controller.signal,
-    })
+    const response = await fetcher(
+      `https://api.notion.com/v1/pages/${encodeURIComponent(resourceId)}`,
+      {
+        headers: {
+          authorization: `Bearer ${token}`,
+          'notion-version': '2026-03-11',
+        },
+        signal: controller.signal,
+      },
+    )
     if (!response.ok) throw new Error(`NOTION_HTTP_${response.status}`)
-    const result = await response.json() as { object?: unknown; id?: unknown }
-    if (result.object !== 'page' || typeof result.id !== 'string') throw new Error('NOTION_INVALID_RESPONSE')
+    const result = (await response.json()) as { object?: unknown; id?: unknown }
+    if (result.object !== 'page' || typeof result.id !== 'string')
+      throw new Error('NOTION_INVALID_RESPONSE')
     return { connected: true, object: 'page' as const }
   } finally {
     clearTimeout(timeout)

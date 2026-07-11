@@ -1,10 +1,17 @@
-import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router'
+import {
+  createRootRoute,
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+} from '@tanstack/react-router'
 import { RootProvider } from 'fumadocs-ui/provider/tanstack'
 import { SiteHeader } from '../components/site-header'
 import { canonicalBaseUrl } from '../lib/site'
 import siteCss from '../styles.css?url'
 
-const description = 'Open-source customer feedback for teams that want to keep Notion as their operational backend.'
+const description =
+  'Open-source customer feedback for teams that want to keep Notion as their operational backend.'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -22,13 +29,50 @@ export const Route = createRootRoute({
     links: [
       { rel: 'stylesheet', href: siteCss },
       { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-      ...(canonicalBaseUrl ? [{ rel: 'canonical', href: canonicalBaseUrl }] : []),
+      ...(canonicalBaseUrl
+        ? [{ rel: 'canonical', href: canonicalBaseUrl }]
+        : []),
     ],
   }),
   component: RootDocument,
-  notFoundComponent: () => <main className="not-found"><p className="eyebrow">404 / misplaced signal</p><h1>This page is not on the board.</h1><p>Try the documentation or head back to the beginning.</p><div className="button-row"><Link className="button primary" to="/docs/$" params={{ _splat: '' }}>Read the docs</Link><Link className="button secondary" to="/">Back home</Link></div></main>,
+  notFoundComponent: () => (
+    <main className="not-found">
+      <p className="eyebrow">404 / misplaced signal</p>
+      <h1>This page is not on the board.</h1>
+      <p>Try the documentation or head back to the beginning.</p>
+      <div className="button-row">
+        <Link className="button primary" to="/docs/$" params={{ _splat: '' }}>
+          Read the docs
+        </Link>
+        <Link className="button secondary" to="/">
+          Back home
+        </Link>
+      </div>
+    </main>
+  ),
 })
 
 function RootDocument() {
-  return <html lang="en" suppressHydrationWarning><head><HeadContent /></head><body><RootProvider search={{ enabled: false }} theme={{ attribute: 'class', defaultTheme: 'system', enableSystem: true, storageKey: 'feedbax-theme' }}><SiteHeader /><Outlet /></RootProvider><Scripts /></body></html>
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <RootProvider
+          search={{ enabled: false }}
+          theme={{
+            attribute: 'class',
+            defaultTheme: 'system',
+            enableSystem: true,
+            storageKey: 'feedbax-theme',
+          }}
+        >
+          <SiteHeader />
+          <Outlet />
+        </RootProvider>
+        <Scripts />
+      </body>
+    </html>
+  )
 }

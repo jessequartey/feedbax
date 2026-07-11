@@ -1,1 +1,9 @@
-{"extends":"../../tsconfig.base.json","compilerOptions":{"rootDir":"scripts","outDir":"dist","tsBuildInfoFile":"dist/cloudflare.tsbuildinfo"},"include":["scripts"]}
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "scripts",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/cloudflare.tsbuildinfo"
+  },
+  "include": ["scripts"]
+}

@@ -1,22 +1,81 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  dependencies:
+    name: Quality / Dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.29.3
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm type-check
-      - run: pnpm lint
-      - run: pnpm test
+
+  quality:
+    name: Quality / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Formatting
+            command: pnpm format:check
+          - name: Linting
+            command: pnpm lint
+          - name: Type-checking
+            command: pnpm type-check
+          - name: Unit tests
+            command: pnpm test
+          - name: Build
+            command: pnpm build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: ${{ matrix.command }}
+
+  deployment:
+    name: Deployment / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Cloudflare
+            command: pnpm --filter @feedbax/deploy-cloudflare build
+          - name: Vercel
+            command: pnpm --filter @feedbax/deploy-vercel build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: ${{ matrix.command }}
+
+  docker:
+    name: Deployment / Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f deploy/docker/Dockerfile -t feedbax:ci .

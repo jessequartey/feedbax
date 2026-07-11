@@ -1,1 +1,23 @@
-:root { font-family: system-ui, sans-serif; color: #18201b; background: #f5f7f5; } body { margin: 0; } main { max-width: 52rem; margin: 12vh auto; padding: 2rem; } header { border-bottom: 1px solid #cad2cc; } h1 { font-size: clamp(2rem, 6vw, 4rem); margin-bottom: .5rem; } p { line-height: 1.6; }
+:root {
+  font-family: system-ui, sans-serif;
+  color: #18201b;
+  background: #f5f7f5;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 52rem;
+  margin: 12vh auto;
+  padding: 2rem;
+}
+header {
+  border-bottom: 1px solid #cad2cc;
+}
+h1 {
+  font-size: clamp(2rem, 6vw, 4rem);
+  margin-bottom: 0.5rem;
+}
+p {
+  line-height: 1.6;
+}

@@ -1,7 +1,7 @@
 name: Early adopter
 description: Tell us how your team would use Feedbax.
-title: "[Early adopter]: "
-labels: ["early-adopter"]
+title: '[Early adopter]: '
+labels: ['early-adopter']
 body:
   - type: textarea
     attributes:

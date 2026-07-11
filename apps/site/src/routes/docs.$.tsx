@@ -2,7 +2,12 @@ import { createFileRoute, notFound } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { useFumadocsLoader } from 'fumadocs-core/source/client'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page'
+import {
+  DocsBody,
+  DocsDescription,
+  DocsPage,
+  DocsTitle,
+} from 'fumadocs-ui/layouts/docs/page'
 import browserCollections from '../../.source/browser'
 import { Suspense } from 'react'
 import { getMDXComponents } from '../components/mdx'
@@ -24,7 +29,15 @@ const loadDoc = createServerFn({ method: 'GET' })
 const clientLoader = browserCollections.docs.createClientLoader({
   component(page, props: { title: string; description?: string | undefined }) {
     const Body = page.default
-    return <DocsPage toc={page.toc}><DocsTitle>{props.title}</DocsTitle><DocsDescription>{props.description}</DocsDescription><DocsBody><Body components={getMDXComponents()} /></DocsBody></DocsPage>
+    return (
+      <DocsPage toc={page.toc}>
+        <DocsTitle>{props.title}</DocsTitle>
+        <DocsDescription>{props.description}</DocsDescription>
+        <DocsBody>
+          <Body components={getMDXComponents()} />
+        </DocsBody>
+      </DocsPage>
+    )
   },
 })
 
@@ -36,15 +49,31 @@ export const Route = createFileRoute('/docs/$')({
     return data
   },
   head: ({ loaderData }) => ({
-    meta: loaderData ? [
-      { title: `${loaderData.title} — Feedbax` },
-      { name: 'description', content: loaderData.description },
-    ] : [],
+    meta: loaderData
+      ? [
+          { title: `${loaderData.title} — Feedbax` },
+          { name: 'description', content: loaderData.description },
+        ]
+      : [],
   }),
   component: DocsRoute,
 })
 
 function DocsRoute() {
   const page = useFumadocsLoader(Route.useLoaderData())
-  return <DocsLayout tree={page.pageTree} nav={{ enabled: false }} searchToggle={{ enabled: false }} themeSwitch={{ enabled: false }} sidebar={{ collapsible: false }}><Suspense fallback={<div className="docs-loading">Loading documentation…</div>}>{clientLoader.useContent(page.path, page)}</Suspense></DocsLayout>
+  return (
+    <DocsLayout
+      tree={page.pageTree}
+      nav={{ enabled: false }}
+      searchToggle={{ enabled: false }}
+      themeSwitch={{ enabled: false }}
+      sidebar={{ collapsible: false }}
+    >
+      <Suspense
+        fallback={<div className="docs-loading">Loading documentation…</div>}
+      >
+        {clientLoader.useContent(page.path, page)}
+      </Suspense>
+    </DocsLayout>
+  )
 }
