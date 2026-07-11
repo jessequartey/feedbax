@@ -1,0 +1,29 @@
+name: Early adopter
+description: Tell us how your team would use Feedbax.
+title: "[Early adopter]: "
+labels: ["early-adopter"]
+body:
+  - type: textarea
+    attributes:
+      label: Current workflow
+      description: How do you collect and manage feedback today?
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Backend
+      options: [Notion, GitHub, Linear, Google Sheets, Other]
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Preferred deployment
+      options: [Cloudflare, Vercel, Docker/VPS, Netlify, Other]
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Required outcome
+      description: What must work before your team can use Feedbax?
+    validations:
+      required: true
