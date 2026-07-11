@@ -1,4 +1,5 @@
 FROM node:22.18.0-alpine AS build
+ENV CI=true
 RUN corepack enable && corepack prepare pnpm@10.29.3 --activate
 WORKDIR /app
 COPY . .
