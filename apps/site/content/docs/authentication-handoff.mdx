@@ -1,0 +1,38 @@
+---
+title: Authentication handoff
+description: Reuse application identity without trusting client-supplied user data.
+---
+
+Feedbax is designed for anonymous browsing and authenticated mutations. Rather than creating another customer-account system, the host application will issue a short-lived signed token that Feedbax verifies server-side.
+
+## Existing interfaces
+
+**Foundation only.** The authentication package currently defines the intended boundary:
+
+```ts
+interface HandoffIdentity {
+  readonly subject: string
+  readonly displayName?: string
+  readonly avatarUrl?: string
+}
+
+interface IdentityHandoff {
+  readonly issuer: string
+  readonly audience: string
+  readonly expiresAt: Date
+  readonly identity: HandoffIdentity
+}
+
+interface IdentityProvider {
+  readonly id: string
+  verify(token: string): Promise<IdentityHandoff>
+}
+```
+
+An example package demonstrates the object shape with issuer, `feedbax` audience, expiry, and a stable subject.
+
+## Security contract
+
+**Planned for v0.0.2:** signing guidance, algorithm and key configuration, issuer/audience verification, replay-safe expiry handling, secure session creation, logout, CSRF protection, and server-side mutation authorization.
+
+Client-supplied email addresses, identities, or vote counts will never be authoritative.

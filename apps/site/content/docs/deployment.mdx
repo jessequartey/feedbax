@@ -1,0 +1,26 @@
+---
+title: Deployment
+description: Deploy this static site independently and understand portal runtime evidence.
+---
+
+## Documentation site
+
+**Available.** This marketing and documentation application is statically prerendered and can be built without the portal:
+
+```sh
+pnpm --filter @feedbax/site build
+```
+
+Deploy the generated static client directory at `apps/site/.output/public` to any CDN or static host. Configure unknown paths to serve the generated `index.html` fallback so client-side navigation and deep links continue to work. `VITE_SITE_URL` is optional; set it at build time to emit a canonical base URL.
+
+Search runs entirely in the browser. The site does not need portal APIs, Notion credentials, or a long-running Node server.
+
+## Portal runtime evidence
+
+**Foundation only.** The runtime spike passed SSR, server functions, server-only environment access, secure cookies, live Notion reads, cache/ETag behavior, validated mutations, sanitized errors, and secret-leak checks on Cloudflare Workers, Vercel Node, and Node 22/Docker.
+
+Provider builds and smoke evidence do not mean the product portal itself is complete.
+
+## Release gate
+
+**Planned for v0.0.2:** verified production builds for the complete portal on Cloudflare, Vercel, and Docker. Netlify is **Deferred** until those targets are dependable.

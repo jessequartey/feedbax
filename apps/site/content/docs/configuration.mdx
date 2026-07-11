@@ -1,0 +1,31 @@
+---
+title: Configuration
+description: The small typed surface that exists today and the mapping layer planned next.
+---
+
+## Available surface
+
+**Foundation only.** The configuration package currently exposes `defineConfig` and a small `FeedbaxConfig` interface:
+
+```ts
+import { defineConfig } from '@feedbax/config'
+import { notionConnector } from '@feedbax/connector-notion'
+
+export default defineConfig({
+  name: 'Acme Feedback',
+  connector: notionConnector,
+})
+```
+
+```ts
+interface FeedbaxConfig {
+  readonly name: string
+  readonly connector: ConnectorDescriptor
+}
+```
+
+A connector descriptor has an `id`, `displayName`, and declared capability list. The Notion descriptor currently declares the `comments` capability.
+
+## Planned configuration
+
+**Planned for v0.0.2:** typed Notion field/status mappings, branding tokens, credentials validation, schema compatibility errors, caching bounds, and feature switches. Their final public shape is not stable and is deliberately undocumented until implemented.

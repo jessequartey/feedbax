@@ -1,1 +1,16 @@
-{"extends":"../../tsconfig.base.json","compilerOptions":{"module":"ESNext","moduleResolution":"Bundler","jsx":"react-jsx","allowImportingTsExtensions":true,"noEmit":true,"types":["vite/client"]},"include":["src","vite.config.ts"]}
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": { "collections/*": ["./.source/*"] }
+  },
+  "include": ["src", ".source", "vite.config.ts", "source.config.ts"]
+}

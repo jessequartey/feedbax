@@ -1,0 +1,22 @@
+---
+title: Notion setup
+description: Prepare the first backend connector without overstating its current state.
+---
+
+Notion is the only connector targeted for v0.0.2. Future connectors are directional, not shipped capability.
+
+## What exists
+
+**Foundation only.** `@feedbax/connector-notion` exports a descriptor with the id `notion`, display name `Notion`, and the `comments` capability. The portal runtime spike has also proven a live, server-only Notion read without leaking credentials.
+
+## Prepare a workspace
+
+1. Create a Notion integration for the target workspace.
+2. Create or select the database that will hold feedback.
+3. Share that database with the integration.
+4. Store the token as a server-only secret; never use a `VITE_` prefix.
+5. Keep the resource identifier alongside the deployment's server configuration.
+
+## Not ready yet
+
+**Planned for v0.0.2:** the supported database schema, typed field/status mapping, actionable health checks, bounded reads, validated mutations, and clear differentiation between an empty database and a connector outage.

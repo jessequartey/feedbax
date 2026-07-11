@@ -1,0 +1,29 @@
+---
+title: Contributing
+description: Help shape Feedbax while its first public interfaces are still forming.
+---
+
+Issues, workflow descriptions, and design feedback are welcome now. Implementation contributions should align with an accepted issue or RFC.
+
+## Before contributing
+
+1. Search existing issues and discussions.
+2. Open an issue describing the user problem, not only an implementation.
+3. Wait for scope agreement before starting a large change.
+4. Keep pull requests focused and update relevant documentation and tests.
+
+## Local checks
+
+Use Node.js 22.18 or newer and the pinned pnpm version:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm type-check
+pnpm lint
+pnpm test
+```
+
+Claims must match implemented behavior. Core code must not depend on a connector or hosting provider, and secrets or customer data must never be committed.
+
+[Open a GitHub issue](https://github.com/jessequartey/feedbax/issues) or read the repository's full contributing policy before proposing a large change.
