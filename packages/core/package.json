@@ -14,5 +14,8 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
   }
 }
