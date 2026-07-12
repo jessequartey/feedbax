@@ -19,6 +19,8 @@ Search runs entirely in the browser. The site does not need portal APIs, Notion 
 
 **Foundation only.** The runtime spike passed SSR, server functions, server-only environment access, secure cookies, live Notion reads, cache/ETag behavior, validated mutations, sanitized errors, and secret-leak checks on Cloudflare Workers, Vercel Node, and Node 22/Docker.
 
+Signed handoff uses Web Crypto through `jose` and the same standard `Request`/`Response` boundary on every deployment target. Production deployments require HTTPS because browsers will only retain the `Secure` session cookie over HTTPS. Configure authentication environment variables independently on each target and preserve previous session keys during rotation.
+
 ## Notion predeploy gate
 
 Run `pnpm notion:doctor` with `NOTION_TOKEN` and `NOTION_DATA_SOURCE_ID` in the deployment environment before releasing user traffic. Docker runs this check in its container command and refuses to start on failure. Local `dev` and `start` do the same.

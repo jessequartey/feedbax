@@ -26,6 +26,8 @@ interface FeedbaxConfig {
 
 A connector descriptor has an `id`, `displayName`, and declared capability list. The Notion descriptor currently declares the `comments` capability.
 
+Authentication is configured through the typed `authentication` property. It declares the audience, exact issuer/key registry, session encryption key ring and active key ID, and host login URL. Secret values should be populated from environment variables rather than committed to configuration.
+
 ## Planned configuration
 
 **Planned for v0.0.2:** typed Notion field/status mappings, branding tokens, credentials validation, schema compatibility errors, caching bounds, and feature switches. Their final public shape is not stable and is deliberately undocumented until implemented.

@@ -14,5 +14,9 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@feedbax/core": "workspace:*",
+    "jose": "6.1.3"
   }
 }

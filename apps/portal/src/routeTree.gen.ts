@@ -10,13 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
+import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as ApiMutationRouteImport } from './routes/api.mutation'
 import { Route as ApiErrorRouteImport } from './routes/api.error'
 import { Route as ApiCacheRouteImport } from './routes/api.cache'
+import { Route as ApiAuthSessionRouteImport } from './routes/api.auth-session'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLogoutRoute = AuthLogoutRouteImport.update({
+  id: '/auth/logout',
+  path: '/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthHandoffRoute = AuthHandoffRouteImport.update({
+  id: '/auth/handoff',
+  path: '/auth/handoff',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMutationRoute = ApiMutationRouteImport.update({
@@ -34,39 +47,78 @@ const ApiCacheRoute = ApiCacheRouteImport.update({
   path: '/api/cache',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
+  id: '/api/auth-session',
+  path: '/api/auth-session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/error': typeof ApiErrorRoute
   '/api/mutation': typeof ApiMutationRoute
+  '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/logout': typeof AuthLogoutRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/error': typeof ApiErrorRoute
   '/api/mutation': typeof ApiMutationRoute
+  '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/logout': typeof AuthLogoutRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/error': typeof ApiErrorRoute
   '/api/mutation': typeof ApiMutationRoute
+  '/auth/handoff': typeof AuthHandoffRoute
+  '/auth/logout': typeof AuthLogoutRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/cache' | '/api/error' | '/api/mutation'
+  fullPaths:
+    | '/'
+    | '/api/auth-session'
+    | '/api/cache'
+    | '/api/error'
+    | '/api/mutation'
+    | '/auth/handoff'
+    | '/auth/logout'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/cache' | '/api/error' | '/api/mutation'
-  id: '__root__' | '/' | '/api/cache' | '/api/error' | '/api/mutation'
+  to:
+    | '/'
+    | '/api/auth-session'
+    | '/api/cache'
+    | '/api/error'
+    | '/api/mutation'
+    | '/auth/handoff'
+    | '/auth/logout'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/auth-session'
+    | '/api/cache'
+    | '/api/error'
+    | '/api/mutation'
+    | '/auth/handoff'
+    | '/auth/logout'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiCacheRoute: typeof ApiCacheRoute
   ApiErrorRoute: typeof ApiErrorRoute
   ApiMutationRoute: typeof ApiMutationRoute
+  AuthHandoffRoute: typeof AuthHandoffRoute
+  AuthLogoutRoute: typeof AuthLogoutRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -76,6 +128,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/logout': {
+      id: '/auth/logout'
+      path: '/auth/logout'
+      fullPath: '/auth/logout'
+      preLoaderRoute: typeof AuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/handoff': {
+      id: '/auth/handoff'
+      path: '/auth/handoff'
+      fullPath: '/auth/handoff'
+      preLoaderRoute: typeof AuthHandoffRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mutation': {
@@ -99,14 +165,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCacheRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth-session': {
+      id: '/api/auth-session'
+      path: '/api/auth-session'
+      fullPath: '/api/auth-session'
+      preLoaderRoute: typeof ApiAuthSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiCacheRoute: ApiCacheRoute,
   ApiErrorRoute: ApiErrorRoute,
   ApiMutationRoute: ApiMutationRoute,
+  AuthHandoffRoute: AuthHandoffRoute,
+  AuthLogoutRoute: AuthLogoutRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

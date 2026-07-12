@@ -1,4 +1,13 @@
 export default {
+  name: 'Feedbax',
+  authentication: {
+    audience: 'feedbax',
+    loginUrl:
+      process.env.FEEDBAX_AUTH_LOGIN_URL ?? 'https://app.example.com/login',
+    issuers: JSON.parse(process.env.FEEDBAX_AUTH_ISSUERS ?? '[]'),
+    sessionKeys: JSON.parse(process.env.FEEDBAX_AUTH_SESSION_KEYS ?? '[]'),
+    activeSessionKeyId: process.env.FEEDBAX_AUTH_ACTIVE_SESSION_KEY_ID ?? '',
+  },
   connector: {
     setup: {
       dataSourceId: process.env.NOTION_DATA_SOURCE_ID ?? '',

@@ -1,3 +1,3 @@
 # Examples
 
-Contains compile-time integration examples. `auth-handoff` demonstrates the signed identity handoff contract without implementing token signing or verification.
+Contains integration examples. `auth-handoff` demonstrates host-side short-lived JWT issuance and construction of the Feedbax handoff URL.

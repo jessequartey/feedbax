@@ -3,36 +3,38 @@ title: Authentication handoff
 description: Reuse application identity without trusting client-supplied user data.
 ---
 
-Feedbax is designed for anonymous browsing and authenticated mutations. Rather than creating another customer-account system, the host application will issue a short-lived signed token that Feedbax verifies server-side.
+Feedbax supports anonymous reads and authenticated mutations through a framework-neutral identity-provider contract. Product code asks that provider for the current session, requires authentication, projects a public user, or starts login/logout; it never reads tokens or cookies itself.
 
-## Existing interfaces
+## Signed handoff
 
-**Foundation only.** The authentication package currently defines the intended boundary:
+The host application issues an HS256 JWT with a protected `kid` header and these claims:
 
-```ts
-interface HandoffIdentity {
-  readonly subject: string
-  readonly displayName?: string
-  readonly avatarUrl?: string
-}
+- standard `iss`, `aud`, `sub`, `iat`, and `exp` claims;
+- required `email` and `name` claims;
+- optional `picture`, `company`, `role`, `plan`, and root-relative `return_path` claims.
 
-interface IdentityHandoff {
-  readonly issuer: string
-  readonly audience: string
-  readonly expiresAt: Date
-  readonly identity: HandoffIdentity
-}
+Use a stable, immutable host user ID for `sub`. Set `aud` to the configured Feedbax audience and keep `exp` no more than five minutes after `iat` (the example uses two minutes). Redirect the browser to `/auth/handoff?token=...`. Feedbax verifies the algorithm, key ID, signature, issuer, audience, issue time, and expiration server-side, then responds with a `303` to a clean local URL.
 
-interface IdentityProvider {
-  readonly id: string
-  verify(token: string): Promise<IdentityHandoff>
-}
+## Configuration
+
+Authentication secrets remain in environment variables:
+
+```dotenv
+FEEDBAX_AUTH_AUDIENCE=feedbax
+FEEDBAX_AUTH_LOGIN_URL=https://app.example.com/login
+FEEDBAX_AUTH_ACTIVE_SESSION_KEY_ID=session-2026-07
+FEEDBAX_AUTH_ISSUERS=[{"issuer":"https://app.example.com","keys":[{"id":"handoff-2026-07","secret":"BASE64URL_32_RANDOM_BYTES"}]}]
+FEEDBAX_AUTH_SESSION_KEYS=[{"id":"session-2026-07","secret":"DIFFERENT_BASE64URL_32_RANDOM_BYTES"}]
 ```
 
-An example package demonstrates the object shape with issuer, `feedbax` audience, expiry, and a stable subject.
+Generate each secret from at least 32 cryptographically random bytes and base64url-encode it. Handoff and session secrets must be different. Multiple issuers and retained keys can appear in the JSON arrays.
 
-## Security contract
+The session is an encrypted A256GCM JWT in the host-only `__Host-feedbax_session` cookie with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, and an explicit lifetime. Private identity fields are encrypted and are never included in the public-user projection.
 
-**Planned for v0.0.2:** signing guidance, algorithm and key configuration, issuer/audience verification, replay-safe expiry handling, secure session creation, logout, CSRF protection, and server-side mutation authorization.
+## Rotation and failures
 
-Client-supplied email addresses, identities, or vote counts will never be authoritative.
+To rotate a handoff key, deploy the new `kid` and secret to Feedbax first, switch the host issuer to the new key, wait beyond the maximum handoff lifetime, then remove the old key. For a session key, add the new key, change `FEEDBAX_AUTH_ACTIVE_SESSION_KEY_ID`, retain the previous key through the longest session lifetime, and then remove it.
+
+Invalid, malformed, expired, or unknown-key handoffs return the same sanitized error. Invalid session cookies are treated as anonymous. Tokens, cookies, secrets, private claims, and raw verification errors must never be logged.
+
+Return paths accept only root-relative URLs. Absolute URLs, protocol-relative URLs, backslashes, control characters, and authentication endpoints fall back to `/`, preventing open redirects and redirect loops.
