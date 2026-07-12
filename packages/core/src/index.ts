@@ -280,6 +280,17 @@ export const FeedbackSuggestionsSchema = z.strictObject({
 export type FeedbackSuggestions = z.infer<typeof FeedbackSuggestionsSchema>
 export const PublicCommentPageSchema = cursorPageSchema(PublicCommentSchema)
 export type PublicCommentPage = z.infer<typeof PublicCommentPageSchema>
+export const PublicFeedbackDetailSchema = z.strictObject({
+  item: PublicFeedbackItemSchema,
+  comments: PublicCommentPageSchema,
+  roadmap: z.array(RoadmapEntrySchema).readonly(),
+  changelog: z.array(ChangelogEntrySchema).readonly(),
+  subscription: z.strictObject({
+    enabled: z.boolean(),
+    isSubscribed: z.boolean().optional(),
+  }),
+})
+export type PublicFeedbackDetail = z.infer<typeof PublicFeedbackDetailSchema>
 
 export const connectorErrorCodes = [
   'configuration',
@@ -353,6 +364,14 @@ export interface PublicConnectorReader {
   }>
   listChangelog(page: CursorPageRequest): Promise<{
     readonly value: ChangelogPage
+    readonly cacheStatus: import('./cache.js').CacheStatus
+  }>
+  getFeedback(feedbackItemId: FeedbackItemId): Promise<PublicFeedbackItem | null>
+  listComments(
+    feedbackItemId: FeedbackItemId,
+    page: CursorPageRequest,
+  ): Promise<{
+    readonly value: PublicCommentPage
     readonly cacheStatus: import('./cache.js').CacheStatus
   }>
 }

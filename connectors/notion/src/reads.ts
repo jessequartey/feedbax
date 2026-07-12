@@ -4,6 +4,7 @@ import {
   FeedbackFilterSchema,
   PublicFeedbackPageSchema,
   PublicFeedbackItemSchema,
+  PublicCommentPageSchema,
   RoadmapPageSchema,
   cacheTags,
   cachedRead,
@@ -37,6 +38,15 @@ export interface NotionEditorialConfig {
 export interface NotionReadSetupConfig extends NotionSetupConfig {
   readonly roadmap?: NotionEditorialConfig
   readonly changelog?: NotionEditorialConfig
+  readonly comments?: {
+    readonly dataSourceId: string
+    readonly fields: {
+      readonly body: NotionFieldMapping
+      readonly feedbackItem: NotionFieldMapping
+      readonly authorName?: NotionFieldMapping
+      readonly authorAvatar?: NotionFieldMapping
+    }
+  }
 }
 
 export interface NotionReadClientOptions {
@@ -63,6 +73,8 @@ type NotionPage = {
       title?: Rich[]
       rich_text?: Rich[]
       number?: number | null
+      checkbox?: boolean
+      url?: string | null
       status?: { id?: string; name?: string } | null
       select?: { id?: string; name?: string } | null
       relation?: { id: string }[]
@@ -84,6 +96,8 @@ const text = (page: NotionPage, mapping: NotionFieldMapping) => {
     .join('')
     .trim()
 }
+const mappedText = (page: NotionPage, mapping?: NotionFieldMapping) =>
+  mapping ? text(page, mapping) : ''
 const status = (page: NotionPage, mapping?: NotionFieldMapping) => {
   if (!mapping) return null
   const value = page.properties[mapping.property]
@@ -225,12 +239,22 @@ export function createNotionReadClient(
     hasMore: result.has_more ?? false,
     ...(result.next_cursor ? { nextCursor: result.next_cursor } : {}),
   })
+  const isPublic = (item: NotionPage) => {
+    const mapping = options.setup.fields.optional?.visibility
+    return !mapping || item.properties[mapping.property]?.checkbox !== false
+  }
   const feedbackItem = (item: NotionPage) => ({
     id: item.id,
     title: text(item, options.setup.fields.title),
     description: text(item, options.setup.fields.description),
     type: feedbackType(item, options.setup.fields.feedbackType),
-    author: { id: 'notion', displayName: 'Notion' },
+    author: {
+      id: `notion-${item.id}`,
+      displayName: mappedText(item, options.setup.fields.optional?.authorName) || 'Community member',
+      ...(options.setup.fields.optional?.authorAvatar && item.properties[options.setup.fields.optional.authorAvatar.property]?.url
+        ? { avatarUrl: item.properties[options.setup.fields.optional.authorAvatar.property]!.url! }
+        : {}),
+    },
     status: status(item, options.setup.fields.status),
     category: category(item, options.setup.fields.optional?.category),
     tags: tags(item, options.setup.fields.optional?.tags),
@@ -256,12 +280,12 @@ export function createNotionReadClient(
           const result = await query(options.setup.dataSourceId, page, filter)
           return PublicFeedbackPageSchema.parse({
             ...pageShape(result),
-            items: result.results!.map(feedbackItem),
+            items: result.results!.filter(isPublic).map(feedbackItem),
           })
         },
       })
     },
-    async getFeedback(feedbackItemId: string) {
+    async getFeedback(feedbackItemId: import('@feedbax/core').FeedbackItemId) {
       let response: Response
       try {
         response = await fetcher(`${API}/pages/${encodeURIComponent(feedbackItemId)}`, {
@@ -275,7 +299,41 @@ export function createNotionReadClient(
       const item = await response.json() as NotionPage
       if (item.parent?.type !== 'data_source_id' || item.parent.data_source_id !== options.setup.dataSourceId)
         return null
+      if (!isPublic(item)) return null
       return PublicFeedbackItemSchema.parse(feedbackItem(item))
+    },
+    async listComments(feedbackItemId, rawPage) {
+      const page = CursorPageRequestSchema.parse(rawPage)
+      const setup = options.setup.comments
+      if (!setup)
+        return { value: PublicCommentPageSchema.parse({ items: [], hasMore: false }), cacheStatus: 'bypass' as const }
+      const result = await query(setup.dataSourceId, page, {
+        sort: 'oldest',
+      })
+      const relation = setup.fields.feedbackItem
+      const matching = result.results!.filter((item) =>
+        (item.properties[relation.property]?.relation ?? []).some(({ id }) => id === feedbackItemId),
+      )
+      return {
+        value: PublicCommentPageSchema.parse({
+          ...pageShape(result),
+          items: matching.map((item) => ({
+            id: item.id,
+            feedbackItemId,
+            body: text(item, setup.fields.body),
+            author: {
+              id: `notion-${item.id}`,
+              displayName: mappedText(item, setup.fields.authorName) || 'Community member',
+              ...(setup.fields.authorAvatar && item.properties[setup.fields.authorAvatar.property]?.url
+                ? { avatarUrl: item.properties[setup.fields.authorAvatar.property]!.url! }
+                : {}),
+            },
+            createdAt: item.created_time,
+            updatedAt: item.last_edited_time,
+          })),
+        }),
+        cacheStatus: 'miss' as const,
+      }
     },
     async listRoadmap(rawPage) {
       const page = CursorPageRequestSchema.parse(rawPage)

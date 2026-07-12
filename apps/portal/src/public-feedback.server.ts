@@ -5,6 +5,7 @@ import {
   MemoryCacheAdapter,
   PublicFeedbackPageSchema,
   type PublicConnectorReader,
+  FeedbackItemIdSchema,
 } from '@feedbax/core'
 import { createNotionReadClient, type NotionReadSetupConfig } from '@feedbax/notion'
 import { readEnv } from './spike.js'
@@ -93,13 +94,14 @@ export async function feedbackListResponse(request: Request) {
 
 export async function feedbackDetailResponse(feedbackItemId: string) {
   try {
+    const id = FeedbackItemIdSchema.parse(feedbackItemId)
     const reader = publicReader()
     if (!reader)
       return Response.json(
         { error: { code: 'NOT_FOUND', message: 'Feedback was not found.' } },
         { status: 404, headers: { 'cache-control': 'no-store' } },
       )
-    const item = await reader.getFeedback(feedbackItemId)
+    const item = await reader.getFeedback(id)
     if (!item)
       return Response.json(
         { error: { code: 'NOT_FOUND', message: 'Feedback was not found.' } },
@@ -108,7 +110,12 @@ export async function feedbackDetailResponse(feedbackItemId: string) {
     return Response.json(item, {
       headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=300' },
     })
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === 'ZodError')
+      return Response.json(
+        { error: { code: 'NOT_FOUND', message: 'Feedback was not found.' } },
+        { status: 404, headers: { 'cache-control': 'no-store' } },
+      )
     return Response.json(
       { error: { code: 'CONNECTOR_UNAVAILABLE', message: 'Feedback is temporarily unavailable.' } },
       { status: 503, headers: { 'cache-control': 'no-store' } },

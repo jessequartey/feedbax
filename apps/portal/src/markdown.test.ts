@@ -20,4 +20,11 @@ describe('sanitized Markdown', () => {
     expect(value).toContain('rel="nofollow noopener noreferrer"')
     expect(value).toContain('href="mailto:a@example.com"')
   })
+  it('blocks encoded schemes and renders allowlisted lists and emphasis', () => {
+    const value = renderSanitizedMarkdown(
+      '[encoded](javascript%3Aalert(1))\n\n- one\n- *two*',
+    )
+    expect(value).toContain('href="#"')
+    expect(value).toContain('<ul><li>one</li><li><em>two</em></li></ul>')
+  })
 })

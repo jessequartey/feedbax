@@ -39,6 +39,9 @@ export type MutationProtectionConfig = z.infer<
 >
 export interface FeedbaxConfig {
   readonly name: string
+  readonly publicUrl?: string
+  readonly socialPreviewImage?: string
+  readonly subscriptions?: { readonly enabled: boolean }
   readonly branding?: {
     readonly tagline?: string
     readonly mark?: string

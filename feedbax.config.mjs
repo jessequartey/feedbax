@@ -1,5 +1,8 @@
 export default {
   name: 'Feedbax',
+  publicUrl: process.env.FEEDBAX_PUBLIC_URL ?? 'https://feedback.feedbax.dev',
+  socialPreviewImage: process.env.FEEDBAX_SOCIAL_PREVIEW_IMAGE ?? 'https://feedback.feedbax.dev/social-preview.png',
+  subscriptions: { enabled: false },
   branding: {
     tagline: 'Shape what we build next.',
     mark: 'F',
