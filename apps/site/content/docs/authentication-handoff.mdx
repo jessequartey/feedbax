@@ -5,6 +5,10 @@ description: Reuse application identity without trusting client-supplied user da
 
 Feedbax supports anonymous reads and authenticated mutations through a framework-neutral identity-provider contract. Product code asks that provider for the current session, requires authentication, projects a public user, or starts login/logout; it never reads tokens or cookies itself.
 
+For a copyable host implementation, see `examples/auth-handoff`: it includes a
+Next.js App Router flow, environment setup, framework-neutral signing contract,
+coordinated logout, and security guidance.
+
 ## Signed handoff
 
 The host application issues an HS256 JWT with a protected `kid` header and these claims:
