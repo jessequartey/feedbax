@@ -1,4 +1,5 @@
 import type { ConnectorDescriptor } from '@feedbax/core'
+export * from './reads.js'
 
 export const NOTION_API_VERSION = '2025-09-03'
 
@@ -41,6 +42,7 @@ export interface NotionSetupConfig {
     readonly title: NotionFieldMapping
     readonly description: NotionFieldMapping
     readonly status: NotionFieldMapping & { readonly type: 'status' | 'select' }
+    readonly commentCount: NotionFieldMapping & { readonly type: 'number' }
     readonly optional?: Readonly<Record<string, NotionFieldMapping>>
   }
   readonly statuses: Readonly<Record<string, string>>
@@ -300,6 +302,7 @@ export async function checkNotionSetup(
     ['title', config.fields.title],
     ['description', config.fields.description],
     ['status', config.fields.status],
+    ['commentCount', config.fields.commentCount],
     ...Object.entries(config.fields.optional ?? {}).map(
       ([name, mapping]) =>
         [`optional.${name}`, mapping] as [string, NotionFieldMapping],

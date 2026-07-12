@@ -10,6 +10,11 @@ export default {
           writable: true,
         },
         status: { property: 'Status', type: 'status', writable: true },
+        commentCount: {
+          property: 'Comment count',
+          type: 'number',
+          writable: true,
+        },
       },
       statuses: {
         open: 'Open',

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+export * from './cache.js'
 
 const id = <T extends string>(brand: T) => z.string().trim().min(1).brand(brand)
 
@@ -55,10 +56,16 @@ export const StatusSchema = z.strictObject({
 })
 export type Status = z.infer<typeof StatusSchema>
 
-export const CategorySchema = z.strictObject({ id: CategoryIdSchema, ...orderedTaxonomyShape })
+export const CategorySchema = z.strictObject({
+  id: CategoryIdSchema,
+  ...orderedTaxonomyShape,
+})
 export type Category = z.infer<typeof CategorySchema>
 
-export const TagSchema = z.strictObject({ id: TagIdSchema, ...orderedTaxonomyShape })
+export const TagSchema = z.strictObject({
+  id: TagIdSchema,
+  ...orderedTaxonomyShape,
+})
 export type Tag = z.infer<typeof TagSchema>
 
 export const ConnectorReferenceSchema = z.strictObject({
@@ -102,7 +109,10 @@ const commentShape = {
   updatedAt: TimestampSchema,
 } as const
 
-export const PublicCommentSchema = z.strictObject({ ...commentShape, author: PublicUserSchema })
+export const PublicCommentSchema = z.strictObject({
+  ...commentShape,
+  author: PublicUserSchema,
+})
 export type PublicComment = z.infer<typeof PublicCommentSchema>
 
 export const PrivateCommentSchema = z.strictObject({
@@ -164,7 +174,12 @@ export const SetVoteInputSchema = z.strictObject({
 })
 export type SetVoteInput = z.infer<typeof SetVoteInputSchema>
 
-export const FeedbackSortSchema = z.enum(['newest', 'oldest', 'most-voted', 'recently-updated'])
+export const FeedbackSortSchema = z.enum([
+  'newest',
+  'oldest',
+  'most-voted',
+  'recently-updated',
+])
 export const FeedbackFilterSchema = z.strictObject({
   search: z.string().trim().min(1).max(200).optional(),
   statusIds: z.array(StatusIdSchema).readonly().optional(),
@@ -180,31 +195,59 @@ export const DEFAULT_PAGE_SIZE = 20
 export const MAX_PAGE_SIZE = 100
 export const CursorPageRequestSchema = z.strictObject({
   cursor: z.string().min(1).optional(),
-  pageSize: z.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  pageSize: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .default(DEFAULT_PAGE_SIZE),
 })
 export type CursorPageRequest = z.infer<typeof CursorPageRequestSchema>
 
 export const cursorPageSchema = <T extends z.ZodType>(itemSchema: T) =>
-  z.strictObject({
-    items: z.array(itemSchema).readonly(),
-    nextCursor: z.string().min(1).optional(),
-    hasMore: z.boolean(),
-  }).superRefine((page, context) => {
-    if (page.hasMore && page.nextCursor === undefined) {
-      context.addIssue({ code: 'custom', message: 'nextCursor is required when hasMore is true', path: ['nextCursor'] })
-    }
-    if (!page.hasMore && page.nextCursor !== undefined) {
-      context.addIssue({ code: 'custom', message: 'nextCursor must be omitted when hasMore is false', path: ['nextCursor'] })
-    }
-  })
+  z
+    .strictObject({
+      items: z.array(itemSchema).readonly(),
+      nextCursor: z.string().min(1).optional(),
+      hasMore: z.boolean(),
+    })
+    .superRefine((page, context) => {
+      if (page.hasMore && page.nextCursor === undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'nextCursor is required when hasMore is true',
+          path: ['nextCursor'],
+        })
+      }
+      if (!page.hasMore && page.nextCursor !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'nextCursor must be omitted when hasMore is false',
+          path: ['nextCursor'],
+        })
+      }
+    })
 
-export type CursorPage<T> = Readonly<{ items: readonly T[]; nextCursor?: string; hasMore: boolean }>
-export const PublicFeedbackPageSchema = cursorPageSchema(PublicFeedbackItemSchema)
+export type CursorPage<T> = Readonly<{
+  items: readonly T[]
+  nextCursor?: string
+  hasMore: boolean
+}>
+export const PublicFeedbackPageSchema = cursorPageSchema(
+  PublicFeedbackItemSchema,
+)
 export type PublicFeedbackPage = z.infer<typeof PublicFeedbackPageSchema>
 
 export const connectorErrorCodes = [
-  'configuration', 'authentication', 'authorization', 'validation', 'unavailable',
-  'rate-limited', 'not-found', 'conflict', 'unknown',
+  'configuration',
+  'authentication',
+  'authorization',
+  'validation',
+  'unavailable',
+  'rate-limited',
+  'not-found',
+  'conflict',
+  'unknown',
 ] as const
 export const ConnectorErrorCodeSchema = z.enum(connectorErrorCodes)
 export type ConnectorErrorCode = z.infer<typeof ConnectorErrorCodeSchema>
@@ -225,7 +268,11 @@ export const PrivateConnectorErrorSchema = z.strictObject({
 })
 export type PrivateConnectorError = z.infer<typeof PrivateConnectorErrorSchema>
 
-export const connectorCapabilities = ['comments', 'atomicVoting', 'webhooks'] as const
+export const connectorCapabilities = [
+  'comments',
+  'atomicVoting',
+  'webhooks',
+] as const
 export const ConnectorCapabilitySchema = z.enum(connectorCapabilities)
 export type ConnectorCapability = z.infer<typeof ConnectorCapabilitySchema>
 export const ConnectorDescriptorSchema = z.strictObject({
@@ -236,29 +283,78 @@ export const ConnectorDescriptorSchema = z.strictObject({
 export type ConnectorDescriptor = z.infer<typeof ConnectorDescriptorSchema>
 
 export const ConnectorFeedbackRecordSchema = PrivateFeedbackItemSchema
-export const ConnectorFeedbackPageSchema = cursorPageSchema(ConnectorFeedbackRecordSchema)
-export type ConnectorFeedbackRecord = z.infer<typeof ConnectorFeedbackRecordSchema>
+export const ConnectorFeedbackPageSchema = cursorPageSchema(
+  ConnectorFeedbackRecordSchema,
+)
+export type ConnectorFeedbackRecord = z.infer<
+  typeof ConnectorFeedbackRecordSchema
+>
 export type ConnectorFeedbackPage = z.infer<typeof ConnectorFeedbackPageSchema>
 
-export const toPublicUser = (user: PrivateUser): PublicUser => PublicUserSchema.parse({
-  id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl,
-})
+export const RoadmapPageSchema = cursorPageSchema(RoadmapEntrySchema)
+export const ChangelogPageSchema = cursorPageSchema(ChangelogEntrySchema)
+export type RoadmapPage = z.infer<typeof RoadmapPageSchema>
+export type ChangelogPage = z.infer<typeof ChangelogPageSchema>
 
-export const toPublicFeedbackItem = (item: PrivateFeedbackItem): PublicFeedbackItem =>
-  PublicFeedbackItemSchema.parse({
-    id: item.id, title: item.title, description: item.description, author: toPublicUser(item.author),
-    status: item.status, category: item.category, tags: item.tags, voteCount: item.voteCount,
-    hasViewerVoted: item.hasViewerVoted, commentCount: item.commentCount,
-    createdAt: item.createdAt, updatedAt: item.updatedAt,
+export interface PublicConnectorReader {
+  listFeedback(
+    filter: FeedbackFilter,
+    page: CursorPageRequest,
+  ): Promise<{
+    readonly value: PublicFeedbackPage
+    readonly cacheStatus: import('./cache.js').CacheStatus
+  }>
+  listRoadmap(page: CursorPageRequest): Promise<{
+    readonly value: RoadmapPage
+    readonly cacheStatus: import('./cache.js').CacheStatus
+  }>
+  listChangelog(page: CursorPageRequest): Promise<{
+    readonly value: ChangelogPage
+    readonly cacheStatus: import('./cache.js').CacheStatus
+  }>
+}
+
+export const toPublicUser = (user: PrivateUser): PublicUser =>
+  PublicUserSchema.parse({
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
   })
 
-export const toPublicComment = (comment: PrivateComment): PublicComment => PublicCommentSchema.parse({
-  id: comment.id, feedbackItemId: comment.feedbackItemId, body: comment.body,
-  author: toPublicUser(comment.author), createdAt: comment.createdAt, updatedAt: comment.updatedAt,
-})
+export const toPublicFeedbackItem = (
+  item: PrivateFeedbackItem,
+): PublicFeedbackItem =>
+  PublicFeedbackItemSchema.parse({
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    author: toPublicUser(item.author),
+    status: item.status,
+    category: item.category,
+    tags: item.tags,
+    voteCount: item.voteCount,
+    hasViewerVoted: item.hasViewerVoted,
+    commentCount: item.commentCount,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  })
 
-export const toPublicConnectorError = (error: PrivateConnectorError): PublicConnectorError =>
+export const toPublicComment = (comment: PrivateComment): PublicComment =>
+  PublicCommentSchema.parse({
+    id: comment.id,
+    feedbackItemId: comment.feedbackItemId,
+    body: comment.body,
+    author: toPublicUser(comment.author),
+    createdAt: comment.createdAt,
+    updatedAt: comment.updatedAt,
+  })
+
+export const toPublicConnectorError = (
+  error: PrivateConnectorError,
+): PublicConnectorError =>
   PublicConnectorErrorSchema.parse({
-    code: error.code, message: error.message, retryable: error.retryable,
+    code: error.code,
+    message: error.message,
+    retryable: error.retryable,
     retryAfterSeconds: error.retryAfterSeconds,
   })

@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   checkNotionSetup,
+  createNotionReadClient,
   formatNotionHealth,
   notionConnector,
   runNotionDoctor,
   type NotionSetupConfig,
 } from '../src/index.js'
+import { MemoryCacheAdapter } from '@feedbax/core'
 
 const config: NotionSetupConfig = {
   dataSourceId: 'source-id',
@@ -13,6 +15,7 @@ const config: NotionSetupConfig = {
     title: { property: 'Name', type: 'title', writable: true },
     description: { property: 'Description', type: 'rich_text', writable: true },
     status: { property: 'Status', type: 'status', writable: true },
+    commentCount: { property: 'Comment count', type: 'number', writable: true },
     optional: { url: { property: 'URL', type: 'url', writable: false } },
   },
   statuses: { open: 'Open', done: 'Done' },
@@ -27,6 +30,7 @@ const source = {
       status: { options: [{ name: 'Open' }, { name: 'Done' }] },
     },
     URL: { type: 'url' },
+    'Comment count': { type: 'number' },
   },
 }
 
@@ -254,5 +258,69 @@ describe('Notion setup health check', () => {
     })
     expect(result.checks[0]?.code).toBe('NOTION_UNAVAILABLE')
     expect(JSON.stringify(result)).not.toContain('secret')
+  })
+})
+
+describe('Notion cached public reads', () => {
+  it('loads a feedback board with one query and no per-item comment calls', async () => {
+    const fetcher = vi.fn(async () =>
+      response({
+        results: [
+          {
+            id: 'feedback-1',
+            created_time: '2026-07-11T12:00:00Z',
+            last_edited_time: '2026-07-11T12:00:00Z',
+            properties: {
+              Name: { type: 'title', title: [{ plain_text: 'Offline mode' }] },
+              Description: {
+                type: 'rich_text',
+                rich_text: [{ plain_text: 'Work anywhere' }],
+              },
+              Status: { type: 'status', status: { id: 'open', name: 'Open' } },
+              'Comment count': { type: 'number', number: 7 },
+            },
+          },
+        ],
+        has_more: false,
+        next_cursor: null,
+      }),
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: config,
+      fetch: fetcher,
+      cache: new MemoryCacheAdapter(),
+    })
+    const first = await reader.listFeedback(
+      { sort: 'newest' },
+      { pageSize: 20 },
+    )
+    const second = await reader.listFeedback(
+      { sort: 'newest' },
+      { pageSize: 20 },
+    )
+    expect(first.value.items[0]?.commentCount).toBe(7)
+    expect(first.cacheStatus).toBe('miss')
+    expect(second.cacheStatus).toBe('hit')
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(String(vi.mocked(fetcher).mock.calls[0]?.[0])).not.toContain(
+      '/comments',
+    )
+  })
+
+  it('returns empty editorial lists when their sources are not configured', async () => {
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: config,
+      fetch: vi.fn() as unknown as typeof fetch,
+    })
+    expect(await reader.listRoadmap({ pageSize: 20 })).toEqual({
+      value: { items: [], hasMore: false },
+      cacheStatus: 'bypass',
+    })
+    expect(await reader.listChangelog({ pageSize: 20 })).toEqual({
+      value: { items: [], hasMore: false },
+      cacheStatus: 'bypass',
+    })
   })
 })
