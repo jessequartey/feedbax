@@ -21,3 +21,30 @@ h1 {
 p {
   line-height: 1.6;
 }
+.identity-panel {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #cad2cc;
+  border-radius: 0.75rem;
+  background: white;
+}
+.identity-panel label,
+.identity-panel small {
+  display: block;
+  margin: 0.75rem 0 0.35rem;
+}
+.identity-panel textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.75rem;
+  font: inherit;
+}
+.identity-panel button {
+  margin-top: 0.75rem;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 650;
+}
+.identity-panel small {
+  color: #4d5a51;
+}

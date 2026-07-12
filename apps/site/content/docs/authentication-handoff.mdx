@@ -42,3 +42,11 @@ To rotate a handoff key, deploy the new `kid` and secret to Feedbax first, switc
 Invalid, malformed, expired, or unknown-key handoffs return the same sanitized error. Invalid session cookies are treated as anonymous. Tokens, cookies, secrets, private claims, and raw verification errors must never be logged.
 
 Return paths accept only root-relative URLs. Absolute URLs, protocol-relative URLs, backslashes, control characters, and authentication endpoints fall back to `/`, preventing open redirects and redirect loops.
+
+## Protected mutations
+
+Board, feedback detail, roadmap, and changelog reads remain anonymous. Submission, voting, commenting, and subscription endpoints independently require the encrypted session; hiding a control in the browser is never treated as authorization.
+
+When a signed-out visitor chooses a protected action, send the current root-relative path, query, and fragment as `X-Feedbax-Return-Path`. A `401 AUTHENTICATION_REQUIRED` response includes the configured login location. Preserve any draft locally, start the signed handoff, and let the user review and explicitly retry after returning; mutations are never replayed automatically.
+
+All mutation requests use same-origin `application/json`, strict `{ input, captchaToken? }` envelopes, and bounded bodies. Per-action rate limits are configurable through `MutationProtectionConfig`. The default memory store is not shared between serverless instances; production Cloudflare and Vercel deployments must inject a durable `RateLimitStore`. `CaptchaProvider` is an optional server-verification boundary and no vendor is enabled by default.

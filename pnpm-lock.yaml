@@ -41,6 +41,9 @@ importers:
       '@feedbax/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@feedbax/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@feedbax/notion':
         specifier: workspace:*
         version: link:../../connectors/notion
@@ -59,6 +62,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 1.44.0

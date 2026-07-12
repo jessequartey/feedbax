@@ -14,4 +14,8 @@ Do not open a public issue. Use GitHub's private vulnerability reporting and inc
 - Mutations are authenticated, validated, and rate-limited where appropriate.
 - Public responses exclude private identities and internal fields.
 - Handoff tokens and session cookies must never be logged. Public users contain only an opaque ID, display name, and optional avatar URL.
+- Public mutation routes require a verified session, same-origin JSON requests, strict runtime schemas, bounded bodies, and per-action rate limits. Client-supplied identity and aggregate totals are ignored.
+- The built-in rate-limit store is process-local and is suitable only for development or a single Node/Docker process. Distributed production deployments must inject a shared durable `RateLimitStore`.
+- Optional CAPTCHA is exposed through a server-side `CaptchaProvider`; it is disabled unless a provider is configured. CAPTCHA tokens and request bodies are never logged.
+- Feedback and comments retain canonical Markdown. Rendering escapes raw HTML, allowlists emitted tags, and rejects unsafe link protocols.
 - Rotate signing and session keys by adding a new key ID, making it active, retaining the previous key through the longest outstanding lifetime, and only then removing it.

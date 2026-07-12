@@ -1,0 +1,368 @@
+import {
+  safeReturnPath,
+  type AuthSession,
+  type IdentityProvider,
+} from '@feedbax/auth'
+import {
+  CreateCommentInputSchema,
+  SetVoteInputSchema,
+  SubmitFeedbackInputSchema,
+  SubscribeInputSchema,
+  type CreateCommentInput,
+  type PublicMutationErrorCode,
+  type SetVoteInput,
+  type SubmitFeedbackInput,
+  type SubscribeInput,
+} from '@feedbax/core'
+import type { ZodType } from 'zod'
+import { authProvider } from './auth.server.js'
+import { json } from './spike.js'
+
+export type MutationAction = 'submit' | 'vote' | 'comment' | 'subscribe'
+export interface PublicMutationService {
+  submit(session: AuthSession, input: SubmitFeedbackInput): Promise<unknown>
+  setVote(session: AuthSession, input: SetVoteInput): Promise<unknown>
+  createComment(
+    session: AuthSession,
+    input: CreateCommentInput,
+  ): Promise<unknown>
+  setSubscription(session: AuthSession, input: SubscribeInput): Promise<unknown>
+}
+export interface RateLimitStore {
+  consume(
+    key: string,
+    limit: number,
+    windowSeconds: number,
+  ): Promise<{ allowed: boolean; retryAfterSeconds: number }>
+}
+export interface CaptchaProvider {
+  verify(token: string, request: Request): Promise<boolean>
+}
+export interface SecurityEvent {
+  requestId: string
+  action: MutationAction
+  outcome: 'accepted' | 'rejected' | 'failed'
+  reason?: PublicMutationErrorCode
+  actorKey?: string
+  networkKey: string
+}
+export interface SecurityLogger {
+  log(event: SecurityEvent): void | Promise<void>
+}
+export interface ActionProtection {
+  limit: number
+  windowSeconds: number
+  captcha?: boolean
+}
+export interface MutationProtectionConfig {
+  allowedOrigins?: readonly string[]
+  maximumBodyBytes?: number
+  actions: Record<MutationAction, ActionProtection>
+}
+
+type Entry = { count: number; resetAt: number }
+export class MemoryRateLimitStore implements RateLimitStore {
+  private entries = new Map<string, Entry>()
+  async consume(key: string, limit: number, windowSeconds: number) {
+    const now = Date.now()
+    const previous = this.entries.get(key)
+    const entry =
+      !previous || previous.resetAt <= now
+        ? { count: 0, resetAt: now + windowSeconds * 1000 }
+        : previous
+    entry.count += 1
+    this.entries.set(key, entry)
+    return {
+      allowed: entry.count <= limit,
+      retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+    }
+  }
+}
+
+const defaultConfig: MutationProtectionConfig = {
+  maximumBodyBytes: 24_000,
+  actions: {
+    submit: { limit: 5, windowSeconds: 300, captcha: true },
+    vote: { limit: 60, windowSeconds: 60 },
+    comment: { limit: 20, windowSeconds: 300, captcha: true },
+    subscribe: { limit: 20, windowSeconds: 300 },
+  },
+}
+const unavailable: PublicMutationService = {
+  submit: async () => {
+    throw new Error('Mutation persistence is not configured.')
+  },
+  setVote: async () => {
+    throw new Error('Mutation persistence is not configured.')
+  },
+  createComment: async () => {
+    throw new Error('Mutation persistence is not configured.')
+  },
+  setSubscription: async () => {
+    throw new Error('Mutation persistence is not configured.')
+  },
+}
+const consoleLogger: SecurityLogger = {
+  log: (event) =>
+    console.info(JSON.stringify({ type: 'feedbax.security', ...event })),
+}
+const rateLimits = new MemoryRateLimitStore()
+
+function error(
+  status: number,
+  code: PublicMutationErrorCode,
+  message: string,
+  extra: Record<string, unknown> = {},
+) {
+  const headers = new Headers({ 'cache-control': 'private, no-store' })
+  if (typeof extra.retryAfterSeconds === 'number')
+    headers.set('retry-after', String(extra.retryAfterSeconds))
+  return json({ error: { code, message, ...extra } }, { status, headers })
+}
+async function digest(value: string) {
+  const bytes = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  )
+  return Array.from(new Uint8Array(bytes).slice(0, 12), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+}
+function returnPath(request: Request) {
+  return safeReturnPath(request.headers.get('x-feedbax-return-path'))
+}
+function clientAddress(request: Request) {
+  return (
+    request.headers.get('cf-connecting-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    'unknown'
+  )
+}
+
+export interface MutationDependencies {
+  auth: IdentityProvider
+  service: PublicMutationService
+  rateLimits: RateLimitStore
+  logger: SecurityLogger
+  captcha?: CaptchaProvider
+  config: MutationProtectionConfig
+}
+export const mutationSchemas = {
+  submit: SubmitFeedbackInputSchema,
+  vote: SetVoteInputSchema,
+  comment: CreateCommentInputSchema,
+  subscribe: SubscribeInputSchema,
+} as const
+
+export async function protectMutation<T>(
+  request: Request,
+  action: MutationAction,
+  schema: ZodType<T>,
+  invoke: (session: AuthSession, input: T) => Promise<unknown>,
+  dependencies: MutationDependencies,
+): Promise<Response> {
+  const requestId =
+    request.headers.get('x-request-id')?.slice(0, 100) || crypto.randomUUID()
+  const networkKey = await digest(clientAddress(request))
+  const reject = async (
+    status: number,
+    code: PublicMutationErrorCode,
+    message: string,
+    extra: Record<string, unknown> = {},
+  ) => {
+    await dependencies.logger.log({
+      requestId,
+      action,
+      outcome: 'rejected',
+      reason: code,
+      networkKey,
+    })
+    return error(status, code, message, extra)
+  }
+  const origin = request.headers.get('origin')
+  const requestOrigin = new URL(request.url).origin
+  const allowed = dependencies.config.allowedOrigins ?? [requestOrigin]
+  if (!origin || !allowed.includes(origin))
+    return reject(403, 'ORIGIN_REJECTED', 'This request origin is not allowed.')
+  if (
+    !request.headers
+      .get('content-type')
+      ?.toLowerCase()
+      .startsWith('application/json')
+  )
+    return reject(
+      415,
+      'INVALID_REQUEST',
+      'The request must use application/json.',
+    )
+  const declaredLength = Number(request.headers.get('content-length') ?? '0')
+  const max = dependencies.config.maximumBodyBytes ?? 24_000
+  if (declaredLength > max)
+    return reject(413, 'INVALID_REQUEST', 'The request body is too large.')
+  let session: AuthSession
+  try {
+    session = await dependencies.auth.requireAuthentication(request)
+  } catch {
+    const login = await dependencies.auth.loginRedirect(
+      request,
+      returnPath(request),
+    )
+    const destination = login.headers.get('location') ?? '/'
+    return reject(
+      401,
+      'AUTHENTICATION_REQUIRED',
+      'Verified identity is required for this action.',
+      { loginLocation: destination },
+    )
+  }
+  const text = await request.text()
+  if (new TextEncoder().encode(text).byteLength > max)
+    return reject(413, 'INVALID_REQUEST', 'The request body is too large.')
+  let body: unknown
+  try {
+    body = JSON.parse(text)
+  } catch {
+    return reject(
+      400,
+      'INVALID_REQUEST',
+      'The request body must be valid JSON.',
+    )
+  }
+  const envelope =
+    body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
+  const result = schema.safeParse(envelope.input)
+  if (
+    !result.success ||
+    Object.keys(envelope).some(
+      (key) => key !== 'input' && key !== 'captchaToken',
+    )
+  )
+    return reject(422, 'INVALID_REQUEST', 'The request fields are invalid.')
+  const actorKey = await digest(session.user.id)
+  const policy = dependencies.config.actions[action]
+  let limited
+  try {
+    limited = await dependencies.rateLimits.consume(
+      `${action}:${actorKey}:${networkKey}`,
+      policy.limit,
+      policy.windowSeconds,
+    )
+  } catch {
+    await dependencies.logger.log({
+      requestId,
+      action,
+      outcome: 'failed',
+      reason: 'MUTATION_UNAVAILABLE',
+      actorKey,
+      networkKey,
+    })
+    return error(
+      503,
+      'MUTATION_UNAVAILABLE',
+      'This action is temporarily unavailable.',
+    )
+  }
+  if (!limited.allowed)
+    return reject(
+      429,
+      'RATE_LIMITED',
+      'Too many requests. Please try again later.',
+      { retryAfterSeconds: limited.retryAfterSeconds },
+    )
+  if (policy.captcha && dependencies.captcha) {
+    const token =
+      typeof envelope.captchaToken === 'string' ? envelope.captchaToken : ''
+    const verified = await (async () => {
+      try {
+        return !!token && (await dependencies.captcha!.verify(token, request))
+      } catch {
+        return false
+      }
+    })()
+    if (!verified)
+      return reject(
+        403,
+        'CAPTCHA_REQUIRED',
+        'Please complete the verification challenge.',
+      )
+  }
+  try {
+    const value = await invoke(session, result.data)
+    await dependencies.logger.log({
+      requestId,
+      action,
+      outcome: 'accepted',
+      actorKey,
+      networkKey,
+    })
+    return json(
+      { ok: true, value },
+      { headers: { 'cache-control': 'private, no-store' } },
+    )
+  } catch {
+    await dependencies.logger.log({
+      requestId,
+      action,
+      outcome: 'failed',
+      reason: 'MUTATION_UNAVAILABLE',
+      actorKey,
+      networkKey,
+    })
+    return error(
+      503,
+      'MUTATION_UNAVAILABLE',
+      'This action is temporarily unavailable.',
+    )
+  }
+}
+
+export function productionMutationDependencies(): MutationDependencies {
+  return {
+    auth: authProvider(),
+    service: unavailable,
+    rateLimits,
+    logger: consoleLogger,
+    config: defaultConfig,
+  }
+}
+
+export function mutationHandler(action: MutationAction) {
+  return async ({ request }: { request: Request }) => {
+    const deps = productionMutationDependencies()
+    const service = deps.service
+    switch (action) {
+      case 'submit':
+        return protectMutation(
+          request,
+          action,
+          mutationSchemas.submit,
+          (session, input) => service.submit(session, input),
+          deps,
+        )
+      case 'vote':
+        return protectMutation(
+          request,
+          action,
+          mutationSchemas.vote,
+          (session, input) => service.setVote(session, input),
+          deps,
+        )
+      case 'comment':
+        return protectMutation(
+          request,
+          action,
+          mutationSchemas.comment,
+          (session, input) => service.createComment(session, input),
+          deps,
+        )
+      case 'subscribe':
+        return protectMutation(
+          request,
+          action,
+          mutationSchemas.subscribe,
+          (session, input) => service.setSubscription(session, input),
+          deps,
+        )
+    }
+  }
+}

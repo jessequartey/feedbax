@@ -174,6 +174,34 @@ export const SetVoteInputSchema = z.strictObject({
 })
 export type SetVoteInput = z.infer<typeof SetVoteInputSchema>
 
+export const SubscribeInputSchema = z.strictObject({
+  feedbackItemId: FeedbackItemIdSchema,
+  subscribed: z.boolean(),
+})
+export type SubscribeInput = z.infer<typeof SubscribeInputSchema>
+
+export const publicMutationErrorCodes = [
+  'AUTHENTICATION_REQUIRED',
+  'INVALID_REQUEST',
+  'ORIGIN_REJECTED',
+  'RATE_LIMITED',
+  'CAPTCHA_REQUIRED',
+  'MUTATION_UNAVAILABLE',
+] as const
+export const PublicMutationErrorCodeSchema = z.enum(publicMutationErrorCodes)
+export type PublicMutationErrorCode = z.infer<
+  typeof PublicMutationErrorCodeSchema
+>
+export const PublicMutationErrorSchema = z.strictObject({
+  error: z.strictObject({
+    code: PublicMutationErrorCodeSchema,
+    message: z.string().trim().min(1),
+    loginLocation: z.string().trim().min(1).optional(),
+    retryAfterSeconds: z.number().int().positive().optional(),
+  }),
+})
+export type PublicMutationError = z.infer<typeof PublicMutationErrorSchema>
+
 export const FeedbackSortSchema = z.enum([
   'newest',
   'oldest',
