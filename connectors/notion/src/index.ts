@@ -46,6 +46,7 @@ export interface NotionSetupConfig {
     readonly optional?: Readonly<Record<string, NotionFieldMapping>>
   }
   readonly statuses: Readonly<Record<string, string>>
+  readonly categories?: Readonly<Record<string, string>>
 }
 
 export type NotionHealthCode =

@@ -1,5 +1,24 @@
 export default {
   name: 'Feedbax',
+  branding: {
+    tagline: 'Shape what we build next.',
+    mark: 'F',
+    accent: '#2563eb',
+    supportUrl: 'mailto:support@feedbax.dev',
+  },
+  publicTaxonomy: {
+    statuses: [
+      { id: 'open', name: 'Open', order: 0 },
+      { id: 'planned', name: 'Planned', order: 1 },
+      { id: 'in-progress', name: 'In progress', order: 2 },
+      { id: 'complete', name: 'Complete', order: 3 },
+    ],
+    categories: [
+      { id: 'feature', name: 'Feature', order: 0 },
+      { id: 'improvement', name: 'Improvement', order: 1 },
+      { id: 'integration', name: 'Integration', order: 2 },
+    ],
+  },
   authentication: {
     audience: 'feedbax',
     loginUrl:
@@ -23,6 +42,10 @@ export default {
           property: 'Comment count',
           type: 'number',
           writable: true,
+        },
+        optional: {
+          category: { property: 'Category', type: 'select', writable: true },
+          voteCount: { property: 'Vote count', type: 'number', writable: false },
         },
       },
       statuses: {

@@ -94,6 +94,13 @@ const status = (page: NotionPage, mapping?: NotionFieldMapping) => {
       }
     : null
 }
+const category = (page: NotionPage, mapping?: NotionFieldMapping) => {
+  if (!mapping) return null
+  const option = page.properties[mapping.property]?.select
+  return option?.name
+    ? { id: option.id ?? option.name, name: option.name, order: 0 }
+    : null
+}
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
   if (value && typeof value === 'object')
@@ -133,14 +140,41 @@ export function createNotionReadClient(
     if (page.cursor) body.start_cursor = page.cursor
     if (filter?.sort)
       body.sorts = [
-        {
+        filter.sort === 'most-voted' && options.setup.fields.optional?.voteCount
+          ? {
+              property: options.setup.fields.optional.voteCount.property,
+              direction: 'descending',
+            }
+          : {
           timestamp:
             filter.sort === 'newest' || filter.sort === 'oldest'
               ? 'created_time'
               : 'last_edited_time',
           direction: filter.sort === 'oldest' ? 'ascending' : 'descending',
-        },
+            },
       ]
+    const predicates: Record<string, unknown>[] = []
+    if (filter?.search)
+      predicates.push({
+        or: [
+          { property: options.setup.fields.title.property, title: { contains: filter.search } },
+          { property: options.setup.fields.description.property, rich_text: { contains: filter.search } },
+        ],
+      })
+    if (filter?.statusIds?.length)
+      predicates.push({
+        or: filter.statusIds.map((id) => ({
+          property: options.setup.fields.status.property,
+          [options.setup.fields.status.type]: { equals: options.setup.statuses[id] ?? id },
+        })),
+      })
+    const categoryField = options.setup.fields.optional?.category
+    if (filter?.categoryId && categoryField)
+      predicates.push({
+        property: categoryField.property,
+        select: { equals: options.setup.categories?.[filter.categoryId] ?? filter.categoryId },
+      })
+    if (predicates.length) body.filter = predicates.length === 1 ? predicates[0] : { and: predicates }
     let response: Response
     try {
       response = await fetcher(
@@ -194,9 +228,12 @@ export function createNotionReadClient(
               description: text(item, options.setup.fields.description),
               author: { id: 'notion', displayName: 'Notion' },
               status: status(item, options.setup.fields.status),
-              category: null,
+              category: category(item, options.setup.fields.optional?.category),
               tags: [],
-              voteCount: 0,
+              voteCount:
+                (options.setup.fields.optional?.voteCount
+                  ? item.properties[options.setup.fields.optional.voteCount.property]?.number
+                  : 0) ?? 0,
               commentCount:
                 item.properties[options.setup.fields.commentCount.property]
                   ?.number ?? 0,

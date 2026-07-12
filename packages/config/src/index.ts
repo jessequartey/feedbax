@@ -39,6 +39,25 @@ export type MutationProtectionConfig = z.infer<
 >
 export interface FeedbaxConfig {
   readonly name: string
+  readonly branding?: {
+    readonly tagline?: string
+    readonly mark?: string
+    readonly logoUrl?: string
+    readonly accent?: string
+    readonly supportUrl?: string
+  }
+  readonly publicTaxonomy?: {
+    readonly statuses: readonly {
+      readonly id: string
+      readonly name: string
+      readonly order: number
+    }[]
+    readonly categories: readonly {
+      readonly id: string
+      readonly name: string
+      readonly order: number
+    }[]
+  }
   readonly authentication?: SignedHandoffConfig
   readonly mutationProtection?: MutationProtectionConfig
   readonly connector:
