@@ -18,6 +18,11 @@ export default {
       { id: 'improvement', name: 'Improvement', order: 1 },
       { id: 'integration', name: 'Integration', order: 2 },
     ],
+    tags: [
+      { id: 'mobile', name: 'Mobile', order: 0 },
+      { id: 'api', name: 'API', order: 1 },
+      { id: 'dashboard', name: 'Dashboard', order: 2 },
+    ],
   },
   authentication: {
     audience: 'feedbax',
@@ -37,6 +42,7 @@ export default {
           type: 'rich_text',
           writable: true,
         },
+        feedbackType: { property: 'Type', type: 'select', writable: true },
         status: { property: 'Status', type: 'status', writable: true },
         commentCount: {
           property: 'Comment count',
@@ -45,6 +51,7 @@ export default {
         },
         optional: {
           category: { property: 'Category', type: 'select', writable: true },
+          tags: { property: 'Tags', type: 'multi_select', writable: true },
           voteCount: { property: 'Vote count', type: 'number', writable: false },
         },
       },
@@ -55,6 +62,13 @@ export default {
         complete: 'Complete',
         closed: 'Closed',
       },
+      feedbackTypes: {
+        feature: 'Feature',
+        bug: 'Bug',
+        improvement: 'Improvement',
+        question: 'Question',
+      },
+      tags: { mobile: 'Mobile', api: 'API', dashboard: 'Dashboard' },
     },
   },
 }

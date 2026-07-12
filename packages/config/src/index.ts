@@ -57,6 +57,11 @@ export interface FeedbaxConfig {
       readonly name: string
       readonly order: number
     }[]
+    readonly tags?: readonly {
+      readonly id: string
+      readonly name: string
+      readonly order: number
+    }[]
   }
   readonly authentication?: SignedHandoffConfig
   readonly mutationProtection?: MutationProtectionConfig

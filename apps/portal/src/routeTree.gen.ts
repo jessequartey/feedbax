@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FeedbackIdRouteImport } from './routes/feedback.$id'
 import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as ApiVoteRouteImport } from './routes/api.vote'
@@ -21,10 +22,17 @@ import { Route as ApiCommentRouteImport } from './routes/api.comment'
 import { Route as ApiChangelogRouteImport } from './routes/api.changelog'
 import { Route as ApiCacheRouteImport } from './routes/api.cache'
 import { Route as ApiAuthSessionRouteImport } from './routes/api.auth-session'
+import { Route as ApiFeedbackSuggestionsRouteImport } from './routes/api.feedback.suggestions'
+import { Route as ApiFeedbackIdRouteImport } from './routes/api.feedback.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedbackIdRoute = FeedbackIdRouteImport.update({
+  id: '/feedback/$id',
+  path: '/feedback/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthLogoutRoute = AuthLogoutRouteImport.update({
@@ -82,6 +90,16 @@ const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
   path: '/api/auth-session',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFeedbackSuggestionsRoute = ApiFeedbackSuggestionsRouteImport.update({
+  id: '/suggestions',
+  path: '/suggestions',
+  getParentRoute: () => ApiFeedbackRoute,
+} as any)
+const ApiFeedbackIdRoute = ApiFeedbackIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiFeedbackRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,12 +108,15 @@ export interface FileRoutesByFullPath {
   '/api/changelog': typeof ApiChangelogRoute
   '/api/comment': typeof ApiCommentRoute
   '/api/error': typeof ApiErrorRoute
-  '/api/feedback': typeof ApiFeedbackRoute
+  '/api/feedback': typeof ApiFeedbackRouteWithChildren
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/feedback/$id': typeof FeedbackIdRoute
+  '/api/feedback/$id': typeof ApiFeedbackIdRoute
+  '/api/feedback/suggestions': typeof ApiFeedbackSuggestionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -104,12 +125,15 @@ export interface FileRoutesByTo {
   '/api/changelog': typeof ApiChangelogRoute
   '/api/comment': typeof ApiCommentRoute
   '/api/error': typeof ApiErrorRoute
-  '/api/feedback': typeof ApiFeedbackRoute
+  '/api/feedback': typeof ApiFeedbackRouteWithChildren
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/feedback/$id': typeof FeedbackIdRoute
+  '/api/feedback/$id': typeof ApiFeedbackIdRoute
+  '/api/feedback/suggestions': typeof ApiFeedbackSuggestionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -119,12 +143,15 @@ export interface FileRoutesById {
   '/api/changelog': typeof ApiChangelogRoute
   '/api/comment': typeof ApiCommentRoute
   '/api/error': typeof ApiErrorRoute
-  '/api/feedback': typeof ApiFeedbackRoute
+  '/api/feedback': typeof ApiFeedbackRouteWithChildren
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/feedback/$id': typeof FeedbackIdRoute
+  '/api/feedback/$id': typeof ApiFeedbackIdRoute
+  '/api/feedback/suggestions': typeof ApiFeedbackSuggestionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -141,6 +168,9 @@ export interface FileRouteTypes {
     | '/api/vote'
     | '/auth/handoff'
     | '/auth/logout'
+    | '/feedback/$id'
+    | '/api/feedback/$id'
+    | '/api/feedback/suggestions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -155,6 +185,9 @@ export interface FileRouteTypes {
     | '/api/vote'
     | '/auth/handoff'
     | '/auth/logout'
+    | '/feedback/$id'
+    | '/api/feedback/$id'
+    | '/api/feedback/suggestions'
   id:
     | '__root__'
     | '/'
@@ -169,6 +202,9 @@ export interface FileRouteTypes {
     | '/api/vote'
     | '/auth/handoff'
     | '/auth/logout'
+    | '/feedback/$id'
+    | '/api/feedback/$id'
+    | '/api/feedback/suggestions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -178,12 +214,13 @@ export interface RootRouteChildren {
   ApiChangelogRoute: typeof ApiChangelogRoute
   ApiCommentRoute: typeof ApiCommentRoute
   ApiErrorRoute: typeof ApiErrorRoute
-  ApiFeedbackRoute: typeof ApiFeedbackRoute
+  ApiFeedbackRoute: typeof ApiFeedbackRouteWithChildren
   ApiRoadmapRoute: typeof ApiRoadmapRoute
   ApiSubscribeRoute: typeof ApiSubscribeRoute
   ApiVoteRoute: typeof ApiVoteRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
+  FeedbackIdRoute: typeof FeedbackIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -193,6 +230,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feedback/$id': {
+      id: '/feedback/$id'
+      path: '/feedback/$id'
+      fullPath: '/feedback/$id'
+      preLoaderRoute: typeof FeedbackIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/logout': {
@@ -272,8 +316,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/feedback/suggestions': {
+      id: '/api/feedback/suggestions'
+      path: '/suggestions'
+      fullPath: '/api/feedback/suggestions'
+      preLoaderRoute: typeof ApiFeedbackSuggestionsRouteImport
+      parentRoute: typeof ApiFeedbackRoute
+    }
+    '/api/feedback/$id': {
+      id: '/api/feedback/$id'
+      path: '/$id'
+      fullPath: '/api/feedback/$id'
+      preLoaderRoute: typeof ApiFeedbackIdRouteImport
+      parentRoute: typeof ApiFeedbackRoute
+    }
   }
 }
+
+interface ApiFeedbackRouteChildren {
+  ApiFeedbackIdRoute: typeof ApiFeedbackIdRoute
+  ApiFeedbackSuggestionsRoute: typeof ApiFeedbackSuggestionsRoute
+}
+
+const ApiFeedbackRouteChildren: ApiFeedbackRouteChildren = {
+  ApiFeedbackIdRoute: ApiFeedbackIdRoute,
+  ApiFeedbackSuggestionsRoute: ApiFeedbackSuggestionsRoute,
+}
+
+const ApiFeedbackRouteWithChildren = ApiFeedbackRoute._addFileChildren(
+  ApiFeedbackRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -282,12 +354,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChangelogRoute: ApiChangelogRoute,
   ApiCommentRoute: ApiCommentRoute,
   ApiErrorRoute: ApiErrorRoute,
-  ApiFeedbackRoute: ApiFeedbackRoute,
+  ApiFeedbackRoute: ApiFeedbackRouteWithChildren,
   ApiRoadmapRoute: ApiRoadmapRoute,
   ApiSubscribeRoute: ApiSubscribeRoute,
   ApiVoteRoute: ApiVoteRoute,
   AuthHandoffRoute: AuthHandoffRoute,
   AuthLogoutRoute: AuthLogoutRoute,
+  FeedbackIdRoute: FeedbackIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

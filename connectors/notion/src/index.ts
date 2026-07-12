@@ -1,5 +1,6 @@
 import type { ConnectorDescriptor } from '@feedbax/core'
 export * from './reads.js'
+export * from './mutations.js'
 
 export const NOTION_API_VERSION = '2025-09-03'
 
@@ -41,12 +42,15 @@ export interface NotionSetupConfig {
   readonly fields: {
     readonly title: NotionFieldMapping
     readonly description: NotionFieldMapping
+    readonly feedbackType: NotionFieldMapping & { readonly type: 'select' }
     readonly status: NotionFieldMapping & { readonly type: 'status' | 'select' }
     readonly commentCount: NotionFieldMapping & { readonly type: 'number' }
     readonly optional?: Readonly<Record<string, NotionFieldMapping>>
   }
   readonly statuses: Readonly<Record<string, string>>
   readonly categories?: Readonly<Record<string, string>>
+  readonly feedbackTypes?: Readonly<Record<string, string>>
+  readonly tags?: Readonly<Record<string, string>>
 }
 
 export type NotionHealthCode =
@@ -102,6 +106,7 @@ const writableTypes = new Set<NotionPropertyType>([
   'people',
   'url',
   'email',
+  'multi_select',
 ])
 
 const pass = (code: NotionHealthCode, summary: string): NotionHealthCheck => ({

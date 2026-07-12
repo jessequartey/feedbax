@@ -21,4 +21,9 @@ export const publicTaxonomy = {
     { id: 'improvement', name: 'Improvement', order: 1 },
     { id: 'integration', name: 'Integration', order: 2 },
   ],
+  tags: [
+    { id: 'mobile', name: 'Mobile', order: 0 },
+    { id: 'api', name: 'API', order: 1 },
+    { id: 'dashboard', name: 'Dashboard', order: 2 },
+  ],
 } as const

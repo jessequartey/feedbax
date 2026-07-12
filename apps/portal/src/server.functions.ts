@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { envStatus } from './spike.js'
+import { publicReader } from './public-feedback.server.js'
 
 export const getServerStatus = createServerFn({ method: 'GET' }).handler(
   async () => ({
@@ -8,3 +9,10 @@ export const getServerStatus = createServerFn({ method: 'GET' }).handler(
     environment: envStatus(),
   }),
 )
+
+export const getFeedbackDetail = createServerFn({ method: 'GET' })
+  .validator((id: string) => id)
+  .handler(async ({ data: id }) => {
+    const reader = publicReader()
+    return reader ? reader.getFeedback(id) : null
+  })

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { publicTaxonomy } from '../portal.config.js'
 import { setFeedbackVote, useFeedbackCollection } from '../collections/index.js'
+import { FeedbackForm } from './feedback-form.js'
 
 type Sort = 'popular' | 'recent' | 'updated'
 type Filters = { q: string; statuses: string[]; category: string; sort: Sort }
@@ -29,6 +30,7 @@ function filterParams(filters: Filters) {
 export function FeedbackBoard() {
   const [filters, setFilters] = useState<Filters>(() => readFilters())
   const [searchDraft, setSearchDraft] = useState(filters.q)
+  const [formSignal, setFormSignal] = useState(0)
   const collection = useFeedbackCollection(filters)
   const { items, hasMore, isLoading, isLoadingMore, error, loadMore, refetch } = collection
   useEffect(() => {
@@ -64,7 +66,7 @@ export function FeedbackBoard() {
       <div><h1>Share your product feedback!</h1><p>Tell us what we can do to make {`Feedbax`} work better for you.</p></div>
     </section>
     <section className="board" aria-labelledby="feedback-heading">
-      <div className="board-heading"><h2 id="feedback-heading">Feedback</h2><button className="primary-button" type="button"><span aria-hidden="true">＋</span> Create a new post</button></div>
+      <div className="board-heading"><h2 id="feedback-heading">Feedback</h2><button className="primary-button" type="button" onClick={() => setFormSignal((value) => value + 1)}><span aria-hidden="true">＋</span> Create a new post</button></div>
       <div className="filters">
         <label className="filter-search"><span>Search</span><input type="search" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Search ideas…" /></label>
         <fieldset><legend>Status</legend><div className="status-options">{publicTaxonomy.statuses.map((status) => <label key={status.id}><input type="checkbox" checked={filters.statuses.includes(status.id)} onChange={() => toggleStatus(status.id)} /> <span>{status.name}</span></label>)}</div></fieldset>
@@ -78,6 +80,7 @@ export function FeedbackBoard() {
         : <div className="request-list">{items.map((item) => <article className="request" key={item.id}><button className="vote" type="button" aria-pressed={item.hasViewerVoted ?? false} onClick={() => { void setFeedbackVote(filters, item.id, !(item.hasViewerVoted ?? false)).catch(() => {}) }} aria-label={`Vote for ${item.title}; ${item.voteCount} votes`}><span aria-hidden="true">↑</span><strong>{item.voteCount}</strong></button><a className="request-copy" href={`/feedback/${item.id}`}><h3>{item.title}</h3><p>{item.description}</p>{item.status && <span className="status">{item.status.name}</span>}{item.category && <span className="category">{item.category.name}</span>}<span className="comments">{item.commentCount} comments</span></a></article>)}</div>}
       {hasMore && !isLoading && <div className="load-more"><button className="secondary-button" disabled={isLoadingMore} type="button" onClick={loadMore}>{isLoadingMore ? 'Loading…' : 'Load more'}</button></div>}
     </section>
+    <FeedbackForm filters={filters} openSignal={formSignal} />
   </>
 }
 

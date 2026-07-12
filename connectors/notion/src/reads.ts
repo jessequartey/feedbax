@@ -3,6 +3,7 @@ import {
   CursorPageRequestSchema,
   FeedbackFilterSchema,
   PublicFeedbackPageSchema,
+  PublicFeedbackItemSchema,
   RoadmapPageSchema,
   cacheTags,
   cachedRead,
@@ -13,6 +14,7 @@ import {
   type ChangelogPage,
   type CursorPageRequest,
   type FeedbackFilter,
+  type FeedbackType,
   type PublicConnectorReader,
   type RoadmapPage,
 } from '@feedbax/core'
@@ -53,6 +55,7 @@ type NotionPage = {
   id: string
   created_time: string
   last_edited_time: string
+  parent?: { type?: string; data_source_id?: string }
   properties: Record<
     string,
     {
@@ -101,6 +104,18 @@ const category = (page: NotionPage, mapping?: NotionFieldMapping) => {
     ? { id: option.id ?? option.name, name: option.name, order: 0 }
     : null
 }
+const feedbackType = (page: NotionPage, mapping: NotionFieldMapping): FeedbackType => {
+  const name = page.properties[mapping.property]?.select?.name?.toLowerCase()
+  return name === 'bug' || name === 'improvement' || name === 'question'
+    ? name
+    : 'feature'
+}
+const tags = (page: NotionPage, mapping?: NotionFieldMapping) =>
+  mapping
+    ? (page.properties[mapping.property]?.multi_select ?? []).flatMap((item, order) =>
+        item.name ? [{ id: item.name.toLowerCase().replaceAll(' ', '-'), name: item.name, order }] : [],
+      )
+    : []
 const stable = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
   if (value && typeof value === 'object')
@@ -121,6 +136,7 @@ export function createNotionReadClient(
   options: NotionReadClientOptions,
 ): PublicConnectorReader & {
   updateCommentCount(feedbackItemId: string, count: number): Promise<void>
+  getFeedback(feedbackItemId: string): Promise<import('@feedbax/core').PublicFeedbackItem | null>
 } {
   const fetcher = options.fetch ?? fetch
   const common = {
@@ -209,6 +225,24 @@ export function createNotionReadClient(
     hasMore: result.has_more ?? false,
     ...(result.next_cursor ? { nextCursor: result.next_cursor } : {}),
   })
+  const feedbackItem = (item: NotionPage) => ({
+    id: item.id,
+    title: text(item, options.setup.fields.title),
+    description: text(item, options.setup.fields.description),
+    type: feedbackType(item, options.setup.fields.feedbackType),
+    author: { id: 'notion', displayName: 'Notion' },
+    status: status(item, options.setup.fields.status),
+    category: category(item, options.setup.fields.optional?.category),
+    tags: tags(item, options.setup.fields.optional?.tags),
+    voteCount:
+      (options.setup.fields.optional?.voteCount
+        ? item.properties[options.setup.fields.optional.voteCount.property]?.number
+        : 0) ?? 0,
+    commentCount:
+      item.properties[options.setup.fields.commentCount.property]?.number ?? 0,
+    createdAt: item.created_time,
+    updatedAt: item.last_edited_time,
+  })
 
   return {
     async listFeedback(rawFilter, rawPage) {
@@ -222,27 +256,26 @@ export function createNotionReadClient(
           const result = await query(options.setup.dataSourceId, page, filter)
           return PublicFeedbackPageSchema.parse({
             ...pageShape(result),
-            items: result.results!.map((item) => ({
-              id: item.id,
-              title: text(item, options.setup.fields.title),
-              description: text(item, options.setup.fields.description),
-              author: { id: 'notion', displayName: 'Notion' },
-              status: status(item, options.setup.fields.status),
-              category: category(item, options.setup.fields.optional?.category),
-              tags: [],
-              voteCount:
-                (options.setup.fields.optional?.voteCount
-                  ? item.properties[options.setup.fields.optional.voteCount.property]?.number
-                  : 0) ?? 0,
-              commentCount:
-                item.properties[options.setup.fields.commentCount.property]
-                  ?.number ?? 0,
-              createdAt: item.created_time,
-              updatedAt: item.last_edited_time,
-            })),
+            items: result.results!.map(feedbackItem),
           })
         },
       })
+    },
+    async getFeedback(feedbackItemId: string) {
+      let response: Response
+      try {
+        response = await fetcher(`${API}/pages/${encodeURIComponent(feedbackItemId)}`, {
+          headers: { authorization: `Bearer ${options.token}`, 'notion-version': VERSION },
+        })
+      } catch (cause) {
+        throw publicError('Notion is temporarily unavailable.', cause)
+      }
+      if (response.status === 404) return null
+      if (!response.ok) throw publicError('Notion could not load public data.')
+      const item = await response.json() as NotionPage
+      if (item.parent?.type !== 'data_source_id' || item.parent.data_source_id !== options.setup.dataSourceId)
+        return null
+      return PublicFeedbackItemSchema.parse(feedbackItem(item))
     },
     async listRoadmap(rawPage) {
       const page = CursorPageRequestSchema.parse(rawPage)

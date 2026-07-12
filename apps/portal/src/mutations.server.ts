@@ -21,6 +21,9 @@ import {
 } from '@feedbax/config'
 import { authProvider } from './auth.server.js'
 import { json } from './spike.js'
+import { readEnv } from './spike.js'
+import { createNotionMutationService } from '@feedbax/notion'
+import { publicCache, publicNotionSetup } from './public-feedback.server.js'
 
 export type MutationAction = 'submit' | 'vote' | 'comment' | 'subscribe'
 export interface PublicMutationService {
@@ -365,9 +368,17 @@ export function productionMutationDependencies(
   config: MutationProtectionConfig = defaultMutationProtectionConfig,
 ): MutationDependencies {
   const validated = MutationProtectionConfigSchema.parse(config)
+  const auth = authProvider()
+  const token = readEnv('NOTION_TOKEN')
+  const notion = token && publicNotionSetup.dataSourceId
+    ? createNotionMutationService({ token, setup: publicNotionSetup, cache: publicCache })
+    : null
   return {
-    auth: authProvider(),
-    service: unavailable,
+    auth,
+    service: notion ? {
+      ...unavailable,
+      submit: (session, input) => notion.submit(input, auth.publicUser(session)),
+    } : unavailable,
     rateLimits,
     logger: consoleLogger,
     config: validated,

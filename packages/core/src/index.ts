@@ -10,6 +10,12 @@ export const VoteIdSchema = id('VoteId')
 export const StatusIdSchema = id('StatusId')
 export const CategoryIdSchema = id('CategoryId')
 export const TagIdSchema = id('TagId')
+export const FeedbackTypeSchema = z.enum([
+  'feature',
+  'bug',
+  'improvement',
+  'question',
+])
 export const RoadmapEntryIdSchema = id('RoadmapEntryId')
 export const ChangelogEntryIdSchema = id('ChangelogEntryId')
 
@@ -22,6 +28,7 @@ export type VoteId = z.infer<typeof VoteIdSchema>
 export type StatusId = z.infer<typeof StatusIdSchema>
 export type CategoryId = z.infer<typeof CategoryIdSchema>
 export type TagId = z.infer<typeof TagIdSchema>
+export type FeedbackType = z.infer<typeof FeedbackTypeSchema>
 export type RoadmapEntryId = z.infer<typeof RoadmapEntryIdSchema>
 export type ChangelogEntryId = z.infer<typeof ChangelogEntryIdSchema>
 
@@ -78,6 +85,7 @@ const feedbackContentShape = {
   id: FeedbackItemIdSchema,
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(20_000),
+  type: FeedbackTypeSchema,
   status: StatusSchema.nullable(),
   category: CategorySchema.nullable(),
   tags: z.array(TagSchema).readonly(),
@@ -157,6 +165,7 @@ export type ChangelogEntry = z.infer<typeof ChangelogEntrySchema>
 export const SubmitFeedbackInputSchema = z.strictObject({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(20_000),
+  type: FeedbackTypeSchema,
   categoryId: CategoryIdSchema.optional(),
   tagIds: z.array(TagIdSchema).max(20).readonly().default([]),
 })
@@ -265,6 +274,10 @@ export const PublicFeedbackPageSchema = cursorPageSchema(
   PublicFeedbackItemSchema,
 )
 export type PublicFeedbackPage = z.infer<typeof PublicFeedbackPageSchema>
+export const FeedbackSuggestionsSchema = z.strictObject({
+  items: z.array(PublicFeedbackItemSchema).max(3).readonly(),
+})
+export type FeedbackSuggestions = z.infer<typeof FeedbackSuggestionsSchema>
 export const PublicCommentPageSchema = cursorPageSchema(PublicCommentSchema)
 export type PublicCommentPage = z.infer<typeof PublicCommentPageSchema>
 
@@ -358,6 +371,7 @@ export const toPublicFeedbackItem = (
     id: item.id,
     title: item.title,
     description: item.description,
+    type: item.type,
     author: toPublicUser(item.author),
     status: item.status,
     category: item.category,

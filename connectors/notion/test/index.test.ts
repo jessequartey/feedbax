@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   checkNotionSetup,
   createNotionReadClient,
+  createNotionMutationService,
+  richText,
   formatNotionHealth,
   notionConnector,
   runNotionDoctor,
@@ -14,6 +16,7 @@ const config: NotionSetupConfig = {
   fields: {
     title: { property: 'Name', type: 'title', writable: true },
     description: { property: 'Description', type: 'rich_text', writable: true },
+    feedbackType: { property: 'Type', type: 'select', writable: true },
     status: { property: 'Status', type: 'status', writable: true },
     commentCount: { property: 'Comment count', type: 'number', writable: true },
     optional: { url: { property: 'URL', type: 'url', writable: false } },
@@ -25,6 +28,7 @@ const source = {
   properties: {
     Name: { type: 'title' },
     Description: { type: 'rich_text' },
+    Type: { type: 'select' },
     Status: {
       type: 'status',
       status: { options: [{ name: 'Open' }, { name: 'Done' }] },
@@ -276,6 +280,7 @@ describe('Notion cached public reads', () => {
                 type: 'rich_text',
                 rich_text: [{ plain_text: 'Work anywhere' }],
               },
+              Type: { type: 'select', select: { id: 'feature', name: 'Feature' } },
               Status: { type: 'status', status: { id: 'open', name: 'Open' } },
               'Comment count': { type: 'number', number: 7 },
             },
@@ -322,5 +327,66 @@ describe('Notion cached public reads', () => {
       value: { items: [], hasMore: false },
       cacheStatus: 'bypass',
     })
+  })
+})
+
+describe('Notion feedback submission', () => {
+  it('chunks rich text at the Notion property limit', () => {
+    expect(richText('x'.repeat(4001)).map(({ text }) => text.content.length))
+      .toEqual([2000, 2000, 1])
+  })
+
+  it('creates a data-source page and returns a canonical public item', async () => {
+    const fetcher = vi.fn(async () => response({
+      id: 'created-page',
+      created_time: '2026-07-12T08:00:00Z',
+      last_edited_time: '2026-07-12T08:00:00Z',
+    })) as unknown as typeof fetch
+    const service = createNotionMutationService({
+      token: 'secret',
+      setup: {
+        ...config,
+        fields: {
+          ...config.fields,
+          optional: {
+            category: { property: 'Category', type: 'select', writable: true },
+            tags: { property: 'Tags', type: 'multi_select', writable: true },
+          },
+        },
+        categories: { feature: 'Feature' },
+        feedbackTypes: { bug: 'Bug' },
+        tags: { api: 'API' },
+      },
+      fetch: fetcher,
+    })
+    const item = await service.submit({
+      title: 'Export failure', description: 'Exports fail for large files.',
+      type: 'bug', categoryId: 'feature', tagIds: ['api'],
+    }, { id: 'user-1', displayName: 'Ada' })
+    expect(item).toMatchObject({ id: 'created-page', type: 'bug', author: { displayName: 'Ada' } })
+    const init = vi.mocked(fetcher).mock.calls[0]?.[1] as RequestInit
+    const body = JSON.parse(String(init.body))
+    expect(body).toMatchObject({
+      parent: { type: 'data_source_id', data_source_id: 'source-id' },
+      properties: {
+        Type: { select: { name: 'Bug' } },
+        Category: { select: { name: 'Feature' } },
+        Tags: { multi_select: [{ name: 'API' }] },
+      },
+    })
+    expect(JSON.stringify(body)).not.toContain('ada@example.com')
+  })
+
+  it('rejects detail pages outside the configured data source', async () => {
+    const reader = createNotionReadClient({
+      token: 'secret', setup: config,
+      fetch: async () => response({
+        id: 'private-page', created_time: '2026-07-12T08:00:00Z',
+        last_edited_time: '2026-07-12T08:00:00Z',
+        parent: { type: 'data_source_id', data_source_id: 'other-source' },
+        properties: {},
+      }),
+    })
+    expect(await reader.getFeedback('private-page')).toBeNull()
   })
 })

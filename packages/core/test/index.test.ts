@@ -34,6 +34,7 @@ const privateItem = {
   id: 'feedback-1',
   title: 'Offline mode',
   description: 'Please support offline work.',
+  type: 'feature',
   author: user,
   status,
   category,
@@ -53,6 +54,7 @@ describe('canonical domain schemas', () => {
     expect(PrivateFeedbackItemSchema.parse(privateItem).category?.name).toBe(
       'Feature',
     )
+    expect(PrivateFeedbackItemSchema.parse(privateItem).type).toBe('feature')
     expect(
       PrivateCommentSchema.parse({
         id: 'comment-1',
@@ -136,13 +138,14 @@ describe('canonical domain schemas', () => {
 
   it('rejects server-owned mutation fields and invalid filters', () => {
     expect(
-      SubmitFeedbackInputSchema.parse({ title: 'Idea', description: 'Details' })
+      SubmitFeedbackInputSchema.parse({ title: 'Idea', description: 'Details', type: 'feature' })
         .tagIds,
     ).toEqual([])
     expect(() =>
       SubmitFeedbackInputSchema.parse({
         title: 'Idea',
         description: 'Details',
+        type: 'feature',
         voteCount: 99,
       }),
     ).toThrow()

@@ -1,12 +1,15 @@
 import {
   CursorPageRequestSchema,
   FeedbackFilterSchema,
+  FeedbackSuggestionsSchema,
   MemoryCacheAdapter,
   PublicFeedbackPageSchema,
+  type PublicConnectorReader,
 } from '@feedbax/core'
 import { createNotionReadClient, type NotionReadSetupConfig } from '@feedbax/notion'
 import { readEnv } from './spike.js'
 import { publicTaxonomy } from './portal.config.js'
+import { rankDuplicateSuggestions } from './duplicate-suggestions.js'
 
 const cache = new MemoryCacheAdapter()
 const sortMap = {
@@ -43,16 +46,22 @@ const setup: NotionReadSetupConfig = {
   fields: {
     title: { property: 'Name', type: 'title', writable: true },
     description: { property: 'Description', type: 'rich_text', writable: true },
+    feedbackType: { property: 'Type', type: 'select', writable: true },
     status: { property: 'Status', type: 'status', writable: true },
     commentCount: { property: 'Comment count', type: 'number', writable: true },
     optional: {
       category: { property: 'Category', type: 'select', writable: true },
+      tags: { property: 'Tags', type: 'multi_select', writable: true },
       voteCount: { property: 'Vote count', type: 'number', writable: false },
     },
   },
   statuses: Object.fromEntries(publicTaxonomy.statuses.map(({ id, name }) => [id, name])),
   categories: Object.fromEntries(publicTaxonomy.categories.map(({ id, name }) => [id, name])),
+  feedbackTypes: { feature: 'Feature', bug: 'Bug', improvement: 'Improvement', question: 'Question' },
+  tags: Object.fromEntries(publicTaxonomy.tags.map(({ id, name }) => [id, name])),
 }
+
+export { cache as publicCache, setup as publicNotionSetup }
 
 export function publicReader() {
   const token = readEnv('NOTION_TOKEN')
@@ -77,6 +86,65 @@ export async function feedbackListResponse(request: Request) {
     const invalid = error instanceof Error && (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
     return Response.json(
       { error: { code: invalid ? 'INVALID_QUERY' : 'CONNECTOR_UNAVAILABLE', message: invalid ? 'The feedback filters are invalid.' : 'Feedback is temporarily unavailable.' } },
+      { status: invalid ? 400 : 503, headers: { 'cache-control': 'no-store' } },
+    )
+  }
+}
+
+export async function feedbackDetailResponse(feedbackItemId: string) {
+  try {
+    const reader = publicReader()
+    if (!reader)
+      return Response.json(
+        { error: { code: 'NOT_FOUND', message: 'Feedback was not found.' } },
+        { status: 404, headers: { 'cache-control': 'no-store' } },
+      )
+    const item = await reader.getFeedback(feedbackItemId)
+    if (!item)
+      return Response.json(
+        { error: { code: 'NOT_FOUND', message: 'Feedback was not found.' } },
+        { status: 404, headers: { 'cache-control': 'no-store' } },
+      )
+    return Response.json(item, {
+      headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=300' },
+    })
+  } catch {
+    return Response.json(
+      { error: { code: 'CONNECTOR_UNAVAILABLE', message: 'Feedback is temporarily unavailable.' } },
+      { status: 503, headers: { 'cache-control': 'no-store' } },
+    )
+  }
+}
+
+export function parseSuggestionRequest(url: URL) {
+  const title = url.searchParams.get('title')?.trim() ?? ''
+  if (title.length < 3 || title.length > 200) throw new Error('INVALID_QUERY')
+  return title
+}
+
+export async function feedbackSuggestionsResponse(
+  request: Request,
+  reader: Pick<PublicConnectorReader, 'listFeedback'> | null = publicReader(),
+) {
+  try {
+    const title = parseSuggestionRequest(new URL(request.url))
+    if (!reader)
+      return Response.json(FeedbackSuggestionsSchema.parse({ items: [] }), {
+        headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=300', 'x-feedbax-cache': 'bypass' },
+      })
+    const result = await reader.listFeedback(
+      { sort: 'recently-updated' },
+      { pageSize: 100 },
+    )
+    return Response.json(FeedbackSuggestionsSchema.parse({
+      items: rankDuplicateSuggestions(title, result.value.items),
+    }), {
+      headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=300', 'x-feedbax-cache': result.cacheStatus },
+    })
+  } catch (error) {
+    const invalid = error instanceof Error && error.message === 'INVALID_QUERY'
+    return Response.json(
+      { error: { code: invalid ? 'INVALID_QUERY' : 'CONNECTOR_UNAVAILABLE', message: invalid ? 'The suggestion title is invalid.' : 'Suggestions are temporarily unavailable.' } },
       { status: invalid ? 400 : 503, headers: { 'cache-control': 'no-store' } },
     )
   }

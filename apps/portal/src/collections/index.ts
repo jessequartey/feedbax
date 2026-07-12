@@ -4,6 +4,7 @@ import { queryCollectionOptions, type QueryCollectionUtils } from '@tanstack/que
 import {
   ChangelogEntrySchema,
   ChangelogPageSchema,
+  FeedbackSuggestionsSchema,
   PublicCommentPageSchema,
   PublicCommentSchema,
   PublicFeedbackItemSchema,
@@ -18,6 +19,7 @@ import {
   type SubmitFeedbackInput,
 } from '@feedbax/core'
 import { useMemo, useSyncExternalStore } from 'react'
+import { publicTaxonomy } from '../portal.config.js'
 
 export const collectionQueryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -55,10 +57,24 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const value = await response.json()
   if (!response.ok) {
     const message = (value as { error?: { message?: string } }).error?.message
-    throw new Error(message ?? 'The request could not be completed.')
+    throw new ApplicationApiError(
+      message ?? 'The request could not be completed.',
+      response.status,
+      (value as { error?: { loginLocation?: string } }).error?.loginLocation,
+    )
   }
   return value as T
 }
+
+export class ApplicationApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly loginLocation?: string,
+  ) { super(message) }
+}
+
+const createdItems = new Map<string, PublicFeedbackItem>()
 
 function post<T>(path: string, input: unknown) {
   return api<{ ok: true; value: T }>(path, {
@@ -251,10 +267,11 @@ export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
       notify,
       onInsert: async (items) => {
         for (const item of items)
-          PublicFeedbackItemSchema.parse(await post<unknown>('/api/feedback', {
+          createdItems.set(item.id, PublicFeedbackItemSchema.parse(await post<unknown>('/api/feedback', {
             title: item.title, description: item.description,
+            type: item.type,
             ...(item.category ? { categoryId: item.category.id } : {}), tagIds: item.tags.map(({ id }) => id),
-          }))
+          })))
       },
       onUpdate: async (items) => {
         for (const item of items)
@@ -264,17 +281,53 @@ export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
   ))
 }
 
-export function createFeedback(filters: FeedbackCollectionFilters, input: SubmitFeedbackInput) {
+export async function createFeedback(filters: FeedbackCollectionFilters, input: SubmitFeedbackInput) {
   const key = `feedback:${feedbackParams(filters)}`
   const value = controllers.get(key) as unknown as PagedController<PublicFeedbackItem> | undefined
   if (!value) throw new Error('The feedback collection is not active.')
   const now = new Date().toISOString()
+  const category = input.categoryId
+    ? publicTaxonomy.categories.find(({ id }) => id === input.categoryId)
+    : undefined
   const temporary = PublicFeedbackItemSchema.parse({
     id: `pending-${crypto.randomUUID()}`, title: input.title, description: input.description,
-    author: { id: 'viewer', displayName: 'You' }, status: null, category: null,
-    tags: [], voteCount: 0, commentCount: 0, createdAt: now, updatedAt: now,
+    type: input.type,
+    author: { id: 'viewer', displayName: 'You' }, status: null,
+    category: category ?? null,
+    tags: input.tagIds.flatMap((id) => {
+      const tag = publicTaxonomy.tags.find((candidate) => candidate.id === id)
+      return tag ? [tag] : []
+    }),
+    voteCount: 0, commentCount: 0, createdAt: now, updatedAt: now,
   })
-  return value.firstCollection().insert(temporary).isPersisted.promise
+  const transaction = value.firstCollection().insert(temporary)
+  try {
+    await transaction.isPersisted.promise
+    const created = createdItems.get(temporary.id)
+    if (!created) throw new Error('The created feedback response was unavailable.')
+    const utils = value.firstCollection().utils
+    utils.writeBatch(() => {
+      utils.writeDelete(temporary.id)
+      utils.writeInsert(created)
+    })
+    createdItems.delete(temporary.id)
+    return created
+  } catch (error) {
+    createdItems.delete(temporary.id)
+    throw error
+  }
+}
+
+export async function getFeedbackSuggestions(title: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ title })
+  return FeedbackSuggestionsSchema.parse(
+    await api<unknown>(`/api/feedback/suggestions?${params}`, signal ? { signal } : undefined),
+  ).items
+}
+
+export function voteForExistingFeedback(feedbackItemId: string, voted: boolean) {
+  return post<unknown>('/api/vote', { feedbackItemId, voted })
+    .then((value) => PublicFeedbackItemSchema.parse(value))
 }
 
 export function setFeedbackVote(filters: FeedbackCollectionFilters, id: string, voted: boolean) {
