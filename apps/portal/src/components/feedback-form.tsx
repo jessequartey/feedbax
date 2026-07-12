@@ -111,7 +111,9 @@ export function FeedbackForm({ filters, openSignal }: {
     } : candidate))
     try {
       const updated = await voteForExistingFeedback(item.id, voted)
-      setSuggestions((current) => current.map((candidate) => candidate.id === item.id ? updated : candidate))
+      setSuggestions((current) => current.map((candidate) => candidate.id === item.id ? {
+        ...candidate, hasViewerVoted: updated.voted, voteCount: updated.voteCount,
+      } : candidate))
     } catch (error) {
       setSuggestions((current) => current.map((candidate) => candidate.id === item.id ? item : candidate))
       if (error instanceof ApplicationApiError && error.status === 401 && error.loginLocation) {

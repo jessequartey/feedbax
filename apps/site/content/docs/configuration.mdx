@@ -32,6 +32,12 @@ Authentication is configured through the typed `authentication` property. It dec
 
 The bundled memory rate limiter is intended for development or a single Node/Docker process. Cloudflare, Vercel, and multi-process deployments must inject a shared durable `RateLimitStore`, otherwise limits are not coordinated across instances.
 
+## Notion vote ledger
+
+Unique voting requires `NOTION_VOTES_DATA_SOURCE_ID` and a server-only, high-entropy `FEEDBAX_INTERACTION_HASH_KEY`. The vote data source uses a title `Key`, relation `Feedback`, rich-text `Voter key`, and checkbox `Active`; the feedback data source must expose a writable number property named `Vote count`.
+
+The browser sends only the desired state and feedback ID. Feedbax derives identity from the signed session and stores an HMAC-derived opaque key. Connector-only voting is serialized within one application process, but Notion cannot enforce uniqueness or update the ledger and total atomically across multiple instances. Route vote mutations through one instance when using this mode.
+
 ## Planned configuration
 
 **Planned for v0.0.2:** typed Notion field/status mappings, branding tokens, credentials validation, schema compatibility errors, caching bounds, and feature switches. Their final public shape is not stable and is deliberately undocumented until implemented.

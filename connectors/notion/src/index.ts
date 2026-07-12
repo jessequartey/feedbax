@@ -51,6 +51,15 @@ export interface NotionSetupConfig {
   readonly categories?: Readonly<Record<string, string>>
   readonly feedbackTypes?: Readonly<Record<string, string>>
   readonly tags?: Readonly<Record<string, string>>
+  readonly votes?: {
+    readonly dataSourceId: string
+    readonly fields: {
+      readonly key: NotionFieldMapping & { readonly type: 'title' }
+      readonly feedbackItem: NotionFieldMapping & { readonly type: 'relation' }
+      readonly voterKey: NotionFieldMapping & { readonly type: 'rich_text' }
+      readonly active: NotionFieldMapping & { readonly type: 'checkbox' }
+    }
+  }
 }
 
 export type NotionHealthCode =
@@ -72,6 +81,8 @@ export type NotionHealthCode =
   | 'COMMENTS_OK'
   | 'DATA_SOURCE_EMPTY'
   | 'COMMENTS_FORBIDDEN'
+  | 'VOTES_OK'
+  | 'VOTES_INVALID'
   | 'RATE_LIMITED'
   | 'NOTION_UNAVAILABLE'
   | 'INVALID_RESPONSE'
@@ -462,6 +473,18 @@ export async function checkNotionSetup(
             'Check Notion availability and outbound HTTPS access, then retry.',
           ),
         )
+    }
+  }
+  if (config.votes) {
+    try {
+      const voteSource = await request(fetcher, token, `/data_sources/${encodeURIComponent(config.votes.dataSourceId)}`, { method: 'GET' }, timeoutMs) as { properties?: Record<string, { type?: string }> }
+      const voteMappings = Object.values(config.votes.fields)
+      const count = config.fields.optional?.voteCount
+      if (!voteSource.properties || !count?.writable || count.type !== 'number' || voteMappings.some((mapping) => voteSource.properties?.[mapping.property]?.type !== mapping.type))
+        checks.push(fail('VOTES_INVALID', 'The Notion vote ledger is not schema-compatible.', 'Create the configured vote properties with their mapped types and make the feedback vote-count number field writable.'))
+      else checks.push(pass('VOTES_OK', 'The Notion vote ledger and writable count field are configured.'))
+    } catch {
+      checks.push(fail('VOTES_INVALID', 'The Notion vote ledger is not accessible.', 'Share the vote data source with the integration and verify NOTION_VOTES_DATA_SOURCE_ID.'))
     }
   }
   return { ok: checks.every((check) => check.status === 'pass'), checks }

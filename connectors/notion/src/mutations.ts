@@ -1,21 +1,39 @@
 import {
   PublicFeedbackItemSchema,
+  SetVoteResultSchema,
   invalidateAfterMutation,
   type CacheAdapter,
   type PublicFeedbackItem,
   type PublicUser,
   type SubmitFeedbackInput,
+  type SetVoteInput,
+  type SetVoteResult,
 } from '@feedbax/core'
 import type { NotionSetupConfig } from './index.js'
 
 const API = 'https://api.notion.com/v1'
 const VERSION = '2025-09-03'
+const voteLocks = new Map<string, Promise<void>>()
+
+async function withVoteLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const previous = voteLocks.get(key) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  const queued = previous.then(() => current)
+  voteLocks.set(key, queued)
+  await previous
+  try { return await work() } finally {
+    release()
+    if (voteLocks.get(key) === queued) voteLocks.delete(key)
+  }
+}
 
 export interface NotionMutationOptions {
   readonly token: string
   readonly setup: NotionSetupConfig
   readonly fetch?: typeof fetch
   readonly cache?: CacheAdapter
+  readonly interactionHashKey?: string
 }
 
 export const richText = (value: string) =>
@@ -26,6 +44,27 @@ export const richText = (value: string) =>
 
 export function createNotionMutationService(options: NotionMutationOptions) {
   const fetcher = options.fetch ?? fetch
+  const voterKey = async (userId: string) => {
+    if (!options.interactionHashKey || new TextEncoder().encode(options.interactionHashKey).byteLength < 32) throw new Error('Voting is not configured.')
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(options.interactionHashKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+    const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(userId))
+    return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  }
+  const notion = async <T = unknown>(path: string, init: RequestInit): Promise<T> => {
+    const response = await fetcher(`${API}${path}`, { ...init, headers: { authorization: `Bearer ${options.token}`, 'notion-version': VERSION, 'content-type': 'application/json', ...init.headers } })
+    if (!response.ok) throw new Error('Notion could not save the vote.')
+    return response.json() as Promise<T>
+  }
+  const queryAll = async <T>(dataSourceId: string, body: Record<string, unknown>): Promise<T[]> => {
+    const items: T[] = []
+    let cursor: string | undefined
+    do {
+      const page = await notion<{ results?: T[]; has_more?: boolean; next_cursor?: string | null }>(`/data_sources/${encodeURIComponent(dataSourceId)}/query`, { method: 'POST', body: JSON.stringify({ ...body, ...(cursor ? { start_cursor: cursor } : {}) }) })
+      items.push(...(page.results ?? []))
+      cursor = page.has_more && page.next_cursor ? page.next_cursor : undefined
+    } while (cursor)
+    return items
+  }
   return {
     async submit(
       input: SubmitFeedbackInput,
@@ -108,6 +147,58 @@ export function createNotionMutationService(options: NotionMutationOptions) {
       if (options.cache)
         await invalidateAfterMutation(options.cache, 'feedback', 'notion')
       return item
+    },
+    async setVote(userId: string, input: SetVoteInput): Promise<SetVoteResult> {
+      const setup = options.setup.votes
+      const countField = options.setup.fields.optional?.voteCount
+      if (!setup || !countField?.writable || !options.interactionHashKey || new TextEncoder().encode(options.interactionHashKey).byteLength < 32)
+        throw new Error('Voting is not configured.')
+      return withVoteLock(input.feedbackItemId, async () => {
+        const hash = await voterKey(userId)
+        const feedback = await notion<{ parent?: { type?: string; data_source_id?: string }; properties?: Record<string, { checkbox?: boolean }> }>(`/pages/${encodeURIComponent(input.feedbackItemId)}`, { method: 'GET' })
+        const visibility = options.setup.fields.optional?.visibility
+        if (feedback.parent?.type !== 'data_source_id' || feedback.parent.data_source_id !== options.setup.dataSourceId || (visibility && feedback.properties?.[visibility.property]?.checkbox === false))
+          throw new Error('Feedback was not found.')
+        const filter = { and: [
+          { property: setup.fields.feedbackItem.property, relation: { contains: input.feedbackItemId } },
+          { property: setup.fields.voterKey.property, rich_text: { equals: hash } },
+        ] }
+        const found = await notion<{ results?: Array<{ id: string; properties?: Record<string, { checkbox?: boolean }> }> }>(`/data_sources/${encodeURIComponent(setup.dataSourceId)}/query`, { method: 'POST', body: JSON.stringify({ page_size: 100, filter }) })
+        const existing = found.results?.[0]
+        const active = existing?.properties?.[setup.fields.active.property]?.checkbox === true
+        if (active !== input.voted) {
+          if (existing)
+            await notion(`/pages/${encodeURIComponent(existing.id)}`, { method: 'PATCH', body: JSON.stringify({ properties: { [setup.fields.active.property]: { checkbox: input.voted } } }) })
+          else if (input.voted)
+            await notion('/pages', { method: 'POST', body: JSON.stringify({ parent: { type: 'data_source_id', data_source_id: setup.dataSourceId }, properties: {
+              [setup.fields.key.property]: { title: richText(`${input.feedbackItemId}:${hash}`) },
+              [setup.fields.feedbackItem.property]: { relation: [{ id: input.feedbackItemId }] },
+              [setup.fields.voterKey.property]: { rich_text: richText(hash) },
+              [setup.fields.active.property]: { checkbox: true },
+            } }) })
+        }
+        const activeVotes = await queryAll<{ properties?: Record<string, { rich_text?: Array<{ plain_text?: string }> }> }>(setup.dataSourceId, { page_size: 100, filter: { and: [
+          { property: setup.fields.feedbackItem.property, relation: { contains: input.feedbackItemId } },
+          { property: setup.fields.active.property, checkbox: { equals: true } },
+        ] } })
+        const unique = new Set(activeVotes.map((row) => row.properties?.[setup.fields.voterKey.property]?.rich_text?.map((part) => part.plain_text ?? '').join('')).filter(Boolean))
+        const voteCount = unique.size
+        await notion(`/pages/${encodeURIComponent(input.feedbackItemId)}`, { method: 'PATCH', body: JSON.stringify({ properties: { [countField.property]: { number: voteCount } } }) })
+        if (options.cache) await invalidateAfterMutation(options.cache, 'vote', 'notion', input.feedbackItemId)
+        return SetVoteResultSchema.parse({ feedbackItemId: input.feedbackItemId, voted: input.voted, voteCount })
+      })
+    },
+    async voteStates(userId: string, feedbackItemIds: readonly string[]) {
+      const setup = options.setup.votes
+      if (!setup || !options.interactionHashKey) throw new Error('Voting is not configured.')
+      const hash = await voterKey(userId)
+      const result = await notion<{ results?: Array<{ properties?: Record<string, { relation?: Array<{ id: string }> }> }> }>(`/data_sources/${encodeURIComponent(setup.dataSourceId)}/query`, { method: 'POST', body: JSON.stringify({ page_size: 100, filter: { and: [
+        { property: setup.fields.voterKey.property, rich_text: { equals: hash } },
+        { property: setup.fields.active.property, checkbox: { equals: true } },
+        { or: feedbackItemIds.map((id) => ({ property: setup.fields.feedbackItem.property, relation: { contains: id } })) },
+      ] } }) })
+      const active = new Set((result.results ?? []).flatMap((row) => row.properties?.[setup.fields.feedbackItem.property]?.relation?.map(({ id }) => id) ?? []))
+      return feedbackItemIds.map((feedbackItemId) => ({ feedbackItemId, voted: active.has(feedbackItemId) }))
     },
   }
 }

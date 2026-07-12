@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { useState, type FormEvent } from 'react'
-import type { PublicFeedbackDetail } from '@feedbax/core'
+import { useEffect, useState, type FormEvent } from 'react'
+import { SetVoteResultSchema, VoteStateResponseSchema, type PublicFeedbackDetail } from '@feedbax/core'
 import { getFeedbackDetail } from '../server.functions.js'
 import { ConnectorOutage, PortalLoading, PortalShell } from '../components/portal-shell.js'
 import { portalBranding, portalPublicConfig } from '../portal.config.js'
@@ -47,7 +47,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat('en', {
   year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
 }).format(new Date(value))
 
-async function mutate(path: string, input: unknown) {
+async function mutate(path: string, input: unknown): Promise<unknown> {
   const response = await fetch(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-feedbax-return-path': location.pathname },
@@ -58,6 +58,7 @@ async function mutate(path: string, input: unknown) {
     if (response.status === 401 && body.error?.loginLocation) location.assign(body.error.loginLocation)
     throw new Error(body.error?.message ?? 'This action is temporarily unavailable.')
   }
+  return (body as { ok?: boolean; value?: unknown }).value
 }
 
 function FeedbackDetailPage() {
@@ -68,14 +69,22 @@ function FeedbackDetailPage() {
   const [subscribed, setSubscribed] = useState(detail.subscription.isSubscribed ?? false)
   const [pending, setPending] = useState<'vote' | 'comment' | 'subscribe' | null>(null)
   const [message, setMessage] = useState('')
+  useEffect(() => {
+    void fetch('/api/vote-state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ feedbackItemIds: [item.id] }) })
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((value) => { if (value) setVoted(VoteStateResponseSchema.parse(value).items[0]?.voted ?? false) })
+      .catch(() => undefined)
+  }, [item.id])
 
   const vote = async () => {
     const next = !voted
+    const previous = { voted, votes }
     setPending('vote'); setMessage('')
+    setVoted(next); setVotes(Math.max(0, votes + (next ? 1 : -1)))
     try {
-      await mutate('/api/vote', { feedbackItemId: item.id, voted: next })
-      setVoted(next); setVotes((value) => Math.max(0, value + (next ? 1 : -1)))
-    } catch (error) { setMessage((error as Error).message) } finally { setPending(null) }
+      const result = SetVoteResultSchema.parse(await mutate('/api/vote', { feedbackItemId: item.id, voted: next }))
+      setVoted(result.voted); setVotes(result.voteCount)
+    } catch (error) { setVoted(previous.voted); setVotes(previous.votes); setMessage((error as Error).message) } finally { setPending(null) }
   }
   const subscribe = async () => {
     const next = !subscribed

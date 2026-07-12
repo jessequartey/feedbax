@@ -9,6 +9,8 @@ import {
   PublicCommentSchema,
   PublicFeedbackItemSchema,
   PublicFeedbackPageSchema,
+  SetVoteResultSchema,
+  VoteStateResponseSchema,
   RoadmapEntrySchema,
   RoadmapPageSchema,
   type ChangelogEntry,
@@ -75,6 +77,7 @@ export class ApplicationApiError extends Error {
 }
 
 const createdItems = new Map<string, PublicFeedbackItem>()
+const canonicalVotes = new Map<string, ReturnType<typeof SetVoteResultSchema.parse>>()
 
 function post<T>(path: string, input: unknown) {
   return api<{ ok: true; value: T }>(path, {
@@ -94,6 +97,7 @@ function pageCollection<T extends { id: string }>(options: {
   onInsert?: (items: readonly T[]) => Promise<void>
   onUpdate?: (items: readonly T[]) => Promise<void>
   notify: () => void
+  enrich?: (items: readonly T[]) => Promise<readonly T[]>
 }): PageEntry<T> {
   const entry = {
     meta: { hasMore: false },
@@ -109,6 +113,7 @@ function pageCollection<T extends { id: string }>(options: {
       queryFn: async () => {
         try {
           const page = options.parse(await api<unknown>(options.url))
+          const items = options.enrich ? await options.enrich(page.items) : page.items
           entry.meta = {
             hasMore: page.hasMore,
             ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
@@ -116,7 +121,7 @@ function pageCollection<T extends { id: string }>(options: {
           entry.error = undefined
           entry.ready = true
           options.notify()
-          return [...page.items]
+          return [...items]
         } catch (error) {
           entry.error = error instanceof Error ? error : new Error('Collection query failed.')
           options.notify()
@@ -265,6 +270,17 @@ export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
       url: `/api/feedback?${feedbackParams(filters, cursor)}`,
       parse: (raw) => PublicFeedbackPageSchema.parse(raw),
       notify,
+      enrich: async (items) => {
+        if (!items.length) return items
+        try {
+          const state = VoteStateResponseSchema.parse(await api<unknown>('/api/vote-state', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ feedbackItemIds: items.map(({ id }) => id) }),
+          }))
+          const byId = new Map(state.items.map((entry) => [entry.feedbackItemId, entry.voted]))
+          return items.map((item) => ({ ...item, hasViewerVoted: byId.get(item.id) ?? false }))
+        } catch { return items }
+      },
       onInsert: async (items) => {
         for (const item of items)
           createdItems.set(item.id, PublicFeedbackItemSchema.parse(await post<unknown>('/api/feedback', {
@@ -275,7 +291,7 @@ export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
       },
       onUpdate: async (items) => {
         for (const item of items)
-          PublicFeedbackItemSchema.parse(await post<unknown>('/api/vote', { feedbackItemId: item.id, voted: item.hasViewerVoted ?? false }))
+          canonicalVotes.set(item.id, SetVoteResultSchema.parse(await post<unknown>('/api/vote', { feedbackItemId: item.id, voted: item.hasViewerVoted ?? false })))
       },
     }),
   ))
@@ -327,20 +343,31 @@ export async function getFeedbackSuggestions(title: string, signal?: AbortSignal
 
 export function voteForExistingFeedback(feedbackItemId: string, voted: boolean) {
   return post<unknown>('/api/vote', { feedbackItemId, voted })
-    .then((value) => PublicFeedbackItemSchema.parse(value))
+    .then((value) => SetVoteResultSchema.parse(value))
 }
 
-export function setFeedbackVote(filters: FeedbackCollectionFilters, id: string, voted: boolean) {
+export async function setFeedbackVote(filters: FeedbackCollectionFilters, id: string, voted: boolean) {
   const key = `feedback:${feedbackParams(filters)}`
   const value = controllers.get(key) as unknown as PagedController<PublicFeedbackItem> | undefined
   if (!value) throw new Error('The feedback collection is not active.')
   const collection = value.collections().find((candidate) => candidate.state.has(id))
   if (!collection) throw new Error('The feedback item is not loaded.')
-  return collection.update(id, (draft) => {
+  const transaction = collection.update(id, (draft) => {
     const previous = draft.hasViewerVoted ?? false
     draft.hasViewerVoted = voted
     draft.voteCount = Math.max(0, draft.voteCount + (voted && !previous ? 1 : !voted && previous ? -1 : 0))
-  }).isPersisted.promise
+  })
+  try {
+    await transaction.isPersisted.promise
+    const canonical = canonicalVotes.get(id)
+    if (canonical) {
+      const current = collection.state.get(id)
+      if (current) collection.utils.writeBatch(() => {
+        collection.utils.writeDelete(id)
+        collection.utils.writeInsert({ ...current, hasViewerVoted: canonical.voted, voteCount: canonical.voteCount })
+      })
+    }
+  } finally { canonicalVotes.delete(id) }
 }
 
 export function useCommentsCollection(feedbackItemId: string) {

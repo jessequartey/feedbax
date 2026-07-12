@@ -182,6 +182,21 @@ export const SetVoteInputSchema = z.strictObject({
   voted: z.boolean(),
 })
 export type SetVoteInput = z.infer<typeof SetVoteInputSchema>
+export const SetVoteResultSchema = z.strictObject({
+  feedbackItemId: FeedbackItemIdSchema,
+  voted: z.boolean(),
+  voteCount: z.number().int().nonnegative(),
+})
+export type SetVoteResult = z.infer<typeof SetVoteResultSchema>
+export const VoteStateRequestSchema = z.strictObject({
+  feedbackItemIds: z.array(FeedbackItemIdSchema).min(1).max(100).readonly(),
+})
+export const VoteStateResponseSchema = z.strictObject({
+  items: z.array(z.strictObject({
+    feedbackItemId: FeedbackItemIdSchema,
+    voted: z.boolean(),
+  })).max(100).readonly(),
+})
 
 export const SubscribeInputSchema = z.strictObject({
   feedbackItemId: FeedbackItemIdSchema,

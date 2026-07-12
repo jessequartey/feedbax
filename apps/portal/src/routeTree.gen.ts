@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as FeedbackIdRouteImport } from './routes/feedback.$id'
 import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
+import { Route as ApiVoteStateRouteImport } from './routes/api.vote-state'
 import { Route as ApiVoteRouteImport } from './routes/api.vote'
 import { Route as ApiSubscribeRouteImport } from './routes/api.subscribe'
 import { Route as ApiRoadmapRouteImport } from './routes/api.roadmap'
@@ -43,6 +44,11 @@ const AuthLogoutRoute = AuthLogoutRouteImport.update({
 const AuthHandoffRoute = AuthHandoffRouteImport.update({
   id: '/auth/handoff',
   path: '/auth/handoff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoteStateRoute = ApiVoteStateRouteImport.update({
+  id: '/api/vote-state',
+  path: '/api/vote-state',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVoteRoute = ApiVoteRouteImport.update({
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
+  '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/feedback/$id': typeof FeedbackIdRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
+  '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/feedback/$id': typeof FeedbackIdRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
+  '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/feedback/$id': typeof FeedbackIdRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | '/api/roadmap'
     | '/api/subscribe'
     | '/api/vote'
+    | '/api/vote-state'
     | '/auth/handoff'
     | '/auth/logout'
     | '/feedback/$id'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/api/roadmap'
     | '/api/subscribe'
     | '/api/vote'
+    | '/api/vote-state'
     | '/auth/handoff'
     | '/auth/logout'
     | '/feedback/$id'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/api/roadmap'
     | '/api/subscribe'
     | '/api/vote'
+    | '/api/vote-state'
     | '/auth/handoff'
     | '/auth/logout'
     | '/feedback/$id'
@@ -218,6 +230,7 @@ export interface RootRouteChildren {
   ApiRoadmapRoute: typeof ApiRoadmapRoute
   ApiSubscribeRoute: typeof ApiSubscribeRoute
   ApiVoteRoute: typeof ApiVoteRoute
+  ApiVoteStateRoute: typeof ApiVoteStateRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   FeedbackIdRoute: typeof FeedbackIdRoute
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/handoff'
       fullPath: '/auth/handoff'
       preLoaderRoute: typeof AuthHandoffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/vote-state': {
+      id: '/api/vote-state'
+      path: '/api/vote-state'
+      fullPath: '/api/vote-state'
+      preLoaderRoute: typeof ApiVoteStateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/vote': {
@@ -358,6 +378,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRoadmapRoute: ApiRoadmapRoute,
   ApiSubscribeRoute: ApiSubscribeRoute,
   ApiVoteRoute: ApiVoteRoute,
+  ApiVoteStateRoute: ApiVoteStateRoute,
   AuthHandoffRoute: AuthHandoffRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   FeedbackIdRoute: FeedbackIdRoute,

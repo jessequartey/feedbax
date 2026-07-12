@@ -390,3 +390,66 @@ describe('Notion feedback submission', () => {
     expect(await reader.getFeedback('private-page')).toBeNull()
   })
 })
+
+describe('Notion best-effort voting', () => {
+  function votingService() {
+    const votes: Array<{ id: string; feedbackItemId: string; voterKey: string; active: boolean }> = []
+    let count = 0
+    const setup: NotionSetupConfig = {
+      ...config,
+      fields: { ...config.fields, optional: { voteCount: { property: 'Vote count', type: 'number', writable: true } } },
+      votes: { dataSourceId: 'votes-id', fields: {
+        key: { property: 'Key', type: 'title', writable: true },
+        feedbackItem: { property: 'Feedback', type: 'relation', writable: true },
+        voterKey: { property: 'Voter key', type: 'rich_text', writable: true },
+        active: { property: 'Active', type: 'checkbox', writable: true },
+      } },
+    }
+    const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (url.endsWith('/pages/feedback-1') && init?.method === 'GET')
+        return response({ parent: { type: 'data_source_id', data_source_id: 'source-id' }, properties: {} })
+      if (url.endsWith('/data_sources/votes-id/query')) {
+        const clauses = (body.filter?.and ?? []) as Array<{ rich_text?: { equals?: string }; checkbox?: { equals?: boolean } }>
+        const voter = clauses.find((entry) => entry.rich_text)?.rich_text?.equals
+        const activeOnly = clauses.some((entry) => entry.checkbox?.equals === true)
+        const rows = votes.filter((vote) => (!voter || vote.voterKey === voter) && (!activeOnly || vote.active))
+        return response({ results: rows.map((vote) => ({ id: vote.id, properties: {
+          Active: { checkbox: vote.active }, Feedback: { relation: [{ id: vote.feedbackItemId }] },
+          'Voter key': { rich_text: [{ plain_text: vote.voterKey }] },
+        } })) })
+      }
+      if (url.endsWith('/pages') && init?.method === 'POST') {
+        const properties = body.properties
+        votes.push({ id: `vote-${votes.length + 1}`, feedbackItemId: properties.Feedback.relation[0].id, voterKey: properties['Voter key'].rich_text[0].text.content, active: true })
+        return response({ id: votes.at(-1)?.id })
+      }
+      const existing = votes.find((vote) => url.endsWith(`/pages/${vote.id}`))
+      if (existing) { existing.active = body.properties.Active.checkbox; return response({}) }
+      if (url.endsWith('/pages/feedback-1') && init?.method === 'PATCH') { count = body.properties['Vote count'].number; return response({}) }
+      return response({}, 500)
+    }) as unknown as typeof fetch
+    return { service: createNotionMutationService({ token: 'secret', setup, fetch: fetcher, interactionHashKey: 'test-key-with-at-least-thirty-two-bytes' }), votes, getCount: () => count }
+  }
+
+  it('sets desired state idempotently and removes a vote without trusting a total', async () => {
+    const { service, votes, getCount } = votingService()
+    expect(await service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: true })).toMatchObject({ voted: true, voteCount: 1 })
+    expect(await service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: true })).toMatchObject({ voted: true, voteCount: 1 })
+    expect(votes).toHaveLength(1)
+    expect(await service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: false })).toMatchObject({ voted: false, voteCount: 0 })
+    expect(getCount()).toBe(0)
+  })
+
+  it('serializes concurrent votes for one item and counts distinct users', async () => {
+    const { service, votes } = votingService()
+    const results = await Promise.all([
+      service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: true }),
+      service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: true }),
+      service.setVote('user-2', { feedbackItemId: 'feedback-1', voted: true }),
+    ])
+    expect(results.at(-1)?.voteCount).toBe(2)
+    expect(votes).toHaveLength(2)
+  })
+})

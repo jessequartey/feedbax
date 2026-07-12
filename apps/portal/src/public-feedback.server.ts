@@ -53,13 +53,22 @@ const setup: NotionReadSetupConfig = {
     optional: {
       category: { property: 'Category', type: 'select', writable: true },
       tags: { property: 'Tags', type: 'multi_select', writable: true },
-      voteCount: { property: 'Vote count', type: 'number', writable: false },
+      voteCount: { property: 'Vote count', type: 'number', writable: true },
     },
   },
   statuses: Object.fromEntries(publicTaxonomy.statuses.map(({ id, name }) => [id, name])),
   categories: Object.fromEntries(publicTaxonomy.categories.map(({ id, name }) => [id, name])),
   feedbackTypes: { feature: 'Feature', bug: 'Bug', improvement: 'Improvement', question: 'Question' },
   tags: Object.fromEntries(publicTaxonomy.tags.map(({ id, name }) => [id, name])),
+  ...(readEnv('NOTION_VOTES_DATA_SOURCE_ID') ? { votes: {
+    dataSourceId: readEnv('NOTION_VOTES_DATA_SOURCE_ID')!,
+    fields: {
+      key: { property: 'Key', type: 'title', writable: true },
+      feedbackItem: { property: 'Feedback', type: 'relation', writable: true },
+      voterKey: { property: 'Voter key', type: 'rich_text', writable: true },
+      active: { property: 'Active', type: 'checkbox', writable: true },
+    },
+  } } : {}),
 }
 
 export { cache as publicCache, setup as publicNotionSetup }

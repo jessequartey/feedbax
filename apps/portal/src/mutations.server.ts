@@ -370,14 +370,16 @@ export function productionMutationDependencies(
   const validated = MutationProtectionConfigSchema.parse(config)
   const auth = authProvider()
   const token = readEnv('NOTION_TOKEN')
+  const interactionHashKey = readEnv('FEEDBAX_INTERACTION_HASH_KEY')
   const notion = token && publicNotionSetup.dataSourceId
-    ? createNotionMutationService({ token, setup: publicNotionSetup, cache: publicCache })
+    ? createNotionMutationService({ token, setup: publicNotionSetup, cache: publicCache, ...(interactionHashKey ? { interactionHashKey } : {}) })
     : null
   return {
     auth,
     service: notion ? {
       ...unavailable,
       submit: (session, input) => notion.submit(input, auth.publicUser(session)),
+      setVote: (session, input) => notion.setVote(session.user.id, input),
     } : unavailable,
     rateLimits,
     logger: consoleLogger,

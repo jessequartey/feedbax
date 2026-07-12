@@ -148,7 +148,7 @@ export const cacheTags = {
 
 export async function invalidateAfterMutation(
   cache: CacheAdapter,
-  mutation: 'feedback' | 'comment' | 'roadmap' | 'changelog',
+  mutation: 'feedback' | 'comment' | 'vote' | 'roadmap' | 'changelog',
   connectorId: string,
   itemId?: string,
   observe: CacheObserver = () => undefined,
@@ -156,7 +156,7 @@ export async function invalidateAfterMutation(
   const tags =
     mutation === 'feedback'
       ? [cacheTags.feedback(connectorId), cacheTags.roadmap(connectorId)]
-      : mutation === 'comment'
+      : mutation === 'comment' || mutation === 'vote'
         ? [
             cacheTags.feedback(connectorId),
             ...(itemId ? [cacheTags.feedbackItem(connectorId, itemId)] : []),

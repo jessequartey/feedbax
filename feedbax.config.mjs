@@ -55,7 +55,7 @@ export default {
         optional: {
           category: { property: 'Category', type: 'select', writable: true },
           tags: { property: 'Tags', type: 'multi_select', writable: true },
-          voteCount: { property: 'Vote count', type: 'number', writable: false },
+          voteCount: { property: 'Vote count', type: 'number', writable: true },
         },
       },
       statuses: {
@@ -72,6 +72,17 @@ export default {
         question: 'Question',
       },
       tags: { mobile: 'Mobile', api: 'API', dashboard: 'Dashboard' },
+      ...(process.env.NOTION_VOTES_DATA_SOURCE_ID ? {
+        votes: {
+          dataSourceId: process.env.NOTION_VOTES_DATA_SOURCE_ID,
+          fields: {
+            key: { property: 'Key', type: 'title', writable: true },
+            feedbackItem: { property: 'Feedback', type: 'relation', writable: true },
+            voterKey: { property: 'Voter key', type: 'rich_text', writable: true },
+            active: { property: 'Active', type: 'checkbox', writable: true },
+          },
+        },
+      } : {}),
     },
   },
 }
