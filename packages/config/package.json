@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@feedbax/core": "workspace:*"
+    "@feedbax/core": "workspace:*",
+    "@feedbax/notion": "workspace:*"
   }
 }

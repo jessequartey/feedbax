@@ -4,7 +4,6 @@ import {
   cachePayload,
   cookieValue,
   envStatus,
-  fetchNotion,
   mutationInput,
   secureCookie,
 } from './spike.js'
@@ -15,11 +14,8 @@ afterEach(() => {
 })
 describe('runtime spike primitives', () => {
   it('exposes only a harmless environment summary', () => {
-    vi.stubEnv('NOTION_TOKEN', 'secret')
-    vi.stubEnv('NOTION_RESOURCE_ID', 'private-id')
     vi.stubEnv('FEEDBAX_SPIKE_MARKER', 'test')
-    expect(envStatus()).toEqual({ marker: 'test', notionConfigured: true })
-    expect(JSON.stringify(envStatus())).not.toContain('secret')
+    expect(envStatus()).toEqual({ marker: 'test' })
   })
   it('creates and reads the secure cookie', () => {
     vi.useFakeTimers()
@@ -40,37 +36,5 @@ describe('runtime spike primitives', () => {
   it('keeps cache output deterministic', () => {
     expect(cachePayload()).toEqual({ kind: 'feedbax-spike', version: 1 })
     expect(CACHE_ETAG).toBe('"feedbax-spike-v1"')
-  })
-  it('performs an authenticated Notion read without returning identifiers', async () => {
-    vi.stubEnv('NOTION_TOKEN', 'secret')
-    vi.stubEnv('NOTION_RESOURCE_ID', 'page-id')
-    const fetcher = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ object: 'page', id: 'page-id' }), {
-          status: 200,
-        }),
-    )
-    await expect(fetchNotion(fetcher as typeof fetch)).resolves.toEqual({
-      connected: true,
-      object: 'page',
-    })
-    expect(fetcher).toHaveBeenCalledWith(
-      'https://api.notion.com/v1/pages/page-id',
-      expect.objectContaining({
-        headers: expect.objectContaining({ authorization: 'Bearer secret' }),
-      }),
-    )
-  })
-  it.each([401, 403, 429, 500])('rejects Notion HTTP %s', async (status) => {
-    vi.stubEnv('NOTION_TOKEN', 'secret')
-    vi.stubEnv('NOTION_RESOURCE_ID', 'page-id')
-    await expect(
-      fetchNotion(async () => new Response('', { status }) as never),
-    ).rejects.toThrow(`NOTION_HTTP_${status}`)
-  })
-  it('rejects missing Notion configuration', async () => {
-    vi.stubEnv('NOTION_TOKEN', '')
-    vi.stubEnv('NOTION_RESOURCE_ID', '')
-    await expect(fetchNotion()).rejects.toThrow('NOTION_NOT_CONFIGURED')
   })
 })

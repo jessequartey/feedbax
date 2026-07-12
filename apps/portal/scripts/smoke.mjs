@@ -52,11 +52,4 @@ assert.equal(unexpected.status, 500)
 assert.deepEqual(await unexpected.json(), {
   error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.' },
 })
-const notion = await request('/api/notion')
-assert.equal(
-  notion.status,
-  200,
-  'Notion check requires valid NOTION_TOKEN and NOTION_RESOURCE_ID',
-)
-assert.deepEqual(await notion.json(), { connected: true, object: 'page' })
 console.log(`Spike smoke test passed: ${base}`)

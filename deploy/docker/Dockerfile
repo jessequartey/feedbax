@@ -9,5 +9,8 @@ FROM node:22.18.0-alpine
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 COPY --from=build /app/apps/portal/.output ./.output
+COPY --from=build /app/connectors/notion/dist ./connectors/notion/dist
+COPY --from=build /app/scripts/notion-doctor.mjs ./scripts/notion-doctor.mjs
+COPY --from=build /app/feedbax.config.mjs ./feedbax.config.mjs
 EXPOSE 3000
-CMD ["node", ".output/server/index.mjs"]
+CMD ["sh", "-c", "node scripts/notion-doctor.mjs && node .output/server/index.mjs"]

@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiNotionRouteImport } from './routes/api.notion'
 import { Route as ApiMutationRouteImport } from './routes/api.mutation'
 import { Route as ApiErrorRouteImport } from './routes/api.error'
 import { Route as ApiCacheRouteImport } from './routes/api.cache'
@@ -18,11 +17,6 @@ import { Route as ApiCacheRouteImport } from './routes/api.cache'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiNotionRoute = ApiNotionRouteImport.update({
-  id: '/api/notion',
-  path: '/api/notion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMutationRoute = ApiMutationRouteImport.update({
@@ -46,14 +40,12 @@ export interface FileRoutesByFullPath {
   '/api/cache': typeof ApiCacheRoute
   '/api/error': typeof ApiErrorRoute
   '/api/mutation': typeof ApiMutationRoute
-  '/api/notion': typeof ApiNotionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/error': typeof ApiErrorRoute
   '/api/mutation': typeof ApiMutationRoute
-  '/api/notion': typeof ApiNotionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -61,20 +53,13 @@ export interface FileRoutesById {
   '/api/cache': typeof ApiCacheRoute
   '/api/error': typeof ApiErrorRoute
   '/api/mutation': typeof ApiMutationRoute
-  '/api/notion': typeof ApiNotionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/cache' | '/api/error' | '/api/mutation' | '/api/notion'
+  fullPaths: '/' | '/api/cache' | '/api/error' | '/api/mutation'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/cache' | '/api/error' | '/api/mutation' | '/api/notion'
-  id:
-    | '__root__'
-    | '/'
-    | '/api/cache'
-    | '/api/error'
-    | '/api/mutation'
-    | '/api/notion'
+  to: '/' | '/api/cache' | '/api/error' | '/api/mutation'
+  id: '__root__' | '/' | '/api/cache' | '/api/error' | '/api/mutation'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -82,7 +67,6 @@ export interface RootRouteChildren {
   ApiCacheRoute: typeof ApiCacheRoute
   ApiErrorRoute: typeof ApiErrorRoute
   ApiMutationRoute: typeof ApiMutationRoute
-  ApiNotionRoute: typeof ApiNotionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,13 +76,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/notion': {
-      id: '/api/notion'
-      path: '/api/notion'
-      fullPath: '/api/notion'
-      preLoaderRoute: typeof ApiNotionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mutation': {
@@ -130,7 +107,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCacheRoute: ApiCacheRoute,
   ApiErrorRoute: ApiErrorRoute,
   ApiMutationRoute: ApiMutationRoute,
-  ApiNotionRoute: ApiNotionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

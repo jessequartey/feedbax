@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "pnpm --dir ../.. notion:doctor && vite dev --port 3000",
     "build": "vite build",
     "build:cloudflare": "vite build --config vite.cloudflare.config.ts",
     "deploy:cloudflare": "pnpm build:cloudflare && wrangler deploy",
-    "start": "node .output/server/index.mjs",
+    "start": "pnpm --dir ../.. notion:doctor && node .output/server/index.mjs",
     "smoke": "node scripts/smoke.mjs",
     "type-check": "tsc --noEmit",
     "lint": "eslint src scripts *.ts",

@@ -22,9 +22,6 @@ export function readEnv(name: string): string | undefined {
 export function envStatus() {
   return {
     marker: readEnv('FEEDBAX_SPIKE_MARKER') ?? 'local',
-    notionConfigured: Boolean(
-      readEnv('NOTION_TOKEN') && readEnv('NOTION_RESOURCE_ID'),
-    ),
   }
 }
 
@@ -52,30 +49,3 @@ export function cachePayload() {
 }
 
 export const CACHE_ETAG = '"feedbax-spike-v1"'
-
-export async function fetchNotion(fetcher: typeof fetch = fetch) {
-  const token = readEnv('NOTION_TOKEN')
-  const resourceId = readEnv('NOTION_RESOURCE_ID')
-  if (!token || !resourceId) throw new Error('NOTION_NOT_CONFIGURED')
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 5000)
-  try {
-    const response = await fetcher(
-      `https://api.notion.com/v1/pages/${encodeURIComponent(resourceId)}`,
-      {
-        headers: {
-          authorization: `Bearer ${token}`,
-          'notion-version': '2026-03-11',
-        },
-        signal: controller.signal,
-      },
-    )
-    if (!response.ok) throw new Error(`NOTION_HTTP_${response.status}`)
-    const result = (await response.json()) as { object?: unknown; id?: unknown }
-    if (result.object !== 'page' || typeof result.id !== 'string')
-      throw new Error('NOTION_INVALID_RESPONSE')
-    return { connected: true, object: 'page' as const }
-  } finally {
-    clearTimeout(timeout)
-  }
-}

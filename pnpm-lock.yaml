@@ -185,6 +185,9 @@ importers:
       '@feedbax/core':
         specifier: workspace:*
         version: link:../core
+      '@feedbax/notion':
+        specifier: workspace:*
+        version: link:../../connectors/notion
 
   packages/core:
     dependencies:

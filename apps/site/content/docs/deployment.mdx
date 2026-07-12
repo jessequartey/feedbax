@@ -19,6 +19,12 @@ Search runs entirely in the browser. The site does not need portal APIs, Notion 
 
 **Foundation only.** The runtime spike passed SSR, server functions, server-only environment access, secure cookies, live Notion reads, cache/ETag behavior, validated mutations, sanitized errors, and secret-leak checks on Cloudflare Workers, Vercel Node, and Node 22/Docker.
 
+## Notion predeploy gate
+
+Run `pnpm notion:doctor` with `NOTION_TOKEN` and `NOTION_DATA_SOURCE_ID` in the deployment environment before releasing user traffic. Docker runs this check in its container command and refuses to start on failure. Local `dev` and `start` do the same.
+
+For Cloudflare and Vercel, configure `pnpm notion:doctor` as a secret-bearing predeploy job before the deployment command. Do not move `NOTION_TOKEN` into a public build variable merely to make a credential-free preview build pass. The doctor exits nonzero on any misconfiguration; `pnpm notion:doctor -- --json` is suitable for CI logs and never contains the integration secret.
+
 Provider builds and smoke evidence do not mean the product portal itself is complete.
 
 ## Release gate

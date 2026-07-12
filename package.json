@@ -12,6 +12,7 @@
     "type-check": "turbo run type-check",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "notion:doctor": "pnpm --filter @feedbax/notion build && node scripts/notion-doctor.mjs",
     "dev": "turbo run dev --parallel",
     "clean:cache": "turbo daemon clean && rm -rf .turbo"
   },

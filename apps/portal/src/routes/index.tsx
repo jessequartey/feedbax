@@ -21,12 +21,9 @@ function Portal() {
           <dd>{status.primitive}</dd>
           <dt>Environment marker</dt>
           <dd>{status.environment.marker}</dd>
-          <dt>Notion configured</dt>
-          <dd>{String(status.environment.notionConfigured)}</dd>
         </dl>
         <nav aria-label="Spike endpoints">
           <a href="/api/cache">Cacheable response</a> ·{' '}
-          <a href="/api/notion">Notion check</a> ·{' '}
           <a href="/api/error?kind=expected">Expected error</a>
         </nav>
       </main>

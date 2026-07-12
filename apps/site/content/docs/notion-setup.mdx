@@ -1,13 +1,13 @@
 ---
 title: Notion setup
-description: Prepare the first backend connector without overstating its current state.
+description: Configure and validate the Notion backend before serving the portal.
 ---
 
 Notion is the only connector targeted for v0.0.2. Future connectors are directional, not shipped capability.
 
-## What exists
+## Required setup
 
-**Foundation only.** `@feedbax/connector-notion` exports a descriptor with the id `notion`, display name `Notion`, and the `comments` capability. The portal runtime spike has also proven a live, server-only Notion read without leaking credentials.
+Feedbax reads `NOTION_TOKEN` only on the server and reads the data-source ID and mappings from `feedbax.config.mjs`. Never expose the token through a `VITE_` variable.
 
 ## Prepare a workspace
 
@@ -15,8 +15,20 @@ Notion is the only connector targeted for v0.0.2. Future connectors are directio
 2. Create or select the database that will hold feedback.
 3. Share that database with the integration.
 4. Store the token as a server-only secret; never use a `VITE_` prefix.
-5. Keep the resource identifier alongside the deployment's server configuration.
+5. Set `NOTION_DATA_SOURCE_ID` to the data-source ID returned for the shared database. With current Notion APIs, this can differ from the database page ID in the URL.
+6. Configure the required `title`, `description`, and `status` mappings. Each mapping names the Notion property, its exact type, and whether Feedbax writes it.
+7. Map each Feedbax status ID to a unique option on the configured Notion `status` or `select` property.
 
-## Not ready yet
+Optional fields belong under `fields.optional`. When configured, they are validated exactly like required fields. Supported writable types are `title`, `rich_text`, `status`, `select`, `number`, `checkbox`, `date`, `people`, `url`, and `email`.
 
-**Planned for v0.0.2:** the supported database schema, typed field/status mapping, actionable health checks, bounded reads, validated mutations, and clear differentiation between an empty database and a connector outage.
+## Run the doctor
+
+```bash
+NOTION_TOKEN=ntn_… NOTION_DATA_SOURCE_ID=… pnpm notion:doctor
+```
+
+Use `pnpm notion:doctor -- --json` for a machine-readable result. The command exits `0` only when every check passes and exits nonzero with an exact `Repair:` instruction otherwise. For example, an unshared database tells you to add the integration under the database's Connections menu; a renamed status tells you the exact option or mapping to repair.
+
+The check authenticates the token, reads the data-source schema, checks required and optional properties, validates property types and writable mappings, verifies status options, queries at most one page, and reads at most one comment. It never creates, edits, comments on, or archives content. Writable validation therefore proves schema compatibility, not write permission. An empty database must contain one setup page before comment access can be checked.
+
+The token, authorization header, raw Notion response, and thrown error causes are never included in human or JSON output. Run the doctor again after changing the integration, database schema, properties, or status options.

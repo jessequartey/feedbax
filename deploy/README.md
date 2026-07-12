@@ -1,12 +1,12 @@
 # Deployment presets
 
-Contains verified presets for Cloudflare Workers, Vercel, and Node/Docker. The portal runtime spike exercises SSR, server functions, server-only environment variables, secure cookies, Notion reads, cacheable responses, mutations, and sanitized errors.
+Contains verified presets for Cloudflare Workers, Vercel, and Node/Docker. The portal runtime spike exercises SSR, server functions, server-only environment variables, secure cookies, cacheable responses, mutations, and sanitized errors. Notion is validated before deployment with `pnpm notion:doctor` rather than through a public endpoint.
 
 Build the Docker image from the repository root with `docker build -f deploy/docker/Dockerfile -t feedbax:local .`.
 
 ## Runtime spike
 
-Configure `FEEDBAX_SPIKE_MARKER`, `NOTION_TOKEN`, and `NOTION_RESOURCE_ID` in each runtime. Secrets must not use a `VITE_` prefix. Run the shared black-box check with `pnpm --filter @feedbax/portal smoke -- https://deployment.example`.
+Configure `FEEDBAX_SPIKE_MARKER` in each runtime. Run `pnpm notion:doctor` in a secret-bearing predeploy job with `NOTION_TOKEN` and `NOTION_DATA_SOURCE_ID`; secrets must not use a `VITE_` prefix. Then run the shared black-box check with `pnpm --filter @feedbax/portal smoke -- https://deployment.example`.
 
 | Concern             | Cloudflare Workers                         | Vercel                                                                              | Node/Docker                                                      |
 | ------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -27,4 +27,4 @@ Live evidence is recorded here after deployment. A provider build alone does not
 
 The Cloudflare deployment requires the application-local `wrangler.jsonc` so the Vite plugin emits the Worker server bundle; deploying only the generated client configuration produces an assets-only Worker. Vercel requires a `NITRO_PRESET=vercel` build and consumes `s-maxage` before sending `Cache-Control` to clients. Docker requires `CI=true` during the frozen pnpm install and a root `.dockerignore` to avoid copying host build artifacts.
 
-The shared smoke suite passed SSR HTML, the typed server function loader, environment marker, secure cookie flags, live Notion read, cache/ETag handling, mutation validation/state, expected 400 response, sanitized 500 response, and secret-leak checks on every target.
+The shared smoke suite passed SSR HTML, the typed server function loader, environment marker, secure cookie flags, cache/ETag handling, mutation validation/state, expected 400 response, and sanitized 500 response on every target. The separate Notion doctor validates credentials and schema without exposing an HTTP route.
