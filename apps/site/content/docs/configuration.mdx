@@ -28,6 +28,10 @@ A connector descriptor has an `id`, `displayName`, and declared capability list.
 
 Authentication is configured through the typed `authentication` property. It declares the audience, exact issuer/key registry, session encryption key ring and active key ID, and host login URL. Secret values should be populated from environment variables rather than committed to configuration.
 
+`mutationProtection` configures exact allowed origins, the maximum JSON body size, a network-level request limit, and separate submit, vote, comment, and subscription policies. Limits and windows must be positive integers. CAPTCHA flags only activate when a server-side `CaptchaProvider` is installed; no vendor is enabled by default.
+
+The bundled memory rate limiter is intended for development or a single Node/Docker process. Cloudflare, Vercel, and multi-process deployments must inject a shared durable `RateLimitStore`, otherwise limits are not coordinated across instances.
+
 ## Planned configuration
 
 **Planned for v0.0.2:** typed Notion field/status mappings, branding tokens, credentials validation, schema compatibility errors, caching bounds, and feature switches. Their final public shape is not stable and is deliberately undocumented until implemented.

@@ -35,15 +35,6 @@ export function cookieValue(header: string | null) {
   return match ? decodeURIComponent(match[1] ?? '') : undefined
 }
 
-export function mutationInput(
-  value: unknown,
-): { action: 'increment' } | undefined {
-  if (!value || typeof value !== 'object') return undefined
-  return (value as { action?: unknown }).action === 'increment'
-    ? { action: 'increment' }
-    : undefined
-}
-
 export function cachePayload() {
   return { kind: 'feedbax-spike', version: 1 }
 }

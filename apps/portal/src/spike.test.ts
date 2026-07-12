@@ -4,7 +4,6 @@ import {
   cachePayload,
   cookieValue,
   envStatus,
-  mutationInput,
   secureCookie,
 } from './spike.js'
 
@@ -25,13 +24,6 @@ describe('runtime spike primitives', () => {
     expect(header).toContain('Path=/')
     expect(header).toContain('Max-Age=3600')
     expect(cookieValue(`other=x; ${header}`)).toBe('2')
-  })
-  it('validates mutations', () => {
-    expect(mutationInput({ action: 'increment' })).toEqual({
-      action: 'increment',
-    })
-    expect(mutationInput({ action: 'delete' })).toBeUndefined()
-    expect(mutationInput(null)).toBeUndefined()
   })
   it('keeps cache output deterministic', () => {
     expect(cachePayload()).toEqual({ kind: 'feedbax-spike', version: 1 })

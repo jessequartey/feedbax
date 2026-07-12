@@ -15,6 +15,10 @@ import {
   type SubscribeInput,
 } from '@feedbax/core'
 import type { ZodType } from 'zod'
+import {
+  MutationProtectionConfigSchema,
+  type MutationProtectionConfig,
+} from '@feedbax/config'
 import { authProvider } from './auth.server.js'
 import { json } from './spike.js'
 
@@ -49,16 +53,7 @@ export interface SecurityEvent {
 export interface SecurityLogger {
   log(event: SecurityEvent): void | Promise<void>
 }
-export interface ActionProtection {
-  limit: number
-  windowSeconds: number
-  captcha?: boolean
-}
-export interface MutationProtectionConfig {
-  allowedOrigins?: readonly string[]
-  maximumBodyBytes?: number
-  actions: Record<MutationAction, ActionProtection>
-}
+export type { MutationProtectionConfig } from '@feedbax/config'
 
 type Entry = { count: number; resetAt: number }
 export class MemoryRateLimitStore implements RateLimitStore {
@@ -79,8 +74,9 @@ export class MemoryRateLimitStore implements RateLimitStore {
   }
 }
 
-const defaultConfig: MutationProtectionConfig = {
+export const defaultMutationProtectionConfig: MutationProtectionConfig = {
   maximumBodyBytes: 24_000,
+  request: { limit: 120, windowSeconds: 60 },
   actions: {
     submit: { limit: 5, windowSeconds: 300, captcha: true },
     vote: { limit: 60, windowSeconds: 60 },
@@ -106,7 +102,9 @@ const consoleLogger: SecurityLogger = {
   log: (event) =>
     console.info(JSON.stringify({ type: 'feedbax.security', ...event })),
 }
-const rateLimits = new MemoryRateLimitStore()
+// Development/single-process fallback. Distributed deployments must inject a
+// durable store when constructing their mutation dependencies.
+const developmentRateLimits = new MemoryRateLimitStore()
 
 function error(
   status: number,
@@ -139,6 +137,14 @@ function clientAddress(request: Request) {
   )
 }
 
+async function safeLog(logger: SecurityLogger, event: SecurityEvent) {
+  try {
+    await logger.log(event)
+  } catch {
+    // Security telemetry must never change the public request outcome.
+  }
+}
+
 export interface MutationDependencies {
   auth: IdentityProvider
   service: PublicMutationService
@@ -161,8 +167,7 @@ export async function protectMutation<T>(
   invoke: (session: AuthSession, input: T) => Promise<unknown>,
   dependencies: MutationDependencies,
 ): Promise<Response> {
-  const requestId =
-    request.headers.get('x-request-id')?.slice(0, 100) || crypto.randomUUID()
+  const requestId = crypto.randomUUID()
   const networkKey = await digest(clientAddress(request))
   const reject = async (
     status: number,
@@ -170,7 +175,7 @@ export async function protectMutation<T>(
     message: string,
     extra: Record<string, unknown> = {},
   ) => {
-    await dependencies.logger.log({
+    await safeLog(dependencies.logger, {
       requestId,
       action,
       outcome: 'rejected',
@@ -179,6 +184,37 @@ export async function protectMutation<T>(
     })
     return error(status, code, message, extra)
   }
+  let requestLimited
+  try {
+    const policy = dependencies.config.request
+    requestLimited = await dependencies.rateLimits.consume(
+      `request:${networkKey}`,
+      policy.limit,
+      policy.windowSeconds,
+    )
+  } catch {
+    await safeLog(dependencies.logger, {
+      requestId,
+      action,
+      outcome: 'failed',
+      reason: 'MUTATION_UNAVAILABLE',
+      networkKey,
+    })
+    return error(
+      503,
+      'MUTATION_UNAVAILABLE',
+      'This action is temporarily unavailable.',
+    )
+  }
+  if (!requestLimited.allowed)
+    return reject(
+      429,
+      'RATE_LIMITED',
+      'Too many requests. Please try again later.',
+      {
+        retryAfterSeconds: requestLimited.retryAfterSeconds,
+      },
+    )
   const origin = request.headers.get('origin')
   const requestOrigin = new URL(request.url).origin
   const allowed = dependencies.config.allowedOrigins ?? [requestOrigin]
@@ -195,19 +231,27 @@ export async function protectMutation<T>(
       'INVALID_REQUEST',
       'The request must use application/json.',
     )
-  const declaredLength = Number(request.headers.get('content-length') ?? '0')
+  const contentLength = request.headers.get('content-length')
+  const declaredLength = contentLength === null ? 0 : Number(contentLength)
   const max = dependencies.config.maximumBodyBytes ?? 24_000
+  if (!Number.isSafeInteger(declaredLength) || declaredLength < 0)
+    return reject(400, 'INVALID_REQUEST', 'The content length is invalid.')
   if (declaredLength > max)
     return reject(413, 'INVALID_REQUEST', 'The request body is too large.')
   let session: AuthSession
   try {
     session = await dependencies.auth.requireAuthentication(request)
   } catch {
-    const login = await dependencies.auth.loginRedirect(
-      request,
-      returnPath(request),
-    )
-    const destination = login.headers.get('location') ?? '/'
+    let destination = '/'
+    try {
+      const login = await dependencies.auth.loginRedirect(
+        request,
+        returnPath(request),
+      )
+      destination = login.headers.get('location') ?? '/'
+    } catch {
+      // Authentication configuration details remain private.
+    }
     return reject(
       401,
       'AUTHENTICATION_REQUIRED',
@@ -248,7 +292,7 @@ export async function protectMutation<T>(
       policy.windowSeconds,
     )
   } catch {
-    await dependencies.logger.log({
+    await safeLog(dependencies.logger, {
       requestId,
       action,
       outcome: 'failed',
@@ -288,7 +332,7 @@ export async function protectMutation<T>(
   }
   try {
     const value = await invoke(session, result.data)
-    await dependencies.logger.log({
+    await safeLog(dependencies.logger, {
       requestId,
       action,
       outcome: 'accepted',
@@ -300,7 +344,7 @@ export async function protectMutation<T>(
       { headers: { 'cache-control': 'private, no-store' } },
     )
   } catch {
-    await dependencies.logger.log({
+    await safeLog(dependencies.logger, {
       requestId,
       action,
       outcome: 'failed',
@@ -316,13 +360,17 @@ export async function protectMutation<T>(
   }
 }
 
-export function productionMutationDependencies(): MutationDependencies {
+export function productionMutationDependencies(
+  rateLimits: RateLimitStore = developmentRateLimits,
+  config: MutationProtectionConfig = defaultMutationProtectionConfig,
+): MutationDependencies {
+  const validated = MutationProtectionConfigSchema.parse(config)
   return {
     auth: authProvider(),
     service: unavailable,
     rateLimits,
     logger: consoleLogger,
-    config: defaultConfig,
+    config: validated,
   }
 }
 

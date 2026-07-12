@@ -10,4 +10,14 @@ describe('sanitized Markdown', () => {
     expect(value).toContain('<strong>bold</strong>')
     expect(value).toContain('href="https://example.com"')
   })
+  it('blocks HTML handlers and dangerous URL schemes', () => {
+    const value = renderSanitizedMarkdown(
+      '<img src=x onerror=alert(1)> [data](data:text/html,boom) [mail](mailto:a@example.com)',
+    )
+    expect(value).not.toContain('<img')
+    expect(value).not.toContain('href="data:')
+    expect(value).toContain('href="#"')
+    expect(value).toContain('rel="nofollow noopener noreferrer"')
+    expect(value).toContain('href="mailto:a@example.com"')
+  })
 })

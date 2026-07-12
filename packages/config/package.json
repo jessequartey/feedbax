@@ -18,6 +18,7 @@
   "dependencies": {
     "@feedbax/auth": "workspace:*",
     "@feedbax/core": "workspace:*",
-    "@feedbax/notion": "workspace:*"
+    "@feedbax/notion": "workspace:*",
+    "zod": "4.4.3"
   }
 }

@@ -14,7 +14,6 @@ import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as ApiVoteRouteImport } from './routes/api.vote'
 import { Route as ApiSubscribeRouteImport } from './routes/api.subscribe'
-import { Route as ApiMutationRouteImport } from './routes/api.mutation'
 import { Route as ApiFeedbackRouteImport } from './routes/api.feedback'
 import { Route as ApiErrorRouteImport } from './routes/api.error'
 import { Route as ApiCommentRouteImport } from './routes/api.comment'
@@ -44,11 +43,6 @@ const ApiVoteRoute = ApiVoteRouteImport.update({
 const ApiSubscribeRoute = ApiSubscribeRouteImport.update({
   id: '/api/subscribe',
   path: '/api/subscribe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMutationRoute = ApiMutationRouteImport.update({
-  id: '/api/mutation',
-  path: '/api/mutation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFeedbackRoute = ApiFeedbackRouteImport.update({
@@ -84,7 +78,6 @@ export interface FileRoutesByFullPath {
   '/api/comment': typeof ApiCommentRoute
   '/api/error': typeof ApiErrorRoute
   '/api/feedback': typeof ApiFeedbackRoute
-  '/api/mutation': typeof ApiMutationRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
   '/auth/handoff': typeof AuthHandoffRoute
@@ -97,7 +90,6 @@ export interface FileRoutesByTo {
   '/api/comment': typeof ApiCommentRoute
   '/api/error': typeof ApiErrorRoute
   '/api/feedback': typeof ApiFeedbackRoute
-  '/api/mutation': typeof ApiMutationRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
   '/auth/handoff': typeof AuthHandoffRoute
@@ -111,7 +103,6 @@ export interface FileRoutesById {
   '/api/comment': typeof ApiCommentRoute
   '/api/error': typeof ApiErrorRoute
   '/api/feedback': typeof ApiFeedbackRoute
-  '/api/mutation': typeof ApiMutationRoute
   '/api/subscribe': typeof ApiSubscribeRoute
   '/api/vote': typeof ApiVoteRoute
   '/auth/handoff': typeof AuthHandoffRoute
@@ -126,7 +117,6 @@ export interface FileRouteTypes {
     | '/api/comment'
     | '/api/error'
     | '/api/feedback'
-    | '/api/mutation'
     | '/api/subscribe'
     | '/api/vote'
     | '/auth/handoff'
@@ -139,7 +129,6 @@ export interface FileRouteTypes {
     | '/api/comment'
     | '/api/error'
     | '/api/feedback'
-    | '/api/mutation'
     | '/api/subscribe'
     | '/api/vote'
     | '/auth/handoff'
@@ -152,7 +141,6 @@ export interface FileRouteTypes {
     | '/api/comment'
     | '/api/error'
     | '/api/feedback'
-    | '/api/mutation'
     | '/api/subscribe'
     | '/api/vote'
     | '/auth/handoff'
@@ -166,7 +154,6 @@ export interface RootRouteChildren {
   ApiCommentRoute: typeof ApiCommentRoute
   ApiErrorRoute: typeof ApiErrorRoute
   ApiFeedbackRoute: typeof ApiFeedbackRoute
-  ApiMutationRoute: typeof ApiMutationRoute
   ApiSubscribeRoute: typeof ApiSubscribeRoute
   ApiVoteRoute: typeof ApiVoteRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
@@ -208,13 +195,6 @@ declare module '@tanstack/react-router' {
       path: '/api/subscribe'
       fullPath: '/api/subscribe'
       preLoaderRoute: typeof ApiSubscribeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/mutation': {
-      id: '/api/mutation'
-      path: '/api/mutation'
-      fullPath: '/api/mutation'
-      preLoaderRoute: typeof ApiMutationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/feedback': {
@@ -262,7 +242,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCommentRoute: ApiCommentRoute,
   ApiErrorRoute: ApiErrorRoute,
   ApiFeedbackRoute: ApiFeedbackRoute,
-  ApiMutationRoute: ApiMutationRoute,
   ApiSubscribeRoute: ApiSubscribeRoute,
   ApiVoteRoute: ApiVoteRoute,
   AuthHandoffRoute: AuthHandoffRoute,

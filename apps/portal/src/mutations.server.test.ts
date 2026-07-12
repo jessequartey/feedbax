@@ -56,6 +56,7 @@ function dependencies(authenticated = true) {
     },
     config: {
       maximumBodyBytes: 1000,
+      request: { limit: 100, windowSeconds: 60 },
       actions: {
         submit: { limit: 1, windowSeconds: 60 },
         vote: { limit: 1, windowSeconds: 60 },
@@ -146,5 +147,73 @@ describe('protected mutations', () => {
         )
       ).status,
     ).toBe(403)
+  })
+  it('rate limits malformed and unauthenticated traffic before authentication', async () => {
+    const { deps } = dependencies(false)
+    deps.config.request = { limit: 1, windowSeconds: 60 }
+    const malformed = () =>
+      protectMutation(
+        request({ input: { feedbackItemId: 'one', voted: 'yes' } }),
+        'vote',
+        mutationSchemas.vote,
+        () => Promise.resolve(null),
+        deps,
+      )
+    expect((await malformed()).status).toBe(401)
+    const limited = await malformed()
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('retry-after')).toBe('60')
+  })
+  it('fails CAPTCHA closed and treats logger failures as best effort', async () => {
+    const { deps } = dependencies()
+    deps.config.actions.vote = { limit: 10, windowSeconds: 60, captcha: true }
+    deps.captcha = { verify: async () => false }
+    deps.logger = {
+      log: () => {
+        throw new Error('private logger failure')
+      },
+    }
+    const response = await protectMutation(
+      request({
+        input: { feedbackItemId: 'one', voted: true },
+        captchaToken: 'secret',
+      }),
+      'vote',
+      mutationSchemas.vote,
+      () => Promise.resolve(null),
+      deps,
+    )
+    expect(response.status).toBe(403)
+    expect(await response.text()).not.toContain('private logger failure')
+  })
+  it('rejects malformed content lengths and oversized bodies', async () => {
+    const { deps } = dependencies()
+    const invalidLength = request(
+      { input: { feedbackItemId: 'one', voted: true } },
+      { 'content-length': '-1' },
+    )
+    expect(
+      (
+        await protectMutation(
+          invalidLength,
+          'vote',
+          mutationSchemas.vote,
+          () => Promise.resolve(null),
+          deps,
+        )
+      ).status,
+    ).toBe(400)
+    deps.config.maximumBodyBytes = 10
+    expect(
+      (
+        await protectMutation(
+          request({ input: { feedbackItemId: 'one', voted: true } }),
+          'vote',
+          mutationSchemas.vote,
+          () => Promise.resolve(null),
+          deps,
+        )
+      ).status,
+    ).toBe(413)
   })
 })
