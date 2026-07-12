@@ -4,7 +4,7 @@ import {
   MemoryCacheAdapter,
   PublicFeedbackPageSchema,
 } from '@feedbax/core'
-import { createNotionReadClient, type NotionSetupConfig } from '@feedbax/notion'
+import { createNotionReadClient, type NotionReadSetupConfig } from '@feedbax/notion'
 import { readEnv } from './spike.js'
 import { publicTaxonomy } from './portal.config.js'
 
@@ -38,7 +38,7 @@ export function parseFeedbackRequest(url: URL) {
   }
 }
 
-const setup: NotionSetupConfig = {
+const setup: NotionReadSetupConfig = {
   dataSourceId: readEnv('NOTION_DATA_SOURCE_ID') ?? '',
   fields: {
     title: { property: 'Name', type: 'title', writable: true },
@@ -54,14 +54,21 @@ const setup: NotionSetupConfig = {
   categories: Object.fromEntries(publicTaxonomy.categories.map(({ id, name }) => [id, name])),
 }
 
+export function publicReader() {
+  const token = readEnv('NOTION_TOKEN')
+  return setup.dataSourceId && token
+    ? createNotionReadClient({ token, setup, cache })
+    : null
+}
+
 export async function feedbackListResponse(request: Request) {
   try {
     const { filter, page } = parseFeedbackRequest(new URL(request.url))
-    if (!setup.dataSourceId || !readEnv('NOTION_TOKEN'))
+    const reader = publicReader()
+    if (!reader)
       return Response.json(PublicFeedbackPageSchema.parse({ items: [], hasMore: false }), {
         headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=300', 'x-feedbax-cache': 'bypass' },
       })
-    const reader = createNotionReadClient({ token: readEnv('NOTION_TOKEN')!, setup, cache })
     const result = await reader.listFeedback(filter, page)
     return Response.json(PublicFeedbackPageSchema.parse(result.value), {
       headers: { 'cache-control': 'public, max-age=30, stale-while-revalidate=300', 'x-feedbax-cache': result.cacheStatus },

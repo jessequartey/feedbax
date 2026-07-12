@@ -265,6 +265,8 @@ export const PublicFeedbackPageSchema = cursorPageSchema(
   PublicFeedbackItemSchema,
 )
 export type PublicFeedbackPage = z.infer<typeof PublicFeedbackPageSchema>
+export const PublicCommentPageSchema = cursorPageSchema(PublicCommentSchema)
+export type PublicCommentPage = z.infer<typeof PublicCommentPageSchema>
 
 export const connectorErrorCodes = [
   'configuration',
