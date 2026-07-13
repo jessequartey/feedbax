@@ -32,14 +32,15 @@ function failure(message: string) {
 export async function commentListResponse(request: Request) {
   try {
     const url = new URL(request.url)
-    FeedbackItemIdSchema.parse(url.searchParams.get('feedbackItemId'))
-    pageRequest(url)
-    return Response.json(
-      PublicCommentPageSchema.parse({ items: [], hasMore: false }),
-      { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } },
-    )
-  } catch {
-    return failure('The comment query is invalid.')
+    const feedbackItemId = FeedbackItemIdSchema.parse(url.searchParams.get('feedbackItemId'))
+    const page = pageRequest(url)
+    const reader = publicReader()
+    if (!reader) return Response.json(PublicCommentPageSchema.parse({ items: [], hasMore: false }), { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } })
+    const result = await reader.listComments(feedbackItemId, page)
+    return Response.json(PublicCommentPageSchema.parse(result.value), { headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus } })
+  } catch (error) {
+    const invalid = error instanceof Error && error.name === 'ZodError'
+    return invalid ? failure('The comment query is invalid.') : Response.json({ error: { code: 'CONNECTOR_UNAVAILABLE', message: 'Comments are temporarily unavailable.' } }, { status: 503, headers: { 'cache-control': 'no-store' } })
   }
 }
 

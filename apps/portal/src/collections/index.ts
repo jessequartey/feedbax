@@ -380,7 +380,7 @@ export function useCommentsCollection(feedbackItemId: string) {
       parse: (raw) => PublicCommentPageSchema.parse(raw), notify,
       onInsert: async (items) => {
         for (const item of items)
-          PublicCommentSchema.parse(await post<unknown>('/api/comment', { feedbackItemId, body: item.body }))
+          PublicCommentSchema.parse(await post<unknown>('/api/comment', { clientRequestId: item.id.replace(/^pending-/, ''), feedbackItemId, body: item.body }))
       },
     })
   }))
@@ -391,8 +391,8 @@ export function createFeedbackComment(feedbackItemId: string, input: CreateComme
   if (!value) throw new Error('The comment collection is not active.')
   const now = new Date().toISOString()
   return value.firstCollection().insert(PublicCommentSchema.parse({
-    id: `pending-${crypto.randomUUID()}`, feedbackItemId, body: input.body,
-    author: { id: 'viewer', displayName: 'You' }, createdAt: now, updatedAt: now,
+    id: `pending-${input.clientRequestId}`, feedbackItemId, body: input.body,
+    author: { id: 'viewer', displayName: 'You' }, authorKind: 'customer', createdAt: now, updatedAt: now,
   })).isPersisted.promise
 }
 

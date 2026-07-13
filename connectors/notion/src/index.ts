@@ -60,6 +60,18 @@ export interface NotionSetupConfig {
       readonly active: NotionFieldMapping & { readonly type: 'checkbox' }
     }
   }
+  readonly comments?: {
+    readonly dataSourceId: string
+    readonly fields: {
+      readonly key: NotionFieldMapping & { readonly type: 'title' }
+      readonly feedbackItem: NotionFieldMapping & { readonly type: 'relation' }
+      readonly body: NotionFieldMapping & { readonly type: 'rich_text' }
+      readonly authorId: NotionFieldMapping & { readonly type: 'rich_text' }
+      readonly authorName: NotionFieldMapping & { readonly type: 'rich_text' }
+      readonly authorAvatar?: NotionFieldMapping & { readonly type: 'url' }
+      readonly authorKind: NotionFieldMapping & { readonly type: 'select' }
+    }
+  }
 }
 
 export type NotionHealthCode =
@@ -83,6 +95,8 @@ export type NotionHealthCode =
   | 'COMMENTS_FORBIDDEN'
   | 'VOTES_OK'
   | 'VOTES_INVALID'
+  | 'COMMENTS_SCHEMA_OK'
+  | 'COMMENTS_SCHEMA_INVALID'
   | 'RATE_LIMITED'
   | 'NOTION_UNAVAILABLE'
   | 'INVALID_RESPONSE'
@@ -485,6 +499,17 @@ export async function checkNotionSetup(
       else checks.push(pass('VOTES_OK', 'The Notion vote ledger and writable count field are configured.'))
     } catch {
       checks.push(fail('VOTES_INVALID', 'The Notion vote ledger is not accessible.', 'Share the vote data source with the integration and verify NOTION_VOTES_DATA_SOURCE_ID.'))
+    }
+  }
+  if (config.comments) {
+    try {
+      const commentSource = await request(fetcher, token, `/data_sources/${encodeURIComponent(config.comments.dataSourceId)}`, { method: 'GET' }, timeoutMs) as { properties?: Record<string, { type?: string }> }
+      const mappings: NotionFieldMapping[] = Object.values(config.comments.fields).flatMap((mapping) => mapping ? [mapping] : [])
+      if (!commentSource.properties || mappings.some((mapping) => commentSource.properties?.[mapping.property]?.type !== mapping.type))
+        checks.push(fail('COMMENTS_SCHEMA_INVALID', 'The Notion comments data source is not schema-compatible.', 'Create the configured comment properties with their mapped types and share the data source with the integration.'))
+      else checks.push(pass('COMMENTS_SCHEMA_OK', 'The Notion comments data source is configured.'))
+    } catch {
+      checks.push(fail('COMMENTS_SCHEMA_INVALID', 'The Notion comments data source is not accessible.', 'Share the comments data source with the integration and verify NOTION_COMMENTS_DATA_SOURCE_ID.'))
     }
   }
   return { ok: checks.every((check) => check.status === 'pass'), checks }

@@ -13,6 +13,7 @@ export const portalPublicConfig = {
   publicUrl: 'https://feedback.feedbax.dev',
   socialPreviewImage: 'https://feedback.feedbax.dev/social-preview.png',
   subscriptions: { enabled: false },
+  commentRoles: { administrator: ['admin', 'administrator'], team: ['team', 'staff', 'support'] },
 } as const
 
 export const publicTaxonomy = {

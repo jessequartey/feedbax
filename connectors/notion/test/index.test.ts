@@ -391,6 +391,30 @@ describe('Notion feedback submission', () => {
   })
 })
 
+describe('Notion comments', () => {
+  it('persists an author-safe comment and updates the denormalized count', async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = []
+    let queryCount = 0
+    const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input); const body = (init?.body ? JSON.parse(String(init.body)) : {}) as Record<string, unknown>
+      calls.push({ url, body })
+      if (url.endsWith('/pages/feedback-1') && init?.method === 'GET') return response({ parent: { type: 'data_source_id', data_source_id: 'source-id' }, properties: {} })
+      if (url.endsWith('/data_sources/comments-id/query')) { queryCount++; return response(queryCount === 1 ? { results: [] } : { results: [{}], has_more: false }) }
+      if (url.endsWith('/pages') && init?.method === 'POST') return response({ id: 'comment-1', created_time: '2026-07-12T08:00:00Z', last_edited_time: '2026-07-12T08:00:00Z' })
+      if (url.endsWith('/pages/feedback-1') && init?.method === 'PATCH') return response({})
+      return response({}, 500)
+    }) as unknown as typeof fetch
+    const service = createNotionMutationService({ token: 'secret', setup: { ...config, comments: { dataSourceId: 'comments-id', fields: {
+      key: { property: 'Key', type: 'title', writable: true }, feedbackItem: { property: 'Feedback', type: 'relation', writable: true }, body: { property: 'Body', type: 'rich_text', writable: true }, authorId: { property: 'Author ID', type: 'rich_text', writable: true }, authorName: { property: 'Author name', type: 'rich_text', writable: true }, authorKind: { property: 'Author kind', type: 'select', writable: true },
+    } } }, fetch: fetcher })
+    const comment = await service.createComment({ id: 'user-1', displayName: 'Ada' }, 'team', { clientRequestId: 'd9428888-122b-4df6-9f3b-2c1f2831b455', feedbackItemId: 'feedback-1', body: 'We are looking into this.' })
+    expect(comment).toMatchObject({ id: 'comment-1', author: { displayName: 'Ada' }, authorKind: 'team' })
+    expect(JSON.stringify(calls)).not.toContain('ada@example.com')
+    expect(calls.find(({ url }) => url.endsWith('/pages'))?.body.properties).toMatchObject({ 'Author ID': { rich_text: [{ type: 'text', text: { content: 'user-1' } }] }, 'Author kind': { select: { name: 'team' } } })
+    expect((calls.at(-1)?.body.properties as Record<string, { number: number }>)['Comment count']?.number).toBe(1)
+  })
+})
+
 describe('Notion best-effort voting', () => {
   function votingService() {
     const votes: Array<{ id: string; feedbackItemId: string; voterKey: string; active: boolean }> = []

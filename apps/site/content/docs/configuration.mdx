@@ -38,6 +38,14 @@ Unique voting requires `NOTION_VOTES_DATA_SOURCE_ID` and a server-only, high-ent
 
 The browser sends only the desired state and feedback ID. Feedbax derives identity from the signed session and stores an HMAC-derived opaque key. Connector-only voting is serialized within one application process, but Notion cannot enforce uniqueness or update the ledger and total atomically across multiple instances. Route vote mutations through one instance when using this mode.
 
+## Notion comments
+
+Authenticated comments require `NOTION_COMMENTS_DATA_SOURCE_ID`. The comments data source uses a title `Key`, relation `Feedback`, rich-text fields `Body`, `Author ID`, and `Author name`, optional URL `Author avatar`, and select `Author kind`. The feedback data source keeps the denormalized `Comment count`, so board reads do not issue per-item comment requests.
+
+`commentRoles.administrator` and `commentRoles.team` map verified session role claims to public response badges; administrator roles take precedence. Unknown roles are shown as customers. Feedbax never persists the authenticated email in comments, and comment bodies containing email-like addresses are rejected.
+
+Retries reuse the same client request ID. Feedbax serializes comment mutations per feedback item within one process, but Notion has no unique constraint or multi-record transaction. Route comment mutations through one instance for connector-only deployments.
+
 ## Planned configuration
 
 **Planned for v0.0.2:** typed Notion field/status mappings, branding tokens, credentials validation, schema compatibility errors, caching bounds, and feature switches. Their final public shape is not stable and is deliberately undocumented until implemented.

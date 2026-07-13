@@ -24,6 +24,7 @@ import { json } from './spike.js'
 import { readEnv } from './spike.js'
 import { createNotionMutationService } from '@feedbax/notion'
 import { publicCache, publicNotionSetup } from './public-feedback.server.js'
+import { portalPublicConfig } from './portal.config.js'
 
 export type MutationAction = 'submit' | 'vote' | 'comment' | 'subscribe'
 export interface PublicMutationService {
@@ -57,6 +58,12 @@ export interface SecurityLogger {
   log(event: SecurityEvent): void | Promise<void>
 }
 export type { MutationProtectionConfig } from '@feedbax/config'
+
+export function commentAuthorKind(role?: string): 'customer' | 'team' | 'administrator' {
+  if (role && portalPublicConfig.commentRoles.administrator.some((value) => value === role)) return 'administrator'
+  if (role && portalPublicConfig.commentRoles.team.some((value) => value === role)) return 'team'
+  return 'customer'
+}
 
 type Entry = { count: number; resetAt: number }
 export class MemoryRateLimitStore implements RateLimitStore {
@@ -380,6 +387,7 @@ export function productionMutationDependencies(
       ...unavailable,
       submit: (session, input) => notion.submit(input, auth.publicUser(session)),
       setVote: (session, input) => notion.setVote(session.user.id, input),
+      createComment: (session, input) => notion.createComment(auth.publicUser(session), commentAuthorKind(session.role), input),
     } : unavailable,
     rateLimits,
     logger: consoleLogger,

@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   ConnectorFeedbackPageSchema,
+  CreateCommentInputSchema,
   CursorPageRequestSchema,
   FeedbackFilterSchema,
   PrivateCommentSchema,
@@ -134,6 +135,13 @@ describe('canonical domain schemas', () => {
     expect(() =>
       PrivateConnectorErrorSchema.parse({ ...error, code: 'bad-code' }),
     ).toThrow()
+  })
+
+  it('validates idempotent comment commands and rejects public email content', () => {
+    const input = { clientRequestId: 'd9428888-122b-4df6-9f3b-2c1f2831b455', feedbackItemId: 'feedback-1', body: 'Markdown **is supported**.' }
+    expect(CreateCommentInputSchema.parse(input)).toEqual(input)
+    expect(CreateCommentInputSchema.safeParse({ ...input, body: 'Email me at ada@example.com' }).success).toBe(false)
+    expect(CreateCommentInputSchema.safeParse({ ...input, email: 'ada@example.com' }).success).toBe(false)
   })
 
   it('rejects server-owned mutation fields and invalid filters', () => {

@@ -1,6 +1,7 @@
 import {
   PublicFeedbackItemSchema,
   SetVoteResultSchema,
+  CreateCommentResultSchema,
   invalidateAfterMutation,
   type CacheAdapter,
   type PublicFeedbackItem,
@@ -8,12 +9,15 @@ import {
   type SubmitFeedbackInput,
   type SetVoteInput,
   type SetVoteResult,
+  type CreateCommentInput,
+  type PublicComment,
 } from '@feedbax/core'
 import type { NotionSetupConfig } from './index.js'
 
 const API = 'https://api.notion.com/v1'
 const VERSION = '2025-09-03'
 const voteLocks = new Map<string, Promise<void>>()
+const commentLocks = new Map<string, Promise<void>>()
 
 async function withVoteLock<T>(key: string, work: () => Promise<T>): Promise<T> {
   const previous = voteLocks.get(key) ?? Promise.resolve()
@@ -25,6 +29,18 @@ async function withVoteLock<T>(key: string, work: () => Promise<T>): Promise<T> 
   try { return await work() } finally {
     release()
     if (voteLocks.get(key) === queued) voteLocks.delete(key)
+  }
+}
+async function withCommentLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const previous = commentLocks.get(key) ?? Promise.resolve()
+  let release!: () => void
+  const current = new Promise<void>((resolve) => { release = resolve })
+  const queued = previous.then(() => current)
+  commentLocks.set(key, queued)
+  await previous
+  try { return await work() } finally {
+    release()
+    if (commentLocks.get(key) === queued) commentLocks.delete(key)
   }
 }
 
@@ -52,7 +68,7 @@ export function createNotionMutationService(options: NotionMutationOptions) {
   }
   const notion = async <T = unknown>(path: string, init: RequestInit): Promise<T> => {
     const response = await fetcher(`${API}${path}`, { ...init, headers: { authorization: `Bearer ${options.token}`, 'notion-version': VERSION, 'content-type': 'application/json', ...init.headers } })
-    if (!response.ok) throw new Error('Notion could not save the vote.')
+    if (!response.ok) throw new Error('Notion could not save the mutation.')
     return response.json() as Promise<T>
   }
   const queryAll = async <T>(dataSourceId: string, body: Record<string, unknown>): Promise<T[]> => {
@@ -186,6 +202,37 @@ export function createNotionMutationService(options: NotionMutationOptions) {
         await notion(`/pages/${encodeURIComponent(input.feedbackItemId)}`, { method: 'PATCH', body: JSON.stringify({ properties: { [countField.property]: { number: voteCount } } }) })
         if (options.cache) await invalidateAfterMutation(options.cache, 'vote', 'notion', input.feedbackItemId)
         return SetVoteResultSchema.parse({ feedbackItemId: input.feedbackItemId, voted: input.voted, voteCount })
+      })
+    },
+    async createComment(author: PublicUser, authorKind: 'customer' | 'team' | 'administrator', input: CreateCommentInput): Promise<PublicComment> {
+      const setup = options.setup.comments
+      if (!setup) throw new Error('Comments are not configured.')
+      return withCommentLock(input.feedbackItemId, async () => {
+        const feedback = await notion<{ parent?: { type?: string; data_source_id?: string }; properties?: Record<string, { checkbox?: boolean }> }>(`/pages/${encodeURIComponent(input.feedbackItemId)}`, { method: 'GET' })
+        const visibility = options.setup.fields.optional?.visibility
+        if (feedback.parent?.type !== 'data_source_id' || feedback.parent.data_source_id !== options.setup.dataSourceId || (visibility && feedback.properties?.[visibility.property]?.checkbox === false))
+          throw new Error('Feedback was not found.')
+        type CommentPage = { id: string; created_time?: string; last_edited_time?: string; properties?: Record<string, { title?: Array<{ plain_text?: string }>; rich_text?: Array<{ plain_text?: string }>; url?: string | null; select?: { name?: string } | null }> }
+        const existing = await notion<{ results?: CommentPage[] }>(`/data_sources/${encodeURIComponent(setup.dataSourceId)}/query`, { method: 'POST', body: JSON.stringify({ page_size: 1, filter: { and: [
+          { property: setup.fields.key.property, title: { equals: input.clientRequestId } },
+          { property: setup.fields.feedbackItem.property, relation: { contains: input.feedbackItemId } },
+          { property: setup.fields.authorId.property, rich_text: { equals: author.id } },
+        ] } }) })
+        let page = existing.results?.[0]
+        if (!page) page = await notion<CommentPage>('/pages', { method: 'POST', body: JSON.stringify({ parent: { type: 'data_source_id', data_source_id: setup.dataSourceId }, properties: {
+          [setup.fields.key.property]: { title: richText(input.clientRequestId) },
+          [setup.fields.feedbackItem.property]: { relation: [{ id: input.feedbackItemId }] },
+          [setup.fields.body.property]: { rich_text: richText(input.body) },
+          [setup.fields.authorId.property]: { rich_text: richText(author.id) },
+          [setup.fields.authorName.property]: { rich_text: richText(author.displayName) },
+          ...(setup.fields.authorAvatar && author.avatarUrl ? { [setup.fields.authorAvatar.property]: { url: author.avatarUrl } } : {}),
+          [setup.fields.authorKind.property]: { select: { name: authorKind } },
+        } }) })
+        const all = await queryAll<unknown>(setup.dataSourceId, { page_size: 100, filter: { property: setup.fields.feedbackItem.property, relation: { contains: input.feedbackItemId } } })
+        await notion(`/pages/${encodeURIComponent(input.feedbackItemId)}`, { method: 'PATCH', body: JSON.stringify({ properties: { [options.setup.fields.commentCount.property]: { number: all.length } } }) })
+        if (options.cache) await invalidateAfterMutation(options.cache, 'comment', 'notion', input.feedbackItemId)
+        const now = new Date().toISOString()
+        return CreateCommentResultSchema.parse({ id: page.id, feedbackItemId: input.feedbackItemId, body: input.body, author, authorKind, createdAt: page.created_time ?? now, updatedAt: page.last_edited_time ?? page.created_time ?? now })
       })
     },
     async voteStates(userId: string, feedbackItemIds: readonly string[]) {

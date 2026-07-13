@@ -20,4 +20,5 @@ Do not open a public issue. Use GitHub's private vulnerability reporting and inc
 - The built-in rate-limit store is process-local and is suitable only for development or a single Node/Docker process. Distributed production deployments must inject a shared durable `RateLimitStore`.
 - Optional CAPTCHA is exposed through a server-side `CaptchaProvider`; it is disabled unless a provider is configured. CAPTCHA tokens and request bodies are never logged.
 - Feedback and comments retain canonical Markdown. Rendering escapes raw HTML, allowlists emitted tags, and rejects unsafe link protocols.
+- Comment authors are projected from verified sessions to opaque public IDs, names, optional avatars, and server-derived responder kinds. Authenticated email addresses are never persisted with comments, and email-like text in comment bodies is rejected.
 - Rotate signing and session keys by adding a new key ID, making it active, retaining the previous key through the longest outstanding lifetime, and only then removing it.

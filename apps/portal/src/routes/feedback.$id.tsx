@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useEffect, useState, type FormEvent } from 'react'
-import { SetVoteResultSchema, VoteStateResponseSchema, type PublicFeedbackDetail } from '@feedbax/core'
+import { CreateCommentInputSchema, PublicCommentSchema, SetVoteResultSchema, VoteStateResponseSchema, type PublicComment, type PublicFeedbackDetail } from '@feedbax/core'
 import { getFeedbackDetail } from '../server.functions.js'
 import { ConnectorOutage, PortalLoading, PortalShell } from '../components/portal-shell.js'
 import { portalBranding, portalPublicConfig } from '../portal.config.js'
@@ -69,6 +69,8 @@ function FeedbackDetailPage() {
   const [subscribed, setSubscribed] = useState(detail.subscription.isSubscribed ?? false)
   const [pending, setPending] = useState<'vote' | 'comment' | 'subscribe' | null>(null)
   const [message, setMessage] = useState('')
+  type CommentRow = { comment: PublicComment; clientRequestId?: string; state?: 'pending' | 'failed'; error?: string }
+  const [comments, setComments] = useState<CommentRow[]>(() => detail.comments.items.map((comment) => ({ comment })))
   useEffect(() => {
     void fetch('/api/vote-state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ feedbackItemIds: [item.id] }) })
       .then(async (response) => response.ok ? response.json() : null)
@@ -94,16 +96,31 @@ function FeedbackDetailPage() {
       setSubscribed(next); setMessage(next ? 'You’re subscribed to updates.' : 'Subscription removed.')
     } catch (error) { setMessage((error as Error).message) } finally { setPending(null) }
   }
+  const persistComment = async (clientRequestId: string, body: string, temporaryId: string) => {
+    setComments((current) => current.map((row) => row.comment.id !== temporaryId ? row : { comment: row.comment, ...(row.clientRequestId ? { clientRequestId: row.clientRequestId } : {}), state: 'pending' }))
+    try {
+      const saved = PublicCommentSchema.parse(await mutate('/api/comment', { clientRequestId, feedbackItemId: item.id, body }))
+      setComments((current) => current.map((row) => row.comment.id === temporaryId ? { comment: saved } : row))
+      setMessage('Comment posted.')
+    } catch (error) {
+      setComments((current) => current.map((row) => row.comment.id === temporaryId ? { ...row, state: 'failed', error: (error as Error).message } : row))
+      setMessage('Your comment could not be posted. You can retry it below.')
+    }
+  }
   const comment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
     const body = new FormData(form).get('body')?.toString().trim()
     if (!body) return
-    setPending('comment'); setMessage('')
-    try {
-      await mutate('/api/comment', { feedbackItemId: item.id, body })
-      form.reset(); setMessage('Comment posted. Refresh to see the latest discussion.')
-    } catch (error) { setMessage((error as Error).message) } finally { setPending(null) }
+    const clientRequestId = crypto.randomUUID()
+    const parsed = CreateCommentInputSchema.safeParse({ clientRequestId, feedbackItemId: item.id, body })
+    if (!parsed.success) { setMessage(parsed.error.issues[0]?.message ?? 'The comment is invalid.'); return }
+    const now = new Date().toISOString()
+    const temporaryId = `pending-${clientRequestId}`
+    const temporary = PublicCommentSchema.parse({ id: temporaryId, feedbackItemId: item.id, body, author: { id: 'viewer', displayName: 'You' }, authorKind: 'customer', createdAt: now, updatedAt: now })
+    setComments((current) => [...current, { comment: temporary, clientRequestId, state: 'pending' }])
+    form.reset(); setMessage('Posting comment…')
+    await persistComment(clientRequestId, body, temporaryId)
   }
 
   return <PortalShell branding={portalBranding} activePage="feedback">
@@ -120,9 +137,9 @@ function FeedbackDetailPage() {
           <p>Shared by <strong>{item.author.displayName}</strong><small>Created <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>{item.updatedAt !== item.createdAt ? <> · Updated <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time></> : null}</small></p>
         </div>
         <section className="detail-section" aria-labelledby="comments-title">
-          <div className="section-heading"><h2 id="comments-title">Comments</h2><span>{detail.comments.items.length}</span></div>
-          {detail.comments.items.length ? <div className="comment-list">{detail.comments.items.map((comment) => <article key={comment.id} className="comment"><div><strong>{comment.author.displayName}</strong><time dateTime={comment.createdAt}>{formatDate(comment.createdAt)}</time></div><div className="markdown" dangerouslySetInnerHTML={{ __html: renderSanitizedMarkdown(comment.body) }} /></article>)}</div> : <p className="empty-copy">No comments yet. Start the conversation.</p>}
-          <form className="comment-form" onSubmit={(event) => void comment(event)}><label htmlFor="comment-body">Add a comment</label><textarea id="comment-body" name="body" rows={4} maxLength={10000} required /><button className="primary-button" disabled={pending === 'comment'}>{pending === 'comment' ? 'Posting…' : 'Post comment'}</button></form>
+          <div className="section-heading"><h2 id="comments-title">Comments</h2><span>{comments.length}</span></div>
+          {comments.length ? <div className="comment-list">{comments.map((row) => { const comment = row.comment; return <article key={comment.id} className="comment" data-state={row.state}><div><span><strong>{comment.author.displayName}</strong>{comment.authorKind !== 'customer' ? <small className="author-badge">{comment.authorKind === 'administrator' ? 'Administrator' : 'Team'}</small> : null}</span><time dateTime={comment.createdAt}>{row.state === 'pending' ? 'Posting…' : formatDate(comment.createdAt)}</time></div><div className="markdown" dangerouslySetInnerHTML={{ __html: renderSanitizedMarkdown(comment.body) }} />{row.state === 'failed' ? <div className="comment-retry" role="alert"><span>{row.error ?? 'Comment failed.'}</span><button type="button" onClick={() => void persistComment(row.clientRequestId!, comment.body, comment.id)}>Retry</button><button type="button" onClick={() => setComments((current) => current.filter((candidate) => candidate.comment.id !== comment.id))}>Discard</button></div> : null}</article> })}</div> : <p className="empty-copy">No comments yet. Start the conversation.</p>}
+          <form className="comment-form" onSubmit={(event) => void comment(event)}><label htmlFor="comment-body">Add a comment</label><textarea id="comment-body" name="body" rows={4} maxLength={10000} required aria-describedby="comment-help" /><small id="comment-help">Markdown is supported. For privacy, don’t include email addresses.</small><button className="primary-button">Post comment</button></form>
         </section>
       </article>
       <aside className="detail-context" aria-label="Feedback details">

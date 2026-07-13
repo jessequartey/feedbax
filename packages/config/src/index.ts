@@ -42,6 +42,10 @@ export interface FeedbaxConfig {
   readonly publicUrl?: string
   readonly socialPreviewImage?: string
   readonly subscriptions?: { readonly enabled: boolean }
+  readonly commentRoles?: {
+    readonly administrator?: readonly string[]
+    readonly team?: readonly string[]
+  }
   readonly branding?: {
     readonly tagline?: string
     readonly mark?: string

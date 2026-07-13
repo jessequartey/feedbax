@@ -3,6 +3,7 @@ export default {
   publicUrl: process.env.FEEDBAX_PUBLIC_URL ?? 'https://feedback.feedbax.dev',
   socialPreviewImage: process.env.FEEDBAX_SOCIAL_PREVIEW_IMAGE ?? 'https://feedback.feedbax.dev/social-preview.png',
   subscriptions: { enabled: false },
+  commentRoles: { administrator: ['admin', 'administrator'], team: ['team', 'staff', 'support'] },
   branding: {
     tagline: 'Shape what we build next.',
     mark: 'F',
@@ -80,6 +81,20 @@ export default {
             feedbackItem: { property: 'Feedback', type: 'relation', writable: true },
             voterKey: { property: 'Voter key', type: 'rich_text', writable: true },
             active: { property: 'Active', type: 'checkbox', writable: true },
+          },
+        },
+      } : {}),
+      ...(process.env.NOTION_COMMENTS_DATA_SOURCE_ID ? {
+        comments: {
+          dataSourceId: process.env.NOTION_COMMENTS_DATA_SOURCE_ID,
+          fields: {
+            key: { property: 'Key', type: 'title', writable: true },
+            feedbackItem: { property: 'Feedback', type: 'relation', writable: true },
+            body: { property: 'Body', type: 'rich_text', writable: true },
+            authorId: { property: 'Author ID', type: 'rich_text', writable: true },
+            authorName: { property: 'Author name', type: 'rich_text', writable: true },
+            authorAvatar: { property: 'Author avatar', type: 'url', writable: true },
+            authorKind: { property: 'Author kind', type: 'select', writable: true },
           },
         },
       } : {}),

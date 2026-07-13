@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AuthSession, IdentityProvider } from '@feedbax/auth'
 import {
   protectMutation,
+  commentAuthorKind,
   mutationSchemas,
   MemoryRateLimitStore,
   type MutationDependencies,
@@ -79,6 +80,12 @@ function request(body: unknown, extra: Record<string, string> = {}) {
   })
 }
 describe('protected mutations', () => {
+  it('maps verified roles to public comment responder kinds', () => {
+    expect(commentAuthorKind('admin')).toBe('administrator')
+    expect(commentAuthorKind('support')).toBe('team')
+    expect(commentAuthorKind('customer')).toBe('customer')
+    expect(commentAuthorKind()).toBe('customer')
+  })
   it('requires identity and preserves the intended return path', async () => {
     const { deps } = dependencies(false)
     const response = await protectMutation(

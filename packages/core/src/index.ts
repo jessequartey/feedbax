@@ -115,7 +115,9 @@ const commentShape = {
   body: z.string().trim().min(1).max(10_000),
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
+  authorKind: z.enum(['customer', 'team', 'administrator']).default('customer'),
 } as const
+export const CommentAuthorKindSchema = commentShape.authorKind
 
 export const PublicCommentSchema = z.strictObject({
   ...commentShape,
@@ -171,11 +173,16 @@ export const SubmitFeedbackInputSchema = z.strictObject({
 })
 export type SubmitFeedbackInput = z.infer<typeof SubmitFeedbackInputSchema>
 
+const emailLike = /(^|[\s(<[])\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i
 export const CreateCommentInputSchema = z.strictObject({
+  clientRequestId: z.uuid(),
   feedbackItemId: FeedbackItemIdSchema,
   body: z.string().trim().min(1).max(10_000),
+}).superRefine((input, context) => {
+  if (emailLike.test(input.body)) context.addIssue({ code: 'custom', path: ['body'], message: 'Comment content must not include an email address' })
 })
 export type CreateCommentInput = z.infer<typeof CreateCommentInputSchema>
+export const CreateCommentResultSchema = PublicCommentSchema
 
 export const SetVoteInputSchema = z.strictObject({
   feedbackItemId: FeedbackItemIdSchema,
@@ -425,6 +432,7 @@ export const toPublicComment = (comment: PrivateComment): PublicComment =>
     author: toPublicUser(comment.author),
     createdAt: comment.createdAt,
     updatedAt: comment.updatedAt,
+    authorKind: comment.authorKind,
   })
 
 export const toPublicConnectorError = (

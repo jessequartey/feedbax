@@ -38,15 +38,6 @@ export interface NotionEditorialConfig {
 export interface NotionReadSetupConfig extends NotionSetupConfig {
   readonly roadmap?: NotionEditorialConfig
   readonly changelog?: NotionEditorialConfig
-  readonly comments?: {
-    readonly dataSourceId: string
-    readonly fields: {
-      readonly body: NotionFieldMapping
-      readonly feedbackItem: NotionFieldMapping
-      readonly authorName?: NotionFieldMapping
-      readonly authorAvatar?: NotionFieldMapping
-    }
-  }
 }
 
 export interface NotionReadClientOptions {
@@ -165,6 +156,7 @@ export function createNotionReadClient(
     dataSourceId: string,
     page: CursorPageRequest,
     filter?: FeedbackFilter,
+    extraPredicates: readonly Record<string, unknown>[] = [],
   ): Promise<QueryResponse> => {
     const body: Record<string, unknown> = { page_size: page.pageSize }
     if (page.cursor) body.start_cursor = page.cursor
@@ -183,7 +175,7 @@ export function createNotionReadClient(
           direction: filter.sort === 'oldest' ? 'ascending' : 'descending',
             },
       ]
-    const predicates: Record<string, unknown>[] = []
+    const predicates: Record<string, unknown>[] = [...extraPredicates]
     if (filter?.search)
       predicates.push({
         or: [
@@ -307,27 +299,28 @@ export function createNotionReadClient(
       const setup = options.setup.comments
       if (!setup)
         return { value: PublicCommentPageSchema.parse({ items: [], hasMore: false }), cacheStatus: 'bypass' as const }
-      const result = await query(setup.dataSourceId, page, {
-        sort: 'oldest',
-      })
       const relation = setup.fields.feedbackItem
-      const matching = result.results!.filter((item) =>
-        (item.properties[relation.property]?.relation ?? []).some(({ id }) => id === feedbackItemId),
-      )
+      const result = await query(setup.dataSourceId, page, { sort: 'oldest' }, [{
+        property: relation.property, relation: { contains: feedbackItemId },
+      }])
       return {
         value: PublicCommentPageSchema.parse({
           ...pageShape(result),
-          items: matching.map((item) => ({
+          items: result.results!.map((item) => ({
             id: item.id,
             feedbackItemId,
             body: text(item, setup.fields.body),
             author: {
-              id: `notion-${item.id}`,
+              id: mappedText(item, setup.fields.authorId) || `notion-${item.id}`,
               displayName: mappedText(item, setup.fields.authorName) || 'Community member',
               ...(setup.fields.authorAvatar && item.properties[setup.fields.authorAvatar.property]?.url
                 ? { avatarUrl: item.properties[setup.fields.authorAvatar.property]!.url! }
                 : {}),
             },
+            authorKind: (() => {
+              const value = item.properties[setup.fields.authorKind.property]?.select?.name
+              return value === 'team' || value === 'administrator' ? value : 'customer'
+            })(),
             createdAt: item.created_time,
             updatedAt: item.last_edited_time,
           })),
