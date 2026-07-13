@@ -429,6 +429,7 @@ export const connectorErrorCodes = [
   'authentication',
   'authorization',
   'validation',
+  'unsupported',
   'unavailable',
   'rate-limited',
   'not-found',
@@ -467,6 +468,37 @@ export const ConnectorDescriptorSchema = z.strictObject({
   capabilities: z.array(ConnectorCapabilitySchema).readonly(),
 })
 export type ConnectorDescriptor = z.infer<typeof ConnectorDescriptorSchema>
+
+export const connectorOperations = [
+  'submitFeedback',
+  'setVote',
+  'getVoteStates',
+  'createComment',
+  'setSubscription',
+  'handleWebhook',
+] as const
+export const ConnectorOperationSchema = z.enum(connectorOperations)
+export type ConnectorOperation = z.infer<typeof ConnectorOperationSchema>
+
+/** A stable connector-independent failure for operations a connector cannot perform. */
+export class UnsupportedConnectorOperationError extends Error {
+  readonly code = 'unsupported' as const
+
+  constructor(
+    readonly connectorId: string,
+    readonly operation: ConnectorOperation,
+  ) {
+    super(`Connector "${connectorId}" does not support "${operation}".`)
+    this.name = 'UnsupportedConnectorOperationError'
+  }
+}
+
+export const unsupportedConnectorOperation = (
+  connectorId: string,
+  operation: ConnectorOperation,
+): never => {
+  throw new UnsupportedConnectorOperationError(connectorId, operation)
+}
 
 export const ConnectorFeedbackRecordSchema = PrivateFeedbackItemSchema
 export const ConnectorFeedbackPageSchema = cursorPageSchema(
@@ -556,6 +588,30 @@ export interface PublicConnectorReader {
     readonly value: PublicCommentPage
     readonly cacheStatus: import('./cache.js').CacheStatus
   }>
+}
+
+export interface ConnectorMutationService {
+  submit(
+    input: SubmitFeedbackInput,
+    author: PublicUser,
+  ): Promise<PublicFeedbackItem>
+  setVote(userId: string, input: SetVoteInput): Promise<SetVoteResult>
+  voteStates(
+    userId: string,
+    feedbackItemIds: readonly string[],
+  ): Promise<z.infer<typeof VoteStateResponseSchema>['items']>
+  createComment(
+    author: PublicUser,
+    authorKind: z.infer<typeof CommentAuthorKindSchema>,
+    input: CreateCommentInput,
+  ): Promise<PublicComment>
+  setSubscription(input: SubscribeInput, userId: string): Promise<void>
+}
+
+export interface ConnectorRuntime {
+  readonly descriptor: ConnectorDescriptor
+  readonly reader: PublicConnectorReader
+  readonly mutations: ConnectorMutationService
 }
 
 export const toPublicUser = (user: PrivateUser): PublicUser =>

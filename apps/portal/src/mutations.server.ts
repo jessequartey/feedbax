@@ -8,6 +8,7 @@ import {
   SetVoteInputSchema,
   SubmitFeedbackInputSchema,
   SubscribeInputSchema,
+  UnsupportedConnectorOperationError,
   type CreateCommentInput,
   type PublicMutationErrorCode,
   type SetVoteInput,
@@ -25,6 +26,8 @@ import { readEnv } from './spike.js'
 import { createNotionMutationService } from '@feedbax/notion'
 import { publicCache, publicNotionSetup } from './public-feedback.server.js'
 import { portalPublicConfig } from './portal.config.js'
+import { mockConnectorRuntime } from './mock-connector.server.js'
+import { CloudflareDurableRateLimitStore } from './rate-limit.cloudflare.server.js'
 
 export type MutationAction = 'submit' | 'vote' | 'comment' | 'subscribe'
 export interface PublicMutationService {
@@ -381,7 +384,7 @@ export async function protectMutation<T>(
       { ok: true, value },
       { headers: { 'cache-control': 'private, no-store' } },
     )
-  } catch {
+  } catch (cause) {
     await safeLog(dependencies.logger, {
       requestId,
       action,
@@ -390,21 +393,56 @@ export async function protectMutation<T>(
       actorKey,
       networkKey,
     })
+    const unsupported = cause instanceof UnsupportedConnectorOperationError
     return error(
-      503,
+      unsupported ? 501 : 503,
       'MUTATION_UNAVAILABLE',
-      'This action is temporarily unavailable.',
+      unsupported
+        ? 'The connected service does not support this action.'
+        : 'This action is temporarily unavailable.',
       { requestId },
     )
   }
 }
 
 export function productionMutationDependencies(
-  rateLimits: RateLimitStore = developmentRateLimits,
+  rateLimits?: RateLimitStore,
   config: MutationProtectionConfig = defaultMutationProtectionConfig,
 ): MutationDependencies {
   const validated = MutationProtectionConfigSchema.parse(config)
   const auth = authProvider()
+  const selectedRateLimits =
+    rateLimits ??
+    (readEnv('FEEDBAX_RATE_LIMIT_STORE') === 'cloudflare'
+      ? new CloudflareDurableRateLimitStore()
+      : developmentRateLimits)
+  if (readEnv('FEEDBAX_CONNECTOR') === 'mock')
+    return {
+      auth,
+      service: {
+        submit: (session, input) =>
+          mockConnectorRuntime.mutations.submit(
+            input,
+            auth.publicUser(session),
+          ),
+        setVote: (session, input) =>
+          mockConnectorRuntime.mutations.setVote(session.user.id, input),
+        createComment: (session, input) =>
+          mockConnectorRuntime.mutations.createComment(
+            auth.publicUser(session),
+            commentAuthorKind(session.role),
+            input,
+          ),
+        setSubscription: (session, input) =>
+          mockConnectorRuntime.mutations.setSubscription(
+            input,
+            session.user.id,
+          ),
+      },
+      rateLimits: selectedRateLimits,
+      logger: consoleLogger,
+      config: validated,
+    }
   const token = readEnv('NOTION_TOKEN')
   const interactionHashKey = readEnv('FEEDBAX_INTERACTION_HASH_KEY')
   const notion =
@@ -432,7 +470,7 @@ export function productionMutationDependencies(
             ),
         }
       : unavailable,
-    rateLimits,
+    rateLimits: selectedRateLimits,
     logger: consoleLogger,
     config: validated,
   }

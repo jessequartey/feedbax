@@ -8,6 +8,7 @@ import {
   type MutationDependencies,
   type SecurityEvent,
 } from './mutations.server.js'
+import { unsupportedConnectorOperation } from '@feedbax/core'
 
 const session = {
   user: {
@@ -80,6 +81,31 @@ function request(body: unknown, extra: Record<string, string> = {}) {
   })
 }
 describe('protected mutations', () => {
+  it('translates unsupported connector operations predictably', async () => {
+    const { deps } = dependencies()
+    deps.service.setSubscription = async () =>
+      unsupportedConnectorOperation('minimal', 'setSubscription')
+    const response = await protectMutation(
+      request({
+        input: {
+          target: { type: 'feedback', id: 'feedback-1' },
+          subscribed: true,
+        },
+      }),
+      'subscribe',
+      mutationSchemas.subscribe,
+      (session, input) => deps.service.setSubscription(session, input),
+      deps,
+    )
+    expect(response.status).toBe(501)
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: 'MUTATION_UNAVAILABLE',
+        message: 'The connected service does not support this action.',
+      },
+    })
+  })
+
   it('maps verified roles to public comment responder kinds', () => {
     expect(commentAuthorKind('admin')).toBe('administrator')
     expect(commentAuthorKind('support')).toBe('team')

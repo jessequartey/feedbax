@@ -8,6 +8,7 @@ import { ApplicationState } from '../components/application-state.js'
 import { PortalShell } from '../components/portal-shell.js'
 import { portalBranding, portalPublicConfig } from '../portal.config.js'
 import portalCss from '../styles.css?url'
+import { useEffect } from 'react'
 
 const themeScript = `(function(){try{var saved=localStorage.getItem('feedbax-theme');var theme=saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=theme}catch(_){document.documentElement.dataset.theme='light'}})()`
 
@@ -76,9 +77,17 @@ function RootDocument() {
         <HeadContent />
       </head>
       <body>
+        <HydrationMarker />
         <Outlet />
         <Scripts />
       </body>
     </html>
   )
+}
+
+function HydrationMarker() {
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = 'true'
+  }, [])
+  return null
 }

@@ -18,6 +18,7 @@ import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as ApiVoteStateRouteImport } from './routes/api.vote-state'
 import { Route as ApiVoteRouteImport } from './routes/api.vote'
+import { Route as ApiTestConnectorRouteImport } from './routes/api.test-connector'
 import { Route as ApiSubscribeRouteImport } from './routes/api.subscribe'
 import { Route as ApiRoadmapRouteImport } from './routes/api.roadmap'
 import { Route as ApiFeedbackRouteImport } from './routes/api.feedback'
@@ -72,6 +73,11 @@ const ApiVoteStateRoute = ApiVoteStateRouteImport.update({
 const ApiVoteRoute = ApiVoteRouteImport.update({
   id: '/api/vote',
   path: '/api/vote',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTestConnectorRoute = ApiTestConnectorRouteImport.update({
+  id: '/api/test-connector',
+  path: '/api/test-connector',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSubscribeRoute = ApiSubscribeRouteImport.update({
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/api/feedback': typeof ApiFeedbackRouteWithChildren
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
+  '/api/test-connector': typeof ApiTestConnectorRoute
   '/api/vote': typeof ApiVoteRoute
   '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/api/feedback': typeof ApiFeedbackRouteWithChildren
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
+  '/api/test-connector': typeof ApiTestConnectorRoute
   '/api/vote': typeof ApiVoteRoute
   '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
@@ -180,6 +188,7 @@ export interface FileRoutesById {
   '/api/feedback': typeof ApiFeedbackRouteWithChildren
   '/api/roadmap': typeof ApiRoadmapRoute
   '/api/subscribe': typeof ApiSubscribeRoute
+  '/api/test-connector': typeof ApiTestConnectorRoute
   '/api/vote': typeof ApiVoteRoute
   '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/api/feedback'
     | '/api/roadmap'
     | '/api/subscribe'
+    | '/api/test-connector'
     | '/api/vote'
     | '/api/vote-state'
     | '/auth/handoff'
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
     | '/api/feedback'
     | '/api/roadmap'
     | '/api/subscribe'
+    | '/api/test-connector'
     | '/api/vote'
     | '/api/vote-state'
     | '/auth/handoff'
@@ -245,6 +256,7 @@ export interface FileRouteTypes {
     | '/api/feedback'
     | '/api/roadmap'
     | '/api/subscribe'
+    | '/api/test-connector'
     | '/api/vote'
     | '/api/vote-state'
     | '/auth/handoff'
@@ -267,6 +279,7 @@ export interface RootRouteChildren {
   ApiFeedbackRoute: typeof ApiFeedbackRouteWithChildren
   ApiRoadmapRoute: typeof ApiRoadmapRoute
   ApiSubscribeRoute: typeof ApiSubscribeRoute
+  ApiTestConnectorRoute: typeof ApiTestConnectorRoute
   ApiVoteRoute: typeof ApiVoteRoute
   ApiVoteStateRoute: typeof ApiVoteStateRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
@@ -338,6 +351,13 @@ declare module '@tanstack/react-router' {
       path: '/api/vote'
       fullPath: '/api/vote'
       preLoaderRoute: typeof ApiVoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/test-connector': {
+      id: '/api/test-connector'
+      path: '/api/test-connector'
+      fullPath: '/api/test-connector'
+      preLoaderRoute: typeof ApiTestConnectorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/subscribe': {
@@ -439,6 +459,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFeedbackRoute: ApiFeedbackRouteWithChildren,
   ApiRoadmapRoute: ApiRoadmapRoute,
   ApiSubscribeRoute: ApiSubscribeRoute,
+  ApiTestConnectorRoute: ApiTestConnectorRoute,
   ApiVoteRoute: ApiVoteRoute,
   ApiVoteStateRoute: ApiVoteStateRoute,
   AuthHandoffRoute: AuthHandoffRoute,

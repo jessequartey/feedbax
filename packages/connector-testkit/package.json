@@ -1,5 +1,5 @@
 {
-  "name": "@feedbax/notion",
+  "name": "@feedbax/connector-testkit",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,6 +19,6 @@
     "@feedbax/core": "workspace:*"
   },
   "devDependencies": {
-    "@feedbax/connector-testkit": "workspace:*"
+    "vitest": "4.1.0"
   }
 }

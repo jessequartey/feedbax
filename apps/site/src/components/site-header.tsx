@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTheme } from 'fumadocs-ui/provider/base'
 import {
   docsNavigation,
+  feedbackPortalUrl,
   githubUrl,
   matchesSearch,
   searchIndex,
@@ -155,6 +156,9 @@ export function SiteHeader() {
           <Link to="/docs/$" params={{ _splat: 'roadmap' }}>
             Roadmap
           </Link>
+          <a href={feedbackPortalUrl} target="_blank" rel="noreferrer">
+            Feedback
+          </a>
           <a href={githubUrl} target="_blank" rel="noreferrer">
             GitHub
           </a>
@@ -208,6 +212,9 @@ export function SiteHeader() {
           ))}
           <a href={githubUrl} target="_blank" rel="noreferrer">
             GitHub
+          </a>
+          <a href={feedbackPortalUrl} target="_blank" rel="noreferrer">
+            Feedback
           </a>
         </nav>
       )}

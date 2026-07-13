@@ -4,6 +4,7 @@ import { authProvider } from '../auth.server.js'
 import { publicCache, publicNotionSetup } from '../public-feedback.server.js'
 import { createNotionMutationService } from '@feedbax/notion'
 import { json, publicError, readEnv } from '../spike.js'
+import { mockConnectorRuntime } from '../mock-connector.server.js'
 
 export const Route = createFileRoute('/api/vote-state')({
   server: {
@@ -13,6 +14,16 @@ export const Route = createFileRoute('/api/vote-state')({
           const auth = authProvider()
           const session = await auth.requireAuthentication(request)
           const input = VoteStateRequestSchema.parse(await request.json())
+          if (readEnv('FEEDBAX_CONNECTOR') === 'mock')
+            return json(
+              VoteStateResponseSchema.parse({
+                items: await mockConnectorRuntime.mutations.voteStates(
+                  session.user.id,
+                  input.feedbackItemIds,
+                ),
+              }),
+              { headers: { 'cache-control': 'private, no-store' } },
+            )
           const token = readEnv('NOTION_TOKEN')
           const interactionHashKey = readEnv('FEEDBAX_INTERACTION_HASH_KEY')
           if (!token || !interactionHashKey || !publicNotionSetup.votes)

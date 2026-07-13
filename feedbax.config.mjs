@@ -89,7 +89,7 @@ export default defineConfig({
           writable: true,
         },
         feedbackType: { property: 'Type', type: 'select', writable: true },
-        status: { property: 'Status', type: 'status', writable: true },
+        status: { property: 'Status', type: 'select', writable: true },
         commentCount: {
           property: 'Comment count',
           type: 'number',

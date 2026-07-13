@@ -8,7 +8,9 @@ import {
   notionConnector,
   runNotionDoctor,
   type NotionSetupConfig,
+  createNotionRuntime,
 } from '../src/index.js'
+import { connectorContract } from '@feedbax/connector-testkit'
 import {
   MemoryCacheAdapter,
   cacheTags,
@@ -357,6 +359,27 @@ describe('Notion setup health check', () => {
 })
 
 describe('Notion cached public reads', () => {
+  it.each([
+    ['non-JSON success', new Response('upstream-secret', { status: 200 })],
+    ['missing result list', response({ has_more: false })],
+    ['invalid pagination flag', response({ results: [], has_more: 'yes' })],
+  ])(
+    'rejects a malformed %s without exposing its body',
+    async (_label, reply) => {
+      const reader = createNotionReadClient({
+        token: 'secret',
+        setup: config,
+        fetch: async () => reply.clone(),
+      })
+      await expect(
+        reader.listFeedback({ sort: 'newest' }, { pageSize: 20 }),
+      ).rejects.toThrow('Notion returned an invalid response.')
+      await expect(
+        reader.listFeedback({ sort: 'newest' }, { pageSize: 20 }),
+      ).rejects.not.toThrow('upstream-secret')
+    },
+  )
+
   it('loads a feedback board with one query and no per-item comment calls', async () => {
     const fetcher = vi.fn(async () =>
       response({
@@ -1009,4 +1032,112 @@ describe('Notion public changelog reads', () => {
       [],
     )
   })
+})
+
+function notionContractRuntime() {
+  const votes: Array<{ id: string; voterKey: string; active: boolean }> = []
+  const feedbackPage = {
+    id: 'contract-feedback',
+    parent: { type: 'data_source_id', data_source_id: 'source-id' },
+    created_time: '2026-07-13T00:00:00Z',
+    last_edited_time: '2026-07-13T00:00:00Z',
+    properties: {
+      Name: { title: [{ plain_text: 'Contract feedback' }] },
+      Description: { rich_text: [{ plain_text: 'Synthetic Notion record.' }] },
+      Type: { select: { name: 'Feature' } },
+      Status: { status: { name: 'Open' } },
+      'Comment count': { number: 0 },
+      'Vote count': { number: 0 },
+    },
+  }
+  const setup: NotionSetupConfig = {
+    ...config,
+    fields: {
+      ...config.fields,
+      optional: {
+        voteCount: { property: 'Vote count', type: 'number', writable: true },
+      },
+    },
+    votes: {
+      dataSourceId: 'votes-id',
+      fields: {
+        key: { property: 'Key', type: 'title', writable: true },
+        feedbackItem: {
+          property: 'Feedback',
+          type: 'relation',
+          writable: true,
+        },
+        voterKey: {
+          property: 'Voter key',
+          type: 'rich_text',
+          writable: true,
+        },
+        active: { property: 'Active', type: 'checkbox', writable: true },
+      },
+    },
+  }
+  const fetcher = vi.fn(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      const body = init?.body ? JSON.parse(String(init.body)) : {}
+      if (url.endsWith('/data_sources/source-id/query'))
+        return response({ results: [feedbackPage], has_more: false })
+      if (url.endsWith('/pages/contract-feedback') && init?.method !== 'PATCH')
+        return response(feedbackPage)
+      if (url.endsWith('/data_sources/votes-id/query'))
+        return response({
+          results: votes
+            .filter((vote) => vote.active)
+            .map((vote) => ({
+              id: vote.id,
+              properties: {
+                Active: { checkbox: vote.active },
+                Feedback: { relation: [{ id: 'contract-feedback' }] },
+                'Voter key': { rich_text: [{ plain_text: vote.voterKey }] },
+              },
+            })),
+          has_more: false,
+        })
+      if (url.endsWith('/pages') && init?.method === 'POST') {
+        const parent = body.parent?.data_source_id
+        if (parent === 'votes-id') {
+          const properties = body.properties
+          votes.push({
+            id: `contract-vote-${votes.length + 1}`,
+            voterKey: properties['Voter key'].rich_text[0].text.content,
+            active: true,
+          })
+          return response({ id: votes.at(-1)?.id })
+        }
+        return response({
+          id: 'contract-submitted',
+          created_time: '2026-07-13T01:00:00Z',
+          last_edited_time: '2026-07-13T01:00:00Z',
+        })
+      }
+      const vote = votes.find(({ id }) => url.endsWith(`/pages/${id}`))
+      if (vote && init?.method === 'PATCH') {
+        vote.active = body.properties.Active.checkbox
+        return response({})
+      }
+      if (url.endsWith('/pages/contract-feedback') && init?.method === 'PATCH')
+        return response({})
+      return response({}, 500)
+    },
+  ) as unknown as typeof fetch
+  return createNotionRuntime({
+    token: 'synthetic-token',
+    setup,
+    fetch: fetcher,
+    interactionHashKey: 'synthetic-contract-key-at-least-32-bytes',
+  })
+}
+
+connectorContract('notion', {
+  create: notionContractRuntime,
+  feedbackItemId: 'contract-feedback',
+  unsupported: [
+    { operation: 'createComment', capability: 'comments' },
+    { operation: 'setSubscription', capability: null },
+  ],
 })

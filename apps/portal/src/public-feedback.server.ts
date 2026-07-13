@@ -15,6 +15,7 @@ import { readEnv } from './spike.js'
 import { notionStatusMappings, publicTaxonomy } from './portal.config.js'
 import { rankDuplicateSuggestions } from './duplicate-suggestions.js'
 import { applicationErrorResponse } from './application-errors.server.js'
+import { mockConnectorRuntime } from './mock-connector.server.js'
 
 const cache = new MemoryCacheAdapter()
 const sortMap = {
@@ -57,7 +58,7 @@ const setup: NotionReadSetupConfig = {
     title: { property: 'Name', type: 'title', writable: true },
     description: { property: 'Description', type: 'rich_text', writable: true },
     feedbackType: { property: 'Type', type: 'select', writable: true },
-    status: { property: 'Status', type: 'status', writable: true },
+    status: { property: 'Status', type: 'select', writable: true },
     commentCount: { property: 'Comment count', type: 'number', writable: true },
     optional: {
       category: { property: 'Category', type: 'select', writable: true },
@@ -192,9 +193,20 @@ const setup: NotionReadSetupConfig = {
 export { cache as publicCache, setup as publicNotionSetup }
 
 export function publicReader() {
+  if (readEnv('FEEDBAX_CONNECTOR') === 'mock')
+    return mockConnectorRuntime.reader
   const token = readEnv('NOTION_TOKEN')
+  // A process-local cache cannot be invalidated reliably across Workers
+  // isolates. Cloudflare serves canonical reads until a shared cache adapter
+  // is configured; portable single-process deployments retain the fast cache.
+  const connectorCache =
+    readEnv('FEEDBAX_RATE_LIMIT_STORE') === 'cloudflare' ? undefined : cache
   return setup.dataSourceId && token
-    ? createNotionReadClient({ token, setup, cache })
+    ? createNotionReadClient({
+        token,
+        setup,
+        ...(connectorCache ? { cache: connectorCache } : {}),
+      })
     : null
 }
 

@@ -77,4 +77,34 @@ describe('application query collections', () => {
     await transaction.isPersisted.promise
     expect(persist).toHaveBeenCalledOnce()
   })
+
+  it('reconciles a canonical response without inserting a duplicate key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          items: [{ id: 'one', title: 'Optimistic', voted: false }],
+          hasMore: false,
+        }),
+      ),
+    )
+    const entry = collectionTesting.pageCollection<Item>({
+      id: `canonical-${crypto.randomUUID()}`,
+      url: '/api/items',
+      parse: (value) => value as { items: Item[]; hasMore: boolean },
+      notify: () => {},
+    })
+    await entry.collection.stateWhenReady()
+    entry.collection.utils.writeUpdate({
+      id: 'one',
+      title: 'Canonical',
+      voted: true,
+    })
+    expect(entry.collection.toArray).toHaveLength(1)
+    expect(entry.collection.state.get('one')).toMatchObject({
+      id: 'one',
+      title: 'Canonical',
+      voted: true,
+    })
+  })
 })

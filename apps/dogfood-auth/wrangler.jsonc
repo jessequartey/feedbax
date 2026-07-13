@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "feedbax-dogfood-auth",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    "FEEDBAX_ORIGIN": "https://feedbax-feedback.jessefquartey.workers.dev",
+    "GITHUB_OAUTH_CALLBACK": "https://feedbax-dogfood-auth.jessefquartey.workers.dev/callback",
+    "FEEDBAX_HANDOFF_ISSUER": "https://feedbax-dogfood-auth.jessefquartey.workers.dev",
+    "FEEDBAX_HANDOFF_AUDIENCE": "feedbax",
+    "FEEDBAX_HANDOFF_KEY_ID": "github-2026-07",
+  },
+}

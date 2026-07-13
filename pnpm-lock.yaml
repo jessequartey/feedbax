@@ -43,6 +43,19 @@ importers:
         specifier: 4.1.0
         version: 4.1.0(@types/node@22.20.1)(vite@8.1.4(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0))
 
+  apps/dogfood-auth:
+    dependencies:
+      jose:
+        specifier: 6.1.3
+        version: 6.1.3
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20260713.1
+        version: 5.20260713.1
+      wrangler:
+        specifier: 4.110.0
+        version: 4.110.0(@cloudflare/workers-types@5.20260713.1)
+
   apps/portal:
     dependencies:
       '@feedbax/auth':
@@ -90,7 +103,7 @@ importers:
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 1.44.0
-        version: 1.44.0(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(workerd@1.20260708.1)(wrangler@4.110.0)
+        version: 1.44.0(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(workerd@1.20260708.1)(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1))
       '@tanstack/router-plugin':
         specifier: 1.168.19
         version: 1.168.19(@tanstack/react-router@1.170.17(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))
@@ -108,13 +121,13 @@ importers:
         version: 5.1.4(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))
       nitro:
         specifier: 3.0.260610-beta
-        version: 3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(miniflare@4.20260708.1)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(wrangler@4.110.0)
+        version: 3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(miniflare@4.20260708.1)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1))
       vite:
         specifier: 7.3.6
         version: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)
       wrangler:
         specifier: 4.110.0
-        version: 4.110.0
+        version: 4.110.0(@cloudflare/workers-types@5.20260713.1)
 
   apps/site:
     dependencies:
@@ -178,7 +191,7 @@ importers:
         version: 5.1.4(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))
       nitro:
         specifier: 3.0.260610-beta
-        version: 3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(miniflare@4.20260708.1)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(wrangler@4.110.0)
+        version: 3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(miniflare@4.20260708.1)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1))
       tailwindcss:
         specifier: ^4.3.2
         version: 4.3.2
@@ -191,6 +204,10 @@ importers:
       '@feedbax/core':
         specifier: workspace:*
         version: link:../../packages/core
+    devDependencies:
+      '@feedbax/connector-testkit':
+        specifier: workspace:*
+        version: link:../../packages/connector-testkit
 
   deploy/cloudflare:
     dependencies:
@@ -238,6 +255,16 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
+
+  packages/connector-testkit:
+    dependencies:
+      '@feedbax/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      vitest:
+        specifier: 4.1.0
+        version: 4.1.0(@types/node@22.20.1)(vite@8.1.4(@types/node@22.20.1)(esbuild@0.28.1)(jiti@2.7.0))
 
   packages/core:
     dependencies:
@@ -397,6 +424,9 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
+
+  '@cloudflare/workers-types@5.20260713.1':
+    resolution: {integrity: sha512-4YZE9YIzr3iP9eRUV4ekZozLLsYQFFKxmMJfAcsteCuzKJ7RJrLqcCxm1aMzTE9uFcy+D6A89WE+cjJadF2c9g==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -3993,13 +4023,13 @@ snapshots:
     optionalDependencies:
       workerd: 1.20260708.1
 
-  '@cloudflare/vite-plugin@1.44.0(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(workerd@1.20260708.1)(wrangler@4.110.0)':
+  '@cloudflare/vite-plugin@1.44.0(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(workerd@1.20260708.1)(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1))':
     dependencies:
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260708.1)
       miniflare: 4.20260708.1
       unenv: 2.0.0-rc.24
       vite: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)
-      wrangler: 4.110.0
+      wrangler: 4.110.0(@cloudflare/workers-types@5.20260713.1)
       ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil
@@ -4020,6 +4050,8 @@ snapshots:
 
   '@cloudflare/workerd-windows-64@1.20260708.1':
     optional: true
+
+  '@cloudflare/workers-types@5.20260713.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
@@ -5693,7 +5725,7 @@ snapshots:
 
   entities@6.0.1: {}
 
-  env-runner@0.1.16(miniflare@4.20260708.1)(wrangler@4.110.0):
+  env-runner@0.1.16(miniflare@4.20260708.1)(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1)):
     dependencies:
       crossws: 0.4.9(srvx@0.11.21)
       exsolve: 1.1.0
@@ -5701,7 +5733,7 @@ snapshots:
       srvx: 0.11.21
     optionalDependencies:
       miniflare: 4.20260708.1
-      wrangler: 4.110.0
+      wrangler: 4.110.0(@cloudflare/workers-types@5.20260713.1)
 
   error-stack-parser-es@1.0.5: {}
 
@@ -6786,12 +6818,12 @@ snapshots:
 
   nf3@0.3.21: {}
 
-  nitro@3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(miniflare@4.20260708.1)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(wrangler@4.110.0):
+  nitro@3.0.260610-beta(chokidar@5.0.0)(jiti@2.7.0)(miniflare@4.20260708.1)(rollup@4.62.2)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1)):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.9(srvx@0.11.21)
       db0: 0.3.4
-      env-runner: 0.1.16(miniflare@4.20260708.1)(wrangler@4.110.0)
+      env-runner: 0.1.16(miniflare@4.20260708.1)(wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1))
       h3: 2.0.1-rc.22(crossws@0.4.9(srvx@0.11.21))
       hookable: 6.1.1
       nf3: 0.3.21
@@ -7460,7 +7492,7 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20260708.1
       '@cloudflare/workerd-windows-64': 1.20260708.1
 
-  wrangler@4.110.0:
+  wrangler@4.110.0(@cloudflare/workers-types@5.20260713.1):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.1(unenv@2.0.0-rc.24)(workerd@1.20260708.1)
@@ -7471,6 +7503,7 @@ snapshots:
       unenv: 2.0.0-rc.24
       workerd: 1.20260708.1
     optionalDependencies:
+      '@cloudflare/workers-types': 5.20260713.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - bufferutil

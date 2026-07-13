@@ -57,3 +57,8 @@ Turborepo stores local task results in `.turbo`. Run `pnpm build` twice to obser
 - Review [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
 
 Feedbax is MIT licensed. Its public interfaces are not stable yet.
+
+## Dogfood board
+
+Feedbax uses its own public portal for feature requests, roadmap updates, and
+rollout issues: [Feedbax feedback](https://feedbax-feedback.jessefquartey.workers.dev).

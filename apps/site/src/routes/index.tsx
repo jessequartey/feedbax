@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ArrowRight, Check, CircleDashed, Code2 } from 'lucide-react'
-import { githubUrl } from '../lib/site'
+import { feedbackPortalUrl, githubUrl } from '../lib/site'
 
 export const homepageClaims = {
   promise: 'Turn your Notion database into a customer feedback portal.',
@@ -161,11 +161,11 @@ function HomePage() {
             </Link>
             <a
               className="text-link"
-              href={`${githubUrl}/issues`}
+              href={feedbackPortalUrl}
               target="_blank"
               rel="noreferrer"
             >
-              Share your workflow
+              Share feedback
             </a>
           </div>
         </div>

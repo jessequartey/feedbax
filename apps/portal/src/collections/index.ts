@@ -492,13 +492,10 @@ async function setCollectionVote(key: string, id: string, voted: boolean) {
     if (canonical) {
       const current = collection.state.get(id)
       if (current)
-        collection.utils.writeBatch(() => {
-          collection.utils.writeDelete(id)
-          collection.utils.writeInsert({
-            ...current,
-            hasViewerVoted: canonical.voted,
-            voteCount: canonical.voteCount,
-          })
+        collection.utils.writeUpdate({
+          ...current,
+          hasViewerVoted: canonical.voted,
+          voteCount: canonical.voteCount,
         })
     }
   } finally {

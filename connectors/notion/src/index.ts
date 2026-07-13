@@ -1,6 +1,7 @@
 import type { ConnectorDescriptor } from '@feedbax/core'
 export * from './reads.js'
 export * from './mutations.js'
+export * from './runtime.js'
 
 export const NOTION_API_VERSION = '2025-09-03'
 

@@ -1,4 +1,6 @@
 export const githubUrl = 'https://github.com/jessequartey/feedbax'
+export const feedbackPortalUrl =
+  'https://feedbax-feedback.jessefquartey.workers.dev'
 
 export const statusLabels = [
   'Available',
