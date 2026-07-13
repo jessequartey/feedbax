@@ -48,4 +48,12 @@ describe('defineConfig', () => {
     expect(() => defineConfig({ ...base, roadmap: { ...base.roadmap, columnStatusIds: ['planned', 'private'] } })).toThrow(/public status/)
     expect(() => defineConfig({ ...base, roadmap: { ...base.roadmap, columnStatusIds: ['planned', 'planned'] } })).toThrow(/unique/)
   })
+  it('requires a visible changelog title', () => {
+    const base = {
+      name: 'Feedbax',
+      connector: { id: 'test', displayName: 'Test', capabilities: [] },
+    } as const
+    expect(defineConfig({ ...base, changelog: { title: 'Product updates' } }).changelog?.title).toBe('Product updates')
+    expect(() => defineConfig({ ...base, changelog: { title: '   ' } })).toThrow(/Changelog title/)
+  })
 })

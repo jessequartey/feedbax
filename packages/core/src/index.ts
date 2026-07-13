@@ -18,6 +18,12 @@ export const FeedbackTypeSchema = z.enum([
 ])
 export const RoadmapEntryIdSchema = id('RoadmapEntryId')
 export const ChangelogEntryIdSchema = id('ChangelogEntryId')
+export const ChangelogSlugSchema = z.string().trim().min(1).max(120)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+const PublicHttpUrlSchema = z.url().refine((value) => {
+  const protocol = new URL(value).protocol
+  return protocol === 'https:' || protocol === 'http:'
+}, 'Expected a public HTTP(S) URL')
 
 export type FeedbackItemId = z.infer<typeof FeedbackItemIdSchema>
 /** @deprecated Use FeedbackItemId. */
@@ -145,7 +151,6 @@ const editorialShape = {
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(20_000),
   linkedFeedbackItemIds: z.array(FeedbackItemIdSchema).readonly().default([]),
-  publishedAt: TimestampSchema.optional(),
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
 } as const
@@ -153,6 +158,7 @@ const editorialShape = {
 export const RoadmapEntrySchema = z.strictObject({
   id: RoadmapEntryIdSchema,
   ...editorialShape,
+  publishedAt: TimestampSchema.optional(),
   status: StatusSchema.nullable(),
 })
 export type RoadmapEntry = z.infer<typeof RoadmapEntrySchema>
@@ -160,7 +166,11 @@ export type RoadmapEntry = z.infer<typeof RoadmapEntrySchema>
 export const ChangelogEntrySchema = z.strictObject({
   id: ChangelogEntryIdSchema,
   ...editorialShape,
+  slug: ChangelogSlugSchema,
+  publishedAt: TimestampSchema,
   version: z.string().trim().min(1).optional(),
+  tags: z.array(TagSchema).readonly().default([]),
+  coverImageUrl: PublicHttpUrlSchema.optional(),
 })
 export type ChangelogEntry = z.infer<typeof ChangelogEntrySchema>
 
@@ -372,6 +382,12 @@ export const ChangelogPageSchema = cursorPageSchema(ChangelogEntrySchema)
 export type RoadmapPage = z.infer<typeof RoadmapPageSchema>
 export type ChangelogPage = z.infer<typeof ChangelogPageSchema>
 
+export const PublicChangelogDetailSchema = z.strictObject({
+  entry: ChangelogEntrySchema,
+  relatedFeedback: z.array(PublicFeedbackItemSchema).max(20).readonly(),
+})
+export type PublicChangelogDetail = z.infer<typeof PublicChangelogDetailSchema>
+
 export const PublicRoadmapColumnSchema = z.strictObject({
   status: StatusSchema,
   items: z.array(PublicFeedbackItemSchema).readonly(),
@@ -410,6 +426,7 @@ export interface PublicConnectorReader {
     readonly value: ChangelogPage
     readonly cacheStatus: import('./cache.js').CacheStatus
   }>
+  getChangelogEntry(slug: string): Promise<ChangelogEntry | null>
   getFeedback(feedbackItemId: FeedbackItemId): Promise<PublicFeedbackItem | null>
   listComments(
     feedbackItemId: FeedbackItemId,

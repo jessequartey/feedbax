@@ -3,9 +3,10 @@ import {
   PublicFeedbackItemSchema,
   RoadmapPageSchema,
   ChangelogPageSchema,
+  ChangelogEntrySchema,
   type PublicConnectorReader,
 } from '@feedbax/core'
-import { loadFeedbackDetail } from './server.functions.js'
+import { loadChangelogDetail, loadFeedbackDetail } from './server.functions.js'
 
 const item = PublicFeedbackItemSchema.parse({
   id: 'feedback-1', title: 'Safe detail', description: 'Useful **context**', type: 'feature',
@@ -20,7 +21,8 @@ function reader(overrides: Partial<PublicConnectorReader> = {}): PublicConnector
     listFeedback: async () => ({ value: { items: [item], hasMore: false }, cacheStatus: 'hit' }),
     listComments: async () => ({ value: { items: [], hasMore: false }, cacheStatus: 'hit' }),
     listRoadmap: async () => ({ value: RoadmapPageSchema.parse({ items: [{ id: 'roadmap-1', title: 'Next', description: 'Next', status: null, linkedFeedbackItemIds: ['feedback-1'], createdAt: item.createdAt, updatedAt: item.updatedAt }], hasMore: false }), cacheStatus: 'hit' }),
-    listChangelog: async () => ({ value: ChangelogPageSchema.parse({ items: [{ id: 'change-1', title: 'Shipped', description: 'Shipped', linkedFeedbackItemIds: ['another-item'], createdAt: item.createdAt, updatedAt: item.updatedAt }], hasMore: false }), cacheStatus: 'hit' }),
+    listChangelog: async () => ({ value: ChangelogPageSchema.parse({ items: [{ id: 'change-1', slug: 'shipped', title: 'Shipped', description: 'Shipped', publishedAt: item.createdAt, tags: [], linkedFeedbackItemIds: ['another-item'], createdAt: item.createdAt, updatedAt: item.updatedAt }], hasMore: false }), cacheStatus: 'hit' }),
+    getChangelogEntry: async () => null,
     ...overrides,
   }
 }
@@ -41,5 +43,38 @@ describe('feedback detail aggregate', () => {
     }), 'private-item')
     expect(detail).toBeNull()
     expect(secondaryReads).toBe(0)
+  })
+})
+
+describe('changelog detail aggregate', () => {
+  const release = ChangelogEntrySchema.parse({
+    id: 'release-1', slug: 'new-dashboard', title: 'New dashboard',
+    description: 'A faster dashboard.', publishedAt: item.createdAt, tags: [],
+    linkedFeedbackItemIds: ['feedback-1', 'private-feedback', 'feedback-1'],
+    createdAt: item.createdAt, updatedAt: item.updatedAt,
+  })
+
+  it('deduplicates related IDs and omits feedback outside the public boundary', async () => {
+    const requested: string[] = []
+    const detail = await loadChangelogDetail(reader({
+      getChangelogEntry: async () => release,
+      getFeedback: async (id) => {
+        requested.push(id)
+        return id === 'feedback-1' ? item : null
+      },
+    }), 'new-dashboard')
+    expect(requested).toEqual(['feedback-1', 'private-feedback'])
+    expect(detail?.relatedFeedback.map(({ id }) => id)).toEqual(['feedback-1'])
+    expect(JSON.stringify(detail)).not.toContain('private-feedback')
+  })
+
+  it('does not resolve feedback for missing or unpublished entries', async () => {
+    let reads = 0
+    const detail = await loadChangelogDetail(reader({
+      getChangelogEntry: async () => null,
+      getFeedback: async () => { reads++; return item },
+    }), 'missing-entry')
+    expect(detail).toBeNull()
+    expect(reads).toBe(0)
   })
 })

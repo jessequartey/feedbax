@@ -9,7 +9,7 @@ import {
   runNotionDoctor,
   type NotionSetupConfig,
 } from '../src/index.js'
-import { MemoryCacheAdapter, invalidateAfterMutation } from '@feedbax/core'
+import { MemoryCacheAdapter, cacheTags, invalidateAfterMutation } from '@feedbax/core'
 
 const config: NotionSetupConfig = {
   dataSourceId: 'source-id',
@@ -36,6 +36,44 @@ const source = {
     URL: { type: 'url' },
     'Comment count': { type: 'number' },
   },
+}
+
+const changelogConfig: NotionSetupConfig = {
+  ...config,
+  changelog: {
+    dataSourceId: 'changelog-id',
+    fields: {
+      title: { property: 'Name', type: 'title', writable: true },
+      description: { property: 'Description', type: 'rich_text', writable: true },
+      slug: { property: 'Slug', type: 'rich_text', writable: true },
+      publishedAt: { property: 'Published at', type: 'date', writable: true },
+      published: { property: 'Published', type: 'checkbox', writable: true },
+      version: { property: 'Version', type: 'rich_text', writable: true },
+      tags: { property: 'Tags', type: 'multi_select', writable: true },
+      coverImageUrl: { property: 'Cover image', type: 'url', writable: true },
+      linkedFeedbackItemIds: { property: 'Feedback', type: 'relation', writable: true },
+    },
+  },
+}
+
+function changelogPage(id: string, published = true, slug = 'new-dashboard') {
+  return {
+    id,
+    parent: { type: 'data_source_id', data_source_id: 'changelog-id' },
+    created_time: '2026-07-01T08:00:00Z',
+    last_edited_time: '2026-07-12T09:00:00Z',
+    properties: {
+      Name: { title: [{ plain_text: 'New dashboard' }] },
+      Description: { rich_text: [{ plain_text: 'A faster **dashboard**.' }] },
+      Slug: { rich_text: [{ plain_text: slug }] },
+      'Published at': { date: { start: '2026-07-12T08:00:00Z' } },
+      Published: { checkbox: published },
+      Version: { rich_text: [{ plain_text: 'v0.0.2' }] },
+      Tags: { multi_select: [{ name: 'Dashboard' }] },
+      'Cover image': { url: 'https://images.example/dashboard.jpg' },
+      Feedback: { relation: [{ id: 'feedback-1' }] },
+    },
+  }
 }
 
 function response(body: unknown, status = 200) {
@@ -73,6 +111,25 @@ describe('Notion setup health check', () => {
       calls.map((call) => (call[1] as RequestInit | undefined)?.method),
     ).toEqual(['GET', 'GET', 'POST', 'GET'])
     expect((calls[2]?.[1] as RequestInit).body).toBe('{"page_size":1}')
+  })
+
+  it('validates a configured changelog data source without writing content', async () => {
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/users/me')) return response({ object: 'user' })
+      if (url.endsWith('/data_sources/source-id')) return response(source)
+      if (url.endsWith('/data_sources/source-id/query')) return response({ results: [{ id: 'page-id' }] })
+      if (url.includes('/comments?')) return response({ results: [] })
+      if (url.endsWith('/data_sources/changelog-id')) return response({ properties: {
+        Name: { type: 'title' }, Description: { type: 'rich_text' }, Slug: { type: 'rich_text' },
+        'Published at': { type: 'date' }, Published: { type: 'checkbox' }, Version: { type: 'rich_text' },
+        Tags: { type: 'multi_select' }, 'Cover image': { type: 'url' }, Feedback: { type: 'relation' },
+      } })
+      return response({}, 500)
+    }) as unknown as typeof fetch
+    const result = await checkNotionSetup(changelogConfig, { token: 'secret', fetch: fetcher })
+    expect(result.checks.at(-1)).toMatchObject({ code: 'CHANGELOG_OK', status: 'pass' })
+    expect(vi.mocked(fetcher).mock.calls.every((call) => (call[1] as RequestInit | undefined)?.method !== 'PATCH')).toBe(true)
   })
 
   it('gives an exact repair for a missing token without making a request', async () => {
@@ -525,5 +582,62 @@ describe('Notion best-effort voting', () => {
     ])
     expect(results.at(-1)?.voteCount).toBe(2)
     expect(votes).toHaveLength(2)
+  })
+})
+
+describe('Notion public changelog reads', () => {
+  it('maps published releases, sends public filters, and resolves exact slugs', async () => {
+    const bodies: unknown[] = []
+    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)))
+      return response({ results: [changelogPage('release-1')], has_more: false, next_cursor: null })
+    }) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher })
+    const page = await reader.listChangelog({ pageSize: 20 })
+    expect(page.value.items[0]).toMatchObject({
+      id: 'release-1', slug: 'new-dashboard', version: 'v0.0.2',
+      publishedAt: '2026-07-12T08:00:00Z',
+      tags: [{ id: 'dashboard', name: 'Dashboard' }],
+      coverImageUrl: 'https://images.example/dashboard.jpg',
+      linkedFeedbackItemIds: ['feedback-1'],
+    })
+    expect(await reader.getChangelogEntry('new-dashboard')).toMatchObject({ id: 'release-1' })
+    expect(JSON.stringify(bodies[0])).toContain('Published at')
+    expect(JSON.stringify(bodies[0])).toContain('descending')
+    expect(JSON.stringify(bodies[1])).toContain('new-dashboard')
+  })
+
+  it('normalizes date-only Notion releases to a public UTC timestamp', async () => {
+    const release = changelogPage('date-only')
+    release.properties['Published at'] = { date: { start: '2026-07-12' } }
+    const fetcher = vi.fn(async () => response({ results: [release], has_more: false, next_cursor: null })) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher })
+    expect((await reader.listChangelog({ pageSize: 20 })).value.items[0]?.publishedAt).toBe('2026-07-12T00:00:00Z')
+  })
+
+  it('never returns drafts or malformed records and detects duplicate slugs', async () => {
+    let results = [
+      changelogPage('draft', false, 'internal-launch'),
+      changelogPage('invalid', true, 'Internal Launch'),
+    ]
+    const fetcher = vi.fn(async () => response({ results, has_more: false, next_cursor: null })) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher })
+    const page = await reader.listChangelog({ pageSize: 20 })
+    expect(page.value.items).toEqual([])
+    expect(JSON.stringify(page.value)).not.toContain('internal-launch')
+    results = [changelogPage('one'), changelogPage('two')]
+    await expect(reader.getChangelogEntry('new-dashboard')).rejects.toThrow('Changelog configuration is invalid.')
+  })
+
+  it('keeps cached releases stable until changelog cache invalidation', async () => {
+    const cache = new MemoryCacheAdapter()
+    let published = true
+    const fetcher = vi.fn(async () => response({ results: [changelogPage('release-1', published)], has_more: false, next_cursor: null })) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher, cache })
+    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toHaveLength(1)
+    published = false
+    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toHaveLength(1)
+    await cache.invalidateTags([cacheTags.changelog('notion')])
+    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toEqual([])
   })
 })

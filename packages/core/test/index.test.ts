@@ -10,6 +10,8 @@ import {
   PrivateVoteSchema,
   PublicFeedbackItemSchema,
   PublicRoadmapPageSchema,
+  ChangelogEntrySchema,
+  PublicChangelogDetailSchema,
   RoadmapEntrySchema,
   SubmitFeedbackInputSchema,
   TimestampSchema,
@@ -203,6 +205,20 @@ describe('canonical domain schemas', () => {
       updatedAt: now,
     })
     expect(entry.linkedFeedbackItemIds).toHaveLength(2)
+  })
+
+  it('validates public changelog releases and their detail aggregate', () => {
+    const release = ChangelogEntrySchema.parse({
+      id: 'release-1', slug: 'new-dashboard', title: 'New dashboard',
+      description: 'A faster **dashboard**.', publishedAt: now,
+      version: 'v0.0.2', tags: [{ id: 'dashboard', name: 'Dashboard', order: 0 }],
+      coverImageUrl: 'https://images.example/dashboard.jpg',
+      linkedFeedbackItemIds: ['feedback-1'], createdAt: now, updatedAt: now,
+    })
+    expect(PublicChangelogDetailSchema.parse({ entry: release, relatedFeedback: [] }).entry.slug).toBe('new-dashboard')
+    expect(() => ChangelogEntrySchema.parse({ ...release, slug: 'New Dashboard' })).toThrow()
+    expect(() => ChangelogEntrySchema.parse({ ...release, publishedAt: undefined })).toThrow()
+    expect(() => ChangelogEntrySchema.parse({ ...release, coverImageUrl: 'javascript:alert(1)' })).toThrow()
   })
 
   it('validates grouped public roadmap pages and unique columns', () => {

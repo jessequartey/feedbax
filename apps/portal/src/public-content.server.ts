@@ -5,9 +5,6 @@ import {
   FeedbackFilterSchema,
   PublicCommentPageSchema,
   PublicRoadmapPageSchema,
-  RoadmapPageSchema,
-  type ChangelogPage,
-  type RoadmapPage,
   type PublicConnectorReader,
   type PublicFeedbackItem,
 } from '@feedbax/core'
@@ -51,28 +48,34 @@ export async function commentListResponse(request: Request) {
 
 async function editorialResponse(
   request: Request,
-  kind: 'roadmap' | 'changelog',
+  reader: Pick<PublicConnectorReader, 'listChangelog'> | null,
 ) {
   try {
     const page = pageRequest(new URL(request.url))
-    const reader = publicReader()
     const empty = { items: [], hasMore: false }
     if (!reader)
       return Response.json(
-        kind === 'roadmap'
-          ? RoadmapPageSchema.parse(empty)
-          : ChangelogPageSchema.parse(empty),
+        ChangelogPageSchema.parse(empty),
         { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } },
       )
-    const result = kind === 'roadmap'
-      ? await reader.listRoadmap(page)
-      : await reader.listChangelog(page)
-    const value: RoadmapPage | ChangelogPage = result.value
-    return Response.json(value, {
+    const result = await reader.listChangelog(page)
+    return Response.json(ChangelogPageSchema.parse({
+      ...result.value,
+      items: result.value.items.map((entry) => ({
+        ...entry,
+        linkedFeedbackItemIds: [],
+      })),
+    }), {
       headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus },
     })
-  } catch {
-    return failure(`The ${kind} query is invalid.`)
+  } catch (error) {
+    const invalid = error instanceof Error && error.name === 'ZodError'
+    return invalid
+      ? failure('The changelog query is invalid.')
+      : Response.json(
+          { error: { code: 'CONNECTOR_UNAVAILABLE', message: 'The changelog is temporarily unavailable.' } },
+          { status: 503, headers: { 'cache-control': 'no-store' } },
+        )
   }
 }
 
@@ -135,5 +138,7 @@ export async function roadmapListResponse(
         )
   }
 }
-export const changelogListResponse = (request: Request) =>
-  editorialResponse(request, 'changelog')
+export const changelogListResponse = (
+  request: Request,
+  reader: Pick<PublicConnectorReader, 'listChangelog'> | null = publicReader(),
+) => editorialResponse(request, reader)

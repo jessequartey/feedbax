@@ -33,6 +33,10 @@ export default {
     description: 'Follow what we are considering, building, and shipping.',
     columnStatusIds: ['open', 'planned', 'in-progress', 'complete'],
   },
+  changelog: {
+    title: 'Product updates',
+    description: 'New features, improvements, and fixes from the Feedbax team.',
+  },
   authentication: {
     audience: 'feedbax',
     loginUrl:
@@ -99,6 +103,22 @@ export default {
             authorName: { property: 'Author name', type: 'rich_text', writable: true },
             authorAvatar: { property: 'Author avatar', type: 'url', writable: true },
             authorKind: { property: 'Author kind', type: 'select', writable: true },
+          },
+        },
+      } : {}),
+      ...(process.env.NOTION_CHANGELOG_DATA_SOURCE_ID ? {
+        changelog: {
+          dataSourceId: process.env.NOTION_CHANGELOG_DATA_SOURCE_ID,
+          fields: {
+            title: { property: 'Name', type: 'title', writable: true },
+            description: { property: 'Description', type: 'rich_text', writable: true },
+            slug: { property: 'Slug', type: 'rich_text', writable: true },
+            publishedAt: { property: 'Published at', type: 'date', writable: true },
+            published: { property: 'Published', type: 'checkbox', writable: true },
+            version: { property: 'Version', type: 'rich_text', writable: true },
+            tags: { property: 'Tags', type: 'multi_select', writable: true },
+            coverImageUrl: { property: 'Cover image', type: 'url', writable: true },
+            linkedFeedbackItemIds: { property: 'Feedback', type: 'relation', writable: true },
           },
         },
       } : {}),

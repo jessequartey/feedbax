@@ -4,7 +4,7 @@ import {
   commentListResponse,
   roadmapListResponse,
 } from './public-content.server.js'
-import { PublicFeedbackItemSchema } from '@feedbax/core'
+import { ChangelogEntrySchema, PublicFeedbackItemSchema } from '@feedbax/core'
 
 describe('canonical public content APIs', () => {
   it('returns canonical empty comment pages when interaction storage is absent', async () => {
@@ -65,5 +65,34 @@ describe('canonical public content APIs', () => {
       expect(response.status).toBe(400)
       expect(JSON.stringify(await response.json())).not.toContain('private-workflow')
     }
+  })
+
+  it('returns a strict paginated changelog response with cache state', async () => {
+    const release = ChangelogEntrySchema.parse({
+      id: 'release-1', slug: 'new-dashboard', title: 'New dashboard', description: 'Shipped.',
+      publishedAt: '2026-07-12T08:00:00Z', tags: [], linkedFeedbackItemIds: [],
+      createdAt: '2026-07-11T08:00:00Z', updatedAt: '2026-07-12T08:00:00Z',
+    })
+    let page: unknown
+    const response = await changelogListResponse(
+      new Request('https://board.test/api/changelog?cursor=opaque&limit=12'),
+      { listChangelog: async (value) => {
+        page = value
+        return { value: { items: [release], hasMore: true, nextCursor: 'next' }, cacheStatus: 'miss' }
+      } },
+    )
+    expect(page).toEqual({ cursor: 'opaque', pageSize: 12 })
+    expect(await response.json()).toMatchObject({ items: [{ slug: 'new-dashboard', linkedFeedbackItemIds: [] }], hasMore: true, nextCursor: 'next' })
+    expect(response.headers.get('x-feedbax-cache')).toBe('miss')
+  })
+
+  it('separates invalid changelog queries from sanitized connector failures', async () => {
+    expect((await changelogListResponse(new Request('https://board.test/api/changelog?limit=101'), null)).status).toBe(400)
+    const response = await changelogListResponse(
+      new Request('https://board.test/api/changelog'),
+      { listChangelog: async () => { throw new Error('secret workspace response') } },
+    )
+    expect(response.status).toBe(503)
+    expect(JSON.stringify(await response.json())).not.toContain('secret workspace response')
   })
 })

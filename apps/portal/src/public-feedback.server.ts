@@ -82,6 +82,20 @@ const setup: NotionReadSetupConfig = {
       authorKind: { property: 'Author kind', type: 'select', writable: true },
     },
   } } : {}),
+  ...(readEnv('NOTION_CHANGELOG_DATA_SOURCE_ID') ? { changelog: {
+    dataSourceId: readEnv('NOTION_CHANGELOG_DATA_SOURCE_ID')!,
+    fields: {
+      title: { property: 'Name', type: 'title', writable: true },
+      description: { property: 'Description', type: 'rich_text', writable: true },
+      slug: { property: 'Slug', type: 'rich_text', writable: true },
+      publishedAt: { property: 'Published at', type: 'date', writable: true },
+      published: { property: 'Published', type: 'checkbox', writable: true },
+      version: { property: 'Version', type: 'rich_text', writable: true },
+      tags: { property: 'Tags', type: 'multi_select', writable: true },
+      coverImageUrl: { property: 'Cover image', type: 'url', writable: true },
+      linkedFeedbackItemIds: { property: 'Feedback', type: 'relation', writable: true },
+    },
+  } } : {}),
 }
 
 export { cache as publicCache, setup as publicNotionSetup }

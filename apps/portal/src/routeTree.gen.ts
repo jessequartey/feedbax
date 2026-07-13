@@ -10,8 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
+import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FeedbackIdRouteImport } from './routes/feedback.$id'
+import { Route as ChangelogSlugRouteImport } from './routes/changelog_.$slug'
 import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
 import { Route as ApiVoteStateRouteImport } from './routes/api.vote-state'
@@ -32,6 +34,11 @@ const RoadmapRoute = RoadmapRouteImport.update({
   path: '/roadmap',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -40,6 +47,11 @@ const IndexRoute = IndexRouteImport.update({
 const FeedbackIdRoute = FeedbackIdRouteImport.update({
   id: '/feedback/$id',
   path: '/feedback/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangelogSlugRoute = ChangelogSlugRouteImport.update({
+  id: '/changelog_/$slug',
+  path: '/changelog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthLogoutRoute = AuthLogoutRouteImport.update({
@@ -115,6 +127,7 @@ const ApiFeedbackIdRoute = ApiFeedbackIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/changelog': typeof ChangelogRoute
   '/roadmap': typeof RoadmapRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
@@ -128,12 +141,14 @@ export interface FileRoutesByFullPath {
   '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/changelog/$slug': typeof ChangelogSlugRoute
   '/feedback/$id': typeof FeedbackIdRoute
   '/api/feedback/$id': typeof ApiFeedbackIdRoute
   '/api/feedback/suggestions': typeof ApiFeedbackSuggestionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/changelog': typeof ChangelogRoute
   '/roadmap': typeof RoadmapRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
@@ -147,6 +162,7 @@ export interface FileRoutesByTo {
   '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/changelog/$slug': typeof ChangelogSlugRoute
   '/feedback/$id': typeof FeedbackIdRoute
   '/api/feedback/$id': typeof ApiFeedbackIdRoute
   '/api/feedback/suggestions': typeof ApiFeedbackSuggestionsRoute
@@ -154,6 +170,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/changelog': typeof ChangelogRoute
   '/roadmap': typeof RoadmapRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
@@ -167,6 +184,7 @@ export interface FileRoutesById {
   '/api/vote-state': typeof ApiVoteStateRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/changelog_/$slug': typeof ChangelogSlugRoute
   '/feedback/$id': typeof FeedbackIdRoute
   '/api/feedback/$id': typeof ApiFeedbackIdRoute
   '/api/feedback/suggestions': typeof ApiFeedbackSuggestionsRoute
@@ -175,6 +193,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/changelog'
     | '/roadmap'
     | '/api/auth-session'
     | '/api/cache'
@@ -188,12 +207,14 @@ export interface FileRouteTypes {
     | '/api/vote-state'
     | '/auth/handoff'
     | '/auth/logout'
+    | '/changelog/$slug'
     | '/feedback/$id'
     | '/api/feedback/$id'
     | '/api/feedback/suggestions'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/changelog'
     | '/roadmap'
     | '/api/auth-session'
     | '/api/cache'
@@ -207,12 +228,14 @@ export interface FileRouteTypes {
     | '/api/vote-state'
     | '/auth/handoff'
     | '/auth/logout'
+    | '/changelog/$slug'
     | '/feedback/$id'
     | '/api/feedback/$id'
     | '/api/feedback/suggestions'
   id:
     | '__root__'
     | '/'
+    | '/changelog'
     | '/roadmap'
     | '/api/auth-session'
     | '/api/cache'
@@ -226,6 +249,7 @@ export interface FileRouteTypes {
     | '/api/vote-state'
     | '/auth/handoff'
     | '/auth/logout'
+    | '/changelog_/$slug'
     | '/feedback/$id'
     | '/api/feedback/$id'
     | '/api/feedback/suggestions'
@@ -233,6 +257,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChangelogRoute: typeof ChangelogRoute
   RoadmapRoute: typeof RoadmapRoute
   ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiCacheRoute: typeof ApiCacheRoute
@@ -246,6 +271,7 @@ export interface RootRouteChildren {
   ApiVoteStateRoute: typeof ApiVoteStateRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
+  ChangelogSlugRoute: typeof ChangelogSlugRoute
   FeedbackIdRoute: typeof FeedbackIdRoute
 }
 
@@ -256,6 +282,13 @@ declare module '@tanstack/react-router' {
       path: '/roadmap'
       fullPath: '/roadmap'
       preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changelog': {
+      id: '/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -270,6 +303,13 @@ declare module '@tanstack/react-router' {
       path: '/feedback/$id'
       fullPath: '/feedback/$id'
       preLoaderRoute: typeof FeedbackIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changelog_/$slug': {
+      id: '/changelog_/$slug'
+      path: '/changelog/$slug'
+      fullPath: '/changelog/$slug'
+      preLoaderRoute: typeof ChangelogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/logout': {
@@ -389,6 +429,7 @@ const ApiFeedbackRouteWithChildren = ApiFeedbackRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChangelogRoute: ChangelogRoute,
   RoadmapRoute: RoadmapRoute,
   ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiCacheRoute: ApiCacheRoute,
@@ -402,6 +443,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoteStateRoute: ApiVoteStateRoute,
   AuthHandoffRoute: AuthHandoffRoute,
   AuthLogoutRoute: AuthLogoutRoute,
+  ChangelogSlugRoute: ChangelogSlugRoute,
   FeedbackIdRoute: FeedbackIdRoute,
 }
 export const routeTree = rootRouteImport

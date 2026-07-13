@@ -1,5 +1,6 @@
 import {
   ChangelogPageSchema,
+  ChangelogEntrySchema,
   CursorPageRequestSchema,
   FeedbackFilterSchema,
   PublicFeedbackPageSchema,
@@ -13,13 +14,14 @@ import {
   type CacheObserver,
   type CacheScheduler,
   type ChangelogPage,
+  type ChangelogEntry,
   type CursorPageRequest,
   type FeedbackFilter,
   type FeedbackType,
   type PublicConnectorReader,
   type RoadmapPage,
 } from '@feedbax/core'
-import type { NotionFieldMapping, NotionSetupConfig } from './index.js'
+import type { NotionChangelogSetup, NotionFieldMapping, NotionSetupConfig } from './index.js'
 
 const API = 'https://api.notion.com/v1'
 const VERSION = '2025-09-03'
@@ -37,7 +39,6 @@ export interface NotionEditorialConfig {
 
 export interface NotionReadSetupConfig extends NotionSetupConfig {
   readonly roadmap?: NotionEditorialConfig
-  readonly changelog?: NotionEditorialConfig
 }
 
 export interface NotionReadClientOptions {
@@ -66,6 +67,7 @@ type NotionPage = {
       number?: number | null
       checkbox?: boolean
       url?: string | null
+      date?: { start?: string | null } | null
       status?: { id?: string; name?: string } | null
       select?: { id?: string; name?: string } | null
       relation?: { id: string }[]
@@ -172,6 +174,7 @@ export function createNotionReadClient(
     page: CursorPageRequest,
     filter?: FeedbackFilter,
     extraPredicates: readonly Record<string, unknown>[] = [],
+    sorts?: readonly Record<string, unknown>[],
   ): Promise<QueryResponse> => {
     const body: Record<string, unknown> = { page_size: page.pageSize }
     if (page.cursor) body.start_cursor = page.cursor
@@ -190,6 +193,7 @@ export function createNotionReadClient(
           direction: filter.sort === 'oldest' ? 'ascending' : 'descending',
             },
       ]
+    if (sorts) body.sorts = sorts
     const predicates: Record<string, unknown>[] = [...extraPredicates]
     if (filter?.search)
       predicates.push({
@@ -277,6 +281,41 @@ export function createNotionReadClient(
     createdAt: item.created_time,
     updatedAt: item.last_edited_time,
   })
+  const changelogItem = (
+    item: NotionPage,
+    setup: NotionChangelogSetup,
+  ): ChangelogEntry | null => {
+    if (item.parent?.type && (
+      item.parent.type !== 'data_source_id' ||
+      item.parent.data_source_id !== setup.dataSourceId
+    )) return null
+    if (item.properties[setup.fields.published.property]?.checkbox !== true)
+      return null
+    const publishedValue = item.properties[setup.fields.publishedAt.property]?.date?.start
+    const publishedAt = publishedValue && /^\d{4}-\d{2}-\d{2}$/.test(publishedValue)
+      ? `${publishedValue}T00:00:00Z`
+      : publishedValue
+    const parsed = ChangelogEntrySchema.safeParse({
+      id: item.id,
+      title: text(item, setup.fields.title),
+      description: text(item, setup.fields.description),
+      slug: text(item, setup.fields.slug),
+      publishedAt,
+      ...(setup.fields.version && text(item, setup.fields.version)
+        ? { version: text(item, setup.fields.version) }
+        : {}),
+      tags: tags(item, setup.fields.tags),
+      ...(setup.fields.coverImageUrl && item.properties[setup.fields.coverImageUrl.property]?.url
+        ? { coverImageUrl: item.properties[setup.fields.coverImageUrl.property]!.url! }
+        : {}),
+      linkedFeedbackItemIds: setup.fields.linkedFeedbackItemIds
+        ? (item.properties[setup.fields.linkedFeedbackItemIds.property]?.relation ?? []).map(({ id }) => id)
+        : [],
+      createdAt: item.created_time,
+      updatedAt: item.last_edited_time,
+    })
+    return parsed.success ? parsed.data : null
+  }
 
   return {
     async listFeedback(rawFilter, rawPage) {
@@ -398,28 +437,43 @@ export function createNotionReadClient(
         key: `notion:${setup.dataSourceId}:changelog:${stable(page)}`,
         tags: [cacheTags.changelog('notion')],
         load: async (): Promise<ChangelogPage> => {
-          const result = await query(setup.dataSourceId, page)
+          const result = await query(setup.dataSourceId, page, undefined, [
+            { property: setup.fields.published.property, checkbox: { equals: true } },
+            { property: setup.fields.publishedAt.property, date: { is_not_empty: true } },
+          ], [{ property: setup.fields.publishedAt.property, direction: 'descending' }])
           return ChangelogPageSchema.parse({
             ...pageShape(result),
-            items: result.results!.map((item) => ({
-              id: item.id,
-              title: text(item, setup.fields.title),
-              description: text(item, setup.fields.description),
-              version: setup.fields.version
-                ? text(item, setup.fields.version) || undefined
-                : undefined,
-              linkedFeedbackItemIds: setup.fields.linkedFeedbackItemIds
-                ? (
-                    item.properties[setup.fields.linkedFeedbackItemIds.property]
-                      ?.relation ?? []
-                  ).map(({ id }) => id)
-                : [],
-              createdAt: item.created_time,
-              updatedAt: item.last_edited_time,
-            })),
+            items: result.results!.flatMap((item) => {
+              const mapped = changelogItem(item, setup)
+              return mapped ? [mapped] : []
+            }),
           })
         },
       })
+    },
+    async getChangelogEntry(slug) {
+      const setup = options.setup.changelog
+      if (!setup) return null
+      const result = await cachedRead({
+        ...common,
+        key: `notion:${setup.dataSourceId}:changelog-entry:${slug}`,
+        tags: [cacheTags.changelog('notion')],
+        load: async () => {
+          const response = await query(setup.dataSourceId, { pageSize: 2 }, undefined, [
+            { property: setup.fields.slug.property, rich_text: { equals: slug } },
+            { property: setup.fields.published.property, checkbox: { equals: true } },
+            { property: setup.fields.publishedAt.property, date: { is_not_empty: true } },
+          ])
+          const entries = response.results!.flatMap((item) => {
+            const mapped = changelogItem(item, setup)
+            return mapped ? [mapped] : []
+          })
+          if (entries.length > 1)
+            throw publicError('Changelog configuration is invalid.')
+          return entries[0] ?? null
+        },
+      })
+      return result.value
     },
     async updateCommentCount(feedbackItemId, count) {
       const response = await fetcher(

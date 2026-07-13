@@ -78,6 +78,10 @@ export interface FeedbaxConfig {
     readonly description?: string
     readonly columnStatusIds: readonly string[]
   }
+  readonly changelog?: {
+    readonly title: string
+    readonly description?: string
+  }
   readonly authentication?: SignedHandoffConfig
   readonly mutationProtection?: MutationProtectionConfig
   readonly connector:
@@ -103,5 +107,7 @@ export const defineConfig = (config: FeedbaxConfig): FeedbaxConfig => {
     if (columns.some((id) => !known.has(id)))
       throw new Error('Every roadmap column must reference a public status.')
   }
+  if (config.changelog && !config.changelog.title.trim())
+    throw new Error('Changelog title is required.')
   return config
 }

@@ -41,6 +41,11 @@ export const publicRoadmap = {
   columnStatusIds: ['open', 'planned', 'in-progress', 'complete'],
 } as const
 
+export const publicChangelog = {
+  title: 'Product updates',
+  description: 'New features, improvements, and fixes from the Feedbax team.',
+} as const
+
 // Canonical public IDs map to Notion workflow values. Unmapped values stay private.
 export const notionStatusMappings = {
   open: ['Open'],
