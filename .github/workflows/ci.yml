@@ -88,6 +88,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm notion:prepare-smoke
       - run: pnpm notion:doctor
       - run: pnpm test:notion-smoke
 
