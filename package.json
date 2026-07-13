@@ -16,7 +16,7 @@
     "test:e2e": "playwright test --config playwright.e2e.config.ts",
     "test:notion-smoke": "playwright test --config playwright.notion.config.ts",
     "test:a11y": "playwright test --config playwright.config.ts",
-    "notion:doctor": "pnpm --filter @feedbax/notion build && node scripts/notion-doctor.mjs",
+    "notion:doctor": "pnpm turbo run build --filter=@feedbax/notion && node scripts/notion-doctor.mjs",
     "notion:provision": "node scripts/provision-notion.mjs",
     "notion:seed-dogfood": "node scripts/seed-dogfood.mjs",
     "dev": "turbo run dev --parallel",

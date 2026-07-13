@@ -23,7 +23,7 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: {
     command:
-      'pnpm --filter @feedbax/config build && pnpm --filter @feedbax/portal exec vite dev --port 3100',
+      'pnpm turbo run build --filter=@feedbax/portal^... && pnpm --filter @feedbax/portal exec vite dev --port 3100',
     cwd: '.',
     url: 'http://localhost:3100',
     reuseExistingServer: !process.env.CI,

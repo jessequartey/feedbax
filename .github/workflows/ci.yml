@@ -99,9 +99,9 @@ jobs:
       matrix:
         include:
           - name: Cloudflare
-            command: pnpm --filter @feedbax/deploy-cloudflare build
+            command: pnpm turbo run build --filter=@feedbax/deploy-cloudflare
           - name: Vercel
-            command: pnpm --filter @feedbax/deploy-vercel build
+            command: pnpm turbo run build --filter=@feedbax/deploy-vercel
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

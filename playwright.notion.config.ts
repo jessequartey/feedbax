@@ -16,7 +16,7 @@ export default defineConfig({
   projects: [{ name: 'notion-chromium', use: { browserName: 'chromium' } }],
   webServer: {
     command:
-      'pnpm --filter @feedbax/config build && pnpm --filter @feedbax/portal exec vite dev --port 3200',
+      'pnpm turbo run build --filter=@feedbax/portal^... && pnpm --filter @feedbax/portal exec vite dev --port 3200',
     cwd: '.',
     url: 'http://localhost:3200',
     reuseExistingServer: !process.env.CI,
