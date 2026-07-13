@@ -2,6 +2,7 @@ import {
   ChangelogPageSchema,
   ChangelogEntrySchema,
   CursorPageRequestSchema,
+  FeedbackItemIdSchema,
   FeedbackFilterSchema,
   PublicFeedbackPageSchema,
   PublicFeedbackItemSchema,
@@ -316,6 +317,24 @@ export function createNotionReadClient(
     })
     return parsed.success ? parsed.data : null
   }
+  const loadChangelogPage = async (
+    setup: NotionChangelogSetup,
+    page: CursorPageRequest,
+    predicates: readonly Record<string, unknown>[] = [],
+  ): Promise<ChangelogPage> => {
+    const result = await query(setup.dataSourceId, page, undefined, [
+      { property: setup.fields.published.property, checkbox: { equals: true } },
+      { property: setup.fields.publishedAt.property, date: { is_not_empty: true } },
+      ...predicates,
+    ], [{ property: setup.fields.publishedAt.property, direction: 'descending' }])
+    return ChangelogPageSchema.parse({
+      ...pageShape(result),
+      items: result.results!.flatMap((item) => {
+        const mapped = changelogItem(item, setup)
+        return mapped ? [mapped] : []
+      }),
+    })
+  }
 
   return {
     async listFeedback(rawFilter, rawPage) {
@@ -436,19 +455,30 @@ export function createNotionReadClient(
         ...common,
         key: `notion:${setup.dataSourceId}:changelog:${stable(page)}`,
         tags: [cacheTags.changelog('notion')],
-        load: async (): Promise<ChangelogPage> => {
-          const result = await query(setup.dataSourceId, page, undefined, [
-            { property: setup.fields.published.property, checkbox: { equals: true } },
-            { property: setup.fields.publishedAt.property, date: { is_not_empty: true } },
-          ], [{ property: setup.fields.publishedAt.property, direction: 'descending' }])
-          return ChangelogPageSchema.parse({
-            ...pageShape(result),
-            items: result.results!.flatMap((item) => {
-              const mapped = changelogItem(item, setup)
-              return mapped ? [mapped] : []
-            }),
-          })
-        },
+        load: () => loadChangelogPage(setup, page),
+      })
+    },
+    async listChangelogForFeedback(feedbackItemId, rawPage) {
+      const id = FeedbackItemIdSchema.parse(feedbackItemId)
+      const page = CursorPageRequestSchema.parse(rawPage)
+      const setup = options.setup.changelog
+      const relation = setup?.fields.linkedFeedbackItemIds
+      if (!setup || !relation)
+        return {
+          value: ChangelogPageSchema.parse({ items: [], hasMore: false }),
+          cacheStatus: 'bypass' as const,
+        }
+      return cachedRead({
+        ...common,
+        key: `notion:${setup.dataSourceId}:changelog-for-feedback:${id}:${stable(page)}`,
+        tags: [
+          cacheTags.feedback('notion'),
+          cacheTags.changelog('notion'),
+        ],
+        load: () => loadChangelogPage(setup, page, [{
+          property: relation.property,
+          relation: { contains: id },
+        }]),
       })
     },
     async getChangelogEntry(slug) {

@@ -12,10 +12,10 @@ export default {
   },
   publicTaxonomy: {
     statuses: [
-      { id: 'open', name: 'Open', order: 0 },
-      { id: 'planned', name: 'Planned', order: 1 },
-      { id: 'in-progress', name: 'In progress', order: 2 },
-      { id: 'complete', name: 'Complete', order: 3 },
+      { id: 'open', name: 'Open', order: 0, isTerminal: false },
+      { id: 'planned', name: 'Planned', order: 1, isTerminal: false },
+      { id: 'in-progress', name: 'In progress', order: 2, isTerminal: false },
+      { id: 'complete', name: 'Complete', order: 3, isTerminal: true },
     ],
     categories: [
       { id: 'feature', name: 'Feature', order: 0 },

@@ -36,18 +36,28 @@ export async function loadFeedbackDetail(
   const item = await reader.getFeedback(id)
   if (!item) return null
   const page = CursorPageRequestSchema.parse({ pageSize: 100 })
-  const [comments, roadmap, changelog] = await Promise.all([
+  const releasePage = CursorPageRequestSchema.parse({ pageSize: 20 })
+  const [comments, roadmap, releases] = await Promise.all([
     reader.listComments(id, page),
     reader.listRoadmap(page),
-    reader.listChangelog(page),
+    item.status?.isTerminal
+      ? reader.listChangelogForFeedback(id, releasePage)
+      : Promise.resolve({
+          value: { items: [], hasMore: false } as const,
+          cacheStatus: 'bypass' as const,
+        }),
   ])
   return PublicFeedbackDetailSchema.parse({
     item,
     comments: comments.value,
     roadmap: roadmap.value.items.filter((entry) => entry.linkedFeedbackItemIds.includes(id)),
-    changelog: changelog.value.items
-      .filter((entry) => entry.linkedFeedbackItemIds.includes(id))
-      .map((entry) => ({ ...entry, linkedFeedbackItemIds: [id] })),
+    releases: releases.value.items.map((entry) => ({
+      changelogEntryId: entry.id,
+      slug: entry.slug,
+      title: entry.title,
+      publishedAt: entry.publishedAt,
+      ...(entry.version ? { version: entry.version } : {}),
+    })),
     subscription: { enabled: portalPublicConfig.subscriptions.enabled },
   })
 }
@@ -68,7 +78,7 @@ export async function loadChangelogDetail(
   if (!entry) return null
   const ids = [...new Set(entry.linkedFeedbackItemIds)].slice(0, 20)
   const related = (await Promise.all(ids.map((id) => reader.getFeedback(id))))
-    .filter((item) => item !== null)
+    .flatMap((item) => item?.status?.isTerminal ? [item] : [])
   return PublicChangelogDetailSchema.parse({
     entry: { ...entry, linkedFeedbackItemIds: related.map(({ id }) => id) },
     relatedFeedback: related,

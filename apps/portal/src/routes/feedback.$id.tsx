@@ -92,7 +92,7 @@ function FeedbackDetailPage() {
     const next = !subscribed
     setPending('subscribe'); setMessage('')
     try {
-      await mutate('/api/subscribe', { feedbackItemId: item.id, subscribed: next })
+      await mutate('/api/subscribe', { target: { type: 'feedback', id: item.id }, subscribed: next })
       setSubscribed(next); setMessage(next ? 'You’re subscribed to updates.' : 'Subscription removed.')
     } catch (error) { setMessage((error as Error).message) } finally { setPending(null) }
   }
@@ -146,7 +146,7 @@ function FeedbackDetailPage() {
         <dl><div><dt>Status</dt><dd>{item.status?.name ?? 'No status'}</dd></div><div><dt>Type</dt><dd>{item.type}</dd></div>{item.category ? <div><dt>Category</dt><dd>{item.category.name}</dd></div> : null}<div><dt>Votes</dt><dd>{votes}</dd></div></dl>
         {item.tags.length ? <div className="detail-tags">{item.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div> : null}
         {detail.subscription.enabled ? <button className="secondary-button subscribe-button" type="button" aria-pressed={subscribed} disabled={pending === 'subscribe'} onClick={() => void subscribe()}>{subscribed ? 'Subscribed' : 'Subscribe to updates'}</button> : null}
-        {detail.roadmap.length || detail.changelog.length ? <section className="related"><h2>Related activity</h2>{detail.roadmap.map((entry) => <a href="/roadmap" key={entry.id}><small>Roadmap{entry.status ? ` · ${entry.status.name}` : ''}</small><strong>{entry.title}</strong></a>)}{detail.changelog.map((entry) => <a href={`/changelog/${encodeURIComponent(entry.slug)}`} key={entry.id}><small>Shipped{entry.version ? ` · ${entry.version}` : ''}</small><strong>{entry.title}</strong></a>)}</section> : null}
+        {detail.roadmap.length || detail.releases.length ? <section className="related"><h2>Related activity</h2>{detail.roadmap.map((entry) => <a href="/roadmap" key={entry.id}><small>Roadmap{entry.status ? ` · ${entry.status.name}` : ''}</small><strong>{entry.title}</strong></a>)}{detail.releases.map((release) => <a href={`/changelog/${encodeURIComponent(release.slug)}`} key={release.changelogEntryId}><small>{item.status?.name ?? 'Released'}{release.version ? ` · ${release.version}` : ''}</small><strong>{release.title}</strong></a>)}</section> : null}
         <p className="action-message" aria-live="polite">{message}</p>
       </aside>
     </div>

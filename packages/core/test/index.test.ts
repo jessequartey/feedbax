@@ -4,6 +4,8 @@ import {
   CreateCommentInputSchema,
   CursorPageRequestSchema,
   FeedbackFilterSchema,
+  FeedbackReleaseReferenceSchema,
+  FeedbackShippedEventSchema,
   PrivateCommentSchema,
   PrivateConnectorErrorSchema,
   PrivateFeedbackItemSchema,
@@ -14,8 +16,10 @@ import {
   PublicChangelogDetailSchema,
   RoadmapEntrySchema,
   SubmitFeedbackInputSchema,
+  SubscribeInputSchema,
   TimestampSchema,
   connectorCapabilities,
+  buildFeedbackShippedEvent,
   toPublicComment,
   toPublicConnectorError,
   toPublicFeedbackItem,
@@ -219,6 +223,48 @@ describe('canonical domain schemas', () => {
     expect(() => ChangelogEntrySchema.parse({ ...release, slug: 'New Dashboard' })).toThrow()
     expect(() => ChangelogEntrySchema.parse({ ...release, publishedAt: undefined })).toThrow()
     expect(() => ChangelogEntrySchema.parse({ ...release, coverImageUrl: 'javascript:alert(1)' })).toThrow()
+  })
+
+  it('models compact release references and delivery-neutral shipped events', () => {
+    const release = ChangelogEntrySchema.parse({
+      id: 'release-1', slug: 'new-dashboard', title: 'New dashboard',
+      description: 'Shipped.', publishedAt: now, tags: [],
+      linkedFeedbackItemIds: ['feedback-1'], createdAt: now, updatedAt: now,
+    })
+    expect(FeedbackReleaseReferenceSchema.parse({
+      changelogEntryId: release.id, slug: release.slug, title: release.title,
+      publishedAt: release.publishedAt,
+    })).not.toHaveProperty('description')
+    expect(SubscribeInputSchema.parse({
+      target: { type: 'feedback', id: 'feedback-1' }, subscribed: true,
+    }).target.id).toBe('feedback-1')
+    const publicItem = PublicFeedbackItemSchema.parse({
+      ...toPublicFeedbackItem(PrivateFeedbackItemSchema.parse(privateItem)),
+      status: { id: 'complete', name: 'Complete', order: 3, isTerminal: true },
+    })
+    const first = buildFeedbackShippedEvent(publicItem, release)
+    const second = buildFeedbackShippedEvent(publicItem, release)
+    expect(first).toEqual(second)
+    expect(first).toMatchObject({
+      deduplicationKey: 'feedback.shipped:feedback-1:release-1',
+      type: 'feedback.shipped', publicStatus: { id: 'complete', name: 'Complete' },
+    })
+    expect(FeedbackShippedEventSchema.safeParse({
+      ...first,
+      deduplicationKey: 'feedback.shipped:wrong',
+    }).success).toBe(false)
+    expect(FeedbackShippedEventSchema.safeParse({
+      ...first,
+      publicStatus: status,
+    }).success).toBe(false)
+    expect(() => buildFeedbackShippedEvent(
+      PublicFeedbackItemSchema.parse({ ...publicItem, status }),
+      release,
+    )).toThrow(/terminal public status/)
+    expect(() => buildFeedbackShippedEvent(
+      publicItem,
+      ChangelogEntrySchema.parse({ ...release, linkedFeedbackItemIds: [] }),
+    )).toThrow(/linked changelog/)
   })
 
   it('validates grouped public roadmap pages and unique columns', () => {

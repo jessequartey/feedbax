@@ -174,6 +174,57 @@ export const ChangelogEntrySchema = z.strictObject({
 })
 export type ChangelogEntry = z.infer<typeof ChangelogEntrySchema>
 
+export const FeedbackReleaseReferenceSchema = z.strictObject({
+  changelogEntryId: ChangelogEntryIdSchema,
+  slug: ChangelogSlugSchema,
+  title: z.string().trim().min(1).max(200),
+  publishedAt: TimestampSchema,
+  version: z.string().trim().min(1).optional(),
+})
+export type FeedbackReleaseReference = z.infer<
+  typeof FeedbackReleaseReferenceSchema
+>
+
+export const FeedbackShippedEventSchema = z.strictObject({
+  deduplicationKey: z.string().trim().min(1),
+  type: z.literal('feedback.shipped'),
+  occurredAt: TimestampSchema,
+  feedbackItemId: FeedbackItemIdSchema,
+  changelogEntryId: ChangelogEntryIdSchema,
+  changelogSlug: ChangelogSlugSchema,
+  publicStatus: StatusSchema.refine((status) => status.isTerminal === true, {
+    message: 'A shipped event requires a terminal public status.',
+  }),
+}).superRefine((event, context) => {
+  const expected = `feedback.shipped:${event.feedbackItemId}:${event.changelogEntryId}`
+  if (event.deduplicationKey !== expected)
+    context.addIssue({
+      code: 'custom',
+      path: ['deduplicationKey'],
+      message: 'The shipped event deduplication key is inconsistent.',
+    })
+})
+export type FeedbackShippedEvent = z.infer<typeof FeedbackShippedEventSchema>
+
+export function buildFeedbackShippedEvent(
+  feedback: PublicFeedbackItem,
+  changelog: ChangelogEntry,
+): FeedbackShippedEvent {
+  if (!feedback.status?.isTerminal)
+    throw new Error('A shipped event requires a terminal public status.')
+  if (!changelog.linkedFeedbackItemIds.includes(feedback.id))
+    throw new Error('A shipped event requires a linked changelog entry.')
+  return FeedbackShippedEventSchema.parse({
+    deduplicationKey: `feedback.shipped:${feedback.id}:${changelog.id}`,
+    type: 'feedback.shipped',
+    occurredAt: changelog.publishedAt,
+    feedbackItemId: feedback.id,
+    changelogEntryId: changelog.id,
+    changelogSlug: changelog.slug,
+    publicStatus: feedback.status,
+  })
+}
+
 export const SubmitFeedbackInputSchema = z.strictObject({
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(20_000),
@@ -215,8 +266,14 @@ export const VoteStateResponseSchema = z.strictObject({
   })).max(100).readonly(),
 })
 
+export const SubscriptionTargetSchema = z.strictObject({
+  type: z.literal('feedback'),
+  id: FeedbackItemIdSchema,
+})
+export type SubscriptionTarget = z.infer<typeof SubscriptionTargetSchema>
+
 export const SubscribeInputSchema = z.strictObject({
-  feedbackItemId: FeedbackItemIdSchema,
+  target: SubscriptionTargetSchema,
   subscribed: z.boolean(),
 })
 export type SubscribeInput = z.infer<typeof SubscribeInputSchema>
@@ -316,7 +373,7 @@ export const PublicFeedbackDetailSchema = z.strictObject({
   item: PublicFeedbackItemSchema,
   comments: PublicCommentPageSchema,
   roadmap: z.array(RoadmapEntrySchema).readonly(),
-  changelog: z.array(ChangelogEntrySchema).readonly(),
+  releases: z.array(FeedbackReleaseReferenceSchema).readonly(),
   subscription: z.strictObject({
     enabled: z.boolean(),
     isSubscribed: z.boolean().optional(),
@@ -423,6 +480,13 @@ export interface PublicConnectorReader {
     readonly cacheStatus: import('./cache.js').CacheStatus
   }>
   listChangelog(page: CursorPageRequest): Promise<{
+    readonly value: ChangelogPage
+    readonly cacheStatus: import('./cache.js').CacheStatus
+  }>
+  listChangelogForFeedback(
+    feedbackItemId: FeedbackItemId,
+    page: CursorPageRequest,
+  ): Promise<{
     readonly value: ChangelogPage
     readonly cacheStatus: import('./cache.js').CacheStatus
   }>

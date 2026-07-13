@@ -70,8 +70,8 @@ function ChangelogDetailPage() {
             <h2 id="shipped-feedback-heading">Shipped with this update</h2>
             <div>
               {relatedFeedback.map((item) => (
-                <a href={`/feedback/${encodeURIComponent(item.id)}`} key={item.id}>
-                  <span>Shipped</span>
+                <a href={`/feedback/${encodeURIComponent(item.id)}`} key={item.id} aria-label={`${item.status!.name}: ${item.title}`}>
+                  <span>{item.status!.name}</span>
                   <strong>{item.title}</strong>
                   <small>{item.category?.name ?? item.type}</small>
                 </a>

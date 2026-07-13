@@ -615,6 +615,30 @@ describe('Notion public changelog reads', () => {
     expect((await reader.listChangelog({ pageSize: 20 })).value.items[0]?.publishedAt).toBe('2026-07-12T00:00:00Z')
   })
 
+  it('queries the canonical relation directly and invalidates on either cache boundary', async () => {
+    const cache = new MemoryCacheAdapter()
+    const bodies: unknown[] = []
+    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)))
+      return response({ results: [changelogPage('release-1')], has_more: false, next_cursor: null })
+    }) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher, cache })
+    const first = await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })
+    const second = await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })
+    expect(first.cacheStatus).toBe('miss')
+    expect(second.cacheStatus).toBe('hit')
+    expect(first.value.items.map(({ id }) => id)).toEqual(['release-1'])
+    expect(bodies[0]).toMatchObject({ page_size: 12, filter: { and: expect.arrayContaining([
+      { property: 'Feedback', relation: { contains: 'feedback-1' } },
+      { property: 'Published', checkbox: { equals: true } },
+    ]) } })
+    await cache.invalidateTags([cacheTags.feedback('notion')])
+    expect((await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })).cacheStatus).toBe('miss')
+    await cache.invalidateTags([cacheTags.changelog('notion')])
+    expect((await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })).cacheStatus).toBe('miss')
+    expect(fetcher).toHaveBeenCalledTimes(3)
+  })
+
   it('never returns drafts or malformed records and detects duplicate slugs', async () => {
     let results = [
       changelogPage('draft', false, 'internal-launch'),
