@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FeedbackIdRouteImport } from './routes/feedback.$id'
 import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
@@ -26,6 +27,11 @@ import { Route as ApiAuthSessionRouteImport } from './routes/api.auth-session'
 import { Route as ApiFeedbackSuggestionsRouteImport } from './routes/api.feedback.suggestions'
 import { Route as ApiFeedbackIdRouteImport } from './routes/api.feedback.$id'
 
+const RoadmapRoute = RoadmapRouteImport.update({
+  id: '/roadmap',
+  path: '/roadmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -109,6 +115,7 @@ const ApiFeedbackIdRoute = ApiFeedbackIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/roadmap': typeof RoadmapRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/changelog': typeof ApiChangelogRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/roadmap': typeof RoadmapRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/changelog': typeof ApiChangelogRoute
@@ -146,6 +154,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/roadmap': typeof RoadmapRoute
   '/api/auth-session': typeof ApiAuthSessionRoute
   '/api/cache': typeof ApiCacheRoute
   '/api/changelog': typeof ApiChangelogRoute
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/roadmap'
     | '/api/auth-session'
     | '/api/cache'
     | '/api/changelog'
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/roadmap'
     | '/api/auth-session'
     | '/api/cache'
     | '/api/changelog'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/roadmap'
     | '/api/auth-session'
     | '/api/cache'
     | '/api/changelog'
@@ -221,6 +233,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  RoadmapRoute: typeof RoadmapRoute
   ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiCacheRoute: typeof ApiCacheRoute
   ApiChangelogRoute: typeof ApiChangelogRoute
@@ -238,6 +251,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/roadmap': {
+      id: '/roadmap'
+      path: '/roadmap'
+      fullPath: '/roadmap'
+      preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -369,6 +389,7 @@ const ApiFeedbackRouteWithChildren = ApiFeedbackRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  RoadmapRoute: RoadmapRoute,
   ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiCacheRoute: ApiCacheRoute,
   ApiChangelogRoute: ApiChangelogRoute,

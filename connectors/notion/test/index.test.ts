@@ -9,7 +9,7 @@ import {
   runNotionDoctor,
   type NotionSetupConfig,
 } from '../src/index.js'
-import { MemoryCacheAdapter } from '@feedbax/core'
+import { MemoryCacheAdapter, invalidateAfterMutation } from '@feedbax/core'
 
 const config: NotionSetupConfig = {
   dataSourceId: 'source-id',
@@ -327,6 +327,56 @@ describe('Notion cached public reads', () => {
       value: { items: [], hasMore: false },
       cacheStatus: 'bypass',
     })
+  })
+
+  it('collapses mapped workflow values and drops unmapped statuses everywhere', async () => {
+    const pages = [
+      { id: 'public', status: 'Under review', title: 'Public idea' },
+      { id: 'private', status: 'Internal QA', title: 'Secret idea' },
+    ]
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/query')) return response({ results: pages.map((page) => ({
+        id: page.id, parent: { type: 'data_source_id', data_source_id: 'source-id' },
+        created_time: '2026-07-11T12:00:00Z', last_edited_time: '2026-07-11T12:00:00Z',
+        properties: {
+          Name: { title: [{ plain_text: page.title }] }, Description: { rich_text: [{ plain_text: 'Description' }] },
+          Type: { select: { name: 'Feature' } }, Status: { status: { name: page.status } }, 'Comment count': { number: 0 },
+        },
+      })), has_more: false })
+      const page = pages.find(({ id }) => url.endsWith(`/pages/${id}`))!
+      return response({
+        id: page.id, parent: { type: 'data_source_id', data_source_id: 'source-id' },
+        created_time: '2026-07-11T12:00:00Z', last_edited_time: '2026-07-11T12:00:00Z',
+        properties: { Name: { title: [{ plain_text: page.title }] }, Description: { rich_text: [{ plain_text: 'Description' }] }, Type: { select: { name: 'Feature' } }, Status: { status: { name: page.status } }, 'Comment count': { number: 0 } },
+      })
+    }) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: {
+      ...config, statuses: { open: ['Open', 'Under review'], done: ['Done'] },
+      statusDefinitions: { open: { name: 'Open', order: 0 }, done: { name: 'Done', order: 1, isTerminal: true } },
+    }, fetch: fetcher })
+    const result = await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })
+    expect(result.value.items).toMatchObject([{ id: 'public', status: { id: 'open', name: 'Open' } }])
+    expect(JSON.stringify(result.value)).not.toContain('Under review')
+    expect(JSON.stringify(result.value)).not.toContain('Internal QA')
+    expect(await reader.getFeedback('private')).toBeNull()
+    const queryBody = JSON.parse(String((vi.mocked(fetcher).mock.calls[0]?.[1] as RequestInit).body))
+    expect(queryBody.filter.or.map((entry: { status: { equals: string } }) => entry.status.equals)).toEqual(['Open', 'Under review', 'Done'])
+  })
+
+  it('shows a changed canonical status after feedback cache invalidation', async () => {
+    const cache = new MemoryCacheAdapter()
+    let current = 'Open'
+    const fetcher = vi.fn(async () => response({ results: [{
+      id: 'feedback-1', created_time: '2026-07-11T12:00:00Z', last_edited_time: '2026-07-11T12:00:00Z',
+      properties: { Name: { title: [{ plain_text: 'Idea' }] }, Description: { rich_text: [{ plain_text: 'Description' }] }, Type: { select: { name: 'Feature' } }, Status: { status: { name: current } }, 'Comment count': { number: 0 } },
+    }], has_more: false })) as unknown as typeof fetch
+    const reader = createNotionReadClient({ token: 'secret', setup: config, fetch: fetcher, cache })
+    expect((await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value.items[0]?.status?.id).toBe('open')
+    current = 'Done'
+    expect((await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value.items[0]?.status?.id).toBe('open')
+    await invalidateAfterMutation(cache, 'feedback', 'notion')
+    expect((await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value.items[0]?.status?.id).toBe('done')
   })
 })
 

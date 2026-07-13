@@ -45,10 +45,10 @@ function ThemeControl() {
   return <button className="icon-button" type="button" onClick={toggle} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}><Icon name={theme === 'light' ? 'moon' : 'sun'} /></button>
 }
 
-export function PortalShell({ branding, activePage, children }: PropsWithChildren<{ branding: PortalBranding; activePage: Page }>) {
+export function PortalShell({ branding, activePage, wide = false, children }: PropsWithChildren<{ branding: PortalBranding; activePage: Page; wide?: boolean }>) {
   const [menuOpen, setMenuOpen] = useState(false)
   return (
-    <div className="portal" style={{ '--brand-accent': branding.accent } as CSSProperties}>
+    <div className="portal" data-wide={wide || undefined} style={{ '--brand-accent': branding.accent } as CSSProperties}>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="site-header">
         <div className="header-inner">
@@ -75,12 +75,12 @@ export function PortalShell({ branding, activePage, children }: PropsWithChildre
   )
 }
 
-export function PortalLoading() {
-  return <PortalShell branding={portalBrandingFallback} activePage="feedback"><section className="state-page" aria-live="polite" aria-busy="true"><div className="loader" /><p className="eyebrow">Loading feedback</p><h1>Getting the latest ideas…</h1><p>This should only take a moment.</p><div className="skeleton-lines"><span /><span /><span /></div></section></PortalShell>
+export function PortalLoading({ activePage = 'feedback', wide = false }: { activePage?: Page; wide?: boolean } = {}) {
+  return <PortalShell branding={portalBrandingFallback} activePage={activePage} wide={wide}><section className="state-page" aria-live="polite" aria-busy="true"><div className="loader" /><p className="eyebrow">Loading {activePage}</p><h1>Getting the latest updates…</h1><p>This should only take a moment.</p><div className="skeleton-lines"><span /><span /><span /></div></section></PortalShell>
 }
 
 const portalBrandingFallback: PortalBranding = { name: 'Feedbax', tagline: '', mark: 'F', accent: '#2563eb', supportUrl: 'mailto:support@feedbax.dev' }
 
-export function ConnectorOutage({ onRetry }: { onRetry: () => void }) {
-  return <PortalShell branding={portalBrandingFallback} activePage="feedback"><section className="state-page outage" role="alert"><span className="outage-mark" aria-hidden="true">!</span><p className="eyebrow">Connection interrupted</p><h1>Feedback is temporarily unavailable</h1><p>We couldn’t reach the connected workspace. Your account and existing feedback are safe.</p><div className="state-actions"><button className="primary-button" type="button" onClick={onRetry}>Try again</button><a href={portalBrandingFallback.supportUrl}>Contact support</a></div></section></PortalShell>
+export function ConnectorOutage({ onRetry, activePage = 'feedback', wide = false }: { onRetry: () => void; activePage?: Page; wide?: boolean }) {
+  return <PortalShell branding={portalBrandingFallback} activePage={activePage} wide={wide}><section className="state-page outage" role="alert"><span className="outage-mark" aria-hidden="true">!</span><p className="eyebrow">Connection interrupted</p><h1>{activePage === 'roadmap' ? 'The roadmap' : 'Feedback'} is temporarily unavailable</h1><p>We couldn’t reach the connected workspace. Your account and existing feedback are safe.</p><div className="state-actions"><button className="primary-button" type="button" onClick={onRetry}>Try again</button><a href={portalBrandingFallback.supportUrl}>Contact support</a></div></section></PortalShell>
 }

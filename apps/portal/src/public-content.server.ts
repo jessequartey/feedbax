@@ -2,19 +2,24 @@ import {
   ChangelogPageSchema,
   CursorPageRequestSchema,
   FeedbackItemIdSchema,
+  FeedbackFilterSchema,
   PublicCommentPageSchema,
+  PublicRoadmapPageSchema,
   RoadmapPageSchema,
   type ChangelogPage,
   type RoadmapPage,
+  type PublicConnectorReader,
+  type PublicFeedbackItem,
 } from '@feedbax/core'
 import { publicReader } from './public-feedback.server.js'
+import { publicRoadmap, publicTaxonomy } from './portal.config.js'
 
-function pageRequest(url: URL) {
+function pageRequest(url: URL, defaultPageSize = 20) {
   const cursor = url.searchParams.get('cursor') || undefined
   const rawLimit = url.searchParams.get('limit')
   return CursorPageRequestSchema.parse({
     ...(cursor ? { cursor } : {}),
-    pageSize: rawLimit ? Number(rawLimit) : 20,
+    pageSize: rawLimit ? Number(rawLimit) : defaultPageSize,
   })
 }
 
@@ -71,7 +76,64 @@ async function editorialResponse(
   }
 }
 
-export const roadmapListResponse = (request: Request) =>
-  editorialResponse(request, 'roadmap')
+const publicStatusById = new Map<string, (typeof publicTaxonomy.statuses)[number]>(
+  publicTaxonomy.statuses.map((status) => [status.id, status]),
+)
+
+export async function roadmapListResponse(
+  request: Request,
+  reader: Pick<PublicConnectorReader, 'listFeedback'> | null = publicReader(),
+) {
+  try {
+    const url = new URL(request.url)
+    const configuredIds: string[] = [...publicRoadmap.columnStatusIds]
+    const requestedIds = url.searchParams.getAll('status')
+    if (requestedIds.some((id) => !configuredIds.includes(id as never)))
+      throw new Error('INVALID_QUERY')
+    const selectedIds = requestedIds.length ? [...new Set(requestedIds)] : configuredIds
+    const page = pageRequest(url, 100)
+    const columns = () => selectedIds.map((id) => ({
+      status: publicStatusById.get(id)!,
+      items: [],
+    }))
+    if (!reader)
+      return Response.json(
+        PublicRoadmapPageSchema.parse({ columns: columns(), hasMore: false }),
+        { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } },
+      )
+    const filter = FeedbackFilterSchema.parse({
+      statusIds: selectedIds,
+      sort: 'most-voted',
+    })
+    const result = await reader.listFeedback(filter, page)
+    const grouped = new Map<string, PublicFeedbackItem[]>(
+      selectedIds.map((id) => [id, []]),
+    )
+    for (const item of result.value.items) {
+      const items = item.status ? grouped.get(item.status.id) : undefined
+      if (items) items.push(item)
+    }
+    return Response.json(
+      PublicRoadmapPageSchema.parse({
+        columns: selectedIds.map((id) => ({
+          status: publicStatusById.get(id)!,
+          items: grouped.get(id) ?? [],
+        })),
+        hasMore: result.value.hasMore,
+        ...(result.value.nextCursor ? { nextCursor: result.value.nextCursor } : {}),
+      }),
+      { headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus } },
+    )
+  } catch (error) {
+    const invalid = error instanceof Error &&
+      (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
+    return invalid
+      ? failure('The roadmap filters are invalid.')
+      : Response.json(
+          { error: { code: 'CONNECTOR_UNAVAILABLE', message: 'The roadmap is temporarily unavailable.' } },
+          { status: 503, headers: { 'cache-control': 'no-store' } },
+        )
+  }
+}
 export const changelogListResponse = (request: Request) =>
   editorialResponse(request, 'changelog')

@@ -60,6 +60,8 @@ export const richText = (value: string) =>
 
 export function createNotionMutationService(options: NotionMutationOptions) {
   const fetcher = options.fetch ?? fetch
+  const openStatus = options.setup.statuses.open
+  const openStatusName = Array.isArray(openStatus) ? openStatus[0] : openStatus
   const voterKey = async (userId: string) => {
     if (!options.interactionHashKey || new TextEncoder().encode(options.interactionHashKey).byteLength < 32) throw new Error('Voting is not configured.')
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(options.interactionHashKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
@@ -94,7 +96,7 @@ export function createNotionMutationService(options: NotionMutationOptions) {
           select: { name: options.setup.feedbackTypes?.[input.type] ?? input.type },
         },
         [fields.status.property]: {
-          [fields.status.type]: { name: options.setup.statuses.open ?? 'Open' },
+          [fields.status.type]: { name: openStatusName ?? 'Open' },
         },
         [fields.commentCount.property]: { number: 0 },
       }
@@ -144,8 +146,10 @@ export function createNotionMutationService(options: NotionMutationOptions) {
         type: input.type,
         author,
         status: {
-          id: 'open', name: options.setup.statuses.open ?? 'Open', order: 0,
-          isTerminal: false,
+          id: 'open',
+          name: options.setup.statusDefinitions?.open?.name ?? 'open',
+          order: options.setup.statusDefinitions?.open?.order ?? 0,
+          isTerminal: options.setup.statusDefinitions?.open?.isTerminal ?? false,
         },
         category: input.categoryId ? {
           id: input.categoryId,

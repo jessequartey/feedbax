@@ -47,7 +47,14 @@ export interface NotionSetupConfig {
     readonly commentCount: NotionFieldMapping & { readonly type: 'number' }
     readonly optional?: Readonly<Record<string, NotionFieldMapping>>
   }
-  readonly statuses: Readonly<Record<string, string>>
+  readonly statuses: Readonly<Record<string, string | readonly string[]>>
+  readonly statusDefinitions?: Readonly<Record<string, {
+    readonly name: string
+    readonly description?: string
+    readonly color?: string
+    readonly order: number
+    readonly isTerminal?: boolean
+  }>>
   readonly categories?: Readonly<Record<string, string>>
   readonly feedbackTypes?: Readonly<Record<string, string>>
   readonly tags?: Readonly<Record<string, string>>
@@ -380,7 +387,9 @@ export async function checkNotionSetup(
           'Writable fields are schema-compatible (no content was changed).',
         ),
   )
-  const mappedOptions = Object.values(config.statuses)
+  const mappedOptions = Object.values(config.statuses).flatMap((value) =>
+    typeof value === 'string' ? [value] : [...value],
+  )
   const duplicate = mappedOptions.find(
     (value, index) => mappedOptions.indexOf(value) !== index,
   )
@@ -403,9 +412,9 @@ export async function checkNotionSetup(
       ),
     )
   else {
-    const missing = Object.entries(config.statuses).find(
-      ([, value]) => !available.has(value),
-    )
+    const missing = Object.entries(config.statuses).flatMap(([id, value]) =>
+      (typeof value === 'string' ? [value] : value).map((option) => [id, option] as const),
+    ).find(([, value]) => !available.has(value))
     checks.push(
       missing
         ? fail(

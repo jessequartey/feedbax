@@ -28,6 +28,11 @@ export default {
       { id: 'dashboard', name: 'Dashboard', order: 2 },
     ],
   },
+  roadmap: {
+    title: 'Product roadmap',
+    description: 'Follow what we are considering, building, and shipping.',
+    columnStatusIds: ['open', 'planned', 'in-progress', 'complete'],
+  },
   authentication: {
     audience: 'feedbax',
     loginUrl:
@@ -60,11 +65,10 @@ export default {
         },
       },
       statuses: {
-        open: 'Open',
-        planned: 'Planned',
-        inProgress: 'In progress',
-        complete: 'Complete',
-        closed: 'Closed',
+        open: ['Open'],
+        planned: ['Planned'],
+        'in-progress': ['In progress'],
+        complete: ['Complete'],
       },
       feedbackTypes: {
         feature: 'Feature',

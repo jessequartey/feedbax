@@ -58,6 +58,9 @@ export interface FeedbaxConfig {
       readonly id: string
       readonly name: string
       readonly order: number
+      readonly description?: string
+      readonly color?: string
+      readonly isTerminal?: boolean
     }[]
     readonly categories: readonly {
       readonly id: string
@@ -69,6 +72,11 @@ export interface FeedbaxConfig {
       readonly name: string
       readonly order: number
     }[]
+  }
+  readonly roadmap?: {
+    readonly title: string
+    readonly description?: string
+    readonly columnStatusIds: readonly string[]
   }
   readonly authentication?: SignedHandoffConfig
   readonly mutationProtection?: MutationProtectionConfig
@@ -82,5 +90,18 @@ export interface FeedbaxConfig {
 export const defineConfig = (config: FeedbaxConfig): FeedbaxConfig => {
   if (config.mutationProtection)
     MutationProtectionConfigSchema.parse(config.mutationProtection)
+  const statuses = config.publicTaxonomy?.statuses ?? []
+  if (new Set(statuses.map(({ id }) => id)).size !== statuses.length)
+    throw new Error('Public status IDs must be unique.')
+  if (config.roadmap) {
+    const columns = config.roadmap.columnStatusIds
+    if (!config.roadmap.title.trim() || columns.length === 0)
+      throw new Error('Roadmap title and at least one column are required.')
+    if (new Set(columns).size !== columns.length)
+      throw new Error('Roadmap columns must be unique.')
+    const known = new Set(statuses.map(({ id }) => id))
+    if (columns.some((id) => !known.has(id)))
+      throw new Error('Every roadmap column must reference a public status.')
+  }
   return config
 }

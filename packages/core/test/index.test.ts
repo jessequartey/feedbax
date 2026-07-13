@@ -9,6 +9,7 @@ import {
   PrivateFeedbackItemSchema,
   PrivateVoteSchema,
   PublicFeedbackItemSchema,
+  PublicRoadmapPageSchema,
   RoadmapEntrySchema,
   SubmitFeedbackInputSchema,
   TimestampSchema,
@@ -202,6 +203,13 @@ describe('canonical domain schemas', () => {
       updatedAt: now,
     })
     expect(entry.linkedFeedbackItemIds).toHaveLength(2)
+  })
+
+  it('validates grouped public roadmap pages and unique columns', () => {
+    const item = PublicFeedbackItemSchema.parse(toPublicFeedbackItem(PrivateFeedbackItemSchema.parse(privateItem)))
+    expect(PublicRoadmapPageSchema.parse({ columns: [{ status, items: [item] }], hasMore: false }).columns[0]?.items).toHaveLength(1)
+    expect(() => PublicRoadmapPageSchema.parse({ columns: [{ status, items: [] }, { status, items: [] }], hasMore: false })).toThrow()
+    expect(() => PublicRoadmapPageSchema.parse({ columns: [], hasMore: true })).toThrow()
   })
 
   it('retains framework-independent connector contracts', () => {

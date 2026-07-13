@@ -17,7 +17,24 @@ Feedbax reads `NOTION_TOKEN` only on the server and reads the data-source ID and
 4. Store the token as a server-only secret; never use a `VITE_` prefix.
 5. Set `NOTION_DATA_SOURCE_ID` to the data-source ID returned for the shared database. With current Notion APIs, this can differ from the database page ID in the URL.
 6. Configure the required `title`, `description`, and `status` mappings. Each mapping names the Notion property, its exact type, and whether Feedbax writes it.
-7. Map each Feedbax status ID to a unique option on the configured Notion `status` or `select` property.
+7. Map each canonical Feedbax status ID to one or more options on the configured Notion `status` or `select` property. A Notion option may appear in only one canonical mapping.
+
+## Public and internal statuses
+
+Status mappings are the public boundary. Multiple Notion workflow values can collapse into one public status, while an unmapped value remains private:
+
+```ts
+statuses: {
+  open: ['Open', 'Under review'],
+  planned: ['Planned'],
+  'in-progress': ['In progress', 'Internal QA'],
+  complete: ['Complete'],
+}
+```
+
+The first option in each list is the write target. The setup doctor verifies that every mapped option exists and that no option is mapped twice. Extra Notion options are allowed and are deliberately excluded from all public feedback and roadmap reads.
+
+When a status changes directly in Notion, invalidate the feedback and roadmap cache tags through the deployment's webhook or cache integration. The next public read will fetch and regroup the item; automatic Notion webhook ingestion is not bundled yet.
 
 Optional fields belong under `fields.optional`. When configured, they are validated exactly like required fields. Supported writable types are `title`, `rich_text`, `status`, `select`, `number`, `checkbox`, `date`, `people`, `url`, and `email`.
 

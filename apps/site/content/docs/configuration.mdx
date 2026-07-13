@@ -46,6 +46,35 @@ Authenticated comments require `NOTION_COMMENTS_DATA_SOURCE_ID`. The comments da
 
 Retries reuse the same client request ID. Feedbax serializes comment mutations per feedback item within one process, but Notion has no unique constraint or multi-record transaction. Route comment mutations through one instance for connector-only deployments.
 
+## Public roadmap
+
+The roadmap is a Kanban view of the existing feedback data source. Configure its copy and ordered canonical columns separately from Notion's workflow labels:
+
+```ts
+roadmap: {
+  title: 'Product roadmap',
+  description: 'Follow what we are considering, building, and shipping.',
+  columnStatusIds: ['open', 'planned', 'in-progress', 'complete'],
+}
+```
+
+Every column ID must reference a unique entry in `publicTaxonomy.statuses`. Configured columns remain visible when empty and stack vertically on small screens.
+
+The Notion connector maps one or more workflow values to each canonical public status. The first value is used when Feedbax needs to write that status:
+
+```ts
+statuses: {
+  open: ['Open', 'Under review'],
+  planned: ['Planned', 'Ready for engineering'],
+  'in-progress': ['In progress', 'Quality assurance'],
+  complete: ['Complete'],
+}
+```
+
+Only mapped values are public. Feedback using an unmapped Notion status is excluded from lists, roadmap responses, duplicate suggestions, and direct detail pages. Raw Notion status names are never returned to the browser; several internal values may safely collapse into one public label.
+
+Roadmap reads share the feedback and roadmap cache tags. After an external Notion status edit, invalidate those tags through the deployment's mutation or webhook integration; the next roadmap fetch will read the new status and regroup the card.
+
 ## Planned configuration
 
-**Planned for v0.0.2:** typed Notion field/status mappings, branding tokens, credentials validation, schema compatibility errors, caching bounds, and feature switches. Their final public shape is not stable and is deliberately undocumented until implemented.
+Additional branding tokens, portable cache invalidation providers, and feature switches remain planned for v0.0.2. Their final public shape is not stable and is deliberately undocumented until implemented.

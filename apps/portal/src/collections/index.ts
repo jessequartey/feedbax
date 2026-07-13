@@ -9,15 +9,14 @@ import {
   PublicCommentSchema,
   PublicFeedbackItemSchema,
   PublicFeedbackPageSchema,
+  PublicRoadmapPageSchema,
   SetVoteResultSchema,
   VoteStateResponseSchema,
-  RoadmapEntrySchema,
   RoadmapPageSchema,
   type ChangelogEntry,
   type CreateCommentInput,
   type PublicComment,
   type PublicFeedbackItem,
-  type RoadmapEntry,
   type SubmitFeedbackInput,
 } from '@feedbax/core'
 import { useMemo, useSyncExternalStore } from 'react'
@@ -78,6 +77,25 @@ export class ApplicationApiError extends Error {
 
 const createdItems = new Map<string, PublicFeedbackItem>()
 const canonicalVotes = new Map<string, ReturnType<typeof SetVoteResultSchema.parse>>()
+
+async function enrichVoteState(items: readonly PublicFeedbackItem[]) {
+  if (!items.length) return items
+  try {
+    const state = VoteStateResponseSchema.parse(await api<unknown>('/api/vote-state', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ feedbackItemIds: items.map(({ id }) => id) }),
+    }))
+    const byId = new Map(state.items.map((entry) => [entry.feedbackItemId, entry.voted]))
+    return items.map((item) => ({ ...item, hasViewerVoted: byId.get(item.id) ?? false }))
+  } catch { return items }
+}
+
+async function persistVoteUpdates(items: readonly PublicFeedbackItem[]) {
+  for (const item of items)
+    canonicalVotes.set(item.id, SetVoteResultSchema.parse(await post<unknown>('/api/vote', {
+      feedbackItemId: item.id, voted: item.hasViewerVoted ?? false,
+    })))
+}
 
 function post<T>(path: string, input: unknown) {
   return api<{ ok: true; value: T }>(path, {
@@ -270,17 +288,7 @@ export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
       url: `/api/feedback?${feedbackParams(filters, cursor)}`,
       parse: (raw) => PublicFeedbackPageSchema.parse(raw),
       notify,
-      enrich: async (items) => {
-        if (!items.length) return items
-        try {
-          const state = VoteStateResponseSchema.parse(await api<unknown>('/api/vote-state', {
-            method: 'POST', headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ feedbackItemIds: items.map(({ id }) => id) }),
-          }))
-          const byId = new Map(state.items.map((entry) => [entry.feedbackItemId, entry.voted]))
-          return items.map((item) => ({ ...item, hasViewerVoted: byId.get(item.id) ?? false }))
-        } catch { return items }
-      },
+      enrich: enrichVoteState,
       onInsert: async (items) => {
         for (const item of items)
           createdItems.set(item.id, PublicFeedbackItemSchema.parse(await post<unknown>('/api/feedback', {
@@ -289,10 +297,7 @@ export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
             ...(item.category ? { categoryId: item.category.id } : {}), tagIds: item.tags.map(({ id }) => id),
           })))
       },
-      onUpdate: async (items) => {
-        for (const item of items)
-          canonicalVotes.set(item.id, SetVoteResultSchema.parse(await post<unknown>('/api/vote', { feedbackItemId: item.id, voted: item.hasViewerVoted ?? false })))
-      },
+      onUpdate: persistVoteUpdates,
     }),
   ))
 }
@@ -348,6 +353,10 @@ export function voteForExistingFeedback(feedbackItemId: string, voted: boolean) 
 
 export async function setFeedbackVote(filters: FeedbackCollectionFilters, id: string, voted: boolean) {
   const key = `feedback:${feedbackParams(filters)}`
+  return setCollectionVote(key, id, voted)
+}
+
+async function setCollectionVote(key: string, id: string, voted: boolean) {
   const value = controllers.get(key) as unknown as PagedController<PublicFeedbackItem> | undefined
   if (!value) throw new Error('The feedback collection is not active.')
   const collection = value.collections().find((candidate) => candidate.state.has(id))
@@ -369,6 +378,37 @@ export async function setFeedbackVote(filters: FeedbackCollectionFilters, id: st
     }
   } finally { canonicalVotes.delete(id) }
 }
+
+function roadmapParams(statuses: readonly string[], cursor?: string) {
+  const params = new URLSearchParams()
+  for (const status of statuses) params.append('status', status)
+  if (cursor) params.set('cursor', cursor)
+  return params
+}
+
+export function useRoadmapCollection(statuses: readonly string[]) {
+  const key = `roadmap:${roadmapParams(statuses)}`
+  return useApplicationController(key, () => controller<PublicFeedbackItem>(key, (cursor, notify) =>
+    pageCollection({
+      id: `${key}:${cursor ?? 'first'}`,
+      url: `/api/roadmap?${roadmapParams(statuses, cursor)}`,
+      parse: (raw) => {
+        const page = PublicRoadmapPageSchema.parse(raw)
+        return {
+          items: page.columns.flatMap(({ items }) => items),
+          hasMore: page.hasMore,
+          ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+        }
+      },
+      notify,
+      enrich: enrichVoteState,
+      onUpdate: persistVoteUpdates,
+    }),
+  ))
+}
+
+export const setRoadmapVote = (statuses: readonly string[], id: string, voted: boolean) =>
+  setCollectionVote(`roadmap:${roadmapParams(statuses)}`, id, voted)
 
 export function useCommentsCollection(feedbackItemId: string) {
   const key = `comments:${feedbackItemId}`
@@ -396,8 +436,8 @@ export function createFeedbackComment(feedbackItemId: string, input: CreateComme
   })).isPersisted.promise
 }
 
-function useEditorial<T extends RoadmapEntry | ChangelogEntry>(
-  kind: 'roadmap' | 'changelog',
+function useEditorial<T extends ChangelogEntry>(
+  kind: 'changelog',
   parse: (raw: unknown) => Page<T>,
 ) {
   return useApplicationController(kind, () => controller<T>(kind, (cursor, notify) => {
@@ -407,13 +447,11 @@ function useEditorial<T extends RoadmapEntry | ChangelogEntry>(
   }))
 }
 
-export const useRoadmapCollection = () =>
-  useEditorial('roadmap', (raw) => RoadmapPageSchema.parse(raw))
 export const useChangelogCollection = () =>
   useEditorial('changelog', (raw) => ChangelogPageSchema.parse(raw))
 
 // Keep schema imports exercised at this boundary for canonical-model validation.
-void RoadmapEntrySchema
+void RoadmapPageSchema
 void ChangelogEntrySchema
 
 export const collectionTesting = {

@@ -89,16 +89,31 @@ const text = (page: NotionPage, mapping: NotionFieldMapping) => {
 }
 const mappedText = (page: NotionPage, mapping?: NotionFieldMapping) =>
   mapping ? text(page, mapping) : ''
-const status = (page: NotionPage, mapping?: NotionFieldMapping) => {
+const mappedStatusNames = (mapping: string | readonly string[] | undefined) =>
+  mapping === undefined ? [] : typeof mapping === 'string' ? [mapping] : [...mapping]
+
+const status = (
+  page: NotionPage,
+  mapping?: NotionFieldMapping,
+  statuses: NotionSetupConfig['statuses'] = {},
+  definitions: NotionSetupConfig['statusDefinitions'] = {},
+) => {
   if (!mapping) return null
   const value = page.properties[mapping.property]
   const option = value?.status ?? value?.select
-  return option?.name
+  if (!option?.name) return null
+  const canonical = Object.entries(statuses).find(([, names]) =>
+    mappedStatusNames(names).includes(option.name!),
+  )?.[0]
+  const definition = canonical ? definitions[canonical] : undefined
+  return canonical
     ? {
-        id: option.id ?? option.name,
-        name: option.name,
-        order: 0,
-        isTerminal: false,
+        id: canonical,
+        name: definition?.name ?? canonical,
+        order: definition?.order ?? 0,
+        isTerminal: definition?.isTerminal ?? false,
+        ...(definition?.description ? { description: definition.description } : {}),
+        ...(definition?.color ? { color: definition.color } : {}),
       }
     : null
 }
@@ -185,10 +200,12 @@ export function createNotionReadClient(
       })
     if (filter?.statusIds?.length)
       predicates.push({
-        or: filter.statusIds.map((id) => ({
-          property: options.setup.fields.status.property,
-          [options.setup.fields.status.type]: { equals: options.setup.statuses[id] ?? id },
-        })),
+        or: filter.statusIds.flatMap((id) =>
+          mappedStatusNames(options.setup.statuses[id]).map((name) => ({
+            property: options.setup.fields.status.property,
+            [options.setup.fields.status.type]: { equals: name },
+          })),
+        ),
       })
     const categoryField = options.setup.fields.optional?.category
     if (filter?.categoryId && categoryField)
@@ -233,7 +250,8 @@ export function createNotionReadClient(
   })
   const isPublic = (item: NotionPage) => {
     const mapping = options.setup.fields.optional?.visibility
-    return !mapping || item.properties[mapping.property]?.checkbox !== false
+    return (!mapping || item.properties[mapping.property]?.checkbox !== false) &&
+      status(item, options.setup.fields.status, options.setup.statuses, options.setup.statusDefinitions) !== null
   }
   const feedbackItem = (item: NotionPage) => ({
     id: item.id,
@@ -247,7 +265,7 @@ export function createNotionReadClient(
         ? { avatarUrl: item.properties[options.setup.fields.optional.authorAvatar.property]!.url! }
         : {}),
     },
-    status: status(item, options.setup.fields.status),
+    status: status(item, options.setup.fields.status, options.setup.statuses, options.setup.statusDefinitions),
     category: category(item, options.setup.fields.optional?.category),
     tags: tags(item, options.setup.fields.optional?.tags),
     voteCount:
@@ -269,7 +287,10 @@ export function createNotionReadClient(
         key: `notion:${options.setup.dataSourceId}:feedback:${stable({ filter, page })}`,
         tags: [cacheTags.feedback('notion')],
         load: async () => {
-          const result = await query(options.setup.dataSourceId, page, filter)
+          const publicFilter = filter.statusIds?.length
+            ? filter
+            : FeedbackFilterSchema.parse({ ...filter, statusIds: Object.keys(options.setup.statuses) })
+          const result = await query(options.setup.dataSourceId, page, publicFilter)
           return PublicFeedbackPageSchema.parse({
             ...pageShape(result),
             items: result.results!.filter(isPublic).map(feedbackItem),
@@ -344,11 +365,13 @@ export function createNotionReadClient(
           const result = await query(setup.dataSourceId, page)
           return RoadmapPageSchema.parse({
             ...pageShape(result),
-            items: result.results!.map((item) => ({
+            items: result.results!.filter((item) =>
+              !setup.fields.status || status(item, setup.fields.status, options.setup.statuses, options.setup.statusDefinitions) !== null,
+            ).map((item) => ({
               id: item.id,
               title: text(item, setup.fields.title),
               description: text(item, setup.fields.description),
-              status: status(item, setup.fields.status),
+              status: status(item, setup.fields.status, options.setup.statuses, options.setup.statusDefinitions),
               linkedFeedbackItemIds: setup.fields.linkedFeedbackItemIds
                 ? (
                     item.properties[setup.fields.linkedFeedbackItemIds.property]

@@ -9,7 +9,7 @@ import {
 } from '@feedbax/core'
 import { createNotionReadClient, type NotionReadSetupConfig } from '@feedbax/notion'
 import { readEnv } from './spike.js'
-import { publicTaxonomy } from './portal.config.js'
+import { notionStatusMappings, publicTaxonomy } from './portal.config.js'
 import { rankDuplicateSuggestions } from './duplicate-suggestions.js'
 
 const cache = new MemoryCacheAdapter()
@@ -56,7 +56,8 @@ const setup: NotionReadSetupConfig = {
       voteCount: { property: 'Vote count', type: 'number', writable: true },
     },
   },
-  statuses: Object.fromEntries(publicTaxonomy.statuses.map(({ id, name }) => [id, name])),
+  statuses: notionStatusMappings,
+  statusDefinitions: Object.fromEntries(publicTaxonomy.statuses.map((status) => [status.id, status])),
   categories: Object.fromEntries(publicTaxonomy.categories.map(({ id, name }) => [id, name])),
   feedbackTypes: { feature: 'Feature', bug: 'Bug', improvement: 'Improvement', question: 'Question' },
   tags: Object.fromEntries(publicTaxonomy.tags.map(({ id, name }) => [id, name])),

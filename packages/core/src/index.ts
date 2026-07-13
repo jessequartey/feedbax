@@ -372,6 +372,28 @@ export const ChangelogPageSchema = cursorPageSchema(ChangelogEntrySchema)
 export type RoadmapPage = z.infer<typeof RoadmapPageSchema>
 export type ChangelogPage = z.infer<typeof ChangelogPageSchema>
 
+export const PublicRoadmapColumnSchema = z.strictObject({
+  status: StatusSchema,
+  items: z.array(PublicFeedbackItemSchema).readonly(),
+})
+export const PublicRoadmapPageSchema = z
+  .strictObject({
+    columns: z.array(PublicRoadmapColumnSchema).readonly(),
+    nextCursor: z.string().min(1).optional(),
+    hasMore: z.boolean(),
+  })
+  .superRefine((page, context) => {
+    if (page.hasMore && page.nextCursor === undefined)
+      context.addIssue({ code: 'custom', path: ['nextCursor'], message: 'nextCursor is required when hasMore is true' })
+    if (!page.hasMore && page.nextCursor !== undefined)
+      context.addIssue({ code: 'custom', path: ['nextCursor'], message: 'nextCursor must be omitted when hasMore is false' })
+    const ids = page.columns.map(({ status }) => status.id)
+    if (new Set(ids).size !== ids.length)
+      context.addIssue({ code: 'custom', path: ['columns'], message: 'Roadmap column statuses must be unique' })
+  })
+export type PublicRoadmapColumn = z.infer<typeof PublicRoadmapColumnSchema>
+export type PublicRoadmapPage = z.infer<typeof PublicRoadmapPageSchema>
+
 export interface PublicConnectorReader {
   listFeedback(
     filter: FeedbackFilter,

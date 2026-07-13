@@ -34,4 +34,18 @@ describe('defineConfig', () => {
       }),
     ).toThrow()
   })
+  it('validates ordered roadmap status references', () => {
+    const base = {
+      name: 'Feedbax',
+      connector: { id: 'test', displayName: 'Test', capabilities: [] },
+      publicTaxonomy: { statuses: [
+        { id: 'planned', name: 'Planned', order: 0 },
+        { id: 'done', name: 'Done', order: 1 },
+      ], categories: [] },
+      roadmap: { title: 'Roadmap', columnStatusIds: ['planned', 'done'] },
+    } as const
+    expect(defineConfig(base).roadmap?.columnStatusIds).toEqual(['planned', 'done'])
+    expect(() => defineConfig({ ...base, roadmap: { ...base.roadmap, columnStatusIds: ['planned', 'private'] } })).toThrow(/public status/)
+    expect(() => defineConfig({ ...base, roadmap: { ...base.roadmap, columnStatusIds: ['planned', 'planned'] } })).toThrow(/unique/)
+  })
 })
