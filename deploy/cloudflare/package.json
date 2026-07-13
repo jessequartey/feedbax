@@ -1,0 +1,14 @@
+{
+  "name": "@feedbax/deploy-cloudflare",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm --filter @feedbax/portal build:cloudflare",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint scripts",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@feedbax/portal": "workspace:*"
+  }
+}

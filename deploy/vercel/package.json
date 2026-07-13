@@ -1,0 +1,14 @@
+{
+  "name": "@feedbax/deploy-vercel",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && NITRO_PRESET=vercel pnpm --filter @feedbax/portal build",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint scripts",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@feedbax/portal": "workspace:*"
+  }
+}

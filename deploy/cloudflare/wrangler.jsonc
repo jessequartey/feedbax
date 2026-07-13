@@ -1,0 +1,20 @@
+{
+  "$schema": "../../apps/portal/node_modules/wrangler/config-schema.json",
+  "name": "feedbax-feedback",
+  "compatibility_date": "2026-07-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "../../apps/portal/src/cloudflare-entry.ts",
+  "vars": {
+    "FEEDBAX_PUBLIC_URL": "https://feedbax-feedback.jessefquartey.workers.dev",
+    "FEEDBAX_RATE_LIMIT_STORE": "cloudflare",
+    "FEEDBAX_AUTH_AUDIENCE": "feedbax",
+    "FEEDBAX_AUTH_LOGIN_URL": "https://feedbax-dogfood-auth.jessefquartey.workers.dev/login",
+    "FEEDBAX_AUTH_ACTIVE_SESSION_KEY_ID": "session-2026-07",
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "FEEDBAX_RATE_LIMITER", "class_name": "FeedbaxRateLimiter" },
+    ],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FeedbaxRateLimiter"] }],
+}

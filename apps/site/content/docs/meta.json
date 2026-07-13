@@ -1,0 +1,15 @@
+{
+  "title": "Feedbax documentation",
+  "pages": [
+    "index",
+    "product-vision",
+    "quickstart",
+    "configuration",
+    "authentication-handoff",
+    "notion-setup",
+    "deployment",
+    "accessibility",
+    "roadmap",
+    "contributing"
+  ]
+}

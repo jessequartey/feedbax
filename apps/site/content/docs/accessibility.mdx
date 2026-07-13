@@ -1,0 +1,24 @@
+---
+title: Accessibility
+description: Tested accessibility behavior, operating guidance, and current limits.
+---
+
+## Practical review
+
+Feedbax is reviewed against practical WCAG 2.1 Level A and AA criteria. This is an engineering target and test scope, not a certification or a claim that every deployment and every item of customer-authored content conforms to WCAG.
+
+Automated Chromium checks cover the portal's light and dark themes, empty and failure states, the feedback dialog, reduced motion, the documentation site, and documentation search. The repository also keeps a manual checklist for Chrome, Safari, keyboard operation, and a VoiceOver smoke test.
+
+## Keyboard and focus
+
+Both applications provide a skip link and visible focus indicators. Native dialogs contain focus, close with Escape, prevent interaction with the page behind them, and return focus to their opener. Invalid feedback submissions focus the first invalid field and associate the message with that field.
+
+Async loading, refresh, search, mutation, and validation messages use status or alert announcements. Motion is reduced to effectively none when `prefers-reduced-motion: reduce` is active.
+
+## Roadmap without visual columns
+
+The roadmap's columns follow a linear document order with a heading and item count for each status. A “Jump to” navigation precedes the board, allowing keyboard and screen-reader users to move directly to a status without interpreting the visual Kanban position. Status names and counts remain available without color.
+
+## Deployment responsibility
+
+Custom brand palettes are rejected when their core text or control contrast is insufficient. Deployers are still responsible for meaningful navigation labels, understandable brand assets, accessible linked content, and reviewing customer-authored text and images.

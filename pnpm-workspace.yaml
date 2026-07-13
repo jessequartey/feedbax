@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - packages/*
+  - connectors/*
+  - deploy/*
+  - examples/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

@@ -1,0 +1,77 @@
+---
+title: Notion setup
+description: Configure and validate the Notion backend before serving the portal.
+---
+
+Notion is the only connector targeted for v0.0.2. Future connectors are directional, not shipped capability.
+
+## Required setup
+
+Feedbax reads `NOTION_TOKEN` only on the server and reads the data-source ID and mappings from `feedbax.config.mjs`. Never expose the token through a `VITE_` variable.
+
+## Prepare a workspace
+
+1. Create a Notion integration for the target workspace.
+2. Create or select the database that will hold feedback.
+3. Share that database with the integration.
+4. Store the token as a server-only secret; never use a `VITE_` prefix.
+5. Set `NOTION_DATA_SOURCE_ID` to the data-source ID returned for the shared database. With current Notion APIs, this can differ from the database page ID in the URL.
+6. Configure the required `title`, `description`, and `status` mappings. Each mapping names the Notion property, its exact type, and whether Feedbax writes it.
+7. Map each canonical Feedbax status ID to one or more options on the configured Notion `status` or `select` property. A Notion option may appear in only one canonical mapping.
+
+## Public and internal statuses
+
+Status mappings are the public boundary. Multiple Notion workflow values can collapse into one public status, while an unmapped value remains private:
+
+```ts
+statuses: {
+  open: ['Open', 'Under review'],
+  planned: ['Planned'],
+  'in-progress': ['In progress', 'Internal QA'],
+  complete: ['Complete'],
+}
+```
+
+The first option in each list is the write target. The setup doctor verifies that every mapped option exists and that no option is mapped twice. Extra Notion options are allowed and are deliberately excluded from all public feedback and roadmap reads.
+
+When a status changes directly in Notion, invalidate the feedback and roadmap cache tags through the deployment's webhook or cache integration. The next public read will fetch and regroup the item; automatic Notion webhook ingestion is not bundled yet.
+
+Optional fields belong under `fields.optional`. When configured, they are validated exactly like required fields. Supported writable types are `title`, `rich_text`, `status`, `select`, `number`, `checkbox`, `date`, `people`, `url`, and `email`.
+
+## Changelog data source
+
+Set `NOTION_CHANGELOG_DATA_SOURCE_ID` to enable the public release feed, share that data source with the same integration, and configure these properties under `connector.setup.changelog.fields`:
+
+| Field                   | Notion type  | Behavior                                          |
+| ----------------------- | ------------ | ------------------------------------------------- |
+| `title`                 | Title        | Public release title                              |
+| `description`           | Rich text    | Markdown release content                          |
+| `slug`                  | Rich text    | Unique lowercase URL slug such as `new-dashboard` |
+| `publishedAt`           | Date         | Public release date and feed ordering             |
+| `published`             | Checkbox     | Explicit public visibility boundary               |
+| `version`               | Rich text    | Optional version label                            |
+| `tags`                  | Multi-select | Optional customer-facing labels                   |
+| `coverImageUrl`         | URL          | Optional public cover image                       |
+| `linkedFeedbackItemIds` | Relation     | Optional links to shipped feedback                |
+
+Only records with `published` checked, a valid publication date, and a valid unique slug are public. Unchecked drafts and malformed records are excluded from list responses, detail pages, related activity, HTML, and social metadata. Linked feedback is independently checked against the public feedback boundary, so an internal request cannot leak through a release.
+
+The changelog `linkedFeedbackItemIds` relation is the single source of truth for the feedback-to-release loop. Link requests from the changelog record; Feedbax derives the reverse links shown on feedback detail pages instead of requiring a second relation that can drift. A linked request appears as shipped only after its Notion status maps to a canonical public status with `isTerminal: true`. Publishing a release never rewrites or overrides feedback status.
+
+Feedback and changelog relationship reads share both cache boundaries. After linking a request, publishing a release, or moving the request into a terminal status, invalidate the feedback or changelog cache tag before expecting the public relationship to change.
+
+Changelog content supports the portal's sanitized Markdown subset. Cover images must be publicly reachable HTTP(S) URLs. Entry pages use `/changelog/:slug`; changing a published slug changes its public URL.
+
+After publishing, editing, unpublishing, or deleting a release, invalidate the connector's changelog cache tag. The next list or detail request will bypass the old origin entry. Feedbax defines a delivery-neutral `feedback.shipped` event and feedback subscription target for future notification adapters, but this release does not persist events, send email, or require notification infrastructure.
+
+## Run the doctor
+
+```bash
+NOTION_TOKEN=ntn_… NOTION_DATA_SOURCE_ID=… pnpm notion:doctor
+```
+
+Use `pnpm notion:doctor -- --json` for a machine-readable result. The command exits `0` only when every check passes and exits nonzero with an exact `Repair:` instruction otherwise. For example, an unshared database tells you to add the integration under the database's Connections menu; a renamed status tells you the exact option or mapping to repair.
+
+The check authenticates the token, reads the feedback and configured changelog data-source schemas, checks required and optional properties, validates property types and writable mappings, verifies status options, queries at most one page, and reads at most one comment. It never creates, edits, comments on, or archives content. Writable validation therefore proves schema compatibility, not write permission. An empty feedback database must contain one setup page before comment access can be checked.
+
+The token, authorization header, raw Notion response, and thrown error causes are never included in human or JSON output. Run the doctor again after changing the integration, database schema, properties, or status options.

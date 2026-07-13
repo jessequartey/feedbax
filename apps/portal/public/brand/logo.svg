@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Feedbax</title>
+  <rect width="64" height="64" rx="32" fill="#2563eb"/>
+  <path fill="#fff" d="M21 17h25v8H30v8h14v8H30v12h-9V17Z"/>
+</svg>

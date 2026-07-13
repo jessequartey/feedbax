@@ -1,0 +1,16 @@
+{
+  "name": "@feedbax/example-auth-handoff",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@feedbax/auth": "workspace:*",
+    "jose": "6.1.3"
+  }
+}
