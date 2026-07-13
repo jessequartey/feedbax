@@ -69,19 +69,22 @@ test('signed users receive duplicate suggestions, submit, vote, remove vote, and
   page,
 }) => {
   await signIn(page)
+  await waitForHydration(page)
   await page
-    .getByRole('button', { name: /Create Feedback/ })
-    .first()
+    .locator('.board-heading')
+    .getByRole('button', { name: 'Create Feedback' })
     .click()
-  await page.getByLabel('Title').fill('Offline mode support')
+  const form = page.getByRole('dialog', { name: 'Share an Idea' })
+  await expect(form).toBeVisible()
+  await form.getByLabel('Title').fill('Offline mode support')
   await expect(page.getByText('Similar feedback')).toBeVisible()
   await expect(page.getByRole('link', { name: /Offline mode/ })).toBeVisible()
 
-  await page.getByLabel('Title').fill('Keyboard navigation audit')
-  await page
+  await form.getByLabel('Title').fill('Keyboard navigation audit')
+  await form
     .getByLabel('Description')
     .fill('Audit the complete portal flow using only the keyboard.')
-  await page.getByRole('button', { name: 'Submit feedback' }).click()
+  await form.getByRole('button', { name: 'Submit feedback' }).click()
   await expect(
     page.getByRole('heading', { name: 'Keyboard navigation audit' }),
   ).toBeVisible()
