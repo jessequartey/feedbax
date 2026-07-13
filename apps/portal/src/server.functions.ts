@@ -50,7 +50,9 @@ export async function loadFeedbackDetail(
   return PublicFeedbackDetailSchema.parse({
     item,
     comments: comments.value,
-    roadmap: roadmap.value.items.filter((entry) => entry.linkedFeedbackItemIds.includes(id)),
+    roadmap: roadmap.value.items.filter((entry) =>
+      entry.linkedFeedbackItemIds.includes(id),
+    ),
     releases: releases.value.items.map((entry) => ({
       changelogEntryId: entry.id,
       slug: entry.slug,
@@ -77,8 +79,9 @@ export async function loadChangelogDetail(
   const entry = await reader.getChangelogEntry(slug)
   if (!entry) return null
   const ids = [...new Set(entry.linkedFeedbackItemIds)].slice(0, 20)
-  const related = (await Promise.all(ids.map((id) => reader.getFeedback(id))))
-    .flatMap((item) => item?.status?.isTerminal ? [item] : [])
+  const related = (
+    await Promise.all(ids.map((id) => reader.getFeedback(id)))
+  ).flatMap((item) => (item?.status?.isTerminal ? [item] : []))
   return PublicChangelogDetailSchema.parse({
     entry: { ...entry, linkedFeedbackItemIds: related.map(({ id }) => id) },
     relatedFeedback: related,

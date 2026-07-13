@@ -9,7 +9,11 @@ import {
   runNotionDoctor,
   type NotionSetupConfig,
 } from '../src/index.js'
-import { MemoryCacheAdapter, cacheTags, invalidateAfterMutation } from '@feedbax/core'
+import {
+  MemoryCacheAdapter,
+  cacheTags,
+  invalidateAfterMutation,
+} from '@feedbax/core'
 
 const config: NotionSetupConfig = {
   dataSourceId: 'source-id',
@@ -44,14 +48,22 @@ const changelogConfig: NotionSetupConfig = {
     dataSourceId: 'changelog-id',
     fields: {
       title: { property: 'Name', type: 'title', writable: true },
-      description: { property: 'Description', type: 'rich_text', writable: true },
+      description: {
+        property: 'Description',
+        type: 'rich_text',
+        writable: true,
+      },
       slug: { property: 'Slug', type: 'rich_text', writable: true },
       publishedAt: { property: 'Published at', type: 'date', writable: true },
       published: { property: 'Published', type: 'checkbox', writable: true },
       version: { property: 'Version', type: 'rich_text', writable: true },
       tags: { property: 'Tags', type: 'multi_select', writable: true },
       coverImageUrl: { property: 'Cover image', type: 'url', writable: true },
-      linkedFeedbackItemIds: { property: 'Feedback', type: 'relation', writable: true },
+      linkedFeedbackItemIds: {
+        property: 'Feedback',
+        type: 'relation',
+        writable: true,
+      },
     },
   },
 }
@@ -118,18 +130,40 @@ describe('Notion setup health check', () => {
       const url = String(input)
       if (url.endsWith('/users/me')) return response({ object: 'user' })
       if (url.endsWith('/data_sources/source-id')) return response(source)
-      if (url.endsWith('/data_sources/source-id/query')) return response({ results: [{ id: 'page-id' }] })
+      if (url.endsWith('/data_sources/source-id/query'))
+        return response({ results: [{ id: 'page-id' }] })
       if (url.includes('/comments?')) return response({ results: [] })
-      if (url.endsWith('/data_sources/changelog-id')) return response({ properties: {
-        Name: { type: 'title' }, Description: { type: 'rich_text' }, Slug: { type: 'rich_text' },
-        'Published at': { type: 'date' }, Published: { type: 'checkbox' }, Version: { type: 'rich_text' },
-        Tags: { type: 'multi_select' }, 'Cover image': { type: 'url' }, Feedback: { type: 'relation' },
-      } })
+      if (url.endsWith('/data_sources/changelog-id'))
+        return response({
+          properties: {
+            Name: { type: 'title' },
+            Description: { type: 'rich_text' },
+            Slug: { type: 'rich_text' },
+            'Published at': { type: 'date' },
+            Published: { type: 'checkbox' },
+            Version: { type: 'rich_text' },
+            Tags: { type: 'multi_select' },
+            'Cover image': { type: 'url' },
+            Feedback: { type: 'relation' },
+          },
+        })
       return response({}, 500)
     }) as unknown as typeof fetch
-    const result = await checkNotionSetup(changelogConfig, { token: 'secret', fetch: fetcher })
-    expect(result.checks.at(-1)).toMatchObject({ code: 'CHANGELOG_OK', status: 'pass' })
-    expect(vi.mocked(fetcher).mock.calls.every((call) => (call[1] as RequestInit | undefined)?.method !== 'PATCH')).toBe(true)
+    const result = await checkNotionSetup(changelogConfig, {
+      token: 'secret',
+      fetch: fetcher,
+    })
+    expect(result.checks.at(-1)).toMatchObject({
+      code: 'CHANGELOG_OK',
+      status: 'pass',
+    })
+    expect(
+      vi
+        .mocked(fetcher)
+        .mock.calls.every(
+          (call) => (call[1] as RequestInit | undefined)?.method !== 'PATCH',
+        ),
+    ).toBe(true)
   })
 
   it('gives an exact repair for a missing token without making a request', async () => {
@@ -337,7 +371,10 @@ describe('Notion cached public reads', () => {
                 type: 'rich_text',
                 rich_text: [{ plain_text: 'Work anywhere' }],
               },
-              Type: { type: 'select', select: { id: 'feature', name: 'Feature' } },
+              Type: {
+                type: 'select',
+                select: { id: 'feature', name: 'Feature' },
+              },
               Status: { type: 'status', status: { id: 'open', name: 'Open' } },
               'Comment count': { type: 'number', number: 7 },
             },
@@ -393,62 +430,130 @@ describe('Notion cached public reads', () => {
     ]
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
-      if (url.includes('/query')) return response({ results: pages.map((page) => ({
-        id: page.id, parent: { type: 'data_source_id', data_source_id: 'source-id' },
-        created_time: '2026-07-11T12:00:00Z', last_edited_time: '2026-07-11T12:00:00Z',
-        properties: {
-          Name: { title: [{ plain_text: page.title }] }, Description: { rich_text: [{ plain_text: 'Description' }] },
-          Type: { select: { name: 'Feature' } }, Status: { status: { name: page.status } }, 'Comment count': { number: 0 },
-        },
-      })), has_more: false })
+      if (url.includes('/query'))
+        return response({
+          results: pages.map((page) => ({
+            id: page.id,
+            parent: { type: 'data_source_id', data_source_id: 'source-id' },
+            created_time: '2026-07-11T12:00:00Z',
+            last_edited_time: '2026-07-11T12:00:00Z',
+            properties: {
+              Name: { title: [{ plain_text: page.title }] },
+              Description: { rich_text: [{ plain_text: 'Description' }] },
+              Type: { select: { name: 'Feature' } },
+              Status: { status: { name: page.status } },
+              'Comment count': { number: 0 },
+            },
+          })),
+          has_more: false,
+        })
       const page = pages.find(({ id }) => url.endsWith(`/pages/${id}`))!
       return response({
-        id: page.id, parent: { type: 'data_source_id', data_source_id: 'source-id' },
-        created_time: '2026-07-11T12:00:00Z', last_edited_time: '2026-07-11T12:00:00Z',
-        properties: { Name: { title: [{ plain_text: page.title }] }, Description: { rich_text: [{ plain_text: 'Description' }] }, Type: { select: { name: 'Feature' } }, Status: { status: { name: page.status } }, 'Comment count': { number: 0 } },
+        id: page.id,
+        parent: { type: 'data_source_id', data_source_id: 'source-id' },
+        created_time: '2026-07-11T12:00:00Z',
+        last_edited_time: '2026-07-11T12:00:00Z',
+        properties: {
+          Name: { title: [{ plain_text: page.title }] },
+          Description: { rich_text: [{ plain_text: 'Description' }] },
+          Type: { select: { name: 'Feature' } },
+          Status: { status: { name: page.status } },
+          'Comment count': { number: 0 },
+        },
       })
     }) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: {
-      ...config, statuses: { open: ['Open', 'Under review'], done: ['Done'] },
-      statusDefinitions: { open: { name: 'Open', order: 0 }, done: { name: 'Done', order: 1, isTerminal: true } },
-    }, fetch: fetcher })
-    const result = await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })
-    expect(result.value.items).toMatchObject([{ id: 'public', status: { id: 'open', name: 'Open' } }])
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: {
+        ...config,
+        statuses: { open: ['Open', 'Under review'], done: ['Done'] },
+        statusDefinitions: {
+          open: { name: 'Open', order: 0 },
+          done: { name: 'Done', order: 1, isTerminal: true },
+        },
+      },
+      fetch: fetcher,
+    })
+    const result = await reader.listFeedback(
+      { sort: 'newest' },
+      { pageSize: 20 },
+    )
+    expect(result.value.items).toMatchObject([
+      { id: 'public', status: { id: 'open', name: 'Open' } },
+    ])
     expect(JSON.stringify(result.value)).not.toContain('Under review')
     expect(JSON.stringify(result.value)).not.toContain('Internal QA')
     expect(await reader.getFeedback('private')).toBeNull()
-    const queryBody = JSON.parse(String((vi.mocked(fetcher).mock.calls[0]?.[1] as RequestInit).body))
-    expect(queryBody.filter.or.map((entry: { status: { equals: string } }) => entry.status.equals)).toEqual(['Open', 'Under review', 'Done'])
+    const queryBody = JSON.parse(
+      String((vi.mocked(fetcher).mock.calls[0]?.[1] as RequestInit).body),
+    )
+    expect(
+      queryBody.filter.or.map(
+        (entry: { status: { equals: string } }) => entry.status.equals,
+      ),
+    ).toEqual(['Open', 'Under review', 'Done'])
   })
 
   it('shows a changed canonical status after feedback cache invalidation', async () => {
     const cache = new MemoryCacheAdapter()
     let current = 'Open'
-    const fetcher = vi.fn(async () => response({ results: [{
-      id: 'feedback-1', created_time: '2026-07-11T12:00:00Z', last_edited_time: '2026-07-11T12:00:00Z',
-      properties: { Name: { title: [{ plain_text: 'Idea' }] }, Description: { rich_text: [{ plain_text: 'Description' }] }, Type: { select: { name: 'Feature' } }, Status: { status: { name: current } }, 'Comment count': { number: 0 } },
-    }], has_more: false })) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: config, fetch: fetcher, cache })
-    expect((await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value.items[0]?.status?.id).toBe('open')
+    const fetcher = vi.fn(async () =>
+      response({
+        results: [
+          {
+            id: 'feedback-1',
+            created_time: '2026-07-11T12:00:00Z',
+            last_edited_time: '2026-07-11T12:00:00Z',
+            properties: {
+              Name: { title: [{ plain_text: 'Idea' }] },
+              Description: { rich_text: [{ plain_text: 'Description' }] },
+              Type: { select: { name: 'Feature' } },
+              Status: { status: { name: current } },
+              'Comment count': { number: 0 },
+            },
+          },
+        ],
+        has_more: false,
+      }),
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: config,
+      fetch: fetcher,
+      cache,
+    })
+    expect(
+      (await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value
+        .items[0]?.status?.id,
+    ).toBe('open')
     current = 'Done'
-    expect((await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value.items[0]?.status?.id).toBe('open')
+    expect(
+      (await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value
+        .items[0]?.status?.id,
+    ).toBe('open')
     await invalidateAfterMutation(cache, 'feedback', 'notion')
-    expect((await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value.items[0]?.status?.id).toBe('done')
+    expect(
+      (await reader.listFeedback({ sort: 'newest' }, { pageSize: 20 })).value
+        .items[0]?.status?.id,
+    ).toBe('done')
   })
 })
 
 describe('Notion feedback submission', () => {
   it('chunks rich text at the Notion property limit', () => {
-    expect(richText('x'.repeat(4001)).map(({ text }) => text.content.length))
-      .toEqual([2000, 2000, 1])
+    expect(
+      richText('x'.repeat(4001)).map(({ text }) => text.content.length),
+    ).toEqual([2000, 2000, 1])
   })
 
   it('creates a data-source page and returns a canonical public item', async () => {
-    const fetcher = vi.fn(async () => response({
-      id: 'created-page',
-      created_time: '2026-07-12T08:00:00Z',
-      last_edited_time: '2026-07-12T08:00:00Z',
-    })) as unknown as typeof fetch
+    const fetcher = vi.fn(async () =>
+      response({
+        id: 'created-page',
+        created_time: '2026-07-12T08:00:00Z',
+        last_edited_time: '2026-07-12T08:00:00Z',
+      }),
+    ) as unknown as typeof fetch
     const service = createNotionMutationService({
       token: 'secret',
       setup: {
@@ -466,11 +571,21 @@ describe('Notion feedback submission', () => {
       },
       fetch: fetcher,
     })
-    const item = await service.submit({
-      title: 'Export failure', description: 'Exports fail for large files.',
-      type: 'bug', categoryId: 'feature', tagIds: ['api'],
-    }, { id: 'user-1', displayName: 'Ada' })
-    expect(item).toMatchObject({ id: 'created-page', type: 'bug', author: { displayName: 'Ada' } })
+    const item = await service.submit(
+      {
+        title: 'Export failure',
+        description: 'Exports fail for large files.',
+        type: 'bug',
+        categoryId: 'feature',
+        tagIds: ['api'],
+      },
+      { id: 'user-1', displayName: 'Ada' },
+    )
+    expect(item).toMatchObject({
+      id: 'created-page',
+      type: 'bug',
+      author: { displayName: 'Ada' },
+    })
     const init = vi.mocked(fetcher).mock.calls[0]?.[1] as RequestInit
     const body = JSON.parse(String(init.body))
     expect(body).toMatchObject({
@@ -486,13 +601,16 @@ describe('Notion feedback submission', () => {
 
   it('rejects detail pages outside the configured data source', async () => {
     const reader = createNotionReadClient({
-      token: 'secret', setup: config,
-      fetch: async () => response({
-        id: 'private-page', created_time: '2026-07-12T08:00:00Z',
-        last_edited_time: '2026-07-12T08:00:00Z',
-        parent: { type: 'data_source_id', data_source_id: 'other-source' },
-        properties: {},
-      }),
+      token: 'secret',
+      setup: config,
+      fetch: async () =>
+        response({
+          id: 'private-page',
+          created_time: '2026-07-12T08:00:00Z',
+          last_edited_time: '2026-07-12T08:00:00Z',
+          parent: { type: 'data_source_id', data_source_id: 'other-source' },
+          properties: {},
+        }),
     })
     expect(await reader.getFeedback('private-page')).toBeNull()
   })
@@ -502,74 +620,227 @@ describe('Notion comments', () => {
   it('persists an author-safe comment and updates the denormalized count', async () => {
     const calls: Array<{ url: string; body: Record<string, unknown> }> = []
     let queryCount = 0
-    const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input); const body = (init?.body ? JSON.parse(String(init.body)) : {}) as Record<string, unknown>
-      calls.push({ url, body })
-      if (url.endsWith('/pages/feedback-1') && init?.method === 'GET') return response({ parent: { type: 'data_source_id', data_source_id: 'source-id' }, properties: {} })
-      if (url.endsWith('/data_sources/comments-id/query')) { queryCount++; return response(queryCount === 1 ? { results: [] } : { results: [{}], has_more: false }) }
-      if (url.endsWith('/pages') && init?.method === 'POST') return response({ id: 'comment-1', created_time: '2026-07-12T08:00:00Z', last_edited_time: '2026-07-12T08:00:00Z' })
-      if (url.endsWith('/pages/feedback-1') && init?.method === 'PATCH') return response({})
-      return response({}, 500)
-    }) as unknown as typeof fetch
-    const service = createNotionMutationService({ token: 'secret', setup: { ...config, comments: { dataSourceId: 'comments-id', fields: {
-      key: { property: 'Key', type: 'title', writable: true }, feedbackItem: { property: 'Feedback', type: 'relation', writable: true }, body: { property: 'Body', type: 'rich_text', writable: true }, authorId: { property: 'Author ID', type: 'rich_text', writable: true }, authorName: { property: 'Author name', type: 'rich_text', writable: true }, authorKind: { property: 'Author kind', type: 'select', writable: true },
-    } } }, fetch: fetcher })
-    const comment = await service.createComment({ id: 'user-1', displayName: 'Ada' }, 'team', { clientRequestId: 'd9428888-122b-4df6-9f3b-2c1f2831b455', feedbackItemId: 'feedback-1', body: 'We are looking into this.' })
-    expect(comment).toMatchObject({ id: 'comment-1', author: { displayName: 'Ada' }, authorKind: 'team' })
+    const fetcher = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        const body = (
+          init?.body ? JSON.parse(String(init.body)) : {}
+        ) as Record<string, unknown>
+        calls.push({ url, body })
+        if (url.endsWith('/pages/feedback-1') && init?.method === 'GET')
+          return response({
+            parent: { type: 'data_source_id', data_source_id: 'source-id' },
+            properties: {},
+          })
+        if (url.endsWith('/data_sources/comments-id/query')) {
+          queryCount++
+          return response(
+            queryCount === 1
+              ? { results: [] }
+              : { results: [{}], has_more: false },
+          )
+        }
+        if (url.endsWith('/pages') && init?.method === 'POST')
+          return response({
+            id: 'comment-1',
+            created_time: '2026-07-12T08:00:00Z',
+            last_edited_time: '2026-07-12T08:00:00Z',
+          })
+        if (url.endsWith('/pages/feedback-1') && init?.method === 'PATCH')
+          return response({})
+        return response({}, 500)
+      },
+    ) as unknown as typeof fetch
+    const service = createNotionMutationService({
+      token: 'secret',
+      setup: {
+        ...config,
+        comments: {
+          dataSourceId: 'comments-id',
+          fields: {
+            key: { property: 'Key', type: 'title', writable: true },
+            feedbackItem: {
+              property: 'Feedback',
+              type: 'relation',
+              writable: true,
+            },
+            body: { property: 'Body', type: 'rich_text', writable: true },
+            authorId: {
+              property: 'Author ID',
+              type: 'rich_text',
+              writable: true,
+            },
+            authorName: {
+              property: 'Author name',
+              type: 'rich_text',
+              writable: true,
+            },
+            authorKind: {
+              property: 'Author kind',
+              type: 'select',
+              writable: true,
+            },
+          },
+        },
+      },
+      fetch: fetcher,
+    })
+    const comment = await service.createComment(
+      { id: 'user-1', displayName: 'Ada' },
+      'team',
+      {
+        clientRequestId: 'd9428888-122b-4df6-9f3b-2c1f2831b455',
+        feedbackItemId: 'feedback-1',
+        body: 'We are looking into this.',
+      },
+    )
+    expect(comment).toMatchObject({
+      id: 'comment-1',
+      author: { displayName: 'Ada' },
+      authorKind: 'team',
+    })
     expect(JSON.stringify(calls)).not.toContain('ada@example.com')
-    expect(calls.find(({ url }) => url.endsWith('/pages'))?.body.properties).toMatchObject({ 'Author ID': { rich_text: [{ type: 'text', text: { content: 'user-1' } }] }, 'Author kind': { select: { name: 'team' } } })
-    expect((calls.at(-1)?.body.properties as Record<string, { number: number }>)['Comment count']?.number).toBe(1)
+    expect(
+      calls.find(({ url }) => url.endsWith('/pages'))?.body.properties,
+    ).toMatchObject({
+      'Author ID': {
+        rich_text: [{ type: 'text', text: { content: 'user-1' } }],
+      },
+      'Author kind': { select: { name: 'team' } },
+    })
+    expect(
+      (calls.at(-1)?.body.properties as Record<string, { number: number }>)[
+        'Comment count'
+      ]?.number,
+    ).toBe(1)
   })
 })
 
 describe('Notion best-effort voting', () => {
   function votingService() {
-    const votes: Array<{ id: string; feedbackItemId: string; voterKey: string; active: boolean }> = []
+    const votes: Array<{
+      id: string
+      feedbackItemId: string
+      voterKey: string
+      active: boolean
+    }> = []
     let count = 0
     const setup: NotionSetupConfig = {
       ...config,
-      fields: { ...config.fields, optional: { voteCount: { property: 'Vote count', type: 'number', writable: true } } },
-      votes: { dataSourceId: 'votes-id', fields: {
-        key: { property: 'Key', type: 'title', writable: true },
-        feedbackItem: { property: 'Feedback', type: 'relation', writable: true },
-        voterKey: { property: 'Voter key', type: 'rich_text', writable: true },
-        active: { property: 'Active', type: 'checkbox', writable: true },
-      } },
+      fields: {
+        ...config.fields,
+        optional: {
+          voteCount: { property: 'Vote count', type: 'number', writable: true },
+        },
+      },
+      votes: {
+        dataSourceId: 'votes-id',
+        fields: {
+          key: { property: 'Key', type: 'title', writable: true },
+          feedbackItem: {
+            property: 'Feedback',
+            type: 'relation',
+            writable: true,
+          },
+          voterKey: {
+            property: 'Voter key',
+            type: 'rich_text',
+            writable: true,
+          },
+          active: { property: 'Active', type: 'checkbox', writable: true },
+        },
+      },
     }
-    const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input)
-      const body = init?.body ? JSON.parse(String(init.body)) : {}
-      if (url.endsWith('/pages/feedback-1') && init?.method === 'GET')
-        return response({ parent: { type: 'data_source_id', data_source_id: 'source-id' }, properties: {} })
-      if (url.endsWith('/data_sources/votes-id/query')) {
-        const clauses = (body.filter?.and ?? []) as Array<{ rich_text?: { equals?: string }; checkbox?: { equals?: boolean } }>
-        const voter = clauses.find((entry) => entry.rich_text)?.rich_text?.equals
-        const activeOnly = clauses.some((entry) => entry.checkbox?.equals === true)
-        const rows = votes.filter((vote) => (!voter || vote.voterKey === voter) && (!activeOnly || vote.active))
-        return response({ results: rows.map((vote) => ({ id: vote.id, properties: {
-          Active: { checkbox: vote.active }, Feedback: { relation: [{ id: vote.feedbackItemId }] },
-          'Voter key': { rich_text: [{ plain_text: vote.voterKey }] },
-        } })) })
-      }
-      if (url.endsWith('/pages') && init?.method === 'POST') {
-        const properties = body.properties
-        votes.push({ id: `vote-${votes.length + 1}`, feedbackItemId: properties.Feedback.relation[0].id, voterKey: properties['Voter key'].rich_text[0].text.content, active: true })
-        return response({ id: votes.at(-1)?.id })
-      }
-      const existing = votes.find((vote) => url.endsWith(`/pages/${vote.id}`))
-      if (existing) { existing.active = body.properties.Active.checkbox; return response({}) }
-      if (url.endsWith('/pages/feedback-1') && init?.method === 'PATCH') { count = body.properties['Vote count'].number; return response({}) }
-      return response({}, 500)
-    }) as unknown as typeof fetch
-    return { service: createNotionMutationService({ token: 'secret', setup, fetch: fetcher, interactionHashKey: 'test-key-with-at-least-thirty-two-bytes' }), votes, getCount: () => count }
+    const fetcher = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        const body = init?.body ? JSON.parse(String(init.body)) : {}
+        if (url.endsWith('/pages/feedback-1') && init?.method === 'GET')
+          return response({
+            parent: { type: 'data_source_id', data_source_id: 'source-id' },
+            properties: {},
+          })
+        if (url.endsWith('/data_sources/votes-id/query')) {
+          const clauses = (body.filter?.and ?? []) as Array<{
+            rich_text?: { equals?: string }
+            checkbox?: { equals?: boolean }
+          }>
+          const voter = clauses.find((entry) => entry.rich_text)?.rich_text
+            ?.equals
+          const activeOnly = clauses.some(
+            (entry) => entry.checkbox?.equals === true,
+          )
+          const rows = votes.filter(
+            (vote) =>
+              (!voter || vote.voterKey === voter) &&
+              (!activeOnly || vote.active),
+          )
+          return response({
+            results: rows.map((vote) => ({
+              id: vote.id,
+              properties: {
+                Active: { checkbox: vote.active },
+                Feedback: { relation: [{ id: vote.feedbackItemId }] },
+                'Voter key': { rich_text: [{ plain_text: vote.voterKey }] },
+              },
+            })),
+          })
+        }
+        if (url.endsWith('/pages') && init?.method === 'POST') {
+          const properties = body.properties
+          votes.push({
+            id: `vote-${votes.length + 1}`,
+            feedbackItemId: properties.Feedback.relation[0].id,
+            voterKey: properties['Voter key'].rich_text[0].text.content,
+            active: true,
+          })
+          return response({ id: votes.at(-1)?.id })
+        }
+        const existing = votes.find((vote) => url.endsWith(`/pages/${vote.id}`))
+        if (existing) {
+          existing.active = body.properties.Active.checkbox
+          return response({})
+        }
+        if (url.endsWith('/pages/feedback-1') && init?.method === 'PATCH') {
+          count = body.properties['Vote count'].number
+          return response({})
+        }
+        return response({}, 500)
+      },
+    ) as unknown as typeof fetch
+    return {
+      service: createNotionMutationService({
+        token: 'secret',
+        setup,
+        fetch: fetcher,
+        interactionHashKey: 'test-key-with-at-least-thirty-two-bytes',
+      }),
+      votes,
+      getCount: () => count,
+    }
   }
 
   it('sets desired state idempotently and removes a vote without trusting a total', async () => {
     const { service, votes, getCount } = votingService()
-    expect(await service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: true })).toMatchObject({ voted: true, voteCount: 1 })
-    expect(await service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: true })).toMatchObject({ voted: true, voteCount: 1 })
+    expect(
+      await service.setVote('user-1', {
+        feedbackItemId: 'feedback-1',
+        voted: true,
+      }),
+    ).toMatchObject({ voted: true, voteCount: 1 })
+    expect(
+      await service.setVote('user-1', {
+        feedbackItemId: 'feedback-1',
+        voted: true,
+      }),
+    ).toMatchObject({ voted: true, voteCount: 1 })
     expect(votes).toHaveLength(1)
-    expect(await service.setVote('user-1', { feedbackItemId: 'feedback-1', voted: false })).toMatchObject({ voted: false, voteCount: 0 })
+    expect(
+      await service.setVote('user-1', {
+        feedbackItemId: 'feedback-1',
+        voted: false,
+      }),
+    ).toMatchObject({ voted: false, voteCount: 0 })
     expect(getCount()).toBe(0)
   })
 
@@ -588,20 +859,34 @@ describe('Notion best-effort voting', () => {
 describe('Notion public changelog reads', () => {
   it('maps published releases, sends public filters, and resolves exact slugs', async () => {
     const bodies: unknown[] = []
-    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)))
-      return response({ results: [changelogPage('release-1')], has_more: false, next_cursor: null })
-    }) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher })
+    const fetcher = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return response({
+          results: [changelogPage('release-1')],
+          has_more: false,
+          next_cursor: null,
+        })
+      },
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: changelogConfig,
+      fetch: fetcher,
+    })
     const page = await reader.listChangelog({ pageSize: 20 })
     expect(page.value.items[0]).toMatchObject({
-      id: 'release-1', slug: 'new-dashboard', version: 'v0.0.2',
+      id: 'release-1',
+      slug: 'new-dashboard',
+      version: 'v0.0.2',
       publishedAt: '2026-07-12T08:00:00Z',
       tags: [{ id: 'dashboard', name: 'Dashboard' }],
       coverImageUrl: 'https://images.example/dashboard.jpg',
       linkedFeedbackItemIds: ['feedback-1'],
     })
-    expect(await reader.getChangelogEntry('new-dashboard')).toMatchObject({ id: 'release-1' })
+    expect(await reader.getChangelogEntry('new-dashboard')).toMatchObject({
+      id: 'release-1',
+    })
     expect(JSON.stringify(bodies[0])).toContain('Published at')
     expect(JSON.stringify(bodies[0])).toContain('descending')
     expect(JSON.stringify(bodies[1])).toContain('new-dashboard')
@@ -610,32 +895,67 @@ describe('Notion public changelog reads', () => {
   it('normalizes date-only Notion releases to a public UTC timestamp', async () => {
     const release = changelogPage('date-only')
     release.properties['Published at'] = { date: { start: '2026-07-12' } }
-    const fetcher = vi.fn(async () => response({ results: [release], has_more: false, next_cursor: null })) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher })
-    expect((await reader.listChangelog({ pageSize: 20 })).value.items[0]?.publishedAt).toBe('2026-07-12T00:00:00Z')
+    const fetcher = vi.fn(async () =>
+      response({ results: [release], has_more: false, next_cursor: null }),
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: changelogConfig,
+      fetch: fetcher,
+    })
+    expect(
+      (await reader.listChangelog({ pageSize: 20 })).value.items[0]
+        ?.publishedAt,
+    ).toBe('2026-07-12T00:00:00Z')
   })
 
   it('queries the canonical relation directly and invalidates on either cache boundary', async () => {
     const cache = new MemoryCacheAdapter()
     const bodies: unknown[] = []
-    const fetcher = vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)))
-      return response({ results: [changelogPage('release-1')], has_more: false, next_cursor: null })
-    }) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher, cache })
-    const first = await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })
-    const second = await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })
+    const fetcher = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return response({
+          results: [changelogPage('release-1')],
+          has_more: false,
+          next_cursor: null,
+        })
+      },
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: changelogConfig,
+      fetch: fetcher,
+      cache,
+    })
+    const first = await reader.listChangelogForFeedback('feedback-1', {
+      pageSize: 12,
+    })
+    const second = await reader.listChangelogForFeedback('feedback-1', {
+      pageSize: 12,
+    })
     expect(first.cacheStatus).toBe('miss')
     expect(second.cacheStatus).toBe('hit')
     expect(first.value.items.map(({ id }) => id)).toEqual(['release-1'])
-    expect(bodies[0]).toMatchObject({ page_size: 12, filter: { and: expect.arrayContaining([
-      { property: 'Feedback', relation: { contains: 'feedback-1' } },
-      { property: 'Published', checkbox: { equals: true } },
-    ]) } })
+    expect(bodies[0]).toMatchObject({
+      page_size: 12,
+      filter: {
+        and: expect.arrayContaining([
+          { property: 'Feedback', relation: { contains: 'feedback-1' } },
+          { property: 'Published', checkbox: { equals: true } },
+        ]),
+      },
+    })
     await cache.invalidateTags([cacheTags.feedback('notion')])
-    expect((await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })).cacheStatus).toBe('miss')
+    expect(
+      (await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 }))
+        .cacheStatus,
+    ).toBe('miss')
     await cache.invalidateTags([cacheTags.changelog('notion')])
-    expect((await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 })).cacheStatus).toBe('miss')
+    expect(
+      (await reader.listChangelogForFeedback('feedback-1', { pageSize: 12 }))
+        .cacheStatus,
+    ).toBe('miss')
     expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
@@ -644,24 +964,49 @@ describe('Notion public changelog reads', () => {
       changelogPage('draft', false, 'internal-launch'),
       changelogPage('invalid', true, 'Internal Launch'),
     ]
-    const fetcher = vi.fn(async () => response({ results, has_more: false, next_cursor: null })) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher })
+    const fetcher = vi.fn(async () =>
+      response({ results, has_more: false, next_cursor: null }),
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: changelogConfig,
+      fetch: fetcher,
+    })
     const page = await reader.listChangelog({ pageSize: 20 })
     expect(page.value.items).toEqual([])
     expect(JSON.stringify(page.value)).not.toContain('internal-launch')
     results = [changelogPage('one'), changelogPage('two')]
-    await expect(reader.getChangelogEntry('new-dashboard')).rejects.toThrow('Changelog configuration is invalid.')
+    await expect(reader.getChangelogEntry('new-dashboard')).rejects.toThrow(
+      'Changelog configuration is invalid.',
+    )
   })
 
   it('keeps cached releases stable until changelog cache invalidation', async () => {
     const cache = new MemoryCacheAdapter()
     let published = true
-    const fetcher = vi.fn(async () => response({ results: [changelogPage('release-1', published)], has_more: false, next_cursor: null })) as unknown as typeof fetch
-    const reader = createNotionReadClient({ token: 'secret', setup: changelogConfig, fetch: fetcher, cache })
-    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toHaveLength(1)
+    const fetcher = vi.fn(async () =>
+      response({
+        results: [changelogPage('release-1', published)],
+        has_more: false,
+        next_cursor: null,
+      }),
+    ) as unknown as typeof fetch
+    const reader = createNotionReadClient({
+      token: 'secret',
+      setup: changelogConfig,
+      fetch: fetcher,
+      cache,
+    })
+    expect(
+      (await reader.listChangelog({ pageSize: 20 })).value.items,
+    ).toHaveLength(1)
     published = false
-    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toHaveLength(1)
+    expect(
+      (await reader.listChangelog({ pageSize: 20 })).value.items,
+    ).toHaveLength(1)
     await cache.invalidateTags([cacheTags.changelog('notion')])
-    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toEqual([])
+    expect((await reader.listChangelog({ pageSize: 20 })).value.items).toEqual(
+      [],
+    )
   })
 })

@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react'
 import { useChangelogCollection } from '../collections/index.js'
 import { renderSanitizedMarkdown } from '../markdown.js'
 import { publicChangelog } from '../portal.config.js'
+import { ErrorState } from './error-state.js'
+import { RefreshStatus } from './application-state.js'
 
 const dateFormatter = new Intl.DateTimeFormat('en', {
   year: 'numeric',
@@ -15,13 +17,18 @@ export const formatReleaseDate = (value: string) =>
   dateFormatter.format(new Date(value))
 
 function preview(markdown: string) {
-  const value = markdown.length > 460
-    ? `${markdown.slice(0, 460).trimEnd()}…`
-    : markdown
+  const value =
+    markdown.length > 460 ? `${markdown.slice(0, 460).trimEnd()}…` : markdown
   return renderSanitizedMarkdown(value)
 }
 
-function ChangelogPreview({ entry, index }: { entry: ChangelogEntry; index: number }) {
+function ChangelogPreview({
+  entry,
+  index,
+}: {
+  entry: ChangelogEntry
+  index: number
+}) {
   const href = `/changelog/${encodeURIComponent(entry.slug)}`
   return (
     <article
@@ -29,17 +36,26 @@ function ChangelogPreview({ entry, index }: { entry: ChangelogEntry; index: numb
       style={{ '--entry-index': index } as CSSProperties}
     >
       <aside className="changelog-entry-meta" aria-label="Release details">
-        <time dateTime={entry.publishedAt}>{formatReleaseDate(entry.publishedAt)}</time>
+        <time dateTime={entry.publishedAt}>
+          {formatReleaseDate(entry.publishedAt)}
+        </time>
         {entry.version ? <strong>{entry.version}</strong> : null}
         {entry.tags.length ? (
           <ul aria-label="Tags">
-            {entry.tags.map((tag) => <li key={tag.id}>{tag.name}</li>)}
+            {entry.tags.map((tag) => (
+              <li key={tag.id}>{tag.name}</li>
+            ))}
           </ul>
         ) : null}
       </aside>
       <div className="changelog-entry-body">
         {entry.coverImageUrl ? (
-          <a className="changelog-cover" href={href} tabIndex={-1} aria-hidden="true">
+          <a
+            className="changelog-cover"
+            href={href}
+            tabIndex={-1}
+            aria-hidden="true"
+          >
             <img
               src={entry.coverImageUrl}
               alt=""
@@ -50,13 +66,17 @@ function ChangelogPreview({ entry, index }: { entry: ChangelogEntry; index: numb
           </a>
         ) : null}
         <p className="changelog-entry-kicker">Product update</p>
-        <h2><a href={href}>{entry.title}</a></h2>
+        <h2>
+          <a href={href}>{entry.title}</a>
+        </h2>
         <div
           className="markdown changelog-preview"
           dangerouslySetInnerHTML={{ __html: preview(entry.description) }}
         />
         <footer>
-          <a href={href}>Continue reading <span aria-hidden="true">→</span></a>
+          <a href={href}>
+            Continue reading <span aria-hidden="true">→</span>
+          </a>
         </footer>
       </div>
     </article>
@@ -64,8 +84,16 @@ function ChangelogPreview({ entry, index }: { entry: ChangelogEntry; index: numb
 }
 
 export function ChangelogFeed() {
-  const { items, hasMore, isLoading, isLoadingMore, error, loadMore, refetch } =
-    useChangelogCollection()
+  const {
+    items,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isRefreshing,
+    error,
+    loadMore,
+    refetch,
+  } = useChangelogCollection()
 
   return (
     <section className="changelog-page" aria-labelledby="changelog-heading">
@@ -74,15 +102,16 @@ export function ChangelogFeed() {
         <h1 id="changelog-heading">{publicChangelog.title}</h1>
         <p>{publicChangelog.description}</p>
       </header>
+      <RefreshStatus active={isRefreshing} />
       {isLoading ? (
-        <div className="changelog-feed changelog-skeleton" aria-live="polite" aria-busy="true">
-          <span /><span /><span />
-        </div>
-      ) : error ? (
-        <div className="changelog-inline-outage" role="alert">
-          <h2>Updates are temporarily unavailable</h2>
-          <p>We couldn’t reach the connected workspace.</p>
-          <button type="button" onClick={() => void refetch()}>Try again</button>
+        <div
+          className="changelog-feed changelog-skeleton"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <span />
+          <span />
+          <span />
         </div>
       ) : items.length ? (
         <div className="changelog-feed">
@@ -90,6 +119,8 @@ export function ChangelogFeed() {
             <ChangelogPreview key={entry.id} entry={entry} index={index} />
           ))}
         </div>
+      ) : error ? (
+        <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (
         <div className="changelog-empty">
           <span aria-hidden="true">↗</span>
@@ -97,6 +128,13 @@ export function ChangelogFeed() {
           <p>Shipped features and improvements will appear here.</p>
         </div>
       )}
+      {items.length > 0 && error ? (
+        <ErrorState
+          error={error}
+          onRetry={() => void refetch()}
+          scope="action"
+        />
+      ) : null}
       {hasMore ? (
         <div className="changelog-load-more">
           <button type="button" disabled={isLoadingMore} onClick={loadMore}>

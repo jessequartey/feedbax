@@ -10,6 +10,7 @@ import {
 } from '@feedbax/core'
 import { publicReader } from './public-feedback.server.js'
 import { publicRoadmap, publicTaxonomy } from './portal.config.js'
+import { applicationErrorResponse } from './application-errors.server.js'
 
 function pageRequest(url: URL, defaultPageSize = 20) {
   const cursor = url.searchParams.get('cursor') || undefined
@@ -24,25 +25,48 @@ const publicHeaders = {
   'cache-control': 'public, max-age=30, stale-while-revalidate=300',
 }
 
-function failure(message: string) {
-  return Response.json(
-    { error: { code: 'INVALID_QUERY', message } },
-    { status: 400, headers: { 'cache-control': 'no-store' } },
-  )
+function failure(
+  request: Request,
+  operation: string,
+  message: string,
+  error: unknown,
+) {
+  return applicationErrorResponse(request, operation, error, {
+    code: 'INVALID_QUERY',
+    message,
+    status: 400,
+    retryable: false,
+  })
 }
 
 export async function commentListResponse(request: Request) {
   try {
     const url = new URL(request.url)
-    const feedbackItemId = FeedbackItemIdSchema.parse(url.searchParams.get('feedbackItemId'))
+    const feedbackItemId = FeedbackItemIdSchema.parse(
+      url.searchParams.get('feedbackItemId'),
+    )
     const page = pageRequest(url)
     const reader = publicReader()
-    if (!reader) return Response.json(PublicCommentPageSchema.parse({ items: [], hasMore: false }), { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } })
+    if (!reader)
+      return applicationErrorResponse(
+        request,
+        'list-comments',
+        new Error('Connector configuration is unavailable.'),
+      )
     const result = await reader.listComments(feedbackItemId, page)
-    return Response.json(PublicCommentPageSchema.parse(result.value), { headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus } })
+    return Response.json(PublicCommentPageSchema.parse(result.value), {
+      headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus },
+    })
   } catch (error) {
     const invalid = error instanceof Error && error.name === 'ZodError'
-    return invalid ? failure('The comment query is invalid.') : Response.json({ error: { code: 'CONNECTOR_UNAVAILABLE', message: 'Comments are temporarily unavailable.' } }, { status: 503, headers: { 'cache-control': 'no-store' } })
+    return invalid
+      ? failure(
+          request,
+          'list-comments',
+          'The comment query is invalid.',
+          error,
+        )
+      : applicationErrorResponse(request, 'list-comments', error)
   }
 }
 
@@ -52,36 +76,42 @@ async function editorialResponse(
 ) {
   try {
     const page = pageRequest(new URL(request.url))
-    const empty = { items: [], hasMore: false }
     if (!reader)
-      return Response.json(
-        ChangelogPageSchema.parse(empty),
-        { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } },
+      return applicationErrorResponse(
+        request,
+        'list-changelog',
+        new Error('Connector configuration is unavailable.'),
       )
     const result = await reader.listChangelog(page)
-    return Response.json(ChangelogPageSchema.parse({
-      ...result.value,
-      items: result.value.items.map((entry) => ({
-        ...entry,
-        linkedFeedbackItemIds: [],
-      })),
-    }), {
-      headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus },
-    })
+    return Response.json(
+      ChangelogPageSchema.parse({
+        ...result.value,
+        items: result.value.items.map((entry) => ({
+          ...entry,
+          linkedFeedbackItemIds: [],
+        })),
+      }),
+      {
+        headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus },
+      },
+    )
   } catch (error) {
     const invalid = error instanceof Error && error.name === 'ZodError'
     return invalid
-      ? failure('The changelog query is invalid.')
-      : Response.json(
-          { error: { code: 'CONNECTOR_UNAVAILABLE', message: 'The changelog is temporarily unavailable.' } },
-          { status: 503, headers: { 'cache-control': 'no-store' } },
+      ? failure(
+          request,
+          'list-changelog',
+          'The changelog query is invalid.',
+          error,
         )
+      : applicationErrorResponse(request, 'list-changelog', error)
   }
 }
 
-const publicStatusById = new Map<string, (typeof publicTaxonomy.statuses)[number]>(
-  publicTaxonomy.statuses.map((status) => [status.id, status]),
-)
+const publicStatusById = new Map<
+  string,
+  (typeof publicTaxonomy.statuses)[number]
+>(publicTaxonomy.statuses.map((status) => [status.id, status]))
 
 export async function roadmapListResponse(
   request: Request,
@@ -93,16 +123,15 @@ export async function roadmapListResponse(
     const requestedIds = url.searchParams.getAll('status')
     if (requestedIds.some((id) => !configuredIds.includes(id as never)))
       throw new Error('INVALID_QUERY')
-    const selectedIds = requestedIds.length ? [...new Set(requestedIds)] : configuredIds
+    const selectedIds = requestedIds.length
+      ? [...new Set(requestedIds)]
+      : configuredIds
     const page = pageRequest(url, 100)
-    const columns = () => selectedIds.map((id) => ({
-      status: publicStatusById.get(id)!,
-      items: [],
-    }))
     if (!reader)
-      return Response.json(
-        PublicRoadmapPageSchema.parse({ columns: columns(), hasMore: false }),
-        { headers: { ...publicHeaders, 'x-feedbax-cache': 'bypass' } },
+      return applicationErrorResponse(
+        request,
+        'list-roadmap',
+        new Error('Connector configuration is unavailable.'),
       )
     const filter = FeedbackFilterSchema.parse({
       statusIds: selectedIds,
@@ -123,19 +152,24 @@ export async function roadmapListResponse(
           items: grouped.get(id) ?? [],
         })),
         hasMore: result.value.hasMore,
-        ...(result.value.nextCursor ? { nextCursor: result.value.nextCursor } : {}),
+        ...(result.value.nextCursor
+          ? { nextCursor: result.value.nextCursor }
+          : {}),
       }),
       { headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus } },
     )
   } catch (error) {
-    const invalid = error instanceof Error &&
+    const invalid =
+      error instanceof Error &&
       (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
     return invalid
-      ? failure('The roadmap filters are invalid.')
-      : Response.json(
-          { error: { code: 'CONNECTOR_UNAVAILABLE', message: 'The roadmap is temporarily unavailable.' } },
-          { status: 503, headers: { 'cache-control': 'no-store' } },
+      ? failure(
+          request,
+          'list-roadmap',
+          'The roadmap filters are invalid.',
+          error,
         )
+      : applicationErrorResponse(request, 'list-roadmap', error)
   }
 }
 export const changelogListResponse = (

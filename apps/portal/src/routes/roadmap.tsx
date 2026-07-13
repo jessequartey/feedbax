@@ -12,7 +12,7 @@ export const Route = createFileRoute('/roadmap')({
   loader: () => getServerStatus(),
   head: () => ({
     meta: [
-      { title: `${publicRoadmap.title} · ${portalBranding.name}` },
+      { title: `${publicRoadmap.title} · ${portalBranding.productName}` },
       { name: 'description', content: publicRoadmap.description },
     ],
   }),
@@ -26,7 +26,7 @@ export const Route = createFileRoute('/roadmap')({
 function RoadmapPage() {
   Route.useLoaderData()
   return (
-    <PortalShell branding={portalBranding} activePage="roadmap" wide>
+    <PortalShell activePage="roadmap" wide>
       <RoadmapBoard />
     </PortalShell>
   )

@@ -68,8 +68,13 @@ function RootDocument() {
             storageKey: 'feedbax-theme',
           }}
         >
+          <a className="skip-link" href="#main-content">
+            Skip to Content
+          </a>
           <SiteHeader />
-          <Outlet />
+          <div id="main-content" tabIndex={-1}>
+            <Outlet />
+          </div>
         </RootProvider>
         <Scripts />
       </body>

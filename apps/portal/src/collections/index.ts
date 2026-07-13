@@ -1,6 +1,9 @@
 import { createCollection, type Collection } from '@tanstack/db'
 import { QueryClient } from '@tanstack/query-core'
-import { queryCollectionOptions, type QueryCollectionUtils } from '@tanstack/query-db-collection'
+import {
+  queryCollectionOptions,
+  type QueryCollectionUtils,
+} from '@tanstack/query-db-collection'
 import {
   ChangelogEntrySchema,
   ChangelogPageSchema,
@@ -50,6 +53,7 @@ type PageEntry<T extends { id: string }> = {
   collection: PageCollection<T>
   meta: { nextCursor?: string | undefined; hasMore: boolean }
   ready: boolean
+  refreshing: boolean
   error: Error | undefined
 }
 
@@ -57,11 +61,26 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
   const value = await response.json()
   if (!response.ok) {
-    const message = (value as { error?: { message?: string } }).error?.message
+    const details = (
+      value as {
+        error?: {
+          code?: string
+          message?: string
+          requestId?: string
+          retryable?: boolean
+          retryAfterSeconds?: number
+          loginLocation?: string
+        }
+      }
+    ).error
     throw new ApplicationApiError(
-      message ?? 'The request could not be completed.',
+      details?.message ?? 'The request could not be completed.',
       response.status,
-      (value as { error?: { loginLocation?: string } }).error?.loginLocation,
+      details?.code ?? 'UNEXPECTED_ERROR',
+      details?.requestId,
+      details?.retryable ?? response.status >= 500,
+      details?.retryAfterSeconds,
+      details?.loginLocation,
     )
   }
   return value as T
@@ -71,30 +90,55 @@ export class ApplicationApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code: string,
+    readonly requestId?: string,
+    readonly retryable = false,
+    readonly retryAfterSeconds?: number,
     readonly loginLocation?: string,
-  ) { super(message) }
+  ) {
+    super(message)
+  }
 }
 
 const createdItems = new Map<string, PublicFeedbackItem>()
-const canonicalVotes = new Map<string, ReturnType<typeof SetVoteResultSchema.parse>>()
+const canonicalVotes = new Map<
+  string,
+  ReturnType<typeof SetVoteResultSchema.parse>
+>()
 
 async function enrichVoteState(items: readonly PublicFeedbackItem[]) {
   if (!items.length) return items
   try {
-    const state = VoteStateResponseSchema.parse(await api<unknown>('/api/vote-state', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ feedbackItemIds: items.map(({ id }) => id) }),
+    const state = VoteStateResponseSchema.parse(
+      await api<unknown>('/api/vote-state', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ feedbackItemIds: items.map(({ id }) => id) }),
+      }),
+    )
+    const byId = new Map(
+      state.items.map((entry) => [entry.feedbackItemId, entry.voted]),
+    )
+    return items.map((item) => ({
+      ...item,
+      hasViewerVoted: byId.get(item.id) ?? false,
     }))
-    const byId = new Map(state.items.map((entry) => [entry.feedbackItemId, entry.voted]))
-    return items.map((item) => ({ ...item, hasViewerVoted: byId.get(item.id) ?? false }))
-  } catch { return items }
+  } catch {
+    return items
+  }
 }
 
 async function persistVoteUpdates(items: readonly PublicFeedbackItem[]) {
   for (const item of items)
-    canonicalVotes.set(item.id, SetVoteResultSchema.parse(await post<unknown>('/api/vote', {
-      feedbackItemId: item.id, voted: item.hasViewerVoted ?? false,
-    })))
+    canonicalVotes.set(
+      item.id,
+      SetVoteResultSchema.parse(
+        await post<unknown>('/api/vote', {
+          feedbackItemId: item.id,
+          voted: item.hasViewerVoted ?? false,
+        }),
+      ),
+    )
 }
 
 function post<T>(path: string, input: unknown) {
@@ -120,6 +164,7 @@ function pageCollection<T extends { id: string }>(options: {
   const entry = {
     meta: { hasMore: false },
     ready: false,
+    refreshing: false,
     error: undefined,
   } as PageEntry<T>
   const collection = createCollection(
@@ -129,9 +174,13 @@ function pageCollection<T extends { id: string }>(options: {
       queryClient: collectionQueryClient,
       getKey: (item) => item.id,
       queryFn: async () => {
+        entry.refreshing = entry.ready
+        options.notify()
         try {
           const page = options.parse(await api<unknown>(options.url))
-          const items = options.enrich ? await options.enrich(page.items) : page.items
+          const items = options.enrich
+            ? await options.enrich(page.items)
+            : page.items
           entry.meta = {
             hasMore: page.hasMore,
             ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
@@ -141,22 +190,32 @@ function pageCollection<T extends { id: string }>(options: {
           options.notify()
           return [...items]
         } catch (error) {
-          entry.error = error instanceof Error ? error : new Error('Collection query failed.')
+          entry.error =
+            error instanceof Error
+              ? error
+              : new Error('Collection query failed.')
           options.notify()
           throw error
+        } finally {
+          entry.refreshing = false
+          options.notify()
         }
       },
       ...(options.onInsert
         ? {
             onInsert: async ({ transaction }) => {
-              await options.onInsert!(transaction.mutations.map(({ modified }) => modified))
+              await options.onInsert!(
+                transaction.mutations.map(({ modified }) => modified),
+              )
             },
           }
         : {}),
       ...(options.onUpdate
         ? {
             onUpdate: async ({ transaction }) => {
-              await options.onUpdate!(transaction.mutations.map(({ modified }) => modified))
+              await options.onUpdate!(
+                transaction.mutations.map(({ modified }) => modified),
+              )
             },
           }
         : {}),
@@ -170,6 +229,7 @@ type Snapshot<T> = {
   items: readonly T[]
   isLoading: boolean
   isLoadingMore: boolean
+  isRefreshing: boolean
   hasMore: boolean
   error?: Error
 }
@@ -179,23 +239,33 @@ class PagedController<T extends { id: string }> {
   private readonly listeners = new Set<() => void>()
   private subscriptions: Array<{ unsubscribe(): void }> = []
   private snapshotValue: Snapshot<T> = {
-    items: [], isLoading: true, isLoadingMore: false, hasMore: false,
+    items: [],
+    isLoading: true,
+    isLoadingMore: false,
+    hasMore: false,
+    isRefreshing: false,
   }
 
   constructor(
-    private readonly createPage: (cursor: string | undefined, notify: () => void) => PageEntry<T>,
+    private readonly createPage: (
+      cursor: string | undefined,
+      notify: () => void,
+    ) => PageEntry<T>,
   ) {
     this.addPage(undefined)
   }
 
   private notify = () => {
-    const items = mergeCanonicalPages(this.pages.map(({ collection }) => collection.toArray))
+    const items = mergeCanonicalPages(
+      this.pages.map(({ collection }) => collection.toArray),
+    )
     const last = this.pages.at(-1)
     const error = this.pages.find((page) => page.error)?.error
     this.snapshotValue = {
       items,
       isLoading: this.pages.length === 1 && !this.pages[0]!.ready && !error,
       isLoadingMore: this.pages.length > 1 && !last!.ready && !last!.error,
+      isRefreshing: this.pages.some((page) => page.ready && page.refreshing),
       hasMore: last?.meta.hasMore ?? false,
       ...(error ? { error } : {}),
     }
@@ -229,14 +299,20 @@ class PagedController<T extends { id: string }> {
   }
 }
 
-export function mergeCanonicalPages<T extends { id: string }>(pages: readonly (readonly T[])[]) {
+export function mergeCanonicalPages<T extends { id: string }>(
+  pages: readonly (readonly T[])[],
+) {
   const byId = new Map<string, T>()
   for (const page of pages) for (const item of page) byId.set(item.id, item)
   return [...byId.values()]
 }
 
 const emptySnapshot: Snapshot<never> = {
-  items: [], isLoading: true, isLoadingMore: false, hasMore: false,
+  items: [],
+  isLoading: true,
+  isLoadingMore: false,
+  isRefreshing: false,
+  hasMore: false,
 }
 const serverController = {
   subscribe: () => () => {},
@@ -263,10 +339,14 @@ function useApplicationController<T extends { id: string }>(
   create: () => PagedController<T>,
 ) {
   const value = useMemo(
-    () => typeof window === 'undefined' ? serverController : create(),
+    () => (typeof window === 'undefined' ? serverController : create()),
     [key],
   )
-  const snapshot = useSyncExternalStore(value.subscribe, value.snapshot, value.snapshot)
+  const snapshot = useSyncExternalStore(
+    value.subscribe,
+    value.snapshot,
+    value.snapshot,
+  )
   return { ...snapshot, loadMore: value.loadMore, refetch: value.refetch }
 }
 
@@ -282,50 +362,70 @@ function feedbackParams(filters: FeedbackCollectionFilters, cursor?: string) {
 
 export function useFeedbackCollection(filters: FeedbackCollectionFilters) {
   const key = `feedback:${feedbackParams(filters)}`
-  return useApplicationController(key, () => controller<PublicFeedbackItem>(key, (cursor, notify) =>
-    pageCollection({
-      id: `${key}:${cursor ?? 'first'}`,
-      url: `/api/feedback?${feedbackParams(filters, cursor)}`,
-      parse: (raw) => PublicFeedbackPageSchema.parse(raw),
-      notify,
-      enrich: enrichVoteState,
-      onInsert: async (items) => {
-        for (const item of items)
-          createdItems.set(item.id, PublicFeedbackItemSchema.parse(await post<unknown>('/api/feedback', {
-            title: item.title, description: item.description,
-            type: item.type,
-            ...(item.category ? { categoryId: item.category.id } : {}), tagIds: item.tags.map(({ id }) => id),
-          })))
-      },
-      onUpdate: persistVoteUpdates,
-    }),
-  ))
+  return useApplicationController(key, () =>
+    controller<PublicFeedbackItem>(key, (cursor, notify) =>
+      pageCollection({
+        id: `${key}:${cursor ?? 'first'}`,
+        url: `/api/feedback?${feedbackParams(filters, cursor)}`,
+        parse: (raw) => PublicFeedbackPageSchema.parse(raw),
+        notify,
+        enrich: enrichVoteState,
+        onInsert: async (items) => {
+          for (const item of items)
+            createdItems.set(
+              item.id,
+              PublicFeedbackItemSchema.parse(
+                await post<unknown>('/api/feedback', {
+                  title: item.title,
+                  description: item.description,
+                  type: item.type,
+                  ...(item.category ? { categoryId: item.category.id } : {}),
+                  tagIds: item.tags.map(({ id }) => id),
+                }),
+              ),
+            )
+        },
+        onUpdate: persistVoteUpdates,
+      }),
+    ),
+  )
 }
 
-export async function createFeedback(filters: FeedbackCollectionFilters, input: SubmitFeedbackInput) {
+export async function createFeedback(
+  filters: FeedbackCollectionFilters,
+  input: SubmitFeedbackInput,
+) {
   const key = `feedback:${feedbackParams(filters)}`
-  const value = controllers.get(key) as unknown as PagedController<PublicFeedbackItem> | undefined
+  const value = controllers.get(key) as unknown as
+    PagedController<PublicFeedbackItem> | undefined
   if (!value) throw new Error('The feedback collection is not active.')
   const now = new Date().toISOString()
   const category = input.categoryId
     ? publicTaxonomy.categories.find(({ id }) => id === input.categoryId)
     : undefined
   const temporary = PublicFeedbackItemSchema.parse({
-    id: `pending-${crypto.randomUUID()}`, title: input.title, description: input.description,
+    id: `pending-${crypto.randomUUID()}`,
+    title: input.title,
+    description: input.description,
     type: input.type,
-    author: { id: 'viewer', displayName: 'You' }, status: null,
+    author: { id: 'viewer', displayName: 'You' },
+    status: null,
     category: category ?? null,
     tags: input.tagIds.flatMap((id) => {
       const tag = publicTaxonomy.tags.find((candidate) => candidate.id === id)
       return tag ? [tag] : []
     }),
-    voteCount: 0, commentCount: 0, createdAt: now, updatedAt: now,
+    voteCount: 0,
+    commentCount: 0,
+    createdAt: now,
+    updatedAt: now,
   })
   const transaction = value.firstCollection().insert(temporary)
   try {
     await transaction.isPersisted.promise
     const created = createdItems.get(temporary.id)
-    if (!created) throw new Error('The created feedback response was unavailable.')
+    if (!created)
+      throw new Error('The created feedback response was unavailable.')
     const utils = value.firstCollection().utils
     utils.writeBatch(() => {
       utils.writeDelete(temporary.id)
@@ -339,44 +439,71 @@ export async function createFeedback(filters: FeedbackCollectionFilters, input: 
   }
 }
 
-export async function getFeedbackSuggestions(title: string, signal?: AbortSignal) {
+export async function getFeedbackSuggestions(
+  title: string,
+  signal?: AbortSignal,
+) {
   const params = new URLSearchParams({ title })
   return FeedbackSuggestionsSchema.parse(
-    await api<unknown>(`/api/feedback/suggestions?${params}`, signal ? { signal } : undefined),
+    await api<unknown>(
+      `/api/feedback/suggestions?${params}`,
+      signal ? { signal } : undefined,
+    ),
   ).items
 }
 
-export function voteForExistingFeedback(feedbackItemId: string, voted: boolean) {
-  return post<unknown>('/api/vote', { feedbackItemId, voted })
-    .then((value) => SetVoteResultSchema.parse(value))
+export function voteForExistingFeedback(
+  feedbackItemId: string,
+  voted: boolean,
+) {
+  return post<unknown>('/api/vote', { feedbackItemId, voted }).then((value) =>
+    SetVoteResultSchema.parse(value),
+  )
 }
 
-export async function setFeedbackVote(filters: FeedbackCollectionFilters, id: string, voted: boolean) {
+export async function setFeedbackVote(
+  filters: FeedbackCollectionFilters,
+  id: string,
+  voted: boolean,
+) {
   const key = `feedback:${feedbackParams(filters)}`
   return setCollectionVote(key, id, voted)
 }
 
 async function setCollectionVote(key: string, id: string, voted: boolean) {
-  const value = controllers.get(key) as unknown as PagedController<PublicFeedbackItem> | undefined
+  const value = controllers.get(key) as unknown as
+    PagedController<PublicFeedbackItem> | undefined
   if (!value) throw new Error('The feedback collection is not active.')
-  const collection = value.collections().find((candidate) => candidate.state.has(id))
+  const collection = value
+    .collections()
+    .find((candidate) => candidate.state.has(id))
   if (!collection) throw new Error('The feedback item is not loaded.')
   const transaction = collection.update(id, (draft) => {
     const previous = draft.hasViewerVoted ?? false
     draft.hasViewerVoted = voted
-    draft.voteCount = Math.max(0, draft.voteCount + (voted && !previous ? 1 : !voted && previous ? -1 : 0))
+    draft.voteCount = Math.max(
+      0,
+      draft.voteCount + (voted && !previous ? 1 : !voted && previous ? -1 : 0),
+    )
   })
   try {
     await transaction.isPersisted.promise
     const canonical = canonicalVotes.get(id)
     if (canonical) {
       const current = collection.state.get(id)
-      if (current) collection.utils.writeBatch(() => {
-        collection.utils.writeDelete(id)
-        collection.utils.writeInsert({ ...current, hasViewerVoted: canonical.voted, voteCount: canonical.voteCount })
-      })
+      if (current)
+        collection.utils.writeBatch(() => {
+          collection.utils.writeDelete(id)
+          collection.utils.writeInsert({
+            ...current,
+            hasViewerVoted: canonical.voted,
+            voteCount: canonical.voteCount,
+          })
+        })
     }
-  } finally { canonicalVotes.delete(id) }
+  } finally {
+    canonicalVotes.delete(id)
+  }
 }
 
 function roadmapParams(statuses: readonly string[], cursor?: string) {
@@ -388,63 +515,96 @@ function roadmapParams(statuses: readonly string[], cursor?: string) {
 
 export function useRoadmapCollection(statuses: readonly string[]) {
   const key = `roadmap:${roadmapParams(statuses)}`
-  return useApplicationController(key, () => controller<PublicFeedbackItem>(key, (cursor, notify) =>
-    pageCollection({
-      id: `${key}:${cursor ?? 'first'}`,
-      url: `/api/roadmap?${roadmapParams(statuses, cursor)}`,
-      parse: (raw) => {
-        const page = PublicRoadmapPageSchema.parse(raw)
-        return {
-          items: page.columns.flatMap(({ items }) => items),
-          hasMore: page.hasMore,
-          ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
-        }
-      },
-      notify,
-      enrich: enrichVoteState,
-      onUpdate: persistVoteUpdates,
-    }),
-  ))
+  return useApplicationController(key, () =>
+    controller<PublicFeedbackItem>(key, (cursor, notify) =>
+      pageCollection({
+        id: `${key}:${cursor ?? 'first'}`,
+        url: `/api/roadmap?${roadmapParams(statuses, cursor)}`,
+        parse: (raw) => {
+          const page = PublicRoadmapPageSchema.parse(raw)
+          return {
+            items: page.columns.flatMap(({ items }) => items),
+            hasMore: page.hasMore,
+            ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+          }
+        },
+        notify,
+        enrich: enrichVoteState,
+        onUpdate: persistVoteUpdates,
+      }),
+    ),
+  )
 }
 
-export const setRoadmapVote = (statuses: readonly string[], id: string, voted: boolean) =>
-  setCollectionVote(`roadmap:${roadmapParams(statuses)}`, id, voted)
+export const setRoadmapVote = (
+  statuses: readonly string[],
+  id: string,
+  voted: boolean,
+) => setCollectionVote(`roadmap:${roadmapParams(statuses)}`, id, voted)
 
 export function useCommentsCollection(feedbackItemId: string) {
   const key = `comments:${feedbackItemId}`
-  return useApplicationController(key, () => controller<PublicComment>(key, (cursor, notify) => {
-    const params = new URLSearchParams({ feedbackItemId })
-    if (cursor) params.set('cursor', cursor)
-    return pageCollection({
-      id: `${key}:${cursor ?? 'first'}`, url: `/api/comment?${params}`,
-      parse: (raw) => PublicCommentPageSchema.parse(raw), notify,
-      onInsert: async (items) => {
-        for (const item of items)
-          PublicCommentSchema.parse(await post<unknown>('/api/comment', { clientRequestId: item.id.replace(/^pending-/, ''), feedbackItemId, body: item.body }))
-      },
-    })
-  }))
+  return useApplicationController(key, () =>
+    controller<PublicComment>(key, (cursor, notify) => {
+      const params = new URLSearchParams({ feedbackItemId })
+      if (cursor) params.set('cursor', cursor)
+      return pageCollection({
+        id: `${key}:${cursor ?? 'first'}`,
+        url: `/api/comment?${params}`,
+        parse: (raw) => PublicCommentPageSchema.parse(raw),
+        notify,
+        onInsert: async (items) => {
+          for (const item of items)
+            PublicCommentSchema.parse(
+              await post<unknown>('/api/comment', {
+                clientRequestId: item.id.replace(/^pending-/, ''),
+                feedbackItemId,
+                body: item.body,
+              }),
+            )
+        },
+      })
+    }),
+  )
 }
 
-export function createFeedbackComment(feedbackItemId: string, input: CreateCommentInput) {
-  const value = controllers.get(`comments:${feedbackItemId}`) as unknown as PagedController<PublicComment> | undefined
+export function createFeedbackComment(
+  feedbackItemId: string,
+  input: CreateCommentInput,
+) {
+  const value = controllers.get(`comments:${feedbackItemId}`) as unknown as
+    PagedController<PublicComment> | undefined
   if (!value) throw new Error('The comment collection is not active.')
   const now = new Date().toISOString()
-  return value.firstCollection().insert(PublicCommentSchema.parse({
-    id: `pending-${input.clientRequestId}`, feedbackItemId, body: input.body,
-    author: { id: 'viewer', displayName: 'You' }, authorKind: 'customer', createdAt: now, updatedAt: now,
-  })).isPersisted.promise
+  return value.firstCollection().insert(
+    PublicCommentSchema.parse({
+      id: `pending-${input.clientRequestId}`,
+      feedbackItemId,
+      body: input.body,
+      author: { id: 'viewer', displayName: 'You' },
+      authorKind: 'customer',
+      createdAt: now,
+      updatedAt: now,
+    }),
+  ).isPersisted.promise
 }
 
 function useEditorial<T extends ChangelogEntry>(
   kind: 'changelog',
   parse: (raw: unknown) => Page<T>,
 ) {
-  return useApplicationController(kind, () => controller<T>(kind, (cursor, notify) => {
-    const params = new URLSearchParams()
-    if (cursor) params.set('cursor', cursor)
-    return pageCollection({ id: `${kind}:${cursor ?? 'first'}`, url: `/api/${kind}?${params}`, parse, notify })
-  }))
+  return useApplicationController(kind, () =>
+    controller<T>(kind, (cursor, notify) => {
+      const params = new URLSearchParams()
+      if (cursor) params.set('cursor', cursor)
+      return pageCollection({
+        id: `${kind}:${cursor ?? 'first'}`,
+        url: `/api/${kind}?${params}`,
+        parse,
+        notify,
+      })
+    }),
+  )
 }
 
 export const useChangelogCollection = () =>

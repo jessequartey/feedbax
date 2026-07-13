@@ -28,7 +28,7 @@ export const docsNavigation = [
   {
     slug: 'configuration',
     title: 'Configuration',
-    description: 'The small typed configuration surface available today.',
+    description: 'Validated portal branding, behavior, and connector settings.',
   },
   {
     slug: 'authentication-handoff',
@@ -44,6 +44,11 @@ export const docsNavigation = [
     slug: 'deployment',
     title: 'Deployment',
     description: 'Static site hosting and portal runtime evidence.',
+  },
+  {
+    slug: 'accessibility',
+    title: 'Accessibility',
+    description: 'Tested behavior, keyboard guidance, and current limits.',
   },
   {
     slug: 'roadmap',

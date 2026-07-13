@@ -1,28 +1,58 @@
 ---
 title: Configuration
-description: The small typed surface that exists today and the mapping layer planned next.
+description: Configure the public portal, connector, authentication, and protection policies.
 ---
 
-## Available surface
+## Branding
 
-**Foundation only.** The configuration package currently exposes `defineConfig` and a small `FeedbaxConfig` interface:
+`feedbax.config.mjs` is the public portal's single presentation source. Change the configuration and referenced assets; product components do not need editing.
 
 ```ts
 import { defineConfig } from '@feedbax/config'
-import { notionConnector } from '@feedbax/connector-notion'
+import { notionConnector } from '@feedbax/notion'
 
 export default defineConfig({
-  name: 'Acme Feedback',
+  publicUrl: 'https://feedback.example.com',
+  branding: {
+    productName: 'Acme Feedback',
+    description: 'Help shape what Acme builds next.',
+    logo: '/brand/acme.svg',
+    favicon: '/brand/favicon.svg',
+    accentColor: '#3157d5',
+    themes: {
+      light: {
+        background: '#f7f8fb',
+        surface: '#ffffff',
+        text: '#202331',
+        mutedText: '#5f6678',
+        border: '#d3d7e2',
+      },
+      dark: {
+        background: '#0d1018',
+        surface: '#151925',
+        text: '#eef1f7',
+        mutedText: '#abb3c3',
+        border: '#3b4354',
+      },
+    },
+    navigation: [
+      { label: 'Feedback', href: '/' },
+      { label: 'Roadmap', href: '/roadmap' },
+      { label: 'Updates', href: '/changelog' },
+    ],
+    poweredByFeedbax: true,
+  },
   connector: notionConnector,
 })
 ```
 
-```ts
-interface FeedbaxConfig {
-  readonly name: string
-  readonly connector: ConnectorDescriptor
-}
-```
+Colors must use six-digit hex notation. Core text pairs must meet a 4.5:1 contrast ratio and the accent must meet 3:1 against both surfaces. Invalid colors fail during configuration parsing with the affected field named.
+
+Logo and favicon values accept root-relative public files or HTTPS URLs. Supported logo formats are SVG, PNG, WebP, and JPEG; favicons accept SVG, PNG, or ICO. Root-relative files are checked during every portal build. HTTPS URLs receive syntax and file-type validation, but remote availability is the deployer's responsibility.
+
+`navigation` is the complete ordered portal navigation. Destinations must be unique and root-relative or HTTPS. `poweredByFeedbax: false` removes the attribution entirely.
+
+## Application configuration
 
 A connector descriptor has an `id`, `displayName`, and declared capability list. The Notion descriptor currently declares the `comments` capability.
 
@@ -77,4 +107,4 @@ Roadmap reads share the feedback and roadmap cache tags. After an external Notio
 
 ## Planned configuration
 
-Additional branding tokens, portable cache invalidation providers, and feature switches remain planned for v0.0.2. Their final public shape is not stable and is deliberately undocumented until implemented.
+Portable cache invalidation providers and additional feature switches remain planned. Their public shape is deliberately undocumented until implemented.

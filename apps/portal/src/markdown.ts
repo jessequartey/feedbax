@@ -10,7 +10,9 @@ const safeHref = (value: string) =>
     try {
       const decoded = decodeURIComponent(value).trim()
       return /^(https?:|mailto:)/i.test(decoded) ? value : '#'
-    } catch { return '#' }
+    } catch {
+      return '#'
+    }
   })()
 
 /** Minimal allowlist renderer: raw HTML is escaped and only safe links plus basic Markdown are emitted. */
@@ -29,7 +31,8 @@ export function renderSanitizedMarkdown(markdown: string): string {
     .split(/\n{2,}/)
     .map((paragraph) => {
       const lines = paragraph.split('\n')
-      const heading = lines.length === 1 ? /^(#{1,3})\s+(.+)$/.exec(lines[0]!) : null
+      const heading =
+        lines.length === 1 ? /^(#{1,3})\s+(.+)$/.exec(lines[0]!) : null
       if (heading) {
         const level = heading[1]!.length
         return `<h${level}>${heading[2]}</h${level}>`

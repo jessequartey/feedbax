@@ -48,7 +48,9 @@ export interface NotionChangelogSetup {
     readonly version?: NotionFieldMapping & { readonly type: 'rich_text' }
     readonly tags?: NotionFieldMapping & { readonly type: 'multi_select' }
     readonly coverImageUrl?: NotionFieldMapping & { readonly type: 'url' }
-    readonly linkedFeedbackItemIds?: NotionFieldMapping & { readonly type: 'relation' }
+    readonly linkedFeedbackItemIds?: NotionFieldMapping & {
+      readonly type: 'relation'
+    }
   }
 }
 
@@ -63,13 +65,18 @@ export interface NotionSetupConfig {
     readonly optional?: Readonly<Record<string, NotionFieldMapping>>
   }
   readonly statuses: Readonly<Record<string, string | readonly string[]>>
-  readonly statusDefinitions?: Readonly<Record<string, {
-    readonly name: string
-    readonly description?: string
-    readonly color?: string
-    readonly order: number
-    readonly isTerminal?: boolean
-  }>>
+  readonly statusDefinitions?: Readonly<
+    Record<
+      string,
+      {
+        readonly name: string
+        readonly description?: string
+        readonly color?: string
+        readonly order: number
+        readonly isTerminal?: boolean
+      }
+    >
+  >
   readonly categories?: Readonly<Record<string, string>>
   readonly feedbackTypes?: Readonly<Record<string, string>>
   readonly tags?: Readonly<Record<string, string>>
@@ -430,9 +437,13 @@ export async function checkNotionSetup(
       ),
     )
   else {
-    const missing = Object.entries(config.statuses).flatMap(([id, value]) =>
-      (typeof value === 'string' ? [value] : value).map((option) => [id, option] as const),
-    ).find(([, value]) => !available.has(value))
+    const missing = Object.entries(config.statuses)
+      .flatMap(([id, value]) =>
+        (typeof value === 'string' ? [value] : value).map(
+          (option) => [id, option] as const,
+        ),
+      )
+      .find(([, value]) => !available.has(value))
     checks.push(
       missing
         ? fail(
@@ -518,36 +529,134 @@ export async function checkNotionSetup(
   }
   if (config.votes) {
     try {
-      const voteSource = await request(fetcher, token, `/data_sources/${encodeURIComponent(config.votes.dataSourceId)}`, { method: 'GET' }, timeoutMs) as { properties?: Record<string, { type?: string }> }
+      const voteSource = (await request(
+        fetcher,
+        token,
+        `/data_sources/${encodeURIComponent(config.votes.dataSourceId)}`,
+        { method: 'GET' },
+        timeoutMs,
+      )) as { properties?: Record<string, { type?: string }> }
       const voteMappings = Object.values(config.votes.fields)
       const count = config.fields.optional?.voteCount
-      if (!voteSource.properties || !count?.writable || count.type !== 'number' || voteMappings.some((mapping) => voteSource.properties?.[mapping.property]?.type !== mapping.type))
-        checks.push(fail('VOTES_INVALID', 'The Notion vote ledger is not schema-compatible.', 'Create the configured vote properties with their mapped types and make the feedback vote-count number field writable.'))
-      else checks.push(pass('VOTES_OK', 'The Notion vote ledger and writable count field are configured.'))
+      if (
+        !voteSource.properties ||
+        !count?.writable ||
+        count.type !== 'number' ||
+        voteMappings.some(
+          (mapping) =>
+            voteSource.properties?.[mapping.property]?.type !== mapping.type,
+        )
+      )
+        checks.push(
+          fail(
+            'VOTES_INVALID',
+            'The Notion vote ledger is not schema-compatible.',
+            'Create the configured vote properties with their mapped types and make the feedback vote-count number field writable.',
+          ),
+        )
+      else
+        checks.push(
+          pass(
+            'VOTES_OK',
+            'The Notion vote ledger and writable count field are configured.',
+          ),
+        )
     } catch {
-      checks.push(fail('VOTES_INVALID', 'The Notion vote ledger is not accessible.', 'Share the vote data source with the integration and verify NOTION_VOTES_DATA_SOURCE_ID.'))
+      checks.push(
+        fail(
+          'VOTES_INVALID',
+          'The Notion vote ledger is not accessible.',
+          'Share the vote data source with the integration and verify NOTION_VOTES_DATA_SOURCE_ID.',
+        ),
+      )
     }
   }
   if (config.comments) {
     try {
-      const commentSource = await request(fetcher, token, `/data_sources/${encodeURIComponent(config.comments.dataSourceId)}`, { method: 'GET' }, timeoutMs) as { properties?: Record<string, { type?: string }> }
-      const mappings: NotionFieldMapping[] = Object.values(config.comments.fields).flatMap((mapping) => mapping ? [mapping] : [])
-      if (!commentSource.properties || mappings.some((mapping) => commentSource.properties?.[mapping.property]?.type !== mapping.type))
-        checks.push(fail('COMMENTS_SCHEMA_INVALID', 'The Notion comments data source is not schema-compatible.', 'Create the configured comment properties with their mapped types and share the data source with the integration.'))
-      else checks.push(pass('COMMENTS_SCHEMA_OK', 'The Notion comments data source is configured.'))
+      const commentSource = (await request(
+        fetcher,
+        token,
+        `/data_sources/${encodeURIComponent(config.comments.dataSourceId)}`,
+        { method: 'GET' },
+        timeoutMs,
+      )) as { properties?: Record<string, { type?: string }> }
+      const mappings: NotionFieldMapping[] = Object.values(
+        config.comments.fields,
+      ).flatMap((mapping) => (mapping ? [mapping] : []))
+      if (
+        !commentSource.properties ||
+        mappings.some(
+          (mapping) =>
+            commentSource.properties?.[mapping.property]?.type !== mapping.type,
+        )
+      )
+        checks.push(
+          fail(
+            'COMMENTS_SCHEMA_INVALID',
+            'The Notion comments data source is not schema-compatible.',
+            'Create the configured comment properties with their mapped types and share the data source with the integration.',
+          ),
+        )
+      else
+        checks.push(
+          pass(
+            'COMMENTS_SCHEMA_OK',
+            'The Notion comments data source is configured.',
+          ),
+        )
     } catch {
-      checks.push(fail('COMMENTS_SCHEMA_INVALID', 'The Notion comments data source is not accessible.', 'Share the comments data source with the integration and verify NOTION_COMMENTS_DATA_SOURCE_ID.'))
+      checks.push(
+        fail(
+          'COMMENTS_SCHEMA_INVALID',
+          'The Notion comments data source is not accessible.',
+          'Share the comments data source with the integration and verify NOTION_COMMENTS_DATA_SOURCE_ID.',
+        ),
+      )
     }
   }
   if (config.changelog) {
     try {
-      const changelogSource = await request(fetcher, token, `/data_sources/${encodeURIComponent(config.changelog.dataSourceId)}`, { method: 'GET' }, timeoutMs) as { properties?: Record<string, { type?: string }> }
-      const mappings: NotionFieldMapping[] = Object.values(config.changelog.fields).flatMap((mapping) => mapping ? [mapping] : [])
-      if (!config.changelog.dataSourceId.trim() || !changelogSource.properties || mappings.some((mapping) => changelogSource.properties?.[mapping.property]?.type !== mapping.type))
-        checks.push(fail('CHANGELOG_INVALID', 'The Notion changelog data source is not schema-compatible.', 'Create the configured changelog properties with their mapped types and share the data source with the integration.'))
-      else checks.push(pass('CHANGELOG_OK', 'The Notion changelog data source is configured.'))
+      const changelogSource = (await request(
+        fetcher,
+        token,
+        `/data_sources/${encodeURIComponent(config.changelog.dataSourceId)}`,
+        { method: 'GET' },
+        timeoutMs,
+      )) as { properties?: Record<string, { type?: string }> }
+      const mappings: NotionFieldMapping[] = Object.values(
+        config.changelog.fields,
+      ).flatMap((mapping) => (mapping ? [mapping] : []))
+      if (
+        !config.changelog.dataSourceId.trim() ||
+        !changelogSource.properties ||
+        mappings.some(
+          (mapping) =>
+            changelogSource.properties?.[mapping.property]?.type !==
+            mapping.type,
+        )
+      )
+        checks.push(
+          fail(
+            'CHANGELOG_INVALID',
+            'The Notion changelog data source is not schema-compatible.',
+            'Create the configured changelog properties with their mapped types and share the data source with the integration.',
+          ),
+        )
+      else
+        checks.push(
+          pass(
+            'CHANGELOG_OK',
+            'The Notion changelog data source is configured.',
+          ),
+        )
     } catch {
-      checks.push(fail('CHANGELOG_INVALID', 'The Notion changelog data source is not accessible.', 'Share the changelog data source with the integration and verify NOTION_CHANGELOG_DATA_SOURCE_ID.'))
+      checks.push(
+        fail(
+          'CHANGELOG_INVALID',
+          'The Notion changelog data source is not accessible.',
+          'Share the changelog data source with the integration and verify NOTION_CHANGELOG_DATA_SOURCE_ID.',
+        ),
+      )
     }
   }
   return { ok: checks.every((check) => check.status === 'pass'), checks }

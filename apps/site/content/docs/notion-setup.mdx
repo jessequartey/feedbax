@@ -42,17 +42,17 @@ Optional fields belong under `fields.optional`. When configured, they are valida
 
 Set `NOTION_CHANGELOG_DATA_SOURCE_ID` to enable the public release feed, share that data source with the same integration, and configure these properties under `connector.setup.changelog.fields`:
 
-| Field | Notion type | Behavior |
-| --- | --- | --- |
-| `title` | Title | Public release title |
-| `description` | Rich text | Markdown release content |
-| `slug` | Rich text | Unique lowercase URL slug such as `new-dashboard` |
-| `publishedAt` | Date | Public release date and feed ordering |
-| `published` | Checkbox | Explicit public visibility boundary |
-| `version` | Rich text | Optional version label |
-| `tags` | Multi-select | Optional customer-facing labels |
-| `coverImageUrl` | URL | Optional public cover image |
-| `linkedFeedbackItemIds` | Relation | Optional links to shipped feedback |
+| Field                   | Notion type  | Behavior                                          |
+| ----------------------- | ------------ | ------------------------------------------------- |
+| `title`                 | Title        | Public release title                              |
+| `description`           | Rich text    | Markdown release content                          |
+| `slug`                  | Rich text    | Unique lowercase URL slug such as `new-dashboard` |
+| `publishedAt`           | Date         | Public release date and feed ordering             |
+| `published`             | Checkbox     | Explicit public visibility boundary               |
+| `version`               | Rich text    | Optional version label                            |
+| `tags`                  | Multi-select | Optional customer-facing labels                   |
+| `coverImageUrl`         | URL          | Optional public cover image                       |
+| `linkedFeedbackItemIds` | Relation     | Optional links to shipped feedback                |
 
 Only records with `published` checked, a valid publication date, and a valid unique slug are public. Unchecked drafts and malformed records are excluded from list responses, detail pages, related activity, HTML, and social metadata. Linked feedback is independently checked against the public feedback boundary, so an internal request cannot leak through a release.
 

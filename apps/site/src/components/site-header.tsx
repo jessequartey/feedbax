@@ -29,6 +29,8 @@ export function SearchDialog({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
   const results = useMemo(() => {
     const value = query.trim().toLowerCase()
     return value
@@ -40,7 +42,11 @@ export function SearchDialog({ compact = false }: { compact?: boolean }) {
     const listener = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        setOpen((current) => !current)
+        setOpen((current) => {
+          if (!current)
+            openerRef.current = document.activeElement as HTMLElement | null
+          return !current
+        })
       }
       if (event.key === 'Escape') setOpen(false)
     }
@@ -49,7 +55,13 @@ export function SearchDialog({ compact = false }: { compact?: boolean }) {
   }, [])
 
   useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 0)
+    if (open && !dialogRef.current?.open) {
+      dialogRef.current?.showModal()
+      window.setTimeout(() => inputRef.current?.focus(), 0)
+    } else if (!open && dialogRef.current?.open) {
+      dialogRef.current.close()
+      window.setTimeout(() => openerRef.current?.focus(), 0)
+    }
   }, [open])
 
   return (
@@ -57,7 +69,10 @@ export function SearchDialog({ compact = false }: { compact?: boolean }) {
       <button
         className={compact ? 'icon-button' : 'search-trigger'}
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={(event) => {
+          openerRef.current = event.currentTarget
+          setOpen(true)
+        }}
         aria-label="Search documentation"
       >
         <Search aria-hidden="true" />
@@ -68,58 +83,59 @@ export function SearchDialog({ compact = false }: { compact?: boolean }) {
           </>
         )}
       </button>
-      {open && (
-        <div
-          className="dialog-backdrop"
-          role="presentation"
-          onMouseDown={() => setOpen(false)}
-        >
-          <section
-            className="search-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Search documentation"
-            onMouseDown={(event) => event.stopPropagation()}
+      <dialog
+        ref={dialogRef}
+        className="search-dialog"
+        aria-labelledby="docs-search-title"
+        onCancel={(event) => {
+          event.preventDefault()
+          setOpen(false)
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setOpen(false)
+        }}
+      >
+        <h2 className="sr-only" id="docs-search-title">
+          Search Documentation
+        </h2>
+        <div className="search-input-wrap">
+          <Search aria-hidden="true" />
+          <input
+            ref={inputRef}
+            name="docs-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search the docs…"
+            aria-label="Search query"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close search"
           >
-            <div className="search-input-wrap">
-              <Search aria-hidden="true" />
-              <input
-                ref={inputRef}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search the docs…"
-                aria-label="Search query"
-              />
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close search"
-              >
-                <X aria-hidden="true" />
-              </button>
-            </div>
-            <div
-              className="search-results"
-              role="listbox"
-              aria-label="Search results"
-            >
-              {results.map((item) => (
-                <Link
-                  key={item.href}
-                  to="/docs/$"
-                  params={{ _splat: item.slug }}
-                  onClick={() => setOpen(false)}
-                  role="option"
-                >
-                  <strong>{item.title}</strong>
-                  <span>{item.description}</span>
-                </Link>
-              ))}
-              {results.length === 0 && <p>No documentation found.</p>}
-            </div>
-          </section>
+            <X aria-hidden="true" />
+          </button>
         </div>
-      )}
+        <div className="search-results" aria-label="Search results">
+          <p className="sr-only" role="status" aria-live="polite">
+            {results.length} {results.length === 1 ? 'result' : 'results'}{' '}
+            available
+          </p>
+          {results.map((item) => (
+            <Link
+              key={item.href}
+              to="/docs/$"
+              params={{ _splat: item.slug }}
+              onClick={() => setOpen(false)}
+            >
+              <strong>{item.title}</strong>
+              <span>{item.description}</span>
+            </Link>
+          ))}
+          {results.length === 0 && <p>No documentation matches your search.</p>}
+        </div>
+      </dialog>
     </>
   )
 }
@@ -158,16 +174,21 @@ export function SiteHeader() {
           <button
             className="icon-button mobile-menu-trigger"
             type="button"
-            aria-label="Toggle navigation"
+            aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
             aria-expanded={menuOpen}
+            aria-controls="site-mobile-navigation"
             onClick={() => setMenuOpen(!menuOpen)}
           >
-            {menuOpen ? <X /> : <Menu />}
+            {menuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
           </button>
         </div>
       </div>
       {menuOpen && (
-        <nav className="mobile-nav" aria-label="Mobile navigation">
+        <nav
+          id="site-mobile-navigation"
+          className="mobile-nav"
+          aria-label="Mobile navigation"
+        >
           <Link
             to="/docs/$"
             params={{ _splat: '' }}

@@ -17,6 +17,7 @@ describe('site content model', () => {
       'authentication-handoff',
       'notion-setup',
       'deployment',
+      'accessibility',
       'roadmap',
       'contributing',
     ])

@@ -5,6 +5,8 @@ import {
   useRoadmapCollection,
 } from '../collections/index.js'
 import { publicRoadmap, publicTaxonomy } from '../portal.config.js'
+import { ErrorState } from './error-state.js'
+import { RefreshStatus } from './application-state.js'
 
 const configuredIds: string[] = [...publicRoadmap.columnStatusIds]
 const statusById = new Map<string, (typeof publicTaxonomy.statuses)[number]>(
@@ -27,8 +29,16 @@ export function RoadmapBoard() {
     () => new Set(),
   )
   const [voteMessage, setVoteMessage] = useState('')
-  const { items, hasMore, isLoading, isLoadingMore, error, loadMore, refetch } =
-    useRoadmapCollection(statuses)
+  const {
+    items,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isRefreshing,
+    error,
+    loadMore,
+    refetch,
+  } = useRoadmapCollection(statuses)
 
   useEffect(() => {
     const onPopState = () => setStatuses(readStatuses())
@@ -136,23 +146,24 @@ export function RoadmapBoard() {
           </fieldset>
         </details>
       </header>
+      <nav className="roadmap-jump" aria-label="Browse roadmap by status">
+        <span>Jump to:</span>
+        {statuses.map((id) => (
+          <a key={id} href={`#roadmap-${id}`}>
+            {statusById.get(id)!.name}
+          </a>
+        ))}
+      </nav>
       <p className="sr-only" role="status" aria-live="polite">
         {voteMessage ||
           (isLoading
             ? 'Loading roadmap'
             : `${items.length} roadmap items loaded`)}
       </p>
-      {error ? (
-        <div className="roadmap-outage" role="alert">
-          <strong>The roadmap is temporarily unavailable.</strong>
-          <p>{error.message}</p>
-          <button type="button" onClick={() => void refetch()}>
-            Try again
-          </button>
-        </div>
-      ) : isLoading ? (
+      <RefreshStatus active={isRefreshing} />
+      {isLoading ? (
         <RoadmapSkeleton count={statuses.length} />
-      ) : (
+      ) : items.length > 0 ? (
         <div
           className="roadmap-columns"
           style={{ '--roadmap-columns': statuses.length } as CSSProperties}
@@ -224,7 +235,44 @@ export function RoadmapBoard() {
             )
           })}
         </div>
+      ) : error ? (
+        <ErrorState error={error} onRetry={() => void refetch()} />
+      ) : (
+        <div
+          className="roadmap-columns"
+          style={{ '--roadmap-columns': statuses.length } as CSSProperties}
+        >
+          {statuses.map((id) => {
+            const status = statusById.get(id)!
+            return (
+              <section
+                className="roadmap-column"
+                key={id}
+                style={{ '--status-color': status.color } as CSSProperties}
+                aria-labelledby={`roadmap-${id}`}
+              >
+                <header>
+                  <h2 id={`roadmap-${id}`}>
+                    <span aria-hidden="true" />
+                    {status.name}
+                  </h2>
+                  <span>0</span>
+                </header>
+                <div className="roadmap-column-empty">
+                  <p>No feedback here yet.</p>
+                </div>
+              </section>
+            )
+          })}
+        </div>
       )}
+      {items.length > 0 && error ? (
+        <ErrorState
+          error={error}
+          onRetry={() => void refetch()}
+          scope="action"
+        />
+      ) : null}
       {hasMore && !isLoading && !error ? (
         <div className="roadmap-load-more">
           <button

@@ -12,12 +12,18 @@
     "type-check": "turbo run type-check",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:a11y": "playwright test --config playwright.config.ts",
     "notion:doctor": "pnpm --filter @feedbax/notion build && node scripts/notion-doctor.mjs",
     "dev": "turbo run dev --parallel",
     "clean:cache": "turbo daemon clean && rm -rf .turbo"
   },
+  "dependencies": {
+    "@feedbax/config": "workspace:*"
+  },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "^1.61.1",
     "eslint": "10.0.1",
     "globals": "17.4.0",
     "prettier": "3.9.5",

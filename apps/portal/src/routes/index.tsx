@@ -6,7 +6,6 @@ import {
   PortalShell,
 } from '../components/portal-shell.js'
 import { FeedbackBoard } from '../components/feedback-board.js'
-import { portalBranding } from '../portal.config.js'
 
 export const Route = createFileRoute('/')({
   loader: () => getServerStatus(),
@@ -18,7 +17,7 @@ export const Route = createFileRoute('/')({
 function Portal() {
   Route.useLoaderData()
   return (
-    <PortalShell branding={portalBranding} activePage="feedback">
+    <PortalShell activePage="feedback">
       <FeedbackBoard />
     </PortalShell>
   )

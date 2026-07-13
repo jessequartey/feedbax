@@ -22,7 +22,11 @@ import {
   type PublicConnectorReader,
   type RoadmapPage,
 } from '@feedbax/core'
-import type { NotionChangelogSetup, NotionFieldMapping, NotionSetupConfig } from './index.js'
+import type {
+  NotionChangelogSetup,
+  NotionFieldMapping,
+  NotionSetupConfig,
+} from './index.js'
 
 const API = 'https://api.notion.com/v1'
 const VERSION = '2025-09-03'
@@ -93,7 +97,11 @@ const text = (page: NotionPage, mapping: NotionFieldMapping) => {
 const mappedText = (page: NotionPage, mapping?: NotionFieldMapping) =>
   mapping ? text(page, mapping) : ''
 const mappedStatusNames = (mapping: string | readonly string[] | undefined) =>
-  mapping === undefined ? [] : typeof mapping === 'string' ? [mapping] : [...mapping]
+  mapping === undefined
+    ? []
+    : typeof mapping === 'string'
+      ? [mapping]
+      : [...mapping]
 
 const status = (
   page: NotionPage,
@@ -115,7 +123,9 @@ const status = (
         name: definition?.name ?? canonical,
         order: definition?.order ?? 0,
         isTerminal: definition?.isTerminal ?? false,
-        ...(definition?.description ? { description: definition.description } : {}),
+        ...(definition?.description
+          ? { description: definition.description }
+          : {}),
         ...(definition?.color ? { color: definition.color } : {}),
       }
     : null
@@ -127,7 +137,10 @@ const category = (page: NotionPage, mapping?: NotionFieldMapping) => {
     ? { id: option.id ?? option.name, name: option.name, order: 0 }
     : null
 }
-const feedbackType = (page: NotionPage, mapping: NotionFieldMapping): FeedbackType => {
+const feedbackType = (
+  page: NotionPage,
+  mapping: NotionFieldMapping,
+): FeedbackType => {
   const name = page.properties[mapping.property]?.select?.name?.toLowerCase()
   return name === 'bug' || name === 'improvement' || name === 'question'
     ? name
@@ -135,8 +148,17 @@ const feedbackType = (page: NotionPage, mapping: NotionFieldMapping): FeedbackTy
 }
 const tags = (page: NotionPage, mapping?: NotionFieldMapping) =>
   mapping
-    ? (page.properties[mapping.property]?.multi_select ?? []).flatMap((item, order) =>
-        item.name ? [{ id: item.name.toLowerCase().replaceAll(' ', '-'), name: item.name, order }] : [],
+    ? (page.properties[mapping.property]?.multi_select ?? []).flatMap(
+        (item, order) =>
+          item.name
+            ? [
+                {
+                  id: item.name.toLowerCase().replaceAll(' ', '-'),
+                  name: item.name,
+                  order,
+                },
+              ]
+            : [],
       )
     : []
 const stable = (value: unknown): string => {
@@ -159,7 +181,9 @@ export function createNotionReadClient(
   options: NotionReadClientOptions,
 ): PublicConnectorReader & {
   updateCommentCount(feedbackItemId: string, count: number): Promise<void>
-  getFeedback(feedbackItemId: string): Promise<import('@feedbax/core').PublicFeedbackItem | null>
+  getFeedback(
+    feedbackItemId: string,
+  ): Promise<import('@feedbax/core').PublicFeedbackItem | null>
 } {
   const fetcher = options.fetch ?? fetch
   const common = {
@@ -187,11 +211,11 @@ export function createNotionReadClient(
               direction: 'descending',
             }
           : {
-          timestamp:
-            filter.sort === 'newest' || filter.sort === 'oldest'
-              ? 'created_time'
-              : 'last_edited_time',
-          direction: filter.sort === 'oldest' ? 'ascending' : 'descending',
+              timestamp:
+                filter.sort === 'newest' || filter.sort === 'oldest'
+                  ? 'created_time'
+                  : 'last_edited_time',
+              direction: filter.sort === 'oldest' ? 'ascending' : 'descending',
             },
       ]
     if (sorts) body.sorts = sorts
@@ -199,8 +223,14 @@ export function createNotionReadClient(
     if (filter?.search)
       predicates.push({
         or: [
-          { property: options.setup.fields.title.property, title: { contains: filter.search } },
-          { property: options.setup.fields.description.property, rich_text: { contains: filter.search } },
+          {
+            property: options.setup.fields.title.property,
+            title: { contains: filter.search },
+          },
+          {
+            property: options.setup.fields.description.property,
+            rich_text: { contains: filter.search },
+          },
         ],
       })
     if (filter?.statusIds?.length)
@@ -216,9 +246,14 @@ export function createNotionReadClient(
     if (filter?.categoryId && categoryField)
       predicates.push({
         property: categoryField.property,
-        select: { equals: options.setup.categories?.[filter.categoryId] ?? filter.categoryId },
+        select: {
+          equals:
+            options.setup.categories?.[filter.categoryId] ?? filter.categoryId,
+        },
       })
-    if (predicates.length) body.filter = predicates.length === 1 ? predicates[0] : { and: predicates }
+    if (predicates.length)
+      body.filter =
+        predicates.length === 1 ? predicates[0] : { and: predicates }
     let response: Response
     try {
       response = await fetcher(
@@ -255,8 +290,15 @@ export function createNotionReadClient(
   })
   const isPublic = (item: NotionPage) => {
     const mapping = options.setup.fields.optional?.visibility
-    return (!mapping || item.properties[mapping.property]?.checkbox !== false) &&
-      status(item, options.setup.fields.status, options.setup.statuses, options.setup.statusDefinitions) !== null
+    return (
+      (!mapping || item.properties[mapping.property]?.checkbox !== false) &&
+      status(
+        item,
+        options.setup.fields.status,
+        options.setup.statuses,
+        options.setup.statusDefinitions,
+      ) !== null
+    )
   }
   const feedbackItem = (item: NotionPage) => ({
     id: item.id,
@@ -265,17 +307,31 @@ export function createNotionReadClient(
     type: feedbackType(item, options.setup.fields.feedbackType),
     author: {
       id: `notion-${item.id}`,
-      displayName: mappedText(item, options.setup.fields.optional?.authorName) || 'Community member',
-      ...(options.setup.fields.optional?.authorAvatar && item.properties[options.setup.fields.optional.authorAvatar.property]?.url
-        ? { avatarUrl: item.properties[options.setup.fields.optional.authorAvatar.property]!.url! }
+      displayName:
+        mappedText(item, options.setup.fields.optional?.authorName) ||
+        'Community member',
+      ...(options.setup.fields.optional?.authorAvatar &&
+      item.properties[options.setup.fields.optional.authorAvatar.property]?.url
+        ? {
+            avatarUrl:
+              item.properties[
+                options.setup.fields.optional.authorAvatar.property
+              ]!.url!,
+          }
         : {}),
     },
-    status: status(item, options.setup.fields.status, options.setup.statuses, options.setup.statusDefinitions),
+    status: status(
+      item,
+      options.setup.fields.status,
+      options.setup.statuses,
+      options.setup.statusDefinitions,
+    ),
     category: category(item, options.setup.fields.optional?.category),
     tags: tags(item, options.setup.fields.optional?.tags),
     voteCount:
       (options.setup.fields.optional?.voteCount
-        ? item.properties[options.setup.fields.optional.voteCount.property]?.number
+        ? item.properties[options.setup.fields.optional.voteCount.property]
+            ?.number
         : 0) ?? 0,
     commentCount:
       item.properties[options.setup.fields.commentCount.property]?.number ?? 0,
@@ -286,16 +342,20 @@ export function createNotionReadClient(
     item: NotionPage,
     setup: NotionChangelogSetup,
   ): ChangelogEntry | null => {
-    if (item.parent?.type && (
-      item.parent.type !== 'data_source_id' ||
-      item.parent.data_source_id !== setup.dataSourceId
-    )) return null
+    if (
+      item.parent?.type &&
+      (item.parent.type !== 'data_source_id' ||
+        item.parent.data_source_id !== setup.dataSourceId)
+    )
+      return null
     if (item.properties[setup.fields.published.property]?.checkbox !== true)
       return null
-    const publishedValue = item.properties[setup.fields.publishedAt.property]?.date?.start
-    const publishedAt = publishedValue && /^\d{4}-\d{2}-\d{2}$/.test(publishedValue)
-      ? `${publishedValue}T00:00:00Z`
-      : publishedValue
+    const publishedValue =
+      item.properties[setup.fields.publishedAt.property]?.date?.start
+    const publishedAt =
+      publishedValue && /^\d{4}-\d{2}-\d{2}$/.test(publishedValue)
+        ? `${publishedValue}T00:00:00Z`
+        : publishedValue
     const parsed = ChangelogEntrySchema.safeParse({
       id: item.id,
       title: text(item, setup.fields.title),
@@ -306,11 +366,18 @@ export function createNotionReadClient(
         ? { version: text(item, setup.fields.version) }
         : {}),
       tags: tags(item, setup.fields.tags),
-      ...(setup.fields.coverImageUrl && item.properties[setup.fields.coverImageUrl.property]?.url
-        ? { coverImageUrl: item.properties[setup.fields.coverImageUrl.property]!.url! }
+      ...(setup.fields.coverImageUrl &&
+      item.properties[setup.fields.coverImageUrl.property]?.url
+        ? {
+            coverImageUrl:
+              item.properties[setup.fields.coverImageUrl.property]!.url!,
+          }
         : {}),
       linkedFeedbackItemIds: setup.fields.linkedFeedbackItemIds
-        ? (item.properties[setup.fields.linkedFeedbackItemIds.property]?.relation ?? []).map(({ id }) => id)
+        ? (
+            item.properties[setup.fields.linkedFeedbackItemIds.property]
+              ?.relation ?? []
+          ).map(({ id }) => id)
         : [],
       createdAt: item.created_time,
       updatedAt: item.last_edited_time,
@@ -322,11 +389,28 @@ export function createNotionReadClient(
     page: CursorPageRequest,
     predicates: readonly Record<string, unknown>[] = [],
   ): Promise<ChangelogPage> => {
-    const result = await query(setup.dataSourceId, page, undefined, [
-      { property: setup.fields.published.property, checkbox: { equals: true } },
-      { property: setup.fields.publishedAt.property, date: { is_not_empty: true } },
-      ...predicates,
-    ], [{ property: setup.fields.publishedAt.property, direction: 'descending' }])
+    const result = await query(
+      setup.dataSourceId,
+      page,
+      undefined,
+      [
+        {
+          property: setup.fields.published.property,
+          checkbox: { equals: true },
+        },
+        {
+          property: setup.fields.publishedAt.property,
+          date: { is_not_empty: true },
+        },
+        ...predicates,
+      ],
+      [
+        {
+          property: setup.fields.publishedAt.property,
+          direction: 'descending',
+        },
+      ],
+    )
     return ChangelogPageSchema.parse({
       ...pageShape(result),
       items: result.results!.flatMap((item) => {
@@ -347,8 +431,15 @@ export function createNotionReadClient(
         load: async () => {
           const publicFilter = filter.statusIds?.length
             ? filter
-            : FeedbackFilterSchema.parse({ ...filter, statusIds: Object.keys(options.setup.statuses) })
-          const result = await query(options.setup.dataSourceId, page, publicFilter)
+            : FeedbackFilterSchema.parse({
+                ...filter,
+                statusIds: Object.keys(options.setup.statuses),
+              })
+          const result = await query(
+            options.setup.dataSourceId,
+            page,
+            publicFilter,
+          )
           return PublicFeedbackPageSchema.parse({
             ...pageShape(result),
             items: result.results!.filter(isPublic).map(feedbackItem),
@@ -359,16 +450,25 @@ export function createNotionReadClient(
     async getFeedback(feedbackItemId: import('@feedbax/core').FeedbackItemId) {
       let response: Response
       try {
-        response = await fetcher(`${API}/pages/${encodeURIComponent(feedbackItemId)}`, {
-          headers: { authorization: `Bearer ${options.token}`, 'notion-version': VERSION },
-        })
+        response = await fetcher(
+          `${API}/pages/${encodeURIComponent(feedbackItemId)}`,
+          {
+            headers: {
+              authorization: `Bearer ${options.token}`,
+              'notion-version': VERSION,
+            },
+          },
+        )
       } catch (cause) {
         throw publicError('Notion is temporarily unavailable.', cause)
       }
       if (response.status === 404) return null
       if (!response.ok) throw publicError('Notion could not load public data.')
-      const item = await response.json() as NotionPage
-      if (item.parent?.type !== 'data_source_id' || item.parent.data_source_id !== options.setup.dataSourceId)
+      const item = (await response.json()) as NotionPage
+      if (
+        item.parent?.type !== 'data_source_id' ||
+        item.parent.data_source_id !== options.setup.dataSourceId
+      )
         return null
       if (!isPublic(item)) return null
       return PublicFeedbackItemSchema.parse(feedbackItem(item))
@@ -377,11 +477,17 @@ export function createNotionReadClient(
       const page = CursorPageRequestSchema.parse(rawPage)
       const setup = options.setup.comments
       if (!setup)
-        return { value: PublicCommentPageSchema.parse({ items: [], hasMore: false }), cacheStatus: 'bypass' as const }
+        return {
+          value: PublicCommentPageSchema.parse({ items: [], hasMore: false }),
+          cacheStatus: 'bypass' as const,
+        }
       const relation = setup.fields.feedbackItem
-      const result = await query(setup.dataSourceId, page, { sort: 'oldest' }, [{
-        property: relation.property, relation: { contains: feedbackItemId },
-      }])
+      const result = await query(setup.dataSourceId, page, { sort: 'oldest' }, [
+        {
+          property: relation.property,
+          relation: { contains: feedbackItemId },
+        },
+      ])
       return {
         value: PublicCommentPageSchema.parse({
           ...pageShape(result),
@@ -390,15 +496,24 @@ export function createNotionReadClient(
             feedbackItemId,
             body: text(item, setup.fields.body),
             author: {
-              id: mappedText(item, setup.fields.authorId) || `notion-${item.id}`,
-              displayName: mappedText(item, setup.fields.authorName) || 'Community member',
-              ...(setup.fields.authorAvatar && item.properties[setup.fields.authorAvatar.property]?.url
-                ? { avatarUrl: item.properties[setup.fields.authorAvatar.property]!.url! }
+              id:
+                mappedText(item, setup.fields.authorId) || `notion-${item.id}`,
+              displayName:
+                mappedText(item, setup.fields.authorName) || 'Community member',
+              ...(setup.fields.authorAvatar &&
+              item.properties[setup.fields.authorAvatar.property]?.url
+                ? {
+                    avatarUrl:
+                      item.properties[setup.fields.authorAvatar.property]!.url!,
+                  }
                 : {}),
             },
             authorKind: (() => {
-              const value = item.properties[setup.fields.authorKind.property]?.select?.name
-              return value === 'team' || value === 'administrator' ? value : 'customer'
+              const value =
+                item.properties[setup.fields.authorKind.property]?.select?.name
+              return value === 'team' || value === 'administrator'
+                ? value
+                : 'customer'
             })(),
             createdAt: item.created_time,
             updatedAt: item.last_edited_time,
@@ -423,22 +538,37 @@ export function createNotionReadClient(
           const result = await query(setup.dataSourceId, page)
           return RoadmapPageSchema.parse({
             ...pageShape(result),
-            items: result.results!.filter((item) =>
-              !setup.fields.status || status(item, setup.fields.status, options.setup.statuses, options.setup.statusDefinitions) !== null,
-            ).map((item) => ({
-              id: item.id,
-              title: text(item, setup.fields.title),
-              description: text(item, setup.fields.description),
-              status: status(item, setup.fields.status, options.setup.statuses, options.setup.statusDefinitions),
-              linkedFeedbackItemIds: setup.fields.linkedFeedbackItemIds
-                ? (
-                    item.properties[setup.fields.linkedFeedbackItemIds.property]
-                      ?.relation ?? []
-                  ).map(({ id }) => id)
-                : [],
-              createdAt: item.created_time,
-              updatedAt: item.last_edited_time,
-            })),
+            items: result
+              .results!.filter(
+                (item) =>
+                  !setup.fields.status ||
+                  status(
+                    item,
+                    setup.fields.status,
+                    options.setup.statuses,
+                    options.setup.statusDefinitions,
+                  ) !== null,
+              )
+              .map((item) => ({
+                id: item.id,
+                title: text(item, setup.fields.title),
+                description: text(item, setup.fields.description),
+                status: status(
+                  item,
+                  setup.fields.status,
+                  options.setup.statuses,
+                  options.setup.statusDefinitions,
+                ),
+                linkedFeedbackItemIds: setup.fields.linkedFeedbackItemIds
+                  ? (
+                      item.properties[
+                        setup.fields.linkedFeedbackItemIds.property
+                      ]?.relation ?? []
+                    ).map(({ id }) => id)
+                  : [],
+                createdAt: item.created_time,
+                updatedAt: item.last_edited_time,
+              })),
           })
         },
       })
@@ -471,14 +601,14 @@ export function createNotionReadClient(
       return cachedRead({
         ...common,
         key: `notion:${setup.dataSourceId}:changelog-for-feedback:${id}:${stable(page)}`,
-        tags: [
-          cacheTags.feedback('notion'),
-          cacheTags.changelog('notion'),
-        ],
-        load: () => loadChangelogPage(setup, page, [{
-          property: relation.property,
-          relation: { contains: id },
-        }]),
+        tags: [cacheTags.feedback('notion'), cacheTags.changelog('notion')],
+        load: () =>
+          loadChangelogPage(setup, page, [
+            {
+              property: relation.property,
+              relation: { contains: id },
+            },
+          ]),
       })
     },
     async getChangelogEntry(slug) {
@@ -489,11 +619,25 @@ export function createNotionReadClient(
         key: `notion:${setup.dataSourceId}:changelog-entry:${slug}`,
         tags: [cacheTags.changelog('notion')],
         load: async () => {
-          const response = await query(setup.dataSourceId, { pageSize: 2 }, undefined, [
-            { property: setup.fields.slug.property, rich_text: { equals: slug } },
-            { property: setup.fields.published.property, checkbox: { equals: true } },
-            { property: setup.fields.publishedAt.property, date: { is_not_empty: true } },
-          ])
+          const response = await query(
+            setup.dataSourceId,
+            { pageSize: 2 },
+            undefined,
+            [
+              {
+                property: setup.fields.slug.property,
+                rich_text: { equals: slug },
+              },
+              {
+                property: setup.fields.published.property,
+                checkbox: { equals: true },
+              },
+              {
+                property: setup.fields.publishedAt.property,
+                date: { is_not_empty: true },
+              },
+            ],
+          )
           const entries = response.results!.flatMap((item) => {
             const mapped = changelogItem(item, setup)
             return mapped ? [mapped] : []

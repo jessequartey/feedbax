@@ -18,7 +18,11 @@ export const FeedbackTypeSchema = z.enum([
 ])
 export const RoadmapEntryIdSchema = id('RoadmapEntryId')
 export const ChangelogEntryIdSchema = id('ChangelogEntryId')
-export const ChangelogSlugSchema = z.string().trim().min(1).max(120)
+export const ChangelogSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
 const PublicHttpUrlSchema = z.url().refine((value) => {
   const protocol = new URL(value).protocol
@@ -185,25 +189,27 @@ export type FeedbackReleaseReference = z.infer<
   typeof FeedbackReleaseReferenceSchema
 >
 
-export const FeedbackShippedEventSchema = z.strictObject({
-  deduplicationKey: z.string().trim().min(1),
-  type: z.literal('feedback.shipped'),
-  occurredAt: TimestampSchema,
-  feedbackItemId: FeedbackItemIdSchema,
-  changelogEntryId: ChangelogEntryIdSchema,
-  changelogSlug: ChangelogSlugSchema,
-  publicStatus: StatusSchema.refine((status) => status.isTerminal === true, {
-    message: 'A shipped event requires a terminal public status.',
-  }),
-}).superRefine((event, context) => {
-  const expected = `feedback.shipped:${event.feedbackItemId}:${event.changelogEntryId}`
-  if (event.deduplicationKey !== expected)
-    context.addIssue({
-      code: 'custom',
-      path: ['deduplicationKey'],
-      message: 'The shipped event deduplication key is inconsistent.',
-    })
-})
+export const FeedbackShippedEventSchema = z
+  .strictObject({
+    deduplicationKey: z.string().trim().min(1),
+    type: z.literal('feedback.shipped'),
+    occurredAt: TimestampSchema,
+    feedbackItemId: FeedbackItemIdSchema,
+    changelogEntryId: ChangelogEntryIdSchema,
+    changelogSlug: ChangelogSlugSchema,
+    publicStatus: StatusSchema.refine((status) => status.isTerminal === true, {
+      message: 'A shipped event requires a terminal public status.',
+    }),
+  })
+  .superRefine((event, context) => {
+    const expected = `feedback.shipped:${event.feedbackItemId}:${event.changelogEntryId}`
+    if (event.deduplicationKey !== expected)
+      context.addIssue({
+        code: 'custom',
+        path: ['deduplicationKey'],
+        message: 'The shipped event deduplication key is inconsistent.',
+      })
+  })
 export type FeedbackShippedEvent = z.infer<typeof FeedbackShippedEventSchema>
 
 export function buildFeedbackShippedEvent(
@@ -235,13 +241,20 @@ export const SubmitFeedbackInputSchema = z.strictObject({
 export type SubmitFeedbackInput = z.infer<typeof SubmitFeedbackInputSchema>
 
 const emailLike = /(^|[\s(<[])\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i
-export const CreateCommentInputSchema = z.strictObject({
-  clientRequestId: z.uuid(),
-  feedbackItemId: FeedbackItemIdSchema,
-  body: z.string().trim().min(1).max(10_000),
-}).superRefine((input, context) => {
-  if (emailLike.test(input.body)) context.addIssue({ code: 'custom', path: ['body'], message: 'Comment content must not include an email address' })
-})
+export const CreateCommentInputSchema = z
+  .strictObject({
+    clientRequestId: z.uuid(),
+    feedbackItemId: FeedbackItemIdSchema,
+    body: z.string().trim().min(1).max(10_000),
+  })
+  .superRefine((input, context) => {
+    if (emailLike.test(input.body))
+      context.addIssue({
+        code: 'custom',
+        path: ['body'],
+        message: 'Comment content must not include an email address',
+      })
+  })
 export type CreateCommentInput = z.infer<typeof CreateCommentInputSchema>
 export const CreateCommentResultSchema = PublicCommentSchema
 
@@ -260,10 +273,15 @@ export const VoteStateRequestSchema = z.strictObject({
   feedbackItemIds: z.array(FeedbackItemIdSchema).min(1).max(100).readonly(),
 })
 export const VoteStateResponseSchema = z.strictObject({
-  items: z.array(z.strictObject({
-    feedbackItemId: FeedbackItemIdSchema,
-    voted: z.boolean(),
-  })).max(100).readonly(),
+  items: z
+    .array(
+      z.strictObject({
+        feedbackItemId: FeedbackItemIdSchema,
+        voted: z.boolean(),
+      }),
+    )
+    .max(100)
+    .readonly(),
 })
 
 export const SubscriptionTargetSchema = z.strictObject({
@@ -299,6 +317,31 @@ export const PublicMutationErrorSchema = z.strictObject({
   }),
 })
 export type PublicMutationError = z.infer<typeof PublicMutationErrorSchema>
+
+export const applicationErrorCodes = [
+  'AUTHENTICATION_REQUIRED',
+  'CONNECTOR_UNAVAILABLE',
+  'RATE_LIMITED',
+  'PERMISSION_DENIED',
+  'UNEXPECTED_ERROR',
+  'NOT_FOUND',
+  'INVALID_QUERY',
+] as const
+export const ApplicationErrorCodeSchema = z.enum(applicationErrorCodes)
+export type ApplicationErrorCode = z.infer<typeof ApplicationErrorCodeSchema>
+export const PublicApplicationErrorSchema = z.strictObject({
+  error: z.strictObject({
+    code: ApplicationErrorCodeSchema,
+    message: z.string().trim().min(1),
+    requestId: z.string().trim().min(1),
+    retryable: z.boolean(),
+    retryAfterSeconds: z.number().int().positive().optional(),
+    loginLocation: z.string().trim().min(1).optional(),
+  }),
+})
+export type PublicApplicationError = z.infer<
+  typeof PublicApplicationErrorSchema
+>
 
 export const FeedbackSortSchema = z.enum([
   'newest',
@@ -457,12 +500,24 @@ export const PublicRoadmapPageSchema = z
   })
   .superRefine((page, context) => {
     if (page.hasMore && page.nextCursor === undefined)
-      context.addIssue({ code: 'custom', path: ['nextCursor'], message: 'nextCursor is required when hasMore is true' })
+      context.addIssue({
+        code: 'custom',
+        path: ['nextCursor'],
+        message: 'nextCursor is required when hasMore is true',
+      })
     if (!page.hasMore && page.nextCursor !== undefined)
-      context.addIssue({ code: 'custom', path: ['nextCursor'], message: 'nextCursor must be omitted when hasMore is false' })
+      context.addIssue({
+        code: 'custom',
+        path: ['nextCursor'],
+        message: 'nextCursor must be omitted when hasMore is false',
+      })
     const ids = page.columns.map(({ status }) => status.id)
     if (new Set(ids).size !== ids.length)
-      context.addIssue({ code: 'custom', path: ['columns'], message: 'Roadmap column statuses must be unique' })
+      context.addIssue({
+        code: 'custom',
+        path: ['columns'],
+        message: 'Roadmap column statuses must be unique',
+      })
   })
 export type PublicRoadmapColumn = z.infer<typeof PublicRoadmapColumnSchema>
 export type PublicRoadmapPage = z.infer<typeof PublicRoadmapPageSchema>
@@ -491,7 +546,9 @@ export interface PublicConnectorReader {
     readonly cacheStatus: import('./cache.js').CacheStatus
   }>
   getChangelogEntry(slug: string): Promise<ChangelogEntry | null>
-  getFeedback(feedbackItemId: FeedbackItemId): Promise<PublicFeedbackItem | null>
+  getFeedback(
+    feedbackItemId: FeedbackItemId,
+  ): Promise<PublicFeedbackItem | null>
   listComments(
     feedbackItemId: FeedbackItemId,
     page: CursorPageRequest,

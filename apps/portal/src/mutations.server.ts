@@ -59,9 +59,21 @@ export interface SecurityLogger {
 }
 export type { MutationProtectionConfig } from '@feedbax/config'
 
-export function commentAuthorKind(role?: string): 'customer' | 'team' | 'administrator' {
-  if (role && portalPublicConfig.commentRoles.administrator.some((value) => value === role)) return 'administrator'
-  if (role && portalPublicConfig.commentRoles.team.some((value) => value === role)) return 'team'
+export function commentAuthorKind(
+  role?: string,
+): 'customer' | 'team' | 'administrator' {
+  if (
+    role &&
+    portalPublicConfig.commentRoles.administrator.some(
+      (value) => value === role,
+    )
+  )
+    return 'administrator'
+  if (
+    role &&
+    portalPublicConfig.commentRoles.team.some((value) => value === role)
+  )
+    return 'team'
   return 'customer'
 }
 
@@ -125,7 +137,21 @@ function error(
   const headers = new Headers({ 'cache-control': 'private, no-store' })
   if (typeof extra.retryAfterSeconds === 'number')
     headers.set('retry-after', String(extra.retryAfterSeconds))
-  return json({ error: { code, message, ...extra } }, { status, headers })
+  const requestId =
+    typeof extra.requestId === 'string' ? extra.requestId : crypto.randomUUID()
+  headers.set('x-request-id', requestId)
+  return json(
+    {
+      error: {
+        code,
+        message,
+        requestId,
+        retryable: status === 429 || status >= 500,
+        ...extra,
+      },
+    },
+    { status, headers },
+  )
 }
 async function digest(value: string) {
   const bytes = await crypto.subtle.digest(
@@ -192,7 +218,7 @@ export async function protectMutation<T>(
       reason: code,
       networkKey,
     })
-    return error(status, code, message, extra)
+    return error(status, code, message, { requestId, ...extra })
   }
   let requestLimited
   try {
@@ -214,6 +240,7 @@ export async function protectMutation<T>(
       503,
       'MUTATION_UNAVAILABLE',
       'This action is temporarily unavailable.',
+      { requestId },
     )
   }
   if (!requestLimited.allowed)
@@ -314,6 +341,7 @@ export async function protectMutation<T>(
       503,
       'MUTATION_UNAVAILABLE',
       'This action is temporarily unavailable.',
+      { requestId },
     )
   }
   if (!limited.allowed)
@@ -366,6 +394,7 @@ export async function protectMutation<T>(
       503,
       'MUTATION_UNAVAILABLE',
       'This action is temporarily unavailable.',
+      { requestId },
     )
   }
 }
@@ -378,17 +407,31 @@ export function productionMutationDependencies(
   const auth = authProvider()
   const token = readEnv('NOTION_TOKEN')
   const interactionHashKey = readEnv('FEEDBAX_INTERACTION_HASH_KEY')
-  const notion = token && publicNotionSetup.dataSourceId
-    ? createNotionMutationService({ token, setup: publicNotionSetup, cache: publicCache, ...(interactionHashKey ? { interactionHashKey } : {}) })
-    : null
+  const notion =
+    token && publicNotionSetup.dataSourceId
+      ? createNotionMutationService({
+          token,
+          setup: publicNotionSetup,
+          cache: publicCache,
+          ...(interactionHashKey ? { interactionHashKey } : {}),
+        })
+      : null
   return {
     auth,
-    service: notion ? {
-      ...unavailable,
-      submit: (session, input) => notion.submit(input, auth.publicUser(session)),
-      setVote: (session, input) => notion.setVote(session.user.id, input),
-      createComment: (session, input) => notion.createComment(auth.publicUser(session), commentAuthorKind(session.role), input),
-    } : unavailable,
+    service: notion
+      ? {
+          ...unavailable,
+          submit: (session, input) =>
+            notion.submit(input, auth.publicUser(session)),
+          setVote: (session, input) => notion.setVote(session.user.id, input),
+          createComment: (session, input) =>
+            notion.createComment(
+              auth.publicUser(session),
+              commentAuthorKind(session.role),
+              input,
+            ),
+        }
+      : unavailable,
     rateLimits,
     logger: consoleLogger,
     config: validated,
