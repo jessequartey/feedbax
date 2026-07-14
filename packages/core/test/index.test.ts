@@ -151,12 +151,17 @@ describe('canonical domain schemas', () => {
       body: 'Markdown **is supported**.',
     }
     expect(CreateCommentInputSchema.parse(input)).toEqual(input)
-    expect(
-      CreateCommentInputSchema.safeParse({
-        ...input,
-        body: 'Email me at ada@example.com',
-      }).success,
-    ).toBe(false)
+    const invalidComment = CreateCommentInputSchema.safeParse({
+      ...input,
+      body: 'Email me at ada@example.com',
+    })
+    expect(invalidComment.success).toBe(false)
+    if (!invalidComment.success) {
+      expect(invalidComment.error.issues[0]?.path).toContain('body')
+      expect(invalidComment.error.flatten().fieldErrors.body?.[0]).toMatch(
+        /email address/i,
+      )
+    }
     expect(
       CreateCommentInputSchema.safeParse({ ...input, email: 'ada@example.com' })
         .success,

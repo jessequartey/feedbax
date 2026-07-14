@@ -58,7 +58,7 @@ export async function commentListResponse(request: Request) {
       headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus },
     })
   } catch (error) {
-    const invalid = error instanceof Error && error.name === 'ZodError'
+    const invalid = error instanceof Error && error.name === 'ParseError'
     return invalid
       ? failure(
           request,
@@ -96,7 +96,7 @@ async function editorialResponse(
       },
     )
   } catch (error) {
-    const invalid = error instanceof Error && error.name === 'ZodError'
+    const invalid = error instanceof Error && error.name === 'ParseError'
     return invalid
       ? failure(
           request,
@@ -161,7 +161,7 @@ export async function roadmapListResponse(
   } catch (error) {
     const invalid =
       error instanceof Error &&
-      (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
+      (error.message === 'INVALID_QUERY' || error.name === 'ParseError')
     return invalid
       ? failure(
           request,

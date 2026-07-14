@@ -230,7 +230,7 @@ export async function feedbackListResponse(request: Request) {
   } catch (error) {
     const invalid =
       error instanceof Error &&
-      (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
+      (error.message === 'INVALID_QUERY' || error.name === 'ParseError')
     return applicationErrorResponse(
       request,
       'list-feedback',
@@ -279,7 +279,7 @@ export async function feedbackDetailResponse(
       },
     })
   } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError')
+    if (error instanceof Error && error.name === 'ParseError')
       return applicationErrorResponse(request, 'get-feedback', error, {
         code: 'NOT_FOUND',
         message: 'Feedback was not found.',

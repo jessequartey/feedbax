@@ -59,6 +59,7 @@ for (const [workspace, allowed] of layers) {
 }
 
 const canonicalSchemaWorkspaces = [
+  'packages/core',
   'packages/config',
   'packages/contracts',
   'packages/domain',

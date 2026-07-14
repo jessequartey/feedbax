@@ -21,6 +21,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "effect": "3.22.0"
   }
 }

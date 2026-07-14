@@ -191,7 +191,12 @@ export interface MutationDependencies {
   captcha?: CaptchaProvider
   config: MutationProtectionConfig
 }
-export const mutationSchemas = {
+export const mutationSchemas: {
+  readonly submit: RuntimeSchema<SubmitFeedbackInput>
+  readonly vote: RuntimeSchema<SetVoteInput>
+  readonly comment: RuntimeSchema<CreateCommentInput>
+  readonly subscribe: RuntimeSchema<SubscribeInput>
+} = {
   submit: SubmitFeedbackInputSchema,
   vote: SetVoteInputSchema,
   comment: CreateCommentInputSchema,
