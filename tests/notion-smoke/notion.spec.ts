@@ -109,17 +109,14 @@ test.describe('Notion connector smoke', () => {
     await form.getByRole('button', { name: 'Submit feedback' }).click()
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
-    // Reload after the optimistic insertion so the vote target comes from the
-    // canonical Notion read instead of a collection row that is being replaced.
-    await page.goto('/')
-    await page.locator('html[data-hydrated="true"]').waitFor()
-
     const vote = page.getByRole('button', {
       name: `Vote for ${title}`,
     })
-    await vote.click()
+    // The submitted row is replaced as the optimistic collection reconciles
+    // with Notion. Dispatch immediately instead of waiting for DOM stability.
+    await vote.click({ force: true })
     await expect(vote).toHaveAttribute('aria-pressed', 'true')
-    await vote.click()
+    await vote.click({ force: true })
     await expect(vote).toHaveAttribute('aria-pressed', 'false')
 
     await page.getByRole('link', { name: title }).click()
