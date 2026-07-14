@@ -1,0 +1,26 @@
+{
+  "name": "feedbax",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "feedbax": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@feedbax/identity": "workspace:*",
+    "jsonc-parser": "3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.13"
+  }
+}

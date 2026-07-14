@@ -1,0 +1,10 @@
+{
+  "$schema": "https://feedbax.dev/schema/project.json",
+  "version": 1,
+  "connector": "notion",
+  "identity": "__IDENTITY__",
+  "interactionStore": "notion",
+  "deployment": "__DEPLOYMENT__",
+  "packageManager": "__PACKAGE_MANAGER__",
+  "shadcn": { "preset": "__PRESET__", "workspace": "packages/ui" },
+}

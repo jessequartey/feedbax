@@ -1,0 +1,26 @@
+{
+  "name": "@feedbax/portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "build": "vite build",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@feedbax/core": "^0.1.0",
+    "@feedbax/notion": "^0.1.0",
+    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-start": "^1.170.17",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tanstack/router-plugin": "^1.170.17",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "nitro": "^3.0.1-alpha.2",
+    "vite": "^7.3.1"
+  }
+}
