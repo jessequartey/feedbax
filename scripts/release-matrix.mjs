@@ -119,6 +119,23 @@ for (const entry of matrix) {
   )
 
   await run(entry.manager, ['install'], destination)
+  if (entry.preset === 'feedbax-default')
+    await run(
+      'npm',
+      [
+        'exec',
+        '--yes',
+        '--package=shadcn@4.13.0',
+        '--',
+        'shadcn',
+        'add',
+        'button',
+        '--yes',
+        '--cwd',
+        join(destination, 'apps/portal'),
+      ],
+      destination,
+    )
   await run(entry.manager, ['run', 'type-check'], destination)
   await run(entry.manager, ['run', 'build'], destination)
 

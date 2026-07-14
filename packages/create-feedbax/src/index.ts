@@ -81,6 +81,29 @@ export function resolveCreateOptions(argv: readonly string[]): CreateOptions {
   }
 }
 
+export type CreatePrompt = (
+  question: string,
+  defaultValue: string,
+) => Promise<string>
+
+export async function resolveInteractiveCreateOptions(
+  argv: readonly string[],
+  prompt: CreatePrompt,
+): Promise<CreateOptions> {
+  if (argv.includes('--yes')) return resolveCreateOptions(argv)
+  const prompted = [...argv]
+  const ask = async (flag: string, question: string, defaultValue: string) => {
+    if (argv.includes(flag)) return
+    const answer = (await prompt(question, defaultValue)).trim() || defaultValue
+    prompted.push(flag, answer)
+  }
+  await ask('--identity', 'Identity (anonymous, email, handoff)', 'email')
+  await ask('--deploy', 'Deployment (cloudflare, vercel, node)', 'cloudflare')
+  await ask('--package-manager', 'Package manager (pnpm, npm)', 'pnpm')
+  await ask('--preset', 'shadcn preset', 'feedbax-default')
+  return resolveCreateOptions(prompted)
+}
+
 async function assertEmpty(path: string) {
   try {
     if ((await readdir(path)).length > 0)

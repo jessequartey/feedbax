@@ -1266,67 +1266,67 @@ The rebuild PR is complete only when all of the following are true.
 ### Installation
 
 - [ ] `npx create-feedbax@latest` works in a clean temporary environment.
-- [ ] pnpm generation also works.
-- [ ] Default interactive answers produce a working project.
-- [ ] `--yes` produces a documented default stack.
-- [ ] The generated README contains exact next steps.
-- [ ] `feedbax doctor` detects every intentionally broken fixture.
+- [x] pnpm generation also works.
+- [x] Default interactive answers produce a working project.
+- [x] `--yes` produces a documented default stack.
+- [x] The generated README contains exact next steps.
+- [x] `feedbax doctor` detects every intentionally broken fixture.
 
 ### Identity
 
-- [ ] Anonymous submission requires no identity input.
-- [ ] Email-only remembers an opaque server-resolved identity.
-- [ ] Email-only is explicitly unverified.
-- [ ] Signed handoff validates all security claims.
-- [ ] Public APIs never expose private email.
-- [ ] Roles cannot be self-asserted.
+- [x] Anonymous submission requires no identity input.
+- [x] Email-only remembers an opaque server-resolved identity.
+- [x] Email-only is explicitly unverified.
+- [x] Signed handoff validates all security claims.
+- [x] Public APIs never expose private email.
+- [x] Roles cannot be self-asserted.
 
 ### Product loop
 
-- [ ] Visitors browse, search, filter, and view details.
-- [ ] Visitors receive duplicate suggestions before submission.
-- [ ] Configured identities can submit, vote, and comment.
-- [ ] Roadmap and changelog render from Notion.
-- [ ] Shipped feedback links to a changelog entry.
-- [ ] Empty, unavailable, unauthorized, and rate-limited states differ.
+- [x] Visitors browse, search, filter, and view details.
+- [x] Visitors receive duplicate suggestions before submission.
+- [x] Configured identities can submit, vote, and comment.
+- [x] Roadmap and changelog render from Notion.
+- [x] Shipped feedback links to a changelog entry.
+- [x] Empty, unavailable, unauthorized, and rate-limited states differ.
 
 ### UI
 
-- [ ] shadcn `components.json` is valid.
-- [ ] Standard shadcn component addition works.
-- [ ] Default plus two alternate preset smoke builds pass.
-- [ ] Light/dark modes meet contrast requirements.
-- [ ] Accessibility tests and manual keyboard review pass.
-- [ ] Mobile and desktop layouts pass visual review.
+- [x] shadcn `components.json` is valid.
+- [x] Standard shadcn component addition works.
+- [x] Default plus two alternate preset smoke builds pass.
+- [x] Light/dark modes meet contrast requirements.
+- [ ] Accessibility tests pass; manual keyboard review remains to be recorded.
+- [ ] Mobile and desktop visual review remains to be recorded.
 
 ### Architecture and quality
 
-- [ ] Type checking, lint, format check, unit, contract, integration, and E2E tests pass.
-- [ ] Package dependency rules and circular checks pass.
-- [ ] Every success and public error round-trips through Effect Schema and both TanStack transport adapters correctly.
-- [ ] Server functions enforce same-origin/CSRF and endpoint-level authorization.
-- [ ] Public server-route GET responses use explicit HTTP cache semantics without mixing viewer state.
-- [ ] SSR does not self-fetch and client bundles contain no server provider code.
-- [ ] Long-lived Effect layers are composed once per process/isolate rather than once per request.
-- [ ] External calls have timeout, cancellation, and classified failure behavior.
-- [ ] Mutations use correct idempotency/retry behavior.
-- [ ] Performance budgets pass or approved exceptions are documented.
+- [x] Type checking, lint, format check, unit, contract, integration, and E2E tests pass.
+- [x] Package dependency rules and circular checks pass.
+- [x] Every success and public error round-trips through Effect Schema and both TanStack transport adapters correctly.
+- [x] Server functions enforce same-origin/CSRF and endpoint-level authorization.
+- [x] Public server-route GET responses use explicit HTTP cache semantics without mixing viewer state.
+- [x] SSR does not self-fetch and client bundles contain no server provider code.
+- [x] Long-lived Effect layers are composed once per process/isolate rather than once per request.
+- [x] External calls have timeout, cancellation, and classified failure behavior.
+- [x] Mutations use correct idempotency/retry behavior.
+- [x] Performance budgets pass or approved exceptions are documented.
 
 ### Deployment and security
 
-- [ ] Cloudflare build and smoke test pass.
-- [ ] Vercel build and smoke test pass.
-- [ ] Node/Docker build and smoke test pass.
-- [ ] Secret bundle checks pass.
-- [ ] Cookie, origin, rate-limit, redirect, and handoff security tests pass.
-- [ ] Security documentation includes known limitations.
+- [x] Cloudflare build and smoke test pass.
+- [x] Vercel build and smoke test pass.
+- [x] Node/Docker build and smoke test pass.
+- [x] Secret bundle checks pass.
+- [x] Cookie, origin, rate-limit, redirect, and handoff security tests pass.
+- [x] Security documentation includes known limitations.
 
 ### Adoption
 
-- [ ] Feedbax dogfoods a project generated through the public CLI path.
+- [x] Feedbax dogfoods a project generated through the packed public CLI path.
 - [ ] A non-maintainer completes the documented setup without the maintainer controlling the keyboard.
 - [ ] Setup time and friction are recorded.
-- [ ] Release notes distinguish shipped features from future extensions.
+- [x] Release notes distinguish shipped features from future extensions.
 
 ## 19. Risks and mitigations
 

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -57,5 +57,32 @@ describe('feedbax project lifecycle', () => {
     const result = await doctor(directory)
     expect(result.ok).toBe(true)
     expect(JSON.stringify(result)).not.toContain('do-not-print')
+  })
+
+  it('diagnoses invalid metadata, missing product config, and missing secrets', async () => {
+    const directory = await fixture()
+    delete process.env.NOTION_TOKEN
+    delete process.env.FEEDBAX_SESSION_SECRET
+    await writeFile(join(directory, 'feedbax.jsonc'), '{ invalid')
+    await rm(join(directory, 'feedbax.config.ts'))
+    const result = await doctor(directory)
+    expect(result.ok).toBe(false)
+    expect(result.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'CONFIG_INVALID', status: 'fail' }),
+        expect.objectContaining({
+          code: 'NOTION_TOKEN_MISSING',
+          status: 'fail',
+        }),
+        expect.objectContaining({
+          code: 'FEEDBAX_SESSION_SECRET_MISSING',
+          status: 'fail',
+        }),
+        expect.objectContaining({
+          code: 'PRODUCT_CONFIG_MISSING',
+          status: 'fail',
+        }),
+      ]),
+    )
   })
 })

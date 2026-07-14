@@ -5,7 +5,7 @@ import { feedbackPortalUrl, githubUrl } from '../lib/site'
 export const homepageClaims = {
   promise: 'Turn your Notion database into a customer feedback portal.',
   status:
-    'Feedbax is an early, pre-release project. The foundation exists; the complete feedback loop is planned for v0.0.2.',
+    'Feedbax v0.1.0 is a pre-release preview. The complete feedback loop and automated release matrix are available; external launch prerequisites remain.',
 } as const
 
 export const Route = createFileRoute('/')({
@@ -111,20 +111,20 @@ function HomePage() {
           <div>
             <Check aria-hidden="true" />
             <span>
-              <strong>Foundation available</strong>
+              <strong>v0.1.0 preview available</strong>
               <small>
-                Monorepo boundaries, typed interfaces, runtime spike, and
-                deployment evidence.
+                Generate a complete Notion-backed portal with three identity
+                modes and three deployment targets.
               </small>
             </span>
           </div>
           <div>
             <CircleDashed aria-hidden="true" />
             <span>
-              <strong>v0.0.2 in progress</strong>
+              <strong>Release prerequisites</strong>
               <small>
-                Feedback, voting, comments, schema mapping, sessions, roadmap,
-                and changelog.
+                Registry ownership, a live Notion smoke, and an independent
+                quickstart remain before publication.
               </small>
             </span>
           </div>
