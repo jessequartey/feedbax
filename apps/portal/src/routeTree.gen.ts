@@ -16,6 +16,7 @@ import { Route as FeedbackIdRouteImport } from './routes/feedback.$id'
 import { Route as ChangelogSlugRouteImport } from './routes/changelog_.$slug'
 import { Route as AuthLogoutRouteImport } from './routes/auth.logout'
 import { Route as AuthHandoffRouteImport } from './routes/auth.handoff'
+import { Route as AuthEmailRouteImport } from './routes/auth.email'
 import { Route as ApiVoteStateRouteImport } from './routes/api.vote-state'
 import { Route as ApiVoteRouteImport } from './routes/api.vote'
 import { Route as ApiTestConnectorRouteImport } from './routes/api.test-connector'
@@ -63,6 +64,11 @@ const AuthLogoutRoute = AuthLogoutRouteImport.update({
 const AuthHandoffRoute = AuthHandoffRouteImport.update({
   id: '/auth/handoff',
   path: '/auth/handoff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthEmailRoute = AuthEmailRouteImport.update({
+  id: '/auth/email',
+  path: '/auth/email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiVoteStateRoute = ApiVoteStateRouteImport.update({
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/api/test-connector': typeof ApiTestConnectorRoute
   '/api/vote': typeof ApiVoteRoute
   '/api/vote-state': typeof ApiVoteStateRoute
+  '/auth/email': typeof AuthEmailRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/changelog/$slug': typeof ChangelogSlugRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/api/test-connector': typeof ApiTestConnectorRoute
   '/api/vote': typeof ApiVoteRoute
   '/api/vote-state': typeof ApiVoteStateRoute
+  '/auth/email': typeof AuthEmailRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/changelog/$slug': typeof ChangelogSlugRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/api/test-connector': typeof ApiTestConnectorRoute
   '/api/vote': typeof ApiVoteRoute
   '/api/vote-state': typeof ApiVoteStateRoute
+  '/auth/email': typeof AuthEmailRoute
   '/auth/handoff': typeof AuthHandoffRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/changelog_/$slug': typeof ChangelogSlugRoute
@@ -215,6 +224,7 @@ export interface FileRouteTypes {
     | '/api/test-connector'
     | '/api/vote'
     | '/api/vote-state'
+    | '/auth/email'
     | '/auth/handoff'
     | '/auth/logout'
     | '/changelog/$slug'
@@ -237,6 +247,7 @@ export interface FileRouteTypes {
     | '/api/test-connector'
     | '/api/vote'
     | '/api/vote-state'
+    | '/auth/email'
     | '/auth/handoff'
     | '/auth/logout'
     | '/changelog/$slug'
@@ -259,6 +270,7 @@ export interface FileRouteTypes {
     | '/api/test-connector'
     | '/api/vote'
     | '/api/vote-state'
+    | '/auth/email'
     | '/auth/handoff'
     | '/auth/logout'
     | '/changelog_/$slug'
@@ -282,6 +294,7 @@ export interface RootRouteChildren {
   ApiTestConnectorRoute: typeof ApiTestConnectorRoute
   ApiVoteRoute: typeof ApiVoteRoute
   ApiVoteStateRoute: typeof ApiVoteStateRoute
+  AuthEmailRoute: typeof AuthEmailRoute
   AuthHandoffRoute: typeof AuthHandoffRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   ChangelogSlugRoute: typeof ChangelogSlugRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/handoff'
       fullPath: '/auth/handoff'
       preLoaderRoute: typeof AuthHandoffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/email': {
+      id: '/auth/email'
+      path: '/auth/email'
+      fullPath: '/auth/email'
+      preLoaderRoute: typeof AuthEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/vote-state': {
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTestConnectorRoute: ApiTestConnectorRoute,
   ApiVoteRoute: ApiVoteRoute,
   ApiVoteStateRoute: ApiVoteStateRoute,
+  AuthEmailRoute: AuthEmailRoute,
   AuthHandoffRoute: AuthHandoffRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   ChangelogSlugRoute: ChangelogSlugRoute,

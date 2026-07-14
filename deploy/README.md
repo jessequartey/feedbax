@@ -19,11 +19,13 @@ Configure `FEEDBAX_SPIKE_MARKER` in each runtime. Run `pnpm notion:doctor` in a 
 
 Live evidence is recorded here after deployment. A provider build alone does not count as passing.
 
-| Target     | URL or identifier                                                                           | Runtime                         | Smoke result                      | Date       |
-| ---------- | ------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------- | ---------- |
-| Cloudflare | `https://feedbax-portal.jessefquartey.workers.dev` / `7daeb47c-36c5-43ac-b9f4-e0e20be35d5c` | workerd, 17 ms reported startup | Passed                            | 2026-07-11 |
-| Vercel     | `https://portal-tau-two-57.vercel.app` / `dpl_EkvzNoBtpU2Y1SQKNYfej6TiSh8C`                 | Node.js 22 via Nitro            | Passed                            | 2026-07-11 |
-| Docker     | image `feedbax-spike:local` / container `54c82966dae2`                                      | Node 22.18.0 Alpine             | Passed at `http://localhost:3001` | 2026-07-11 |
+| Target             | URL or identifier                                                                             | Runtime                                            | Smoke result                      | Date       |
+| ------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------- | ---------- |
+| Cloudflare         | `https://feedbax-portal.jessefquartey.workers.dev` / `7daeb47c-36c5-43ac-b9f4-e0e20be35d5c`   | workerd, 17 ms reported startup                    | Passed                            | 2026-07-11 |
+| Cloudflare dogfood | `https://feedbax-feedback.jessefquartey.workers.dev` / `ad47e394-6e53-46d6-9aaa-3d57312995eb` | workerd, email-only identity, official Notion data | Passed                            | 2026-07-14 |
+| Cloudflare docs    | `https://feedbax-docs.jessefquartey.workers.dev` / `6a2f5549-0776-4021-95a5-e8595c55f3a1`     | static Worker assets                               | Passed                            | 2026-07-14 |
+| Vercel             | `https://portal-tau-two-57.vercel.app` / `dpl_EkvzNoBtpU2Y1SQKNYfej6TiSh8C`                   | Node.js 22 via Nitro                               | Passed                            | 2026-07-11 |
+| Docker             | image `feedbax-spike:local` / container `54c82966dae2`                                        | Node 22.18.0 Alpine                                | Passed at `http://localhost:3001` | 2026-07-11 |
 
 The Cloudflare deployment requires the application-local `wrangler.jsonc` so the Vite plugin emits the Worker server bundle; deploying only the generated client configuration produces an assets-only Worker. Vercel requires a `NITRO_PRESET=vercel` build and consumes `s-maxage` before sending `Cache-Control` to clients. Docker requires `CI=true` during the frozen pnpm install and a root `.dockerignore` to avoid copying host build artifacts.
 

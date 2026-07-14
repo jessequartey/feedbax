@@ -9,6 +9,19 @@ Notion is the only connector targeted for v0.1.0. Future connectors are directio
 
 Feedbax reads `NOTION_TOKEN` only on the server and reads the data-source ID and mappings from `feedbax.config.mjs`. Never expose the token through a `VITE_` variable.
 
+The starter template contains schemas and dashboard content only. Notion does not copy integration credentials or production identifiers when it is duplicated. Every operator must create a workspace integration, connect the duplicated page, and configure:
+
+[Duplicate the official Feedbax Notion starter](https://brave-number-c98.notion.site/Feedbax-Notion-Starter-39dafe1596918155a94cc24a1a41a2a5).
+
+```dotenv
+NOTION_TOKEN=
+NOTION_DATA_SOURCE_ID=
+NOTION_VOTES_DATA_SOURCE_ID=
+NOTION_COMMENTS_DATA_SOURCE_ID=
+NOTION_CHANGELOG_DATA_SOURCE_ID=
+FEEDBAX_SESSION_SECRET=
+```
+
 ## Prepare a workspace
 
 1. Create a Notion integration for the target workspace.

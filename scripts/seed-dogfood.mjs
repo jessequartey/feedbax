@@ -90,6 +90,60 @@ const items = [
     tags: ['API'],
   },
   {
+    title: 'Linear connector',
+    description:
+      'Map customer feedback and roadmap state to Linear while preserving Feedbax connector boundaries.',
+    type: 'Feature',
+    status: 'Open',
+    category: 'Integration',
+    tags: ['API'],
+  },
+  {
+    title: 'Google Sheets connector',
+    description:
+      'Support a spreadsheet backend for teams that are not ready for a work-tracking platform.',
+    type: 'Feature',
+    status: 'Open',
+    category: 'Integration',
+    tags: ['API'],
+  },
+  {
+    title: 'Generic API connector',
+    description:
+      'Publish a provider-neutral connector contract for custom backends and automation tools.',
+    type: 'Feature',
+    status: 'Open',
+    category: 'Integration',
+    tags: ['API'],
+  },
+  {
+    title: 'Status notifications and digest delivery',
+    description:
+      'Notify opted-in customers when feedback changes status or ships through pluggable adapters.',
+    type: 'Feature',
+    status: 'Open',
+    category: 'Feature',
+    tags: ['Dashboard'],
+  },
+  {
+    title: 'SQLite, Postgres, and Better Auth options',
+    description:
+      'Add stronger interaction stores and verified authentication after the Notion preview is stable.',
+    type: 'Feature',
+    status: 'Open',
+    category: 'Improvement',
+    tags: ['API'],
+  },
+  {
+    title: 'Import, export, and migration tools',
+    description:
+      'Let operators move feedback without losing ownership of their data.',
+    type: 'Improvement',
+    status: 'Open',
+    category: 'Improvement',
+    tags: ['Dashboard'],
+  },
+  {
     title: 'Make Cloudflare-only modules portable across build targets',
     description:
       'Rollout issue: the Durable Object environment import initially broke the portable Node build and development dependency scan. The Worker-only binding is now isolated in the Cloudflare entrypoint.',

@@ -8,9 +8,7 @@
   "vars": {
     "FEEDBAX_PUBLIC_URL": "https://feedbax-feedback.jessefquartey.workers.dev",
     "FEEDBAX_RATE_LIMIT_STORE": "cloudflare",
-    "FEEDBAX_AUTH_AUDIENCE": "feedbax",
-    "FEEDBAX_AUTH_LOGIN_URL": "https://feedbax-dogfood-auth.jessefquartey.workers.dev/login",
-    "FEEDBAX_AUTH_ACTIVE_SESSION_KEY_ID": "session-2026-07",
+    "FEEDBAX_IDENTITY_MODE": "email",
   },
   "durable_objects": {
     "bindings": [

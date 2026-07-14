@@ -1,4 +1,4 @@
-import { access, readFile } from 'node:fs/promises'
+import { access, copyFile, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 const routes = [
@@ -25,5 +25,8 @@ for (const route of routes) {
   if (!html.includes('feedbax'))
     throw new Error(`Static route is missing Feedbax shell: /${route}`)
 }
+
+// Cloudflare's asset worker expects an index document for the root route.
+await copyFile(resolve(output, '_shell.html'), resolve(output, 'index.html'))
 
 console.log(`Verified ${routes.length} independently deployable static routes.`)

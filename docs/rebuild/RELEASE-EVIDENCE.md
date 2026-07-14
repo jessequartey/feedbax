@@ -2,6 +2,15 @@
 
 Recorded on 2026-07-14 for PR #7.
 
+## Founder launch
+
+- Merged PR 7 after all required checks and CodeRabbit completed successfully.
+- Generated an email-only Cloudflare project from public npm packages in a clean temporary directory and passed installation/type-checking.
+- Provisioned fresh private official and sanitized starter Notion database sets; both passed `feedbax doctor`.
+- Deployed and smoked the docs Worker at `https://feedbax-docs.jessefquartey.workers.dev`.
+- Deployed and smoked the email-only dogfood portal at `https://feedbax-feedback.jessefquartey.workers.dev`; the live email route returns a secure HTTP-only session cookie.
+- Published the duplicable starter at `https://brave-number-c98.notion.site/Feedbax-Notion-Starter-39dafe1596918155a94cc24a1a41a2a5` with credentials and production identifiers excluded.
+
 ## npm publication
 
 The public registry resolves all five packages, and npm reports `jessequartey` as

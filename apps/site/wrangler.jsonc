@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "feedbax-docs",
+  "compatibility_date": "2026-07-14",
+  "assets": {
+    "directory": ".output/public",
+    "not_found_handling": "single-page-application",
+  },
+  "observability": { "enabled": true },
+}

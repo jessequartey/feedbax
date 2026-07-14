@@ -1,13 +1,16 @@
 # Contributing
 
-Feedbax is preparing the v0.1.0 pre-launch rebuild. Issues, workflow descriptions, and design feedback are welcome now; implementation contributions should align with an accepted issue or RFC.
+Feedbax uses its own public portal as the canonical roadmap and contribution queue: https://feedbax-feedback.jessefquartey.workers.dev. Implementation contributions must start from an accepted Feedbax item.
 
 ## Before contributing
 
-1. Search existing issues and discussions.
-2. Open an issue describing the user problem, not only an implementation.
-3. Wait for scope agreement before starting a large change.
-4. Keep pull requests focused and update relevant documentation and tests.
+1. Search the Feedbax portal and vote for an existing item before creating a duplicate.
+2. Submit the user problem to the portal when no item exists, then wait for scope agreement before starting a large change.
+3. Use GitHub issues for implementation discussion only after linking the canonical Feedbax item.
+4. Include the canonical item URL in the pull-request template.
+5. Keep pull requests focused and update relevant documentation and tests.
+
+Pull requests without a Feedbax item fail CI. A maintainer may apply the `feedbax-exempt` label only for a security fix, urgent regression, or repository-only maintenance and must record the reason in the pull-request body.
 
 ## Expectations
 
