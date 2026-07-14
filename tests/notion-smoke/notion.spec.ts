@@ -81,7 +81,7 @@ test.describe('Notion connector smoke', () => {
       .setProtectedHeader({ alg: 'HS256', kid: e2eAuth.keyId })
       .setIssuer(e2eAuth.issuer)
       .setAudience(e2eAuth.audience)
-      .setSubject('notion-smoke-user')
+      .setSubject(`notion-smoke-user-${now}`)
       .setIssuedAt(now)
       .setExpirationTime(now + 120)
       .sign(base64url.decode(e2eAuth.handoffSecret))
@@ -106,7 +106,15 @@ test.describe('Notion connector smoke', () => {
       .getByRole('dialog', { name: 'Share an Idea' })
       .getByLabel('Description')
       .fill('Synthetic live connector smoke fixture; safe to archive.')
+    const submitResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/feedback' &&
+        response.request().method() === 'POST',
+    )
     await form.getByRole('button', { name: 'Submit feedback' }).click()
+    const response = await submitResponse
+    expect(response.ok()).toBe(true)
+    await expect(page).toHaveURL(/\/feedback\//, { timeout: 30_000 })
 
     // Assert against Notion directly before exercising the persisted record.
     // The optimistic board row can be replaced while the mutation settles.
