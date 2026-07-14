@@ -1,5 +1,6 @@
 import { z } from 'zod'
 export * from './cache.js'
+export const defineConfig = <const Config>(config: Config): Config => config
 
 const id = <T extends string>(brand: T) => z.string().trim().min(1).brand(brand)
 

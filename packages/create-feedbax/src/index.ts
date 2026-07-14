@@ -1,10 +1,8 @@
 import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  rejectDeferredIdentityMode,
-  type IdentityMode,
-} from '@feedbax/identity'
+type IdentityMode = 'anonymous' | 'email' | 'handoff'
 
 export type Deployment = 'cloudflare' | 'vercel' | 'node'
 export type PackageManager = 'npm' | 'pnpm'
@@ -20,6 +18,11 @@ export interface CreateOptions {
 
 const allowedDeployments = new Set<Deployment>(['cloudflare', 'vercel', 'node'])
 const allowedPackageManagers = new Set<PackageManager>(['npm', 'pnpm'])
+const identityMode = (mode: string): IdentityMode => {
+  if (mode === 'anonymous' || mode === 'email' || mode === 'handoff')
+    return mode
+  throw new Error(`Identity mode "${mode}" is not supported in Feedbax 0.1.0.`)
+}
 
 export function resolveCreateOptions(argv: readonly string[]): CreateOptions {
   const value = (name: string) => {
@@ -38,7 +41,7 @@ export function resolveCreateOptions(argv: readonly string[]): CreateOptions {
     throw new Error(
       `Storage "${storage}" is deferred until after Feedbax 0.1.0.`,
     )
-  const identity = rejectDeferredIdentityMode(value('--identity') ?? 'email')
+  const identity = identityMode(value('--identity') ?? 'email')
   const deploy = (value('--deploy') ?? 'cloudflare') as Deployment
   if (!allowedDeployments.has(deploy))
     throw new Error(`Deployment "${deploy}" is not supported.`)
@@ -83,6 +86,19 @@ async function replaceInTree(
   }
 }
 
+const run = (command: string, args: readonly string[], cwd: string) =>
+  new Promise<void>((resolvePromise, reject) => {
+    const child = spawn(command, args, { cwd, stdio: 'inherit', shell: false })
+    child.once('error', reject)
+    child.once('exit', (code) =>
+      code === 0
+        ? resolvePromise()
+        : reject(
+            new Error(`${command} ${args.join(' ')} failed with ${code}.`),
+          ),
+    )
+  })
+
 export async function createProject(options: CreateOptions) {
   const destination = resolve(options.directory)
   await assertEmpty(destination)
@@ -112,8 +128,23 @@ export async function createProject(options: CreateOptions) {
     __IDENTITY__: options.identity,
     __DEPLOYMENT__: options.deploy,
     __PACKAGE_MANAGER__: options.packageManager,
+    __PACKAGE_MANAGER_SPEC__:
+      options.packageManager === 'pnpm' ? 'pnpm@10.29.3' : 'npm@11.4.2',
     __PRESET__: options.preset,
   })
+  try {
+    if (options.install) {
+      await run(options.packageManager, ['install'], destination)
+      await run(options.packageManager, ['run', 'type-check'], destination)
+    }
+    if (options.git) await run('git', ['init'], destination)
+  } catch (error) {
+    await writeFile(
+      join(destination, '.feedbax-recovery'),
+      `Generation stopped: ${error instanceof Error ? error.message : String(error)}\nRerun dependency installation and type checking after resolving the reported issue.\n`,
+    )
+    throw error
+  }
   return {
     destination,
     nextSteps: [

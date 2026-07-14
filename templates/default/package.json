@@ -1,15 +1,20 @@
 {
   "name": "feedbax-project",
   "private": true,
-  "packageManager": "__PACKAGE_MANAGER__@latest",
+  "packageManager": "__PACKAGE_MANAGER_SPEC__",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "pnpm --filter @feedbax/portal dev",
-    "build": "pnpm --filter @feedbax/portal build",
-    "type-check": "pnpm --filter @feedbax/portal type-check",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "type-check": "turbo run type-check",
     "doctor": "feedbax doctor"
   },
   "devDependencies": {
     "feedbax": "^0.1.0",
+    "turbo": "2.10.4",
     "typescript": "5.9.3"
   }
 }

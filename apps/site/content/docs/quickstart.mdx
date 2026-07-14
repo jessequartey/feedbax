@@ -1,25 +1,38 @@
 ---
 title: Quickstart
-description: A placeholder for the installation path that must be proven before release.
+description: Generate, configure, validate, and run a Notion-backed Feedbax portal.
 ---
-
-> **Planned for v0.0.2:** this quickstart is intentionally a placeholder. A clean installation must pass from these instructions before the release is tagged.
 
 ## Prerequisites
 
 - Node.js 22.18 or newer
-- pnpm 10.29.3 through Corepack
 - A Notion workspace and integration
-- An existing application capable of issuing signed identity tokens for authenticated mutations
-- A Cloudflare, Vercel, or Docker deployment target
+- npm or pnpm
 
-## Intended installation flow
+## Create a project
 
-1. Clone or generate a Feedbax installation.
-2. Create a Notion database and grant an integration access.
-3. Map database fields and statuses through typed configuration.
-4. Add signed identity handoff to the host application.
-5. Validate the connector schema and credentials.
-6. Deploy the portal and run its smoke checks.
+```sh
+npx create-feedbax@latest my-feedback
+cd my-feedback
+```
 
-The project does not yet provide a generator, completed schema mapper, or production-ready portal flow. Follow the [Roadmap](/docs/roadmap) for progress.
+Choose anonymous, email-only, or signed handoff identity. Email-only captures an unverified address; it does not authenticate ownership.
+
+## Configure and validate
+
+Copy `.env.example` to `.env`, set the documented server-only Notion and session values, then run:
+
+```sh
+npx feedbax doctor
+```
+
+Doctor reports blocking configuration, permissions, and schema failures with their owning extension. It never prints secret values.
+
+## Run locally
+
+```sh
+pnpm install
+pnpm dev
+```
+
+Use `npx feedbax add deploy cloudflare`, `vercel`, or `node` to select a verified deployment composition. Generated projects remain ordinary React, shadcn, Tailwind, and TypeScript source owned by their operator.

@@ -1,6 +1,6 @@
 # Contributing
 
-Feedbax is preparing for a v0.0.2 rewrite. Issues, workflow descriptions, and design feedback are welcome now; implementation contributions should align with an accepted issue or RFC.
+Feedbax is preparing the v0.1.0 pre-launch rebuild. Issues, workflow descriptions, and design feedback are welcome now; implementation contributions should align with an accepted issue or RFC.
 
 ## Before contributing
 

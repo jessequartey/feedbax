@@ -1,7 +1,6 @@
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser'
-import { rejectDeferredIdentityMode } from '@feedbax/identity'
 
 export interface ProjectMetadata {
   version: 1
@@ -11,6 +10,11 @@ export interface ProjectMetadata {
   deployment: 'cloudflare' | 'vercel' | 'node'
   packageManager: 'npm' | 'pnpm'
   shadcn: { preset: string; workspace: string }
+}
+const identityMode = (mode: string) => {
+  if (mode === 'anonymous' || mode === 'email' || mode === 'handoff')
+    return mode
+  throw new Error(`Identity mode "${mode}" is not supported in Feedbax 0.1.0.`)
 }
 export async function readMetadata(
   cwd = process.cwd(),
@@ -26,7 +30,7 @@ export async function readMetadata(
     value.interactionStore !== 'notion'
   )
     throw new Error('feedbax.jsonc is invalid or unsupported.')
-  rejectDeferredIdentityMode(value.identity)
+  identityMode(value.identity)
   return value
 }
 export async function doctor(cwd = process.cwd()) {
@@ -90,7 +94,7 @@ export async function doctor(cwd = process.cwd()) {
   return { ok: checks.every((check) => check.status !== 'fail'), checks }
 }
 export async function add(kind: string, value: string, cwd = process.cwd()) {
-  if (kind === 'identity') rejectDeferredIdentityMode(value)
+  if (kind === 'identity') identityMode(value)
   if (kind === 'storage' && value !== 'notion')
     throw new Error(`Storage "${value}" is deferred until after Feedbax 0.1.0.`)
   if (kind === 'connector' && value !== 'notion')

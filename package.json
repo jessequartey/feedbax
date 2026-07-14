@@ -12,10 +12,14 @@
     "format:check": "prettier --check .",
     "type-check": "turbo run type-check",
     "lint": "turbo run lint",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
     "test": "turbo run test",
     "test:e2e": "playwright test --config playwright.e2e.config.ts",
     "test:notion-smoke": "playwright test --config playwright.notion.config.ts",
-    "test:a11y": "playwright test --config playwright.config.ts",
+    "test:a11y": "playwright test tests/accessibility.spec.ts --config playwright.config.ts",
+    "changeset": "changeset",
+    "release:version": "changeset version",
+    "release:pack": "pnpm --filter create-feedbax pack && pnpm --filter feedbax pack && pnpm --filter @feedbax/core pack && pnpm --filter @feedbax/notion pack && pnpm --filter @feedbax/auth-handoff pack",
     "notion:doctor": "pnpm turbo run build --filter=@feedbax/notion --filter=@feedbax/config && node scripts/notion-doctor.mjs",
     "notion:prepare-smoke": "node scripts/prepare-notion-smoke.mjs",
     "notion:provision": "node scripts/provision-notion.mjs",
@@ -27,6 +31,7 @@
     "@feedbax/config": "workspace:*"
   },
   "devDependencies": {
+    "@changesets/cli": "2.29.7",
     "@axe-core/playwright": "^4.12.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "^1.61.1",

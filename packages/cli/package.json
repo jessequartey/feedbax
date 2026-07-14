@@ -12,15 +12,16 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm build",
     "type-check": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "test": "vitest run --passWithNoTests"
+    "lint": "eslint src test",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@feedbax/identity": "workspace:*",
     "jsonc-parser": "3.3.1"
   },
   "devDependencies": {
-    "@types/node": "24.10.13"
+    "@types/node": "24.10.13",
+    "vitest": "4.1.0"
   }
 }

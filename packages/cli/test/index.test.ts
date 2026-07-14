@@ -1,0 +1,61 @@
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { add, doctor, readMetadata } from '../src/index.js'
+
+const originalEnvironment = { ...process.env }
+afterEach(() => {
+  process.env = { ...originalEnvironment }
+})
+
+const fixture = async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'feedbax-cli-'))
+  await writeFile(
+    join(directory, 'feedbax.jsonc'),
+    `{// this comment must survive edits\n  "version": 1,\n  "connector": "notion",\n  "identity": "email",\n  "interactionStore": "notion",\n  "deployment": "cloudflare",\n  "packageManager": "pnpm",\n  "shadcn": { "preset": "default", "workspace": "packages/ui" }\n}\n`,
+  )
+  await writeFile(join(directory, 'feedbax.config.ts'), 'export default {}\n')
+  return directory
+}
+
+describe('feedbax project lifecycle', () => {
+  it('preserves JSONC comments while changing supported extensions', async () => {
+    const directory = await fixture()
+    await add('identity', 'handoff', directory)
+    await add('deploy', 'node', directory)
+    expect(await readFile(join(directory, 'feedbax.jsonc'), 'utf8')).toContain(
+      '// this comment must survive edits',
+    )
+    await expect(readMetadata(directory)).resolves.toMatchObject({
+      identity: 'handoff',
+      deployment: 'node',
+    })
+  })
+
+  it.each([
+    ['identity', 'better-auth'],
+    ['storage', 'sqlite'],
+    ['storage', 'postgres'],
+  ])(
+    'rejects deferred %s %s without changing metadata',
+    async (kind, value) => {
+      const directory = await fixture()
+      const path = join(directory, 'feedbax.jsonc')
+      const before = await readFile(path, 'utf8')
+      await expect(add(kind, value, directory)).rejects.toThrow(
+        /not supported|deferred/,
+      )
+      await expect(readFile(path, 'utf8')).resolves.toBe(before)
+    },
+  )
+
+  it('reports environment names without their secret values', async () => {
+    const directory = await fixture()
+    process.env.NOTION_TOKEN = 'do-not-print-notion'
+    process.env.FEEDBAX_SESSION_SECRET = 'do-not-print-session'
+    const result = await doctor(directory)
+    expect(result.ok).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('do-not-print')
+  })
+})

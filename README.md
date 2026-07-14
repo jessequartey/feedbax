@@ -4,19 +4,27 @@ Feedbax is becoming a lightweight, self-hostable customer-feedback portal that w
 
 > Own your feedback. Keep your existing workflow.
 
-## Development status
+## v0.1.0 preview
 
-Feedbax is being redesigned for v0.0.2. The repository now contains the pnpm/Turborepo foundation, minimal TanStack Start application shells, typed package boundaries, and deployment build presets. Product behavior has not been implemented yet.
+Feedbax is being rebuilt as a generator-led TanStack Start application with Effect contracts, conventional shadcn source ownership, and Notion as the launch connector and interaction store.
 
 The first release will use Notion as its backend and provide:
 
 - A public feedback board with search, filtering, and duplicate suggestions
-- Authenticated submission, unique voting, and comments
+- Anonymous or email-capture submission, best-effort voting, and comments
 - A public roadmap and changelog
-- Anonymous browsing and signed identity handoff from an existing application
+- Anonymous, email-only, and signed identity handoff modes
 - Configurable branding and deployment to Cloudflare, Vercel, or Docker
 
-Future connectors may include GitHub, Linear, Google Sheets, and local databases. See [ROADMAP.md](ROADMAP.md) for the staged plan.
+Better Auth and SQL interaction stores are deferred until after v0.1.0. See [ROADMAP.md](ROADMAP.md) for the staged plan.
+
+The intended installation path is:
+
+```sh
+npx create-feedbax@latest my-feedback
+cd my-feedback
+npx feedbax doctor
+```
 
 ## Goals
 
@@ -25,11 +33,11 @@ Future connectors may include GitHub, Linear, Google Sheets, and local databases
 - Keep the core framework, hosting platform, and connector agnostic.
 - Provide honest documentation and predictable upgrades.
 
-## Planned repository shape
+## Repository shape
 
 ```text
 apps/        Product and documentation applications
-packages/    Domain, configuration, authentication, and shared UI
+packages/    Domain, contracts, services, identity, CLIs, and shared UI
 connectors/  Notion and future backend integrations
 deploy/      Verified hosting presets
 examples/    Integration and identity-handoff examples
@@ -56,7 +64,7 @@ Turborepo stores local task results in `.turbo`. Run `pnpm build` twice to obser
 - Open an [early-adopter issue](https://github.com/jessequartey/feedbax/issues/new/choose) if you want to test the rewrite with your team.
 - Review [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
 
-Feedbax is MIT licensed. Its public interfaces are not stable yet.
+Feedbax is MIT licensed. The v0.1.0 APIs remain preview interfaces.
 
 ## Dogfood board
 

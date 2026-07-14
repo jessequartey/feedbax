@@ -18,9 +18,7 @@
     "lint": "eslint src test",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@feedbax/identity": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "24.10.13"
   }

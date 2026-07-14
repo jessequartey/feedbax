@@ -37,6 +37,8 @@ jobs:
             command: pnpm format:check
           - name: Linting
             command: pnpm lint
+          - name: Dependency boundaries
+            command: pnpm build && pnpm check:boundaries
           - name: Type-checking
             command: pnpm type-check
           - name: Unit tests
