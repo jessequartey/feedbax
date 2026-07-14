@@ -1,4 +1,4 @@
-import { AuthenticationError } from '@feedbax/auth'
+import { AuthenticationError } from '@feedbax/auth-handoff'
 import { createFileRoute } from '@tanstack/react-router'
 import { applicationErrorResponse } from '../application-errors.server.js'
 import { authProvider } from '../auth.server.js'

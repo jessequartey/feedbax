@@ -2,7 +2,7 @@ import {
   safeReturnPath,
   type AuthSession,
   type IdentityProvider,
-} from '@feedbax/auth'
+} from '@feedbax/auth-handoff'
 import {
   CreateCommentInputSchema,
   SetVoteInputSchema,

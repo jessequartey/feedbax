@@ -15,7 +15,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@feedbax/auth": "workspace:*",
+    "@feedbax/auth-handoff": "workspace:*",
     "@feedbax/config": "workspace:*",
     "@feedbax/core": "workspace:*",
     "@feedbax/notion": "workspace:*",

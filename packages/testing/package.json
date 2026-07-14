@@ -19,6 +19,7 @@
     "@feedbax/connector-sdk": "workspace:*",
     "@feedbax/contracts": "workspace:*",
     "@feedbax/domain": "workspace:*",
+    "@feedbax/storage": "workspace:*",
     "effect": "3.22.0"
   }
 }

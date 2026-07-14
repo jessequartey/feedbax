@@ -3,7 +3,7 @@ import {
   type HandoffIssuerConfig,
   type IdentityProvider,
   type SigningKeyConfig,
-} from '@feedbax/auth'
+} from '@feedbax/auth-handoff'
 import { readEnv } from './spike.js'
 
 let instance: IdentityProvider | undefined

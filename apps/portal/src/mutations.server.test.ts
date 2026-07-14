@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AuthSession, IdentityProvider } from '@feedbax/auth'
+import type { AuthSession, IdentityProvider } from '@feedbax/auth-handoff'
 import {
   protectMutation,
   commentAuthorKind,

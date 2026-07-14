@@ -58,7 +58,7 @@ importers:
 
   apps/portal:
     dependencies:
-      '@feedbax/auth':
+      '@feedbax/auth-handoff':
         specifier: workspace:*
         version: link:../../packages/auth
       '@feedbax/config':
@@ -225,7 +225,7 @@ importers:
 
   examples/auth-handoff:
     dependencies:
-      '@feedbax/auth':
+      '@feedbax/auth-handoff':
         specifier: workspace:*
         version: link:../../packages/auth
       jose:
@@ -256,7 +256,7 @@ importers:
 
   packages/config:
     dependencies:
-      '@feedbax/auth':
+      '@feedbax/auth-handoff':
         specifier: workspace:*
         version: link:../auth
       '@feedbax/core':
@@ -330,9 +330,19 @@ importers:
       '@feedbax/domain':
         specifier: workspace:*
         version: link:../domain
+      '@feedbax/storage':
+        specifier: workspace:*
+        version: link:../storage
       effect:
         specifier: 3.22.0
         version: 3.22.0
+    devDependencies:
+      '@feedbax/testing':
+        specifier: workspace:*
+        version: link:../testing
+      vitest:
+        specifier: 4.1.0
+        version: 4.1.0(@types/node@24.10.13)(vite@8.1.4(@types/node@24.10.13)(esbuild@0.28.1)(jiti@2.7.0))
 
   packages/observability:
     dependencies:
@@ -387,6 +397,9 @@ importers:
       '@feedbax/domain':
         specifier: workspace:*
         version: link:../domain
+      '@feedbax/storage':
+        specifier: workspace:*
+        version: link:../storage
       effect:
         specifier: 3.22.0
         version: 3.22.0

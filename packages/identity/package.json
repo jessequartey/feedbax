@@ -12,12 +12,17 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "test": "vitest run --passWithNoTests"
+    "lint": "eslint src test",
+    "test": "vitest run"
   },
   "dependencies": {
     "@feedbax/contracts": "workspace:*",
     "@feedbax/domain": "workspace:*",
+    "@feedbax/storage": "workspace:*",
     "effect": "3.22.0"
+  },
+  "devDependencies": {
+    "@feedbax/testing": "workspace:*",
+    "vitest": "4.1.0"
   }
 }

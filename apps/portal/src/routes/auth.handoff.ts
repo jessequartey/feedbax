@@ -1,7 +1,7 @@
 import {
   AuthenticationError,
   type SignedHandoffIdentityProvider,
-} from '@feedbax/auth'
+} from '@feedbax/auth-handoff'
 import { createFileRoute } from '@tanstack/react-router'
 import { authProvider } from '../auth.server.js'
 import { publicError } from '../spike.js'

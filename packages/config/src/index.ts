@@ -1,4 +1,4 @@
-import type { SignedHandoffConfig } from '@feedbax/auth'
+import type { SignedHandoffConfig } from '@feedbax/auth-handoff'
 import {
   ConnectorCapabilitySchema,
   type ConnectorDescriptor,
