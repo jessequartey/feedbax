@@ -1,0 +1,17 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "css": "../../apps/portal/src/styles.css",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@feedbax/ui/components",
+    "utils": "@feedbax/ui/lib/utils",
+    "ui": "@feedbax/ui/components/ui",
+    "lib": "@feedbax/ui/lib",
+    "hooks": "@feedbax/ui/hooks"
+  }
+}
