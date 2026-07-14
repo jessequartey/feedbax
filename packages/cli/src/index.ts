@@ -66,7 +66,7 @@ export async function readMetadata(
   const path = resolve(cwd, 'feedbax.jsonc')
   const source = await readFile(path, 'utf8')
   const errors: ParseError[] = []
-  const value: unknown = parse(source, errors)
+  const value: unknown = parse(source, errors, { allowTrailingComma: true })
   if (errors.length) throw metadataError()
   return projectMetadata(value)
 }

@@ -33,6 +33,17 @@ describe('feedbax project lifecycle', () => {
     })
   })
 
+  it('accepts trailing commas emitted by the project generator', async () => {
+    const directory = await fixture()
+    const path = join(directory, 'feedbax.jsonc')
+    const source = await readFile(path, 'utf8')
+    await writeFile(path, source.replace('\n}', ',\n}'))
+    await expect(readMetadata(directory)).resolves.toMatchObject({
+      connector: 'notion',
+      identity: 'email',
+    })
+  })
+
   it.each([
     ['identity', 'better-auth'],
     ['storage', 'sqlite'],
