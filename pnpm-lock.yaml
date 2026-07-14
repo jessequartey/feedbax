@@ -235,6 +235,9 @@ importers:
       '@feedbax/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@feedbax/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       effect:
         specifier: 3.22.0
         version: 3.22.0
@@ -402,6 +405,10 @@ importers:
       effect:
         specifier: 3.22.0
         version: 3.22.0
+    devDependencies:
+      vitest:
+        specifier: 4.1.0
+        version: 4.1.0(@types/node@24.10.13)(vite@8.1.4(@types/node@24.10.13)(esbuild@0.28.1)(jiti@2.7.0))
 
   packages/storage:
     dependencies:

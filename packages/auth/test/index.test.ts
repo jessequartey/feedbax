@@ -134,6 +134,37 @@ describe('identity boundary', () => {
     ).toBe('Ada')
   })
 
+  it('consumes one-time handoff identifiers and rejects replay', async () => {
+    const consumed = new Set<string>()
+    const auth = new SignedHandoffIdentityProvider({
+      audience: 'feedbax',
+      issuers: [
+        {
+          issuer: 'https://app.example.com',
+          keys: [{ id: 'sign-2', secret: signingSecret }],
+        },
+      ],
+      sessionKeys: [{ id: 'session-2', secret: sessionSecret }],
+      activeSessionKeyId: 'session-2',
+      loginUrl: 'https://app.example.com/login',
+      clockToleranceSeconds: 0,
+      consumeReplayKey: async (issuer, jti) => {
+        const key = `${issuer}:${jti}`
+        if (consumed.has(key)) return false
+        consumed.add(key)
+        return true
+      },
+    })
+    const handoff = await token({ jti: 'one-time-token' })
+    await expect(auth.exchange(handoff)).resolves.toHaveProperty('session')
+    await expect(auth.exchange(handoff)).rejects.toMatchObject({
+      code: 'invalid',
+    })
+    await expect(auth.exchange(await token())).rejects.toMatchObject({
+      code: 'invalid',
+    })
+  })
+
   it.each([
     ['unknown key', () => token({}, signingSecret, 'missing')],
     ['wrong issuer', () => token({ iss: 'https://evil.example.com' })],
