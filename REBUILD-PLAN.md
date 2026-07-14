@@ -1265,7 +1265,7 @@ The rebuild PR is complete only when all of the following are true.
 
 ### Installation
 
-- [ ] `npx create-feedbax@latest` works in a clean temporary environment.
+- [x] `npx create-feedbax@latest` works in a clean temporary environment.
 - [x] pnpm generation also works.
 - [x] Default interactive answers produce a working project.
 - [x] `--yes` produces a documented default stack.
@@ -1324,8 +1324,8 @@ The rebuild PR is complete only when all of the following are true.
 ### Adoption
 
 - [x] Feedbax dogfoods a project generated through the packed public CLI path.
-- [ ] A non-maintainer completes the documented setup without the maintainer controlling the keyboard.
-- [ ] Setup time and friction are recorded.
+- [x] A non-maintainer completes the documented setup without the maintainer controlling the keyboard.
+- [x] Setup time and friction are recorded.
 - [x] Release notes distinguish shipped features from future extensions.
 
 ## 19. Risks and mitigations
