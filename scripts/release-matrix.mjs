@@ -41,7 +41,7 @@ const archive = (part) => {
 }
 const archives = {
   create: archive('create-feedbax-0.1.0.tgz'),
-  cli: archive('feedbax-0.1.0.tgz'),
+  cli: archive('feedbax-0.1.1.tgz'),
   core: archive('feedbax-core-0.1.0.tgz'),
   notion: archive('feedbax-notion-0.1.0.tgz'),
   handoff: archive('feedbax-auth-handoff-0.1.0.tgz'),
