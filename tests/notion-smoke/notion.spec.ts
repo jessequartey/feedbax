@@ -90,9 +90,9 @@ test.describe('Notion connector smoke', () => {
     await expect(
       page.getByRole('heading', { name: 'Share Your Product Feedback' }),
     ).toBeVisible()
-    // The heading is server-rendered. Wait for the client bundle to hydrate
-    // before exercising controls whose listeners are attached by React.
-    await page.waitForLoadState('networkidle')
+    // The heading is server-rendered. Wait for the application marker rather
+    // than network idleness before exercising React event handlers.
+    await page.locator('html[data-hydrated="true"]').waitFor()
 
     const title = `${prefix} ${Date.now()}`
     await page
