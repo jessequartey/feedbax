@@ -202,13 +202,13 @@ Directories should be created only when their first real implementation is added
 
 Packages intended for the first public release:
 
-| Package                     | Purpose                                                          |
-| --------------------------- | ---------------------------------------------------------------- |
-| `create-feedbax`            | `npm create`/`npx` project generator                             |
-| `feedbax`                   | Lifecycle CLI and `add`, `doctor`, `dev`, and `upgrade` commands |
-| `@feedbax/core`             | Stable domain-facing public types and extension contracts        |
-| `@feedbax/notion`           | Notion connector and optional Notion interaction storage         |
-| `@feedbax/auth-handoff`     | Signed identity handoff provider and host helpers                |
+| Package                 | Purpose                                                          |
+| ----------------------- | ---------------------------------------------------------------- |
+| `create-feedbax`        | `npm create`/`npx` project generator                             |
+| `feedbax`               | Lifecycle CLI and `add`, `doctor`, `dev`, and `upgrade` commands |
+| `@feedbax/core`         | Stable domain-facing public types and extension contracts        |
+| `@feedbax/notion`       | Notion connector and optional Notion interaction storage         |
+| `@feedbax/auth-handoff` | Signed identity handoff provider and host helpers                |
 
 Workspace-only initially:
 
@@ -961,11 +961,11 @@ Live tests:
 
 At minimum CI generates and verifies:
 
-| Connector | Identity    | Storage | Deploy     | Package manager |
-| --------- | ----------- | ------- | ---------- | --------------- |
-| Notion    | Anonymous   | Notion  | Cloudflare | pnpm            |
-| Notion    | Email       | Notion  | Node       | npm             |
-| Notion    | Handoff     | Notion  | Vercel     | pnpm            |
+| Connector | Identity  | Storage | Deploy     | Package manager |
+| --------- | --------- | ------- | ---------- | --------------- |
+| Notion    | Anonymous | Notion  | Cloudflare | pnpm            |
+| Notion    | Email     | Notion  | Node       | npm             |
+| Notion    | Handoff   | Notion  | Vercel     | pnpm            |
 
 The full combinatorial matrix is unnecessary. Pairwise coverage plus explicit compatibility-rule tests is sufficient.
 
