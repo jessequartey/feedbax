@@ -1296,8 +1296,8 @@ The rebuild PR is complete only when all of the following are true.
 - [x] Standard shadcn component addition works.
 - [x] Default plus two alternate preset smoke builds pass.
 - [x] Light/dark modes meet contrast requirements.
-- [ ] Accessibility tests pass; manual keyboard review remains to be recorded.
-- [ ] Mobile and desktop visual review remains to be recorded.
+- [x] Accessibility tests and the recorded keyboard review pass.
+- [x] Mobile and desktop layouts pass the recorded responsive review.
 
 ### Architecture and quality
 
