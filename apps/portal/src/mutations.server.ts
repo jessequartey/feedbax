@@ -432,7 +432,21 @@ export function productionMutationDependencies(
   rateLimits?: RateLimitStore,
   config: MutationProtectionConfig = defaultMutationProtectionConfig,
 ): MutationDependencies {
-  const validated = MutationProtectionConfigSchema.parse(config)
+  const e2eMock =
+    readEnv('FEEDBAX_E2E') === 'true' && readEnv('FEEDBAX_CONNECTOR') === 'mock'
+  const validated = MutationProtectionConfigSchema.parse(
+    e2eMock
+      ? {
+          ...config,
+          actions: Object.fromEntries(
+            Object.entries(config.actions).map(([action, policy]) => [
+              action,
+              { ...policy, captcha: false },
+            ]),
+          ),
+        }
+      : config,
+  )
   const auth = authProvider()
   const selectedRateLimits =
     rateLimits ??
