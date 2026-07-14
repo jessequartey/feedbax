@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@feedbax/auth": "workspace:*",
+    "@feedbax/auth-handoff": "workspace:*",
     "jose": "6.1.3"
   }
 }

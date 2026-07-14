@@ -210,10 +210,23 @@ export function publicReader() {
     : null
 }
 
-export async function feedbackListResponse(request: Request) {
+export async function feedbackListResponse(
+  request: Request,
+  reader: Pick<PublicConnectorReader, 'listFeedback'> | null = publicReader(),
+) {
+  let parsed
   try {
-    const { filter, page } = parseFeedbackRequest(new URL(request.url))
-    const reader = publicReader()
+    parsed = parseFeedbackRequest(new URL(request.url))
+  } catch (error) {
+    return applicationErrorResponse(request, 'list-feedback', error, {
+      code: 'INVALID_QUERY',
+      message: 'The feedback filters are invalid.',
+      status: 400,
+      retryable: false,
+    })
+  }
+  try {
+    const { filter, page } = parsed
     if (!reader)
       return applicationErrorResponse(
         request,
@@ -228,32 +241,27 @@ export async function feedbackListResponse(request: Request) {
       },
     })
   } catch (error) {
-    const invalid =
-      error instanceof Error &&
-      (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
-    return applicationErrorResponse(
-      request,
-      'list-feedback',
-      error,
-      invalid
-        ? {
-            code: 'INVALID_QUERY',
-            message: 'The feedback filters are invalid.',
-            status: 400,
-            retryable: false,
-          }
-        : undefined,
-    )
+    return applicationErrorResponse(request, 'list-feedback', error)
   }
 }
 
 export async function feedbackDetailResponse(
   request: Request,
   feedbackItemId: string,
+  reader: Pick<PublicConnectorReader, 'getFeedback'> | null = publicReader(),
 ) {
+  let id
   try {
-    const id = FeedbackItemIdSchema.parse(feedbackItemId)
-    const reader = publicReader()
+    id = FeedbackItemIdSchema.parse(feedbackItemId)
+  } catch (error) {
+    return applicationErrorResponse(request, 'get-feedback', error, {
+      code: 'NOT_FOUND',
+      message: 'Feedback was not found.',
+      status: 404,
+      retryable: false,
+    })
+  }
+  try {
     if (!reader)
       return applicationErrorResponse(
         request,
@@ -279,13 +287,6 @@ export async function feedbackDetailResponse(
       },
     })
   } catch (error) {
-    if (error instanceof Error && error.name === 'ZodError')
-      return applicationErrorResponse(request, 'get-feedback', error, {
-        code: 'NOT_FOUND',
-        message: 'Feedback was not found.',
-        status: 404,
-        retryable: false,
-      })
     return applicationErrorResponse(request, 'get-feedback', error)
   }
 }

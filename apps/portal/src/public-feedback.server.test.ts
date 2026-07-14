@@ -57,6 +57,22 @@ describe('public feedback list', () => {
     expect(response.status).toBe(400)
     expect(JSON.stringify(await response.json())).not.toContain('secret')
   })
+
+  it('does not classify malformed connector output as an invalid query', async () => {
+    const response = await feedbackListResponse(
+      new Request('https://feedbax.test/api/feedback'),
+      {
+        listFeedback: async () => ({
+          value: { items: [{ malformed: true }], hasMore: false },
+          cacheStatus: 'miss',
+        }),
+      } as never,
+    )
+    expect(response.status).toBeGreaterThanOrEqual(500)
+    await expect(response.json()).resolves.not.toMatchObject({
+      error: { code: 'INVALID_QUERY' },
+    })
+  })
 })
 
 describe('feedback suggestions', () => {

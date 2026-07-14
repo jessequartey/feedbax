@@ -1,11 +1,35 @@
-import type { SignedHandoffConfig } from '@feedbax/auth'
-import {
-  ConnectorCapabilitySchema,
-  type ConnectorDescriptor,
-} from '@feedbax/core'
+import type { SignedHandoffConfig } from '@feedbax/auth-handoff'
+import type { ConnectorDescriptor } from '@feedbax/core'
 import type { NotionSetupConfig } from '@feedbax/notion'
-import { z } from 'zod'
+import { Schema } from 'effect'
 
+const decodeOptions = { onExcessProperty: 'error' } as const
+const runtimeSchema = <S extends Schema.Schema.AnyNoContext>(schema: S) =>
+  Object.assign(schema, {
+    parse: (input: unknown): S['Type'] =>
+      Schema.decodeUnknownSync(schema)(input, decodeOptions),
+    safeParse: (
+      input: unknown,
+    ):
+      | { readonly success: true; readonly data: S['Type'] }
+      | { readonly success: false; readonly error: unknown } => {
+      try {
+        return {
+          success: true,
+          data: Schema.decodeUnknownSync(schema)(input, decodeOptions),
+        }
+      } catch (error) {
+        return { success: false, error }
+      }
+    },
+  })
+
+const nonEmpty = Schema.Trim.pipe(
+  Schema.minLength(1, {
+    message: () => 'Too small: expected a non-empty string',
+  }),
+)
+const positiveInt = Schema.Int.pipe(Schema.positive())
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
 const LOCAL_ASSET_EXTENSIONS = {
   logo: new Set(['.svg', '.png', '.webp', '.jpg', '.jpeg']),
@@ -15,21 +39,44 @@ const LOCAL_ASSET_EXTENSIONS = {
 
 export type BrandAssetKind = keyof typeof LOCAL_ASSET_EXTENSIONS
 
-const HttpUrlSchema = z.url().refine((value) => {
-  const protocol = new URL(value).protocol
-  return protocol === 'https:' || protocol === 'http:'
-}, 'Expected an HTTP(S) URL')
-const HttpsUrlSchema = z
-  .url()
-  .refine(
-    (value) => new URL(value).protocol === 'https:',
-    'Expected an HTTPS URL',
-  )
-
-export const HexColorSchema = z
-  .string()
-  .regex(HEX_COLOR, 'Expected a six-digit hex color such as #2563eb')
-  .transform((value) => value.toLowerCase() as `#${string}`)
+const httpUrl = Schema.String.pipe(
+  Schema.filter(
+    (value) => {
+      try {
+        return ['http:', 'https:'].includes(new URL(value).protocol)
+      } catch {
+        return false
+      }
+    },
+    { message: () => 'Expected an HTTP(S) URL' },
+  ),
+)
+const httpsUrl = Schema.String.pipe(
+  Schema.filter(
+    (value) => {
+      try {
+        return new URL(value).protocol === 'https:'
+      } catch {
+        return false
+      }
+    },
+    { message: () => 'Expected an HTTPS URL' },
+  ),
+)
+const hexColorRaw = Schema.transform(
+  Schema.String.pipe(
+    Schema.pattern(HEX_COLOR, {
+      message: () => 'Expected a six-digit hex color such as #2563eb',
+    }),
+  ),
+  Schema.String.pipe(Schema.brand('HexColor')),
+  {
+    strict: true,
+    decode: (value) => value.toLowerCase() as `#${string}`,
+    encode: (value) => value,
+  },
+)
+export const HexColorSchema = runtimeSchema(hexColorRaw)
 
 function assetExtension(value: string) {
   const pathname = value.startsWith('/') ? value : new URL(value).pathname
@@ -37,36 +84,31 @@ function assetExtension(value: string) {
   return index === -1 ? '' : pathname.slice(index).toLowerCase()
 }
 
-export function brandAssetSchema(kind: BrandAssetKind) {
-  return z
-    .string()
-    .trim()
-    .min(1)
-    .superRefine((value, context) => {
-      if (!value.startsWith('/')) {
+const brandAssetRaw = (kind: BrandAssetKind) =>
+  nonEmpty.pipe(
+    Schema.filter(
+      (value) => {
+        if (value.startsWith('/'))
+          return (
+            !value.startsWith('//') &&
+            !value.includes('..') &&
+            !value.includes('\\')
+          )
         try {
-          if (new URL(value).protocol !== 'https:')
-            throw new Error('unsupported protocol')
+          return new URL(value).protocol === 'https:'
         } catch {
-          context.addIssue({
-            code: 'custom',
-            message: 'Expected a root-relative path or HTTPS URL',
-          })
-          return
+          return false
         }
-      } else if (value.startsWith('//') || value.includes('..')) {
-        context.addIssue({
-          code: 'custom',
-          message: 'Local assets must be root-relative and cannot contain ".."',
-        })
-        return
-      }
-      if (!LOCAL_ASSET_EXTENSIONS[kind].has(assetExtension(value)))
-        context.addIssue({
-          code: 'custom',
-          message: `Unsupported ${kind} file type`,
-        })
-    })
+      },
+      { message: () => 'Expected a safe root-relative path or HTTPS URL' },
+    ),
+    Schema.filter(
+      (value) => LOCAL_ASSET_EXTENSIONS[kind].has(assetExtension(value)),
+      { message: () => `Unsupported ${kind} file type` },
+    ),
+  )
+export function brandAssetSchema(kind: BrandAssetKind) {
+  return runtimeSchema(brandAssetRaw(kind))
 }
 
 function relativeLuminance(color: string) {
@@ -78,228 +120,429 @@ function relativeLuminance(color: string) {
   )
   return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!
 }
-
 export function contrastRatio(first: string, second: string) {
   const high = Math.max(relativeLuminance(first), relativeLuminance(second))
   const low = Math.min(relativeLuminance(first), relativeLuminance(second))
   return (high + 0.05) / (low + 0.05)
 }
-
 export function readableAccentForeground(
   accentColor: string,
 ): '#000000' | '#ffffff' {
   return contrastRatio(accentColor, '#000000') >= 4.5 ? '#000000' : '#ffffff'
 }
 
-export const BrandThemeSchema = z.strictObject({
-  background: HexColorSchema,
-  surface: HexColorSchema,
-  text: HexColorSchema,
-  mutedText: HexColorSchema,
-  border: HexColorSchema,
+const brandThemeRaw = Schema.Struct({
+  background: hexColorRaw,
+  surface: hexColorRaw,
+  text: hexColorRaw,
+  mutedText: hexColorRaw,
+  border: hexColorRaw,
 })
+export const BrandThemeSchema = runtimeSchema(brandThemeRaw)
 
-const NavigationLinkSchema = z.strictObject({
-  label: z.string().trim().min(1, 'Navigation labels cannot be empty'),
-  href: z
-    .string()
-    .trim()
-    .min(1)
-    .superRefine((value, context) => {
-      if (value.startsWith('/') && !value.startsWith('//')) return
-      try {
-        if (new URL(value).protocol === 'https:') return
-      } catch {
-        // Report the shared message below.
+const navigationLinkRaw = Schema.Struct({
+  label: nonEmpty,
+  href: nonEmpty.pipe(
+    Schema.filter(
+      (value) => {
+        if (
+          value.startsWith('/') &&
+          !value.startsWith('//') &&
+          !value.includes('\\')
+        )
+          return true
+        try {
+          return new URL(value).protocol === 'https:'
+        } catch {
+          return false
+        }
+      },
+      {
+        message: () =>
+          'Navigation destinations must be root-relative or HTTPS URLs',
+      },
+    ),
+  ),
+})
+const brandingRaw = Schema.Struct({
+  productName: nonEmpty,
+  description: nonEmpty,
+  logo: brandAssetRaw('logo'),
+  favicon: brandAssetRaw('favicon'),
+  socialPreviewImage: Schema.optional(brandAssetRaw('socialPreviewImage')),
+  accentColor: hexColorRaw,
+  themes: Schema.Struct({ light: brandThemeRaw, dark: brandThemeRaw }),
+  navigation: Schema.Array(navigationLinkRaw).pipe(Schema.minItems(1)),
+  supportUrl: Schema.optional(
+    Schema.Union(
+      httpsUrl,
+      Schema.String.pipe(Schema.pattern(/^mailto:[^\s@]+@[^\s@]+$/)),
+    ),
+  ),
+  poweredByFeedbax: Schema.Boolean,
+}).pipe(
+  Schema.filter(
+    (branding) => {
+      const destinations = branding.navigation.map(({ href }) => href)
+      return new Set(destinations).size === destinations.length
+    },
+    { message: () => 'Navigation destinations must be unique' },
+  ),
+  Schema.filter(
+    (branding) => {
+      for (const mode of ['light', 'dark'] as const) {
+        const theme = branding.themes[mode]
+        for (const [foreground, background] of [
+          [theme.text, theme.background],
+          [theme.text, theme.surface],
+          [theme.mutedText, theme.background],
+          [theme.mutedText, theme.surface],
+        ] as const)
+          if (contrastRatio(foreground, background) < 4.5) return false
+        for (const background of [theme.background, theme.surface])
+          if (contrastRatio(branding.accentColor, background) < 3) return false
       }
-      context.addIssue({
-        code: 'custom',
-        message: 'Navigation destinations must be root-relative or HTTPS URLs',
-      })
-    }),
+      return true
+    },
+    {
+      message: () => 'Brand colors must meet the required 4.5:1 contrast ratio',
+    },
+  ),
+)
+
+const mutationActionProtectionRaw = Schema.Struct({
+  limit: positiveInt,
+  windowSeconds: positiveInt,
+  captcha: Schema.optional(Schema.Boolean),
 })
-
-const BrandingSchema = z
-  .strictObject({
-    productName: z.string().trim().min(1),
-    description: z.string().trim().min(1),
-    logo: brandAssetSchema('logo'),
-    favicon: brandAssetSchema('favicon'),
-    socialPreviewImage: brandAssetSchema('socialPreviewImage').optional(),
-    accentColor: HexColorSchema,
-    themes: z.strictObject({
-      light: BrandThemeSchema,
-      dark: BrandThemeSchema,
-    }),
-    navigation: z.array(NavigationLinkSchema).min(1).readonly(),
-    supportUrl: z
-      .union([HttpsUrlSchema, z.string().regex(/^mailto:[^\s@]+@[^\s@]+$/)])
-      .optional(),
-    poweredByFeedbax: z.boolean(),
-  })
-  .superRefine((branding, context) => {
-    const destinations = branding.navigation.map(({ href }) => href)
-    if (new Set(destinations).size !== destinations.length)
-      context.addIssue({
-        code: 'custom',
-        path: ['navigation'],
-        message: 'Navigation destinations must be unique',
-      })
-
-    for (const mode of ['light', 'dark'] as const) {
-      const theme = branding.themes[mode]
-      for (const [foreground, background, label] of [
-        [theme.text, theme.background, 'text on background'],
-        [theme.text, theme.surface, 'text on surface'],
-        [theme.mutedText, theme.background, 'muted text on background'],
-        [theme.mutedText, theme.surface, 'muted text on surface'],
-      ] as const)
-        if (contrastRatio(foreground, background) < 4.5)
-          context.addIssue({
-            code: 'custom',
-            path: ['themes', mode],
-            message: `${label} must meet a 4.5:1 contrast ratio`,
-          })
-
-      for (const background of [theme.background, theme.surface])
-        if (contrastRatio(branding.accentColor, background) < 3)
-          context.addIssue({
-            code: 'custom',
-            path: ['accentColor'],
-            message: `Accent color must meet a 3:1 contrast ratio against the ${mode} theme`,
-          })
-    }
-  })
-
-export const MutationActionProtectionSchema = z.strictObject({
-  limit: z.number().int().positive(),
-  windowSeconds: z.number().int().positive(),
-  captcha: z.boolean().optional(),
-})
-
-const AllowedOriginSchema = z.string().superRefine((value, context) => {
-  try {
-    const url = new URL(value)
-    if (
-      (url.protocol !== 'https:' && url.protocol !== 'http:') ||
-      url.origin !== value
-    )
-      context.addIssue({
-        code: 'custom',
-        message: 'Expected an exact HTTP origin',
-      })
-  } catch {
-    context.addIssue({ code: 'custom', message: 'Expected a valid origin' })
-  }
-})
-
-export const MutationProtectionConfigSchema = z.strictObject({
-  allowedOrigins: z.array(AllowedOriginSchema).readonly().optional(),
-  maximumBodyBytes: z.number().int().positive().max(1_000_000).optional(),
-  request: MutationActionProtectionSchema,
-  actions: z.strictObject({
-    submit: MutationActionProtectionSchema,
-    vote: MutationActionProtectionSchema,
-    comment: MutationActionProtectionSchema,
-    subscribe: MutationActionProtectionSchema,
+export const MutationActionProtectionSchema = runtimeSchema(
+  mutationActionProtectionRaw,
+)
+const allowedOriginRaw = Schema.String.pipe(
+  Schema.filter(
+    (value) => {
+      try {
+        const url = new URL(value)
+        return (
+          ['https:', 'http:'].includes(url.protocol) && url.origin === value
+        )
+      } catch {
+        return false
+      }
+    },
+    { message: () => 'Expected an exact HTTP origin' },
+  ),
+)
+const mutationProtectionRaw = Schema.Struct({
+  allowedOrigins: Schema.optional(Schema.Array(allowedOriginRaw)),
+  maximumBodyBytes: Schema.optional(
+    positiveInt.pipe(Schema.lessThanOrEqualTo(1_000_000)),
+  ),
+  request: mutationActionProtectionRaw,
+  actions: Schema.Struct({
+    submit: mutationActionProtectionRaw,
+    vote: mutationActionProtectionRaw,
+    comment: mutationActionProtectionRaw,
+    subscribe: mutationActionProtectionRaw,
   }),
 })
-export type MutationProtectionConfig = z.infer<
-  typeof MutationProtectionConfigSchema
+const mutationProtectionRuntime = runtimeSchema(mutationProtectionRaw)
+export const MutationProtectionConfigSchema = mutationProtectionRuntime as Omit<
+  typeof mutationProtectionRuntime,
+  'parse'
+> & {
+  readonly parse: (input: unknown) => MutationProtectionConfig
+}
+type DeepMutable<T> = T extends
+  string | number | boolean | bigint | symbol | null | undefined
+  ? T
+  : T extends (...args: never[]) => unknown
+    ? T
+    : T extends ReadonlyArray<infer Item>
+      ? DeepMutable<Item>[]
+      : T extends object
+        ? { -readonly [Key in keyof T]: DeepMutable<T[Key]> }
+        : T
+export type MutationProtectionConfig = DeepMutable<
+  typeof mutationProtectionRaw.Type
 >
 
-const OrderedTaxonomySchema = z.strictObject({
-  id: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  order: z.number().int().nonnegative(),
-  description: z.string().trim().min(1).optional(),
-  color: HexColorSchema.optional(),
-  isTerminal: z.boolean().optional(),
+const orderedTaxonomyRaw = Schema.Struct({
+  id: nonEmpty,
+  name: nonEmpty,
+  order: Schema.NonNegativeInt,
+  description: Schema.optional(nonEmpty),
+  color: Schema.optional(hexColorRaw),
+  isTerminal: Schema.optional(Schema.Boolean),
 })
-
-const ConnectorConfigSchema = z.object({
-  id: z.string().trim().min(1),
-  displayName: z.string().trim().min(1),
-  capabilities: z.array(ConnectorCapabilitySchema).readonly(),
-  setup: z.custom<NotionSetupConfig>().optional(),
+const simpleTaxonomyRaw = Schema.Struct({
+  id: nonEmpty,
+  name: nonEmpty,
+  order: Schema.NonNegativeInt,
+  description: Schema.optional(nonEmpty),
+  color: Schema.optional(hexColorRaw),
 })
-
-export const FeedbaxConfigSchema = z
-  .strictObject({
-    publicUrl: HttpUrlSchema.optional(),
-    branding: BrandingSchema,
-    subscriptions: z
-      .strictObject({ enabled: z.boolean() })
-      .default({ enabled: false }),
-    commentRoles: z
-      .strictObject({
-        administrator: z.array(z.string().trim().min(1)).readonly().default([]),
-        team: z.array(z.string().trim().min(1)).readonly().default([]),
-      })
-      .default({ administrator: [], team: [] }),
-    publicTaxonomy: z
-      .strictObject({
-        statuses: z.array(OrderedTaxonomySchema).readonly(),
-        categories: z
-          .array(OrderedTaxonomySchema.omit({ isTerminal: true }))
-          .readonly(),
-        tags: z
-          .array(OrderedTaxonomySchema.omit({ isTerminal: true }))
-          .readonly()
-          .default([]),
-      })
-      .optional(),
-    roadmap: z
-      .strictObject({
-        title: z.string().trim().min(1),
-        description: z.string().trim().min(1).optional(),
-        columnStatusIds: z.array(z.string().trim().min(1)).min(1).readonly(),
-      })
-      .optional(),
-    changelog: z
-      .strictObject({
-        title: z.string().trim().min(1),
-        description: z.string().trim().min(1).optional(),
-      })
-      .optional(),
-    authentication: z.custom<SignedHandoffConfig>().optional(),
-    mutationProtection: MutationProtectionConfigSchema.optional(),
-    connector: ConnectorConfigSchema,
+const connectorCapabilityRaw = Schema.Literal(
+  'comments',
+  'atomicVoting',
+  'webhooks',
+)
+const base64urlSecret = nonEmpty.pipe(
+  Schema.filter(
+    (value) =>
+      /^[A-Za-z0-9_-]+$/.test(value) &&
+      Math.floor((value.length * 3) / 4) >= 32,
+    { message: () => 'Signing secrets must contain 32 base64url bytes' },
+  ),
+)
+const signingKeyRaw = Schema.Struct({ id: nonEmpty, secret: base64urlSecret })
+const signedHandoffConfigRaw = Schema.Struct({
+  audience: nonEmpty,
+  issuers: Schema.Array(
+    Schema.Struct({
+      issuer: httpsUrl,
+      keys: Schema.Array(signingKeyRaw).pipe(Schema.minItems(1)),
+    }),
+  ).pipe(Schema.minItems(1)),
+  sessionKeys: Schema.Array(signingKeyRaw).pipe(Schema.minItems(1)),
+  activeSessionKeyId: nonEmpty,
+  loginUrl: httpUrl,
+  handoffPath: Schema.optional(
+    nonEmpty.pipe(
+      Schema.filter(
+        (value) =>
+          value.startsWith('/') &&
+          !value.startsWith('//') &&
+          !value.includes('\\'),
+        { message: () => 'Expected a safe root-relative handoff path' },
+      ),
+    ),
+  ),
+  sessionLifetimeSeconds: Schema.optional(positiveInt),
+  maximumHandoffLifetimeSeconds: Schema.optional(positiveInt),
+  clockToleranceSeconds: Schema.optional(Schema.NonNegativeInt),
+  consumeReplayKey: Schema.optional(
+    Schema.Unknown.pipe(
+      Schema.filter((value) => typeof value === 'function', {
+        message: () => 'consumeReplayKey must be a function',
+      }),
+    ),
+  ),
+}).pipe(
+  Schema.filter(
+    (config) =>
+      config.sessionKeys.some(({ id }) => id === config.activeSessionKeyId),
+    { message: () => 'activeSessionKeyId must reference a session key' },
+  ),
+  Schema.filter(
+    (config) =>
+      new Set(config.sessionKeys.map(({ id }) => id)).size ===
+        config.sessionKeys.length &&
+      new Set(config.issuers.map(({ issuer }) => issuer)).size ===
+        config.issuers.length &&
+      config.issuers.every(
+        ({ keys }) => new Set(keys.map(({ id }) => id)).size === keys.length,
+      ),
+    { message: () => 'Handoff issuer and key identifiers must be unique' },
+  ),
+)
+const notionPropertyTypeRaw = Schema.Literal(
+  'title',
+  'rich_text',
+  'number',
+  'select',
+  'multi_select',
+  'status',
+  'date',
+  'people',
+  'files',
+  'checkbox',
+  'url',
+  'email',
+  'phone_number',
+  'formula',
+  'relation',
+  'rollup',
+  'created_time',
+  'created_by',
+  'last_edited_time',
+  'last_edited_by',
+)
+const notionFieldRaw = Schema.Struct({
+  property: nonEmpty,
+  type: notionPropertyTypeRaw,
+  writable: Schema.Boolean,
+})
+const notionFieldOf = <const Types extends readonly [string, ...string[]]>(
+  ...types: Types
+) =>
+  Schema.Struct({
+    property: nonEmpty,
+    type: Schema.Literal(...types),
+    writable: Schema.Boolean,
   })
-  .superRefine((config, context) => {
-    const statuses = config.publicTaxonomy?.statuses ?? []
-    if (new Set(statuses.map(({ id }) => id)).size !== statuses.length)
-      context.addIssue({
-        code: 'custom',
-        path: ['publicTaxonomy', 'statuses'],
-        message: 'Public status IDs must be unique',
-      })
-    if (config.roadmap) {
+const stringRecord = Schema.Record({ key: Schema.String, value: nonEmpty })
+const notionSetupRaw = Schema.Struct({
+  dataSourceId: nonEmpty,
+  fields: Schema.Struct({
+    title: notionFieldRaw,
+    description: notionFieldRaw,
+    feedbackType: notionFieldOf('select'),
+    status: notionFieldOf('status', 'select'),
+    commentCount: notionFieldOf('number'),
+    optional: Schema.optional(
+      Schema.Record({ key: Schema.String, value: notionFieldRaw }),
+    ),
+  }),
+  statuses: Schema.Record({
+    key: Schema.String,
+    value: Schema.Union(
+      nonEmpty,
+      Schema.Array(nonEmpty).pipe(Schema.minItems(1)),
+    ),
+  }),
+  statusDefinitions: Schema.optional(
+    Schema.Record({
+      key: Schema.String,
+      value: Schema.Struct({
+        name: nonEmpty,
+        description: Schema.optional(nonEmpty),
+        color: Schema.optional(nonEmpty),
+        order: Schema.NonNegativeInt,
+        isTerminal: Schema.optional(Schema.Boolean),
+      }),
+    }),
+  ),
+  categories: Schema.optional(stringRecord),
+  feedbackTypes: Schema.optional(stringRecord),
+  tags: Schema.optional(stringRecord),
+  votes: Schema.optional(
+    Schema.Struct({
+      dataSourceId: nonEmpty,
+      fields: Schema.Struct({
+        key: notionFieldOf('title'),
+        feedbackItem: notionFieldOf('relation'),
+        voterKey: notionFieldOf('rich_text'),
+        active: notionFieldOf('checkbox'),
+      }),
+    }),
+  ),
+  comments: Schema.optional(
+    Schema.Struct({
+      dataSourceId: nonEmpty,
+      fields: Schema.Struct({
+        key: notionFieldOf('title'),
+        feedbackItem: notionFieldOf('relation'),
+        body: notionFieldOf('rich_text'),
+        authorId: notionFieldOf('rich_text'),
+        authorName: notionFieldOf('rich_text'),
+        authorAvatar: Schema.optional(notionFieldOf('url')),
+        authorKind: notionFieldOf('select'),
+      }),
+    }),
+  ),
+  changelog: Schema.optional(
+    Schema.Struct({
+      dataSourceId: nonEmpty,
+      fields: Schema.Struct({
+        title: notionFieldOf('title'),
+        description: notionFieldOf('rich_text'),
+        slug: notionFieldOf('rich_text'),
+        publishedAt: notionFieldOf('date'),
+        published: notionFieldOf('checkbox'),
+        version: Schema.optional(notionFieldOf('rich_text')),
+        tags: Schema.optional(notionFieldOf('multi_select')),
+        coverImageUrl: Schema.optional(notionFieldOf('url')),
+        linkedFeedbackItemIds: Schema.optional(notionFieldOf('relation')),
+      }),
+    }),
+  ),
+})
+const connectorConfigRaw = Schema.Struct({
+  id: nonEmpty,
+  displayName: nonEmpty,
+  capabilities: Schema.Array(connectorCapabilityRaw),
+  setup: Schema.optional(notionSetupRaw),
+})
+
+const feedbaxConfigRaw = Schema.Struct({
+  publicUrl: Schema.optional(httpUrl),
+  branding: brandingRaw,
+  subscriptions: Schema.optionalWith(
+    Schema.Struct({ enabled: Schema.Boolean }),
+    { default: () => ({ enabled: false }) },
+  ),
+  commentRoles: Schema.optionalWith(
+    Schema.Struct({
+      administrator: Schema.optionalWith(Schema.Array(nonEmpty), {
+        default: () => [],
+      }),
+      team: Schema.optionalWith(Schema.Array(nonEmpty), { default: () => [] }),
+    }),
+    { default: () => ({ administrator: [], team: [] }) },
+  ),
+  publicTaxonomy: Schema.optional(
+    Schema.Struct({
+      statuses: Schema.Array(orderedTaxonomyRaw),
+      categories: Schema.Array(simpleTaxonomyRaw),
+      tags: Schema.optionalWith(Schema.Array(simpleTaxonomyRaw), {
+        default: () => [],
+      }),
+    }),
+  ),
+  roadmap: Schema.optional(
+    Schema.Struct({
+      title: nonEmpty,
+      description: Schema.optional(nonEmpty),
+      columnStatusIds: Schema.Array(nonEmpty).pipe(Schema.minItems(1)),
+    }),
+  ),
+  changelog: Schema.optional(
+    Schema.Struct({ title: nonEmpty, description: Schema.optional(nonEmpty) }),
+  ),
+  authentication: Schema.optional(signedHandoffConfigRaw),
+  mutationProtection: Schema.optional(mutationProtectionRaw),
+  connector: connectorConfigRaw,
+}).pipe(
+  Schema.filter(
+    (config) => {
+      const statuses = config.publicTaxonomy?.statuses ?? []
+      return new Set(statuses.map(({ id }) => id)).size === statuses.length
+    },
+    { message: () => 'Public status IDs must be unique' },
+  ),
+  Schema.filter(
+    (config) => {
+      if (!config.roadmap) return true
       const columns = config.roadmap.columnStatusIds
-      if (new Set(columns).size !== columns.length)
-        context.addIssue({
-          code: 'custom',
-          path: ['roadmap', 'columnStatusIds'],
-          message: 'Roadmap columns must be unique',
-        })
-      const known = new Set(statuses.map(({ id }) => id))
-      if (columns.some((id: string) => !known.has(id)))
-        context.addIssue({
-          code: 'custom',
-          path: ['roadmap', 'columnStatusIds'],
-          message: 'Every roadmap column must reference a public status',
-        })
-    }
-  })
+      if (new Set(columns).size !== columns.length) return false
+      const known = new Set(
+        config.publicTaxonomy?.statuses.map(({ id }) => id) ?? [],
+      )
+      return columns.every((id) => known.has(id))
+    },
+    { message: () => 'Roadmap columns must be unique known public statuses' },
+  ),
+)
+export const FeedbaxConfigSchema = runtimeSchema(feedbaxConfigRaw)
 
-export type FeedbaxConfig = z.input<typeof FeedbaxConfigSchema> & {
+type DecodedConfig = typeof feedbaxConfigRaw.Type
+export type FeedbaxConfig = typeof feedbaxConfigRaw.Encoded & {
+  readonly authentication?: SignedHandoffConfig
   readonly connector: ConnectorDescriptor & {
     readonly setup?: NotionSetupConfig
   }
 }
-export type ResolvedFeedbaxConfig = z.output<typeof FeedbaxConfigSchema>
+export type ResolvedFeedbaxConfig = DeepMutable<
+  Omit<DecodedConfig, 'authentication' | 'connector'>
+> & {
+  readonly authentication?: SignedHandoffConfig
+  readonly connector: ConnectorDescriptor & {
+    readonly setup?: NotionSetupConfig
+  }
+}
 export type BrandingConfig = ResolvedFeedbaxConfig['branding']
-export type BrandTheme = z.infer<typeof BrandThemeSchema>
+export type BrandTheme = typeof brandThemeRaw.Type
 
 export const defineConfig = (config: FeedbaxConfig): ResolvedFeedbaxConfig =>
-  FeedbaxConfigSchema.parse(config)
+  FeedbaxConfigSchema.parse(config) as unknown as ResolvedFeedbaxConfig

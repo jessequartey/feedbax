@@ -79,6 +79,34 @@ describe('defineConfig', () => {
       }),
     ).toThrow(/4.5:1/)
     expect(readableAccentForeground('#2563eb')).toBe('#ffffff')
+    expect(() =>
+      defineConfig({
+        branding: { ...branding, logo: '/\\evil.example/logo.svg' },
+        connector,
+      }),
+    ).toThrow(/safe root-relative/)
+  })
+
+  it('validates signed handoff and Notion setup structures', () => {
+    expect(() =>
+      defineConfig({
+        branding,
+        connector: { ...connector, setup: { dataSourceId: 'only-an-id' } },
+      }),
+    ).toThrow()
+    expect(() =>
+      defineConfig({
+        branding,
+        connector,
+        authentication: {
+          audience: 'feedbax',
+          issuers: [],
+          sessionKeys: [],
+          activeSessionKeyId: 'active',
+          loginUrl: 'https://app.example.com/login',
+        },
+      }),
+    ).toThrow()
   })
 
   it('validates mutation protection at runtime', () => {

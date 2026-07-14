@@ -1,6 +1,6 @@
 ---
 title: Deployment
-description: Deploy this static site independently and understand portal runtime evidence.
+description: Build the documentation site and deploy the portal to supported targets.
 ---
 
 ## Documentation site
@@ -15,9 +15,9 @@ Deploy the generated static client directory at `apps/site/.output/public` to an
 
 Search runs entirely in the browser. The site does not need portal APIs, Notion credentials, or a long-running Node server.
 
-## Portal runtime evidence
+## Portal deployment support
 
-**Foundation only.** The runtime spike passed SSR, server functions, server-only environment access, secure cookies, live Notion reads, cache/ETag behavior, validated mutations, sanitized errors, and secret-leak checks on Cloudflare Workers, Vercel Node, and Node 22/Docker.
+**Preview available.** Packed generated projects pass production builds for Cloudflare Workers, Vercel Node, and Node 22/Docker. The portal release gates cover SSR, server functions and routes, server-only environment access, secure cookies, cache behavior, validated mutations, sanitized errors, and secret exclusion.
 
 Signed handoff uses Web Crypto through `jose` and the same standard `Request`/`Response` boundary on every deployment target. Production deployments require HTTPS because browsers will only retain the `Secure` session cookie over HTTPS. Configure authentication environment variables independently on each target and preserve previous session keys during rotation.
 
@@ -27,8 +27,8 @@ Run `pnpm notion:doctor` with `NOTION_TOKEN` and `NOTION_DATA_SOURCE_ID` in the 
 
 For Cloudflare and Vercel, configure `pnpm notion:doctor` as a secret-bearing predeploy job before the deployment command. Do not move `NOTION_TOKEN` into a public build variable merely to make a credential-free preview build pass. The doctor exits nonzero on any misconfiguration; `pnpm notion:doctor -- --json` is suitable for CI logs and never contains the integration secret.
 
-Provider builds and smoke evidence do not mean the product portal itself is complete.
+Credential-free provider builds do not replace the opt-in live Notion release smoke test.
 
 ## Release gate
 
-**Planned for v0.0.2:** verified production builds for the complete portal on Cloudflare, Vercel, and Docker. Netlify is **Deferred** until those targets are dependable.
+**Preview available:** the complete portal builds for Cloudflare, Vercel, and Docker. Netlify is **Deferred** until the first three targets have production adoption evidence.

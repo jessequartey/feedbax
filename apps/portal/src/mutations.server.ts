@@ -2,7 +2,7 @@ import {
   safeReturnPath,
   type AuthSession,
   type IdentityProvider,
-} from '@feedbax/auth'
+} from '@feedbax/auth-handoff'
 import {
   CreateCommentInputSchema,
   SetVoteInputSchema,
@@ -15,7 +15,6 @@ import {
   type SubmitFeedbackInput,
   type SubscribeInput,
 } from '@feedbax/core'
-import type { ZodType } from 'zod'
 import {
   MutationProtectionConfigSchema,
   type MutationProtectionConfig,
@@ -192,17 +191,28 @@ export interface MutationDependencies {
   captcha?: CaptchaProvider
   config: MutationProtectionConfig
 }
-export const mutationSchemas = {
+export const mutationSchemas: {
+  readonly submit: RuntimeSchema<SubmitFeedbackInput>
+  readonly vote: RuntimeSchema<SetVoteInput>
+  readonly comment: RuntimeSchema<CreateCommentInput>
+  readonly subscribe: RuntimeSchema<SubscribeInput>
+} = {
   submit: SubmitFeedbackInputSchema,
   vote: SetVoteInputSchema,
   comment: CreateCommentInputSchema,
   subscribe: SubscribeInputSchema,
 } as const
 
+interface RuntimeSchema<T> {
+  safeParse(
+    input: unknown,
+  ): { success: true; data: T } | { success: false; error: unknown }
+}
+
 export async function protectMutation<T>(
   request: Request,
   action: MutationAction,
-  schema: ZodType<T>,
+  schema: RuntimeSchema<T>,
   invoke: (session: AuthSession, input: T) => Promise<unknown>,
   dependencies: MutationDependencies,
 ): Promise<Response> {
@@ -354,12 +364,25 @@ export async function protectMutation<T>(
       'Too many requests. Please try again later.',
       { retryAfterSeconds: limited.retryAfterSeconds },
     )
-  if (policy.captcha && dependencies.captcha) {
+  if (policy.captcha && !dependencies.captcha)
+    return reject(
+      503,
+      'MUTATION_UNAVAILABLE',
+      'This action is temporarily unavailable.',
+    )
+  if (policy.captcha) {
+    const captcha = dependencies.captcha
+    if (!captcha)
+      return reject(
+        503,
+        'MUTATION_UNAVAILABLE',
+        'This action is temporarily unavailable.',
+      )
     const token =
       typeof envelope.captchaToken === 'string' ? envelope.captchaToken : ''
     const verified = await (async () => {
       try {
-        return !!token && (await dependencies.captcha!.verify(token, request))
+        return !!token && (await captcha.verify(token, request))
       } catch {
         return false
       }
@@ -409,7 +432,20 @@ export function productionMutationDependencies(
   rateLimits?: RateLimitStore,
   config: MutationProtectionConfig = defaultMutationProtectionConfig,
 ): MutationDependencies {
-  const validated = MutationProtectionConfigSchema.parse(config)
+  const e2e = readEnv('FEEDBAX_E2E') === 'true'
+  const validated = MutationProtectionConfigSchema.parse(
+    e2e
+      ? {
+          ...config,
+          actions: Object.fromEntries(
+            Object.entries(config.actions).map(([action, policy]) => [
+              action,
+              { ...policy, captcha: false },
+            ]),
+          ),
+        }
+      : config,
+  )
   const auth = authProvider()
   const selectedRateLimits =
     rateLimits ??

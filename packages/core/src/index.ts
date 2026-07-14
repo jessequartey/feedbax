@@ -1,5 +1,7 @@
-import { z } from 'zod'
+import { z } from './schema.js'
+import type { AnyRuntimeSchema } from './schema.js'
 export * from './cache.js'
+export const defineConfig = <const Config>(config: Config): Config => config
 
 const id = <T extends string>(brand: T) => z.string().trim().min(1).brand(brand)
 
@@ -373,7 +375,7 @@ export const CursorPageRequestSchema = z.strictObject({
 })
 export type CursorPageRequest = z.infer<typeof CursorPageRequestSchema>
 
-export const cursorPageSchema = <T extends z.ZodType>(itemSchema: T) =>
+export const cursorPageSchema = <T extends AnyRuntimeSchema>(itemSchema: T) =>
   z
     .strictObject({
       items: z.array(itemSchema).readonly(),

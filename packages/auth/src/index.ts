@@ -77,6 +77,12 @@ export interface SignedHandoffConfig {
   readonly sessionLifetimeSeconds?: number
   readonly maximumHandoffLifetimeSeconds?: number
   readonly clockToleranceSeconds?: number
+  /** Atomically returns true only the first time an issuer/JTI pair is seen. */
+  readonly consumeReplayKey?: (
+    issuer: string,
+    jti: string,
+    expiresAt: Date,
+  ) => Promise<boolean>
 }
 
 interface SessionClaims extends JWTPayload {
@@ -268,6 +274,15 @@ export class SignedHandoffIdentityProvider implements IdentityProvider {
         payload.iat > Math.floor(Date.now() / 1000) + this.clockTolerance
       )
         throw new AuthenticationError('invalid')
+      if (this.config.consumeReplayKey) {
+        if (!nonEmpty(payload.jti)) throw new AuthenticationError('invalid')
+        const firstUse = await this.config.consumeReplayKey(
+          payload.iss!,
+          payload.jti,
+          new Date(payload.exp * 1000),
+        )
+        if (!firstUse) throw new AuthenticationError('invalid')
+      }
       if (
         payload.picture !== undefined &&
         (!nonEmpty(payload.picture) || !validAbsoluteUrl(payload.picture))

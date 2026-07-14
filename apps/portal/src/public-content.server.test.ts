@@ -166,4 +166,33 @@ describe('canonical public content APIs', () => {
       'secret workspace response',
     )
   })
+
+  it('treats malformed connector output as a server failure, not a bad query', async () => {
+    const changelog = await changelogListResponse(
+      new Request('https://board.test/api/changelog'),
+      {
+        listChangelog: async () => ({
+          value: { items: [{ malformed: true }], hasMore: false },
+          cacheStatus: 'miss',
+        }),
+      } as never,
+    )
+    const roadmap = await roadmapListResponse(
+      new Request('https://board.test/api/roadmap'),
+      {
+        listFeedback: async () => ({
+          value: { items: [{ malformed: true }], hasMore: false },
+          cacheStatus: 'miss',
+        }),
+      } as never,
+    )
+    expect(changelog.status).toBeGreaterThanOrEqual(500)
+    expect(roadmap.status).toBeGreaterThanOrEqual(500)
+    await expect(changelog.json()).resolves.not.toMatchObject({
+      error: { code: 'INVALID_QUERY' },
+    })
+    await expect(roadmap.json()).resolves.not.toMatchObject({
+      error: { code: 'INVALID_QUERY' },
+    })
+  })
 })

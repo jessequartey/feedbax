@@ -23,6 +23,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ...process.env,
+      FEEDBAX_E2E: 'true',
       FEEDBAX_PUBLIC_URL: 'http://localhost:3200',
       FEEDBAX_AUTH_AUDIENCE: e2eAuth.audience,
       FEEDBAX_AUTH_LOGIN_URL: 'https://notion-smoke.example/login',

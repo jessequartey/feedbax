@@ -1,19 +1,19 @@
 ---
 title: Feedbax documentation
-description: Understand the project, its current foundations, and the path to v0.0.2.
+description: Understand the v0.1.0 preview, its release gates, and deferred scope.
 ---
 
 Feedbax is an open-source, bring-your-own-backend customer feedback portal. The first release is being designed for technical founders and small product teams that already run their workflow in Notion.
 
-> **Pre-release:** the repository contains typed foundations and verified runtime experiments. Complete product behavior has not been implemented yet.
+> **Pre-release:** the v0.1.0 product loop is implemented and automated release gates pass. Publication still waits on registry ownership, a live credential smoke test, and an independent quickstart.
 
 ## Read status before capability
 
 Every claim in these docs uses one of four labels:
 
 - **Available** — implemented and testable now.
-- **Foundation only** — an interface or runtime proof exists, but not the full product workflow.
-- **Planned for v0.0.2** — committed MVP scope that is not shipped.
+- **Preview available** — implemented and covered by the repository release gates.
+- **Release prerequisite** — complete only after an external launch gate is recorded.
 - **Deferred** — intentionally outside the first release.
 
 ## Where to begin
@@ -22,6 +22,6 @@ Read [Product vision](/docs/product-vision) for the thesis, then review the [Qui
 
 ## Current snapshot
 
-**Foundation only.** Feedbax has a pnpm/Turborepo workspace, TanStack Start application shells, typed configuration/authentication/connector boundaries, a Notion descriptor, and runtime-spike evidence across Cloudflare, Vercel, and Docker.
+**Preview available.** Feedbax generates a Notion-backed portal with anonymous, email-only, or signed-handoff identity. The portal includes submission, search, filters, duplicate suggestions, voting, comments, roadmap, changelog, accessible failure states, and verified Cloudflare, Vercel, and Node/Docker builds.
 
-**Planned for v0.0.2.** Submission, search, duplicate suggestions, voting, comments, public roadmap and changelog, secure identity sessions, Notion schema mapping, and production deployment verification.
+**Release prerequisite.** The npm names/scope must be secured, the opt-in live Notion smoke must pass with release credentials, and a non-maintainer must complete the quickstart before publication.

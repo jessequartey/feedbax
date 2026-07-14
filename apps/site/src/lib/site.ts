@@ -4,8 +4,8 @@ export const feedbackPortalUrl =
 
 export const statusLabels = [
   'Available',
-  'Foundation only',
-  'Planned for v0.0.2',
+  'Preview available',
+  'Release prerequisite',
   'Deferred',
 ] as const
 
@@ -25,7 +25,7 @@ export const docsNavigation = [
   {
     slug: 'quickstart',
     title: 'Quickstart',
-    description: 'The planned installation path and current prerequisites.',
+    description: 'Generate, configure, diagnose, and run a Feedbax project.',
   },
   {
     slug: 'configuration',
@@ -40,12 +40,12 @@ export const docsNavigation = [
   {
     slug: 'notion-setup',
     title: 'Notion setup',
-    description: 'Prepare the only connector targeted for v0.0.2.',
+    description: 'Prepare the only connector supported for v0.1.0.',
   },
   {
     slug: 'deployment',
     title: 'Deployment',
-    description: 'Static site hosting and portal runtime evidence.',
+    description: 'Static docs hosting and supported portal deployments.',
   },
   {
     slug: 'accessibility',
@@ -55,7 +55,7 @@ export const docsNavigation = [
   {
     slug: 'roadmap',
     title: 'Roadmap',
-    description: 'Shipped foundations, planned work, and deferred scope.',
+    description: 'Preview scope, release prerequisites, and deferred work.',
   },
   {
     slug: 'contributing',

@@ -26,6 +26,7 @@ import {
   type ConnectorDescriptor,
   type PublicFeedbackItem,
 } from '../src/index.js'
+import { z } from '../src/schema.js'
 
 const now = '2026-07-11T12:00:00Z'
 const user = {
@@ -93,6 +94,18 @@ describe('canonical domain schemas', () => {
     ).toThrow()
   })
 
+  it('preserves compatibility transforms, defaults, and datetime offsets', () => {
+    expect(z.string().trim().parse('  value  ')).toBe('value')
+    expect(z.string().default('fallback').parse(undefined)).toBe('fallback')
+    expect(z.iso.datetime({ offset: false }).parse(now)).toBe(now)
+    expect(() =>
+      z.iso.datetime({ offset: false }).parse('2026-07-11T12:00:00+00:00'),
+    ).toThrow()
+    expect(
+      z.iso.datetime({ offset: true }).parse('2026-07-11T12:00:00+00:00'),
+    ).toBe('2026-07-11T12:00:00+00:00')
+  })
+
   it('keeps public projections free of private fields', () => {
     const projected = toPublicFeedbackItem(
       PrivateFeedbackItemSchema.parse(privateItem),
@@ -151,12 +164,17 @@ describe('canonical domain schemas', () => {
       body: 'Markdown **is supported**.',
     }
     expect(CreateCommentInputSchema.parse(input)).toEqual(input)
-    expect(
-      CreateCommentInputSchema.safeParse({
-        ...input,
-        body: 'Email me at ada@example.com',
-      }).success,
-    ).toBe(false)
+    const invalidComment = CreateCommentInputSchema.safeParse({
+      ...input,
+      body: 'Email me at ada@example.com',
+    })
+    expect(invalidComment.success).toBe(false)
+    if (!invalidComment.success) {
+      expect(invalidComment.error.issues[0]?.path).toContain('body')
+      expect(invalidComment.error.flatten().fieldErrors.body?.[0]).toMatch(
+        /email address/i,
+      )
+    }
     expect(
       CreateCommentInputSchema.safeParse({ ...input, email: 'ada@example.com' })
         .success,

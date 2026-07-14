@@ -16,9 +16,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@feedbax/auth": "workspace:*",
+    "@feedbax/auth-handoff": "workspace:*",
     "@feedbax/core": "workspace:*",
     "@feedbax/notion": "workspace:*",
-    "zod": "4.4.3"
+    "effect": "3.22.0"
   }
 }

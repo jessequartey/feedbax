@@ -26,8 +26,8 @@ describe('site content model', () => {
   it('uses only the agreed public status labels', () => {
     expect(statusLabels).toEqual([
       'Available',
-      'Foundation only',
-      'Planned for v0.0.2',
+      'Preview available',
+      'Release prerequisite',
       'Deferred',
     ])
   })
@@ -47,6 +47,6 @@ describe('site content model', () => {
   it('keeps homepage claims honest about pre-release status', () => {
     expect(homepageClaims.promise).toContain('Notion database')
     expect(homepageClaims.status).toContain('pre-release')
-    expect(homepageClaims.status).toContain('planned for v0.0.2')
+    expect(homepageClaims.status).toContain('external launch prerequisites')
   })
 })

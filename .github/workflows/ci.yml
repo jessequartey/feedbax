@@ -37,6 +37,8 @@ jobs:
             command: pnpm format:check
           - name: Linting
             command: pnpm lint
+          - name: Dependency boundaries
+            command: pnpm build && pnpm check:boundaries
           - name: Type-checking
             command: pnpm type-check
           - name: Unit tests
@@ -67,6 +69,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+
+  generated-projects:
+    name: Release / Generated projects
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:matrix
 
   notion-smoke:
     name: Integration / Notion smoke

@@ -81,7 +81,7 @@ test.describe('Notion connector smoke', () => {
       .setProtectedHeader({ alg: 'HS256', kid: e2eAuth.keyId })
       .setIssuer(e2eAuth.issuer)
       .setAudience(e2eAuth.audience)
-      .setSubject('notion-smoke-user')
+      .setSubject(`notion-smoke-user-${now}`)
       .setIssuedAt(now)
       .setExpirationTime(now + 120)
       .sign(base64url.decode(e2eAuth.handoffSecret))
@@ -90,9 +90,9 @@ test.describe('Notion connector smoke', () => {
     await expect(
       page.getByRole('heading', { name: 'Share Your Product Feedback' }),
     ).toBeVisible()
-    // The heading is server-rendered. Wait for the client bundle to hydrate
-    // before exercising controls whose listeners are attached by React.
-    await page.waitForLoadState('networkidle')
+    // The heading is server-rendered. Wait for the application marker rather
+    // than network idleness before exercising React event handlers.
+    await page.locator('html[data-hydrated="true"]').waitFor()
 
     const title = `${prefix} ${Date.now()}`
     await page
@@ -106,8 +106,34 @@ test.describe('Notion connector smoke', () => {
       .getByRole('dialog', { name: 'Share an Idea' })
       .getByLabel('Description')
       .fill('Synthetic live connector smoke fixture; safe to archive.')
+    const submitResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/feedback' &&
+        response.request().method() === 'POST',
+    )
     await form.getByRole('button', { name: 'Submit feedback' }).click()
-    await expect(page.getByRole('heading', { name: title })).toBeVisible()
+    const response = await submitResponse
+    expect(response.status()).toBe(200)
+
+    // Assert against Notion directly before exercising the persisted record.
+    // The optimistic board row can be replaced while the mutation settles.
+    await expect
+      .poll(
+        async () =>
+          (
+            await query(process.env.NOTION_DATA_SOURCE_ID!, {
+              property: 'Name',
+              title: { equals: title },
+            })
+          ).length,
+        { timeout: 60_000 },
+      )
+      .toBe(1)
+    await page.goto('/?sort=recent')
+    await page.locator('html[data-hydrated="true"]').waitFor()
+    await expect(page.getByRole('link', { name: title })).toBeVisible({
+      timeout: 30_000,
+    })
 
     const vote = page.getByRole('button', {
       name: `Vote for ${title}`,

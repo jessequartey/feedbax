@@ -4,6 +4,7 @@ import {
   FeedbackItemIdSchema,
   FeedbackFilterSchema,
   PublicCommentPageSchema,
+  PublicFeedbackPageSchema,
   PublicRoadmapPageSchema,
   type PublicConnectorReader,
   type PublicFeedbackItem,
@@ -40,12 +41,23 @@ function failure(
 }
 
 export async function commentListResponse(request: Request) {
+  let feedbackItemId
+  let page
   try {
     const url = new URL(request.url)
-    const feedbackItemId = FeedbackItemIdSchema.parse(
+    feedbackItemId = FeedbackItemIdSchema.parse(
       url.searchParams.get('feedbackItemId'),
     )
-    const page = pageRequest(url)
+    page = pageRequest(url)
+  } catch (error) {
+    return failure(
+      request,
+      'list-comments',
+      'The comment query is invalid.',
+      error,
+    )
+  }
+  try {
     const reader = publicReader()
     if (!reader)
       return applicationErrorResponse(
@@ -58,15 +70,7 @@ export async function commentListResponse(request: Request) {
       headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus },
     })
   } catch (error) {
-    const invalid = error instanceof Error && error.name === 'ZodError'
-    return invalid
-      ? failure(
-          request,
-          'list-comments',
-          'The comment query is invalid.',
-          error,
-        )
-      : applicationErrorResponse(request, 'list-comments', error)
+    return applicationErrorResponse(request, 'list-comments', error)
   }
 }
 
@@ -74,8 +78,18 @@ async function editorialResponse(
   request: Request,
   reader: Pick<PublicConnectorReader, 'listChangelog'> | null,
 ) {
+  let page
   try {
-    const page = pageRequest(new URL(request.url))
+    page = pageRequest(new URL(request.url))
+  } catch (error) {
+    return failure(
+      request,
+      'list-changelog',
+      'The changelog query is invalid.',
+      error,
+    )
+  }
+  try {
     if (!reader)
       return applicationErrorResponse(
         request,
@@ -96,15 +110,7 @@ async function editorialResponse(
       },
     )
   } catch (error) {
-    const invalid = error instanceof Error && error.name === 'ZodError'
-    return invalid
-      ? failure(
-          request,
-          'list-changelog',
-          'The changelog query is invalid.',
-          error,
-        )
-      : applicationErrorResponse(request, 'list-changelog', error)
+    return applicationErrorResponse(request, 'list-changelog', error)
   }
 }
 
@@ -117,31 +123,44 @@ export async function roadmapListResponse(
   request: Request,
   reader: Pick<PublicConnectorReader, 'listFeedback'> | null = publicReader(),
 ) {
+  let selectedIds: string[]
+  let page
+  let filter
   try {
     const url = new URL(request.url)
     const configuredIds: string[] = [...publicRoadmap.columnStatusIds]
     const requestedIds = url.searchParams.getAll('status')
     if (requestedIds.some((id) => !configuredIds.includes(id as never)))
       throw new Error('INVALID_QUERY')
-    const selectedIds = requestedIds.length
+    selectedIds = requestedIds.length
       ? [...new Set(requestedIds)]
       : configuredIds
-    const page = pageRequest(url, 100)
+    page = pageRequest(url, 100)
+    filter = FeedbackFilterSchema.parse({
+      statusIds: selectedIds,
+      sort: 'most-voted',
+    })
+  } catch (error) {
+    return failure(
+      request,
+      'list-roadmap',
+      'The roadmap filters are invalid.',
+      error,
+    )
+  }
+  try {
     if (!reader)
       return applicationErrorResponse(
         request,
         'list-roadmap',
         new Error('Connector configuration is unavailable.'),
       )
-    const filter = FeedbackFilterSchema.parse({
-      statusIds: selectedIds,
-      sort: 'most-voted',
-    })
     const result = await reader.listFeedback(filter, page)
+    const feedbackPage = PublicFeedbackPageSchema.parse(result.value)
     const grouped = new Map<string, PublicFeedbackItem[]>(
       selectedIds.map((id) => [id, []]),
     )
-    for (const item of result.value.items) {
+    for (const item of feedbackPage.items) {
       const items = item.status ? grouped.get(item.status.id) : undefined
       if (items) items.push(item)
     }
@@ -151,25 +170,15 @@ export async function roadmapListResponse(
           status: publicStatusById.get(id)!,
           items: grouped.get(id) ?? [],
         })),
-        hasMore: result.value.hasMore,
-        ...(result.value.nextCursor
-          ? { nextCursor: result.value.nextCursor }
+        hasMore: feedbackPage.hasMore,
+        ...(feedbackPage.nextCursor
+          ? { nextCursor: feedbackPage.nextCursor }
           : {}),
       }),
       { headers: { ...publicHeaders, 'x-feedbax-cache': result.cacheStatus } },
     )
   } catch (error) {
-    const invalid =
-      error instanceof Error &&
-      (error.message === 'INVALID_QUERY' || error.name === 'ZodError')
-    return invalid
-      ? failure(
-          request,
-          'list-roadmap',
-          'The roadmap filters are invalid.',
-          error,
-        )
-      : applicationErrorResponse(request, 'list-roadmap', error)
+    return applicationErrorResponse(request, 'list-roadmap', error)
   }
 }
 export const changelogListResponse = (
