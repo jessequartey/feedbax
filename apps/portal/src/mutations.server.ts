@@ -432,10 +432,9 @@ export function productionMutationDependencies(
   rateLimits?: RateLimitStore,
   config: MutationProtectionConfig = defaultMutationProtectionConfig,
 ): MutationDependencies {
-  const e2eMock =
-    readEnv('FEEDBAX_E2E') === 'true' && readEnv('FEEDBAX_CONNECTOR') === 'mock'
+  const e2e = readEnv('FEEDBAX_E2E') === 'true'
   const validated = MutationProtectionConfigSchema.parse(
-    e2eMock
+    e2e
       ? {
           ...config,
           actions: Object.fromEntries(

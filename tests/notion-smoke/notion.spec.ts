@@ -113,7 +113,7 @@ test.describe('Notion connector smoke', () => {
     )
     await form.getByRole('button', { name: 'Submit feedback' }).click()
     const response = await submitResponse
-    expect(response.ok()).toBe(true)
+    expect(response.status()).toBe(200)
     await expect(page).toHaveURL(/\/feedback\//, { timeout: 30_000 })
 
     // Assert against Notion directly before exercising the persisted record.
