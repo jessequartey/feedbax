@@ -1,8 +1,12 @@
 {
   "name": "@feedbax/notion",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -10,7 +14,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup src/index.ts --format esm --dts --sourcemap --clean --external @feedbax/core --external effect",
+    "prepack": "pnpm build",
     "type-check": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
     "test": "vitest run"
@@ -19,6 +24,11 @@
     "@feedbax/core": "workspace:*"
   },
   "devDependencies": {
-    "@feedbax/connector-testkit": "workspace:*"
+    "@feedbax/connector-sdk": "workspace:*",
+    "@feedbax/connector-testkit": "workspace:*",
+    "@feedbax/contracts": "workspace:*",
+    "@feedbax/domain": "workspace:*",
+    "effect": "3.22.0",
+    "tsup": "8.5.1"
   }
 }
