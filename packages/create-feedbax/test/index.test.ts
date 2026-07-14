@@ -18,4 +18,25 @@ describe('create-feedbax compatibility', () => {
       /not supported|deferred/,
     )
   })
+
+  it('does not interpret flag values as the target directory', () => {
+    expect(
+      resolveCreateOptions([
+        '--identity',
+        'anonymous',
+        '--deploy',
+        'node',
+        '--yes',
+      ]),
+    ).toMatchObject({
+      directory: 'my-feedback',
+      identity: 'anonymous',
+      deploy: 'node',
+    })
+  })
+
+  it.each([['--identity'], ['--wat'], ['one', 'two']])(
+    'rejects malformed arguments before generation: %s',
+    (...args) => expect(() => resolveCreateOptions(args)).toThrow(),
+  )
 })

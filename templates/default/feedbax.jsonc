@@ -1,6 +1,7 @@
 {
   "$schema": "https://feedbax.dev/schema/project.json",
   "version": 1,
+  "generatorVersion": "__GENERATOR_VERSION__",
   "connector": "notion",
   "identity": "__IDENTITY__",
   "interactionStore": "notion",

@@ -4,6 +4,7 @@ import { applyEdits, modify, parse, type ParseError } from 'jsonc-parser'
 
 export interface ProjectMetadata {
   version: 1
+  generatorVersion?: string
   connector: 'notion'
   identity: 'anonymous' | 'email' | 'handoff'
   interactionStore: 'notion'

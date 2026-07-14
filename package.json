@@ -20,6 +20,7 @@
     "changeset": "changeset",
     "release:version": "changeset version",
     "release:pack": "pnpm --filter create-feedbax pack && pnpm --filter feedbax pack && pnpm --filter @feedbax/core pack && pnpm --filter @feedbax/notion pack && pnpm --filter @feedbax/auth-handoff pack",
+    "release:matrix": "node scripts/release-matrix.mjs",
     "notion:doctor": "pnpm turbo run build --filter=@feedbax/notion --filter=@feedbax/config && node scripts/notion-doctor.mjs",
     "notion:prepare-smoke": "node scripts/prepare-notion-smoke.mjs",
     "notion:provision": "node scripts/provision-notion.mjs",
