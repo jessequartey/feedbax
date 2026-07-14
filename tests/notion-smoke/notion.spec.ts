@@ -109,14 +109,27 @@ test.describe('Notion connector smoke', () => {
     await form.getByRole('button', { name: 'Submit feedback' }).click()
     await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
+    await expect
+      .poll(
+        async () =>
+          (
+            await query(process.env.NOTION_DATA_SOURCE_ID!, {
+              property: 'Name',
+              title: { equals: title },
+            })
+          ).length,
+        { timeout: 60_000 },
+      )
+      .toBe(1)
+    await page.goto('/')
+    await page.locator('html[data-hydrated="true"]').waitFor()
+
     const vote = page.getByRole('button', {
       name: `Vote for ${title}`,
     })
-    // The submitted row is replaced as the optimistic collection reconciles
-    // with Notion. Dispatch immediately instead of waiting for DOM stability.
-    await vote.click({ force: true })
+    await vote.click()
     await expect(vote).toHaveAttribute('aria-pressed', 'true')
-    await vote.click({ force: true })
+    await vote.click()
     await expect(vote).toHaveAttribute('aria-pressed', 'false')
 
     await page.getByRole('link', { name: title }).click()
