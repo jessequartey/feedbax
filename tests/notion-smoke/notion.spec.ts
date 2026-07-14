@@ -107,8 +107,9 @@ test.describe('Notion connector smoke', () => {
       .getByLabel('Description')
       .fill('Synthetic live connector smoke fixture; safe to archive.')
     await form.getByRole('button', { name: 'Submit feedback' }).click()
-    await expect(page.getByRole('heading', { name: title })).toBeVisible()
 
+    // Assert against Notion directly before exercising the persisted record.
+    // The optimistic board row can be replaced while the mutation settles.
     await expect
       .poll(
         async () =>
@@ -121,8 +122,11 @@ test.describe('Notion connector smoke', () => {
         { timeout: 60_000 },
       )
       .toBe(1)
-    await page.goto('/')
+    await page.goto('/?sort=recent')
     await page.locator('html[data-hydrated="true"]').waitFor()
+    await expect(page.getByRole('link', { name: title })).toBeVisible({
+      timeout: 30_000,
+    })
 
     const vote = page.getByRole('button', {
       name: `Vote for ${title}`,
