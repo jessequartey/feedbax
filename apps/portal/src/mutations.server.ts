@@ -15,7 +15,6 @@ import {
   type SubmitFeedbackInput,
   type SubscribeInput,
 } from '@feedbax/core'
-import type { ZodType } from 'zod'
 import {
   MutationProtectionConfigSchema,
   type MutationProtectionConfig,
@@ -199,10 +198,16 @@ export const mutationSchemas = {
   subscribe: SubscribeInputSchema,
 } as const
 
+interface RuntimeSchema<T> {
+  safeParse(
+    input: unknown,
+  ): { success: true; data: T } | { success: false; error: unknown }
+}
+
 export async function protectMutation<T>(
   request: Request,
   action: MutationAction,
-  schema: ZodType<T>,
+  schema: RuntimeSchema<T>,
   invoke: (session: AuthSession, input: T) => Promise<unknown>,
   dependencies: MutationDependencies,
 ): Promise<Response> {

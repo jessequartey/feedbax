@@ -115,9 +115,6 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 1.44.0
@@ -301,9 +298,9 @@ importers:
       '@feedbax/notion':
         specifier: workspace:*
         version: link:../../connectors/notion
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
+      effect:
+        specifier: 3.22.0
+        version: 3.22.0
 
   packages/connector-sdk:
     dependencies:

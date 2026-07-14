@@ -58,6 +58,21 @@ for (const [workspace, allowed] of layers) {
   }
 }
 
+const canonicalSchemaWorkspaces = [
+  'packages/config',
+  'packages/contracts',
+  'packages/domain',
+]
+for (const workspace of canonicalSchemaWorkspaces) {
+  for (const file of await sourceFiles(join(root, workspace, 'src'))) {
+    const source = await readFile(file, 'utf8')
+    if (/(?:from\s+|import\s*\()(['"])zod\1/.test(source))
+      errors.push(
+        `${relative(root, file)} imports Zod instead of canonical Effect Schema`,
+      )
+  }
+}
+
 const publicPackages = [
   'packages/core',
   'packages/auth',
