@@ -26,6 +26,13 @@ export interface NotionInteractionApi {
     pageId: string,
     values: Readonly<Record<string, unknown>>,
   ) => Promise<void>
+  /** Atomically creates a record when field/value is not already present. */
+  readonly claimUnique: (
+    dataSourceId: string,
+    field: string,
+    value: string,
+    values: Readonly<Record<string, unknown>>,
+  ) => Promise<boolean>
 }
 export interface NotionInteractionStoreConfig {
   readonly identities: {
@@ -146,17 +153,10 @@ export const createNotionInteractionStore = (
   consumeReplayKey: (key, expiresAt) =>
     attempt(async () => {
       const fields = config.replay.fields
-      const existing = await api.findOne(
-        config.replay.dataSourceId,
-        fields.key,
-        key,
-      )
-      if (existing) return false
-      await api.create(config.replay.dataSourceId, {
+      return api.claimUnique(config.replay.dataSourceId, fields.key, key, {
         [fields.key]: key,
         [fields.expiresAt]: expiresAt.toISOString(),
       })
-      return true
     }),
 })
 

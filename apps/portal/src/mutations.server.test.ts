@@ -219,6 +219,21 @@ describe('protected mutations', () => {
     expect(response.status).toBe(403)
     expect(await response.text()).not.toContain('private logger failure')
   })
+  it('returns unavailable when CAPTCHA is configured without a provider', async () => {
+    const { deps } = dependencies()
+    deps.config.actions.vote = { limit: 10, windowSeconds: 60, captcha: true }
+    const response = await protectMutation(
+      request({ input: { feedbackItemId: 'one', voted: true } }),
+      'vote',
+      mutationSchemas.vote,
+      () => Promise.resolve(null),
+      deps,
+    )
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'MUTATION_UNAVAILABLE' },
+    })
+  })
   it('rejects malformed content lengths and oversized bodies', async () => {
     const { deps } = dependencies()
     const invalidLength = request(

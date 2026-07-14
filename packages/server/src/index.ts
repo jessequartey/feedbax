@@ -92,6 +92,9 @@ export const publicFailure = (
   error: { ...error, requestId },
 })
 
+const logUnexpectedDefect = (requestId: string, cause: Cause.Cause<unknown>) =>
+  console.error(`[${requestId}] Unhandled defect:`, Cause.pretty(cause))
+
 export const runAsServerRoute = async <A>(
   runtime: ManagedRuntime.ManagedRuntime<FeedbackRepository, never>,
   requestId: string,
@@ -108,6 +111,7 @@ export const runAsServerRoute = async <A>(
       { status: mapped.status },
     )
   }
+  logUnexpectedDefect(requestId, exit.cause)
   const internal = new InternalError({
     message: 'An unexpected error occurred.',
     requestId,
@@ -132,6 +136,7 @@ export const runAsServerFunction = async <A>(
   const failure = Cause.failureOption(exit.cause)
   if (failure._tag === 'Some' && Schema.is(PublicError)(failure.value))
     return { ok: false, error: publicFailure(failure.value, requestId).error }
+  logUnexpectedDefect(requestId, exit.cause)
   return {
     ok: false,
     error: new InternalError({

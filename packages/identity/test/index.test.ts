@@ -35,6 +35,23 @@ describe('visitor identity', () => {
     expect(result?.setCookie).not.toContain('Anonymous')
   })
 
+  it('uses an unprefixed cookie over HTTP and ignores malformed values', async () => {
+    const codec = makeSessionCodec(secret)
+    const layer = inMemoryInteractionLayer()
+    const provider = makeAnonymousProvider(codec, false)
+    const result = await Effect.runPromise(
+      provider
+        .resolve({
+          headers: new Headers({ cookie: 'feedbax_session=%ZZ' }),
+          url: new URL('http://localhost'),
+        })
+        .pipe(Effect.provide(layer)),
+    )
+    expect(result?.setCookie).toMatch(/^feedbax_session=/)
+    expect(result?.setCookie).not.toContain('__Host-')
+    expect(result?.setCookie).not.toContain('Secure')
+  })
+
   it('stores normalized email server-side and resolves it through the cookie', async () => {
     const codec = makeSessionCodec(secret)
     const layer = inMemoryInteractionLayer()

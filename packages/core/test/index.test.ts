@@ -26,6 +26,7 @@ import {
   type ConnectorDescriptor,
   type PublicFeedbackItem,
 } from '../src/index.js'
+import { z } from '../src/schema.js'
 
 const now = '2026-07-11T12:00:00Z'
 const user = {
@@ -91,6 +92,18 @@ describe('canonical domain schemas', () => {
     expect(() =>
       PrivateFeedbackItemSchema.parse({ ...privateItem, category: [category] }),
     ).toThrow()
+  })
+
+  it('preserves compatibility transforms, defaults, and datetime offsets', () => {
+    expect(z.string().trim().parse('  value  ')).toBe('value')
+    expect(z.string().default('fallback').parse(undefined)).toBe('fallback')
+    expect(z.iso.datetime({ offset: false }).parse(now)).toBe(now)
+    expect(() =>
+      z.iso.datetime({ offset: false }).parse('2026-07-11T12:00:00+00:00'),
+    ).toThrow()
+    expect(
+      z.iso.datetime({ offset: true }).parse('2026-07-11T12:00:00+00:00'),
+    ).toBe('2026-07-11T12:00:00+00:00')
   })
 
   it('keeps public projections free of private fields', () => {

@@ -364,12 +364,25 @@ export async function protectMutation<T>(
       'Too many requests. Please try again later.',
       { retryAfterSeconds: limited.retryAfterSeconds },
     )
-  if (policy.captcha && dependencies.captcha) {
+  if (policy.captcha && !dependencies.captcha)
+    return reject(
+      503,
+      'MUTATION_UNAVAILABLE',
+      'This action is temporarily unavailable.',
+    )
+  if (policy.captcha) {
+    const captcha = dependencies.captcha
+    if (!captcha)
+      return reject(
+        503,
+        'MUTATION_UNAVAILABLE',
+        'This action is temporarily unavailable.',
+      )
     const token =
       typeof envelope.captchaToken === 'string' ? envelope.captchaToken : ''
     const verified = await (async () => {
       try {
-        return !!token && (await dependencies.captcha!.verify(token, request))
+        return !!token && (await captcha.verify(token, request))
       } catch {
         return false
       }

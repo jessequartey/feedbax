@@ -28,8 +28,18 @@ try {
     const result = await doctor()
     if (!result.ok)
       throw new Error('Preflight checks failed. Run feedbax doctor.')
-    spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
-      stdio: 'inherit',
+    const child = spawn(
+      process.platform === 'win32' ? 'npm.cmd' : 'npm',
+      ['run', 'dev'],
+      { stdio: 'inherit' },
+    )
+    await new Promise<void>((resolve, reject) => {
+      child.once('error', reject)
+      child.once('exit', (code, signal) => {
+        if (code === 0) resolve()
+        else
+          reject(new Error(`Development process failed (${code ?? signal}).`))
+      })
     })
   } else throw new Error('Usage: feedbax <add|doctor|dev|info|upgrade|env>')
 } catch (error) {

@@ -54,6 +54,16 @@ const fakeApi = () => {
       if (!record) throw new Error('missing page')
       records.set(id, { id, values: { ...record.values, ...values } })
     },
+    claimUnique: async (source, field, value, values) => {
+      const exists = [...records.values()].some(
+        (record) =>
+          record.values.source === source && record.values[field] === value,
+      )
+      if (exists) return false
+      const record = { id: `page-${++next}`, values: { source, ...values } }
+      records.set(record.id, record)
+      return true
+    },
   }
   return { api, records }
 }
@@ -101,12 +111,12 @@ describe('Notion interaction storage', () => {
   it('consumes replay keys once and classifies provider failures safely', async () => {
     const { api } = fakeApi()
     const store = createNotionInteractionStore(api, config)
-    await expect(
-      Effect.runPromise(store.consumeReplayKey('jti', new Date())),
-    ).resolves.toBe(true)
-    await expect(
-      Effect.runPromise(store.consumeReplayKey('jti', new Date())),
-    ).resolves.toBe(false)
+    const claims = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        Effect.runPromise(store.consumeReplayKey('jti', new Date())),
+      ),
+    )
+    expect(claims.filter(Boolean)).toHaveLength(1)
     const unavailable = createNotionInteractionStore(
       {
         ...api,

@@ -93,12 +93,17 @@ const wrap = <A, I>(
       >,
     nullable: () =>
       wrap(Schema.NullOr(effect)) as RuntimeSchema<A | null, I | null>,
-    default: (value) =>
-      wrap(
-        Schema.optionalWith(effect, {
-          default: () => value,
-        }) as unknown as Schema.Schema<A, I | undefined>,
-      ) as RuntimeSchema<A, I | undefined>,
+    default: (value) => {
+      const encodedDefault = Schema.encodeSync(effect)(value)
+      return wrap(
+        Schema.transform(Schema.Unknown, effect, {
+          strict: true,
+          decode: (input) =>
+            input === undefined ? encodedDefault : (input as I),
+          encode: (output) => output,
+        }) as unknown as Schema.Schema<A, I | undefined, never>,
+      )
+    },
     readonly: () => schema,
     refine: (predicate, options) =>
       wrap(
@@ -134,7 +139,11 @@ const stringWrap = <A extends string = string, I = string>(
   const base = wrap(effect)
   return Object.assign(base, {
     trim: () =>
-      stringWrap(effect.pipe(Schema.trimmed()) as Schema.Schema<A, I>),
+      stringWrap(
+        Schema.Trim.pipe(
+          Schema.compose(effect as unknown as Schema.Schema<A, string, never>),
+        ) as unknown as Schema.Schema<A, I>,
+      ),
     min: (length: number) =>
       stringWrap(effect.pipe(Schema.minLength(length)) as Schema.Schema<A, I>),
     max: (length: number) =>
@@ -320,12 +329,12 @@ export const z = {
     datetime: (
       ...args: readonly [{ readonly offset?: boolean }] | readonly []
     ) => {
-      void args
+      const allowNumericOffset = args[0]?.offset !== false
+      const pattern = allowNumericOffset
+        ? /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+        : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/
       return checkedString(
-        (value) =>
-          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(
-            value,
-          ) && !Number.isNaN(Date.parse(value)),
+        (value) => pattern.test(value) && !Number.isNaN(Date.parse(value)),
         'Expected an ISO date-time with offset',
       )
     },

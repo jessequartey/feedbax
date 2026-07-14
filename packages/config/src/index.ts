@@ -89,7 +89,11 @@ const brandAssetRaw = (kind: BrandAssetKind) =>
     Schema.filter(
       (value) => {
         if (value.startsWith('/'))
-          return !value.startsWith('//') && !value.includes('..')
+          return (
+            !value.startsWith('//') &&
+            !value.includes('..') &&
+            !value.includes('\\')
+          )
         try {
           return new URL(value).protocol === 'https:'
         } catch {
@@ -141,7 +145,12 @@ const navigationLinkRaw = Schema.Struct({
   href: nonEmpty.pipe(
     Schema.filter(
       (value) => {
-        if (value.startsWith('/') && !value.startsWith('//')) return true
+        if (
+          value.startsWith('/') &&
+          !value.startsWith('//') &&
+          !value.includes('\\')
+        )
+          return true
         try {
           return new URL(value).protocol === 'https:'
         } catch {
@@ -278,11 +287,182 @@ const connectorCapabilityRaw = Schema.Literal(
   'atomicVoting',
   'webhooks',
 )
+const base64urlSecret = nonEmpty.pipe(
+  Schema.filter(
+    (value) =>
+      /^[A-Za-z0-9_-]+$/.test(value) &&
+      Math.floor((value.length * 3) / 4) >= 32,
+    { message: () => 'Signing secrets must contain 32 base64url bytes' },
+  ),
+)
+const signingKeyRaw = Schema.Struct({ id: nonEmpty, secret: base64urlSecret })
+const signedHandoffConfigRaw = Schema.Struct({
+  audience: nonEmpty,
+  issuers: Schema.Array(
+    Schema.Struct({
+      issuer: httpsUrl,
+      keys: Schema.Array(signingKeyRaw).pipe(Schema.minItems(1)),
+    }),
+  ).pipe(Schema.minItems(1)),
+  sessionKeys: Schema.Array(signingKeyRaw).pipe(Schema.minItems(1)),
+  activeSessionKeyId: nonEmpty,
+  loginUrl: httpUrl,
+  handoffPath: Schema.optional(
+    nonEmpty.pipe(
+      Schema.filter(
+        (value) =>
+          value.startsWith('/') &&
+          !value.startsWith('//') &&
+          !value.includes('\\'),
+        { message: () => 'Expected a safe root-relative handoff path' },
+      ),
+    ),
+  ),
+  sessionLifetimeSeconds: Schema.optional(positiveInt),
+  maximumHandoffLifetimeSeconds: Schema.optional(positiveInt),
+  clockToleranceSeconds: Schema.optional(Schema.NonNegativeInt),
+  consumeReplayKey: Schema.optional(
+    Schema.Unknown.pipe(
+      Schema.filter((value) => typeof value === 'function', {
+        message: () => 'consumeReplayKey must be a function',
+      }),
+    ),
+  ),
+}).pipe(
+  Schema.filter(
+    (config) =>
+      config.sessionKeys.some(({ id }) => id === config.activeSessionKeyId),
+    { message: () => 'activeSessionKeyId must reference a session key' },
+  ),
+  Schema.filter(
+    (config) =>
+      new Set(config.sessionKeys.map(({ id }) => id)).size ===
+        config.sessionKeys.length &&
+      new Set(config.issuers.map(({ issuer }) => issuer)).size ===
+        config.issuers.length &&
+      config.issuers.every(
+        ({ keys }) => new Set(keys.map(({ id }) => id)).size === keys.length,
+      ),
+    { message: () => 'Handoff issuer and key identifiers must be unique' },
+  ),
+)
+const notionPropertyTypeRaw = Schema.Literal(
+  'title',
+  'rich_text',
+  'number',
+  'select',
+  'multi_select',
+  'status',
+  'date',
+  'people',
+  'files',
+  'checkbox',
+  'url',
+  'email',
+  'phone_number',
+  'formula',
+  'relation',
+  'rollup',
+  'created_time',
+  'created_by',
+  'last_edited_time',
+  'last_edited_by',
+)
+const notionFieldRaw = Schema.Struct({
+  property: nonEmpty,
+  type: notionPropertyTypeRaw,
+  writable: Schema.Boolean,
+})
+const notionFieldOf = <const Types extends readonly [string, ...string[]]>(
+  ...types: Types
+) =>
+  Schema.Struct({
+    property: nonEmpty,
+    type: Schema.Literal(...types),
+    writable: Schema.Boolean,
+  })
+const stringRecord = Schema.Record({ key: Schema.String, value: nonEmpty })
+const notionSetupRaw = Schema.Struct({
+  dataSourceId: nonEmpty,
+  fields: Schema.Struct({
+    title: notionFieldRaw,
+    description: notionFieldRaw,
+    feedbackType: notionFieldOf('select'),
+    status: notionFieldOf('status', 'select'),
+    commentCount: notionFieldOf('number'),
+    optional: Schema.optional(
+      Schema.Record({ key: Schema.String, value: notionFieldRaw }),
+    ),
+  }),
+  statuses: Schema.Record({
+    key: Schema.String,
+    value: Schema.Union(
+      nonEmpty,
+      Schema.Array(nonEmpty).pipe(Schema.minItems(1)),
+    ),
+  }),
+  statusDefinitions: Schema.optional(
+    Schema.Record({
+      key: Schema.String,
+      value: Schema.Struct({
+        name: nonEmpty,
+        description: Schema.optional(nonEmpty),
+        color: Schema.optional(nonEmpty),
+        order: Schema.NonNegativeInt,
+        isTerminal: Schema.optional(Schema.Boolean),
+      }),
+    }),
+  ),
+  categories: Schema.optional(stringRecord),
+  feedbackTypes: Schema.optional(stringRecord),
+  tags: Schema.optional(stringRecord),
+  votes: Schema.optional(
+    Schema.Struct({
+      dataSourceId: nonEmpty,
+      fields: Schema.Struct({
+        key: notionFieldOf('title'),
+        feedbackItem: notionFieldOf('relation'),
+        voterKey: notionFieldOf('rich_text'),
+        active: notionFieldOf('checkbox'),
+      }),
+    }),
+  ),
+  comments: Schema.optional(
+    Schema.Struct({
+      dataSourceId: nonEmpty,
+      fields: Schema.Struct({
+        key: notionFieldOf('title'),
+        feedbackItem: notionFieldOf('relation'),
+        body: notionFieldOf('rich_text'),
+        authorId: notionFieldOf('rich_text'),
+        authorName: notionFieldOf('rich_text'),
+        authorAvatar: Schema.optional(notionFieldOf('url')),
+        authorKind: notionFieldOf('select'),
+      }),
+    }),
+  ),
+  changelog: Schema.optional(
+    Schema.Struct({
+      dataSourceId: nonEmpty,
+      fields: Schema.Struct({
+        title: notionFieldOf('title'),
+        description: notionFieldOf('rich_text'),
+        slug: notionFieldOf('rich_text'),
+        publishedAt: notionFieldOf('date'),
+        published: notionFieldOf('checkbox'),
+        version: Schema.optional(notionFieldOf('rich_text')),
+        tags: Schema.optional(notionFieldOf('multi_select')),
+        coverImageUrl: Schema.optional(notionFieldOf('url')),
+        linkedFeedbackItemIds: Schema.optional(notionFieldOf('relation')),
+      }),
+    }),
+  ),
+})
 const connectorConfigRaw = Schema.Struct({
   id: nonEmpty,
   displayName: nonEmpty,
   capabilities: Schema.Array(connectorCapabilityRaw),
-  setup: Schema.optional(Schema.Unknown),
+  setup: Schema.optional(notionSetupRaw),
 })
 
 const feedbaxConfigRaw = Schema.Struct({
@@ -320,7 +500,7 @@ const feedbaxConfigRaw = Schema.Struct({
   changelog: Schema.optional(
     Schema.Struct({ title: nonEmpty, description: Schema.optional(nonEmpty) }),
   ),
-  authentication: Schema.optional(Schema.Unknown),
+  authentication: Schema.optional(signedHandoffConfigRaw),
   mutationProtection: Schema.optional(mutationProtectionRaw),
   connector: connectorConfigRaw,
 }).pipe(

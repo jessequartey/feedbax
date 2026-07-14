@@ -219,6 +219,9 @@ importers:
       '@feedbax/core':
         specifier: workspace:*
         version: link:../../packages/core
+      effect:
+        specifier: 3.22.0
+        version: 3.22.0
     devDependencies:
       '@feedbax/connector-sdk':
         specifier: workspace:*
@@ -235,9 +238,6 @@ importers:
       '@feedbax/storage':
         specifier: workspace:*
         version: link:../../packages/storage
-      effect:
-        specifier: 3.22.0
-        version: 3.22.0
       tsup:
         specifier: 8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.16)(typescript@5.9.3)

@@ -1,5 +1,5 @@
 import { Effect, Layer, ManagedRuntime } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   FeedbackRepository,
   type FeedbackRepositoryService,
@@ -47,6 +47,7 @@ describe('Effect transport adapters', () => {
   })
 
   it('preserves tagged failures without leaking defects', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const limited = Effect.fail(
       new RateLimited({ message: 'Slow down.', retryAfterSeconds: 5 }),
     )
@@ -62,6 +63,11 @@ describe('Effect transport adapters', () => {
     )
     expect(response.status).toBe(500)
     expect(JSON.stringify(await response.json())).not.toContain('secret defect')
+    expect(logged).toHaveBeenCalledWith(
+      '[request-three] Unhandled defect:',
+      expect.stringContaining('secret defect'),
+    )
+    logged.mockRestore()
   })
 
   it('reuses one managed runtime across operations', async () => {

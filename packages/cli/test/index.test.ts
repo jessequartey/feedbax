@@ -50,6 +50,34 @@ describe('feedbax project lifecycle', () => {
     },
   )
 
+  it('rejects unknown extension kinds without changing metadata', async () => {
+    const directory = await fixture()
+    const path = join(directory, 'feedbax.jsonc')
+    const before = await readFile(path, 'utf8')
+    await expect(add('foo', 'bar', directory)).rejects.toThrow(/unsupported/)
+    await expect(readFile(path, 'utf8')).resolves.toBe(before)
+  })
+
+  it.each([
+    ['deployment', 'lambda'],
+    ['packageManager', 'yarn'],
+    ['shadcn', null],
+  ])('rejects malformed metadata field %s', async (field, value) => {
+    const directory = await fixture()
+    const path = join(directory, 'feedbax.jsonc')
+    const metadata = JSON.parse(
+      (await readFile(path, 'utf8')).replace(
+        '// this comment must survive edits',
+        '',
+      ),
+    ) as Record<string, unknown>
+    metadata[field] = value
+    await writeFile(path, JSON.stringify(metadata))
+    await expect(readMetadata(directory)).rejects.toThrow(
+      /invalid or unsupported/,
+    )
+  })
+
   it('reports environment names without their secret values', async () => {
     const directory = await fixture()
     process.env.NOTION_TOKEN = 'do-not-print-notion'

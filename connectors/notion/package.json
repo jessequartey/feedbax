@@ -21,7 +21,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@feedbax/core": "workspace:*"
+    "@feedbax/core": "workspace:*",
+    "effect": "3.22.0"
   },
   "devDependencies": {
     "@feedbax/connector-sdk": "workspace:*",
@@ -29,7 +30,6 @@
     "@feedbax/contracts": "workspace:*",
     "@feedbax/domain": "workspace:*",
     "@feedbax/storage": "workspace:*",
-    "effect": "3.22.0",
     "tsup": "8.5.1"
   }
 }

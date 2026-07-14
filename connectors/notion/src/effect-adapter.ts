@@ -82,8 +82,8 @@ export const createNotionEffectAdapter = (
   }),
   list: (query) =>
     Effect.tryPromise({
-      try: async () => {
-        const result = await options.reader.listFeedback(
+      try: () =>
+        options.reader.listFeedback(
           {
             sort: 'newest',
             ...(query.search ? { search: query.search } : {}),
@@ -92,36 +92,33 @@ export const createNotionEffectAdapter = (
             pageSize: query.limit,
             ...(query.cursor ? { cursor: query.cursor } : {}),
           },
-        )
+        ),
+      catch: unavailable,
+    }).pipe(
+      Effect.map((result) => {
         return {
           items: result.value.items.map(project),
           nextCursor: result.value.nextCursor ?? null,
         }
-      },
-      catch: unavailable,
-    }),
+      }),
+    ),
   get: (id) =>
     Effect.tryPromise({
-      try: async () => {
-        const item = await options.reader.getFeedback(id)
-        return item ? project(item) : undefined
-      },
+      try: () => options.reader.getFeedback(id),
       catch: unavailable,
-    }),
+    }).pipe(Effect.map((item) => (item ? project(item) : undefined))),
   submit: (input) =>
     Effect.tryPromise({
-      try: async (): Promise<PublicFeedbackItemType> =>
-        project(
-          await options.mutations.submit(
-            {
-              title: input.title,
-              description: input.description,
-              type: 'improvement',
-              tagIds: [],
-            },
-            options.author,
-          ),
+      try: () =>
+        options.mutations.submit(
+          {
+            title: input.title,
+            description: input.description,
+            type: 'improvement',
+            tagIds: [],
+          },
+          options.author,
         ),
       catch: unavailable,
-    }),
+    }).pipe(Effect.map((item): PublicFeedbackItemType => project(item))),
 })

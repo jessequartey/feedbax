@@ -37,7 +37,8 @@ export const cookieAttributes = (production: boolean, maxAgeSeconds: number) =>
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase()
 
-const cookieName = '__Host-feedbax_session'
+const cookieName = (production: boolean) =>
+  production ? '__Host-feedbax_session' : 'feedbax_session'
 const encoder = new TextEncoder()
 const toBase64Url = (value: Uint8Array) =>
   btoa(String.fromCharCode(...value))
@@ -103,11 +104,17 @@ export const makeSessionCodec = (secret: string): SessionCodec => {
   }
 }
 
-const cookieValue = (headers: Headers) => {
+const cookieValue = (headers: Headers, production: boolean) => {
+  const name = cookieName(production)
   const match = headers
     .get('cookie')
-    ?.match(new RegExp(`(?:^|;\\s*)${cookieName}=([^;]*)`))
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined
+    ?.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))
+  if (!match?.[1]) return undefined
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return undefined
+  }
 }
 const identityId = (subject: string) =>
   Schema.decodeUnknownSync(VisitorIdentityId)(`identity_${subject}`)
@@ -132,7 +139,7 @@ export const makeAnonymousProvider = (
   mode: 'anonymous',
   resolve: ({ headers }) =>
     Effect.gen(function* () {
-      const encoded = cookieValue(headers)
+      const encoded = cookieValue(headers, production)
       const existingSubject = encoded ? yield* codec.decode(encoded) : undefined
       const subject = existingSubject ?? crypto.randomUUID()
       const value = identity(subject, 'anonymous', 'Anonymous')
@@ -143,13 +150,15 @@ export const makeAnonymousProvider = (
         identity: value,
         ...(session
           ? {
-              setCookie: `${cookieName}=${encodeURIComponent(session)}; ${cookieAttributes(production, 60 * 60 * 24 * 365)}`,
+              setCookie: `${cookieName(production)}=${encodeURIComponent(session)}; ${cookieAttributes(production, 60 * 60 * 24 * 365)}`,
             }
           : {}),
       }
     }),
   forget: () =>
-    Effect.succeed(`${cookieName}=; ${cookieAttributes(production, 0)}`),
+    Effect.succeed(
+      `${cookieName(production)}=; ${cookieAttributes(production, 0)}`,
+    ),
 })
 
 export const makeEmailProvider = (
@@ -159,7 +168,7 @@ export const makeEmailProvider = (
   mode: 'email',
   resolve: ({ headers }) =>
     Effect.gen(function* () {
-      const encoded = cookieValue(headers)
+      const encoded = cookieValue(headers, production)
       if (!encoded) return undefined
       const subject = yield* codec.decode(encoded)
       if (!subject) return undefined
@@ -168,7 +177,9 @@ export const makeEmailProvider = (
       return value ? { identity: value } : undefined
     }),
   forget: () =>
-    Effect.succeed(`${cookieName}=; ${cookieAttributes(production, 0)}`),
+    Effect.succeed(
+      `${cookieName(production)}=; ${cookieAttributes(production, 0)}`,
+    ),
 })
 
 export const rememberEmail = (
@@ -187,7 +198,7 @@ export const rememberEmail = (
     const session = yield* codec.encode(subject)
     return {
       identity: value,
-      setCookie: `${cookieName}=${encodeURIComponent(session)}; ${cookieAttributes(production, 60 * 60 * 24 * 30)}`,
+      setCookie: `${cookieName(production)}=${encodeURIComponent(session)}; ${cookieAttributes(production, 60 * 60 * 24 * 30)}`,
     }
   })
 

@@ -1,7 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = new URL('..', import.meta.url).pathname
+const root = fileURLToPath(new URL('..', import.meta.url))
 const layers = new Map([
   ['packages/domain', new Set()],
   ['packages/contracts', new Set(['@feedbax/domain'])],
@@ -88,6 +89,7 @@ const privatePackages = [
   '@feedbax/identity',
   '@feedbax/storage',
   '@feedbax/server',
+  '@feedbax/observability',
 ]
 for (const workspace of publicPackages) {
   const declaration = join(root, workspace, 'dist', 'index.d.ts')

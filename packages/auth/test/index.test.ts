@@ -195,10 +195,12 @@ describe('identity boundary', () => {
 
   it('rejects token tampering and unsupported algorithms', async () => {
     const signed = await token()
-    const replacement = signed.endsWith('x') ? 'y' : 'x'
-    await expect(
-      provider().exchange(`${signed.slice(0, -1)}${replacement}`),
-    ).rejects.toMatchObject({ code: 'invalid' })
+    const [header, payload, signature] = signed.split('.')
+    const replacement = signature!.startsWith('x') ? 'y' : 'x'
+    const tampered = `${header}.${payload}.${replacement}${signature!.slice(1)}`
+    await expect(provider().exchange(tampered)).rejects.toMatchObject({
+      code: 'invalid',
+    })
     const none = `${base64url.encode(JSON.stringify({ alg: 'none', kid: 'sign-2' }))}.${base64url.encode('{}')}.`
     await expect(provider().exchange(none)).rejects.toMatchObject({
       code: 'invalid',
