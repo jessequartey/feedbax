@@ -3,14 +3,17 @@ title: Contributing
 description: Help shape Feedbax while its first public interfaces are still forming.
 ---
 
-Issues, workflow descriptions, and design feedback are welcome now. Implementation contributions should align with an accepted issue or RFC.
+Feedbax's own public portal is the canonical roadmap and contribution queue. Implementation contributions must align with an accepted portal item.
 
 ## Before contributing
 
-1. Search existing issues and discussions.
-2. Open an issue describing the user problem, not only an implementation.
-3. Wait for scope agreement before starting a large change.
-4. Keep pull requests focused and update relevant documentation and tests.
+1. Search the Feedbax portal and vote for an existing item before creating a duplicate.
+2. Submit the user problem to the portal when no item exists and wait for scope agreement.
+3. Use GitHub issues for implementation discussion only after linking the canonical Feedbax item.
+4. Include the portal item's `/feedback/<id>` URL in the pull request.
+5. Keep pull requests focused and update relevant documentation and tests.
+
+Pull requests without a Feedbax item fail CI. A maintainer may apply `feedbax-exempt` only for a security fix, urgent regression, or repository-only maintenance and must record the reason in the pull-request body.
 
 ## Local checks
 

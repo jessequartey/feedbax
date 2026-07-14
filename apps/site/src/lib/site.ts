@@ -1,6 +1,8 @@
 export const githubUrl = 'https://github.com/jessequartey/feedbax'
 export const feedbackPortalUrl =
   'https://feedbax-feedback.jessefquartey.workers.dev'
+export const notionStarterUrl =
+  'https://brave-number-c98.notion.site/Feedbax-Notion-Starter-39dafe1596918155a94cc24a1a41a2a5'
 
 export const statusLabels = [
   'Available',

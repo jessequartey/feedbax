@@ -1,7 +1,7 @@
 const API = 'https://api.notion.com/v1'
 const VERSION = '2025-09-03'
 const token = process.env.NOTION_TOKEN?.trim()
-const parentPageId = process.env.NOTION_PARENT_PAGE_ID?.trim()
+let parentPageId = process.env.NOTION_PARENT_PAGE_ID?.trim()
 
 if (!token || !parentPageId) {
   throw new Error('NOTION_TOKEN and NOTION_PARENT_PAGE_ID are required.')
@@ -24,6 +24,39 @@ async function notion(path, init = {}) {
     )
   }
   return response.json()
+}
+
+const childPageTitle = process.env.NOTION_CHILD_PAGE_TITLE?.trim()
+if (childPageTitle) {
+  const child = await notion('/pages', {
+    method: 'POST',
+    body: JSON.stringify({
+      parent: { type: 'page_id', page_id: parentPageId },
+      properties: {
+        title: {
+          title: [{ type: 'text', text: { content: childPageTitle } }],
+        },
+      },
+      children: [
+        {
+          object: 'block',
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [
+              {
+                type: 'text',
+                text: {
+                  content:
+                    'Duplicate this page, create your own Notion integration, connect the duplicate, and configure the four new data-source IDs. Credentials and production identifiers are never included.',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    }),
+  })
+  parentPageId = child.id
 }
 
 const richText = () => ({ rich_text: {} })
@@ -142,9 +175,16 @@ async function createSet(label) {
   return { feedback, votes, comments, changelog }
 }
 
-const provisioned = {
-  dogfood: await createSet('Feedbax Dogfood'),
-  smoke: await createSet('Feedbax CI Smoke'),
-}
+const labels = (
+  process.env.NOTION_SET_LABELS ?? 'Feedbax Dogfood,Feedbax CI Smoke'
+)
+  .split(',')
+  .map((label) => label.trim())
+  .filter(Boolean)
+const provisioned = Object.fromEntries(
+  await Promise.all(
+    labels.map(async (label) => [label, await createSet(label)]),
+  ),
+)
 
-console.log(JSON.stringify(provisioned))
+console.log(JSON.stringify({ parentPageId, provisioned }))

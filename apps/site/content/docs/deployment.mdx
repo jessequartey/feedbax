@@ -15,6 +15,17 @@ Deploy the generated static client directory at `apps/site/.output/public` to an
 
 Search runs entirely in the browser. The site does not need portal APIs, Notion credentials, or a long-running Node server.
 
+The repository includes a Cloudflare Workers asset preset:
+
+```sh
+VITE_SITE_URL=https://feedbax-docs.jessefquartey.workers.dev \
+  pnpm --filter @feedbax/site deploy:cloudflare
+pnpm --filter @feedbax/site smoke -- \
+  https://feedbax-docs.jessefquartey.workers.dev
+```
+
+The Worker falls back to the application shell for unknown client-side routes and receives no Notion or portal secrets.
+
 ## Portal deployment support
 
 **Preview available.** Packed generated projects pass production builds for Cloudflare Workers, Vercel Node, and Node 22/Docker. The portal release gates cover SSR, server functions and routes, server-only environment access, secure cookies, cache behavior, validated mutations, sanitized errors, and secret exclusion.

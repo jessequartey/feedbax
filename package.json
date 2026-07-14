@@ -13,6 +13,7 @@
     "type-check": "turbo run type-check",
     "lint": "turbo run lint",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:contribution-reference": "node scripts/check-contribution-reference.mjs",
     "test": "turbo run test",
     "test:e2e": "playwright test --config playwright.e2e.config.ts",
     "test:notion-smoke": "playwright test --config playwright.notion.config.ts",

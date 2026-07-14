@@ -12,15 +12,21 @@ description: Generate, configure, validate, and run a Notion-backed Feedbax port
 ## Create a project
 
 ```sh
-npx create-feedbax@latest my-feedback
+npx create-feedbax@latest my-feedback --yes \
+  --identity email \
+  --deploy cloudflare \
+  --package-manager pnpm \
+  --preset feedbax-default
 cd my-feedback
 ```
 
-Choose anonymous, email-only, or signed handoff identity. Email-only captures an unverified address; it does not authenticate ownership.
+This is the recommended founder path: Notion owns the data, email-only captures an unverified address for follow-up, and Cloudflare runs the portal. Email-only does not authenticate ownership.
 
 ## Configure and validate
 
-Copy `.env.example` to `.env`, set the documented server-only Notion and session values, then run:
+Duplicate the Feedbax Notion starter or provision the four databases yourself. A duplicated template never includes an integration token or reusable data-source IDs. Create your own Notion integration, connect it to the duplicated page, then copy the feedback, votes, comments, and changelog data-source IDs into `.env` together with a random session secret of at least 32 bytes.
+
+Copy `.env.example` to `.env`, set the documented server-only values, then run:
 
 ```sh
 npx feedbax doctor

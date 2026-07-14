@@ -70,3 +70,6 @@ Feedbax is MIT licensed. The v0.1.0 APIs remain preview interfaces.
 
 Feedbax uses its own public portal for feature requests, roadmap updates, and
 rollout issues: [Feedbax feedback](https://feedbax-feedback.jessefquartey.workers.dev).
+
+- [Marketing and documentation](https://feedbax-docs.jessefquartey.workers.dev)
+- [Duplicable Notion starter](https://brave-number-c98.notion.site/Feedbax-Notion-Starter-39dafe1596918155a94cc24a1a41a2a5)
