@@ -1,24 +1,18 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { getServerStatus } from '../server.functions.js'
-import {
-  ConnectorOutage,
-  PortalLoading,
-  PortalShell,
-} from '../components/portal-shell.js'
-import { FeedbackBoard } from '../components/feedback-board.js'
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/')({
-  loader: () => getServerStatus(),
-  pendingComponent: PortalLoading,
-  errorComponent: ({ reset }) => <ConnectorOutage onRetry={reset} />,
-  component: Portal,
-})
+export const Route = createFileRoute("/")({
+  component: HomeComponent,
+});
 
-function Portal() {
-  Route.useLoaderData()
+function HomeComponent() {
   return (
-    <PortalShell activePage="feedback">
-      <FeedbackBoard />
-    </PortalShell>
-  )
+    <main className="container mx-auto max-w-3xl px-4 py-8">
+      <section className="rounded-lg border p-6">
+        <h1 className="mb-2 text-2xl font-semibold">Feedbax Core</h1>
+        <p className="text-muted-foreground">
+          The Notion-native feedback portal foundation is ready.
+        </p>
+      </section>
+    </main>
+  );
 }

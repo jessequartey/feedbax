@@ -1,24 +1,5 @@
 {
   "name": "@feedbax/config",
   "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "type-check": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src test",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@feedbax/auth-handoff": "workspace:*",
-    "@feedbax/core": "workspace:*",
-    "@feedbax/notion": "workspace:*",
-    "effect": "3.22.0"
-  }
+  "private": true
 }

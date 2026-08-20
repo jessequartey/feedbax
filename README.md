@@ -1,75 +1,71 @@
-# Feedbax
+# Feedbax Core
 
-Feedbax is becoming a lightweight, self-hostable customer-feedback portal that works with the tools product teams already use.
+Feedbax Core is the open-source, self-hostable Feedbax application. Its initial workspace was generated once from the pinned Better-T-Stack foundation recorded in `bts.jsonc`; Better-T-Stack is not a runtime dependency.
 
-> Own your feedback. Keep your existing workflow.
+## Features
 
-## v0.1.0 preview
+- **TypeScript** - For type safety and improved developer experience
+- **TanStack Start** - SSR framework with TanStack Router
+- **TailwindCSS** - Utility-first CSS for rapid UI development
+- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
+- **Turborepo** - Optimized monorepo build system
 
-Feedbax is being rebuilt as a generator-led TanStack Start application with Effect contracts, conventional shadcn source ownership, and Notion as the launch connector and interaction store.
+## Getting Started
 
-The first release will use Notion as its backend and provide:
+First, install the dependencies:
 
-- A public feedback board with search, filtering, and duplicate suggestions
-- Anonymous or email-capture submission, best-effort voting, and comments
-- A public roadmap and changelog
-- Anonymous, email-only, and signed identity handoff modes
-- Configurable branding and deployment to Cloudflare, Vercel, or Docker
-
-Better Auth and SQL interaction stores are deferred until after v0.1.0. See [ROADMAP.md](ROADMAP.md) for the staged plan.
-
-The intended installation path is:
-
-```sh
-npx create-feedbax@latest my-feedback
-cd my-feedback
-npx feedbax doctor
+```bash
+pnpm install
 ```
 
-## Goals
+Then, run the development server:
 
-- Make a useful portal deployable in minutes and inexpensive to operate.
-- Avoid requiring another project-management backend.
-- Keep the core framework, hosting platform, and connector agnostic.
-- Provide honest documentation and predictable upgrades.
-
-## Repository shape
-
-```text
-apps/        Product and documentation applications
-packages/    Domain, contracts, services, identity, CLIs, and shared UI
-connectors/  Notion and future backend integrations
-deploy/      Verified hosting presets
-examples/    Integration and identity-handoff examples
+```bash
+pnpm run dev
 ```
 
-## Development
+Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
 
-Use Node 22.18 or newer and the pnpm version pinned in `package.json`.
+## UI Customization
 
-```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm type-check
-pnpm lint
-pnpm test
+React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+
+- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
+- Update shared primitives in `packages/ui/src/components/*`
+- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/portal/components.json`
+
+### Add more shared components
+
+Run this from the project root to add more primitives to the shared UI package:
+
+```bash
+npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
 ```
 
-Turborepo stores local task results in `.turbo`. Run `pnpm build` twice to observe cache hits, or `pnpm clean:cache` to clear the local task cache.
+Import shared components like this:
 
-## Participate
+```tsx
+import { Button } from "@feedbax/ui/components/button";
+```
 
-- Read the [roadmap](ROADMAP.md).
-- Open an [issue](https://github.com/jessequartey/feedbax/issues) to describe your workflow.
-- Open an [early-adopter issue](https://github.com/jessequartey/feedbax/issues/new/choose) if you want to test the rewrite with your team.
-- Review [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+### Add app-specific blocks
 
-Feedbax is MIT licensed. The v0.1.0 APIs remain preview interfaces.
+If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/portal`.
 
-## Dogfood board
+## Project Structure
 
-Feedbax uses its own public portal for feature requests, roadmap updates, and
-rollout issues: [Feedbax feedback](https://feedbax-feedback.jessefquartey.workers.dev).
+```
+feedbax/
+├── apps/
+│   └── portal/      # Fullstack application (React + TanStack Start)
+├── packages/
+│   ├── ui/          # Shared shadcn/ui components and styles
+```
 
-- [Marketing and documentation](https://feedbax-docs.jessefquartey.workers.dev)
-- [Duplicable Notion starter](https://brave-number-c98.notion.site/Feedbax-Notion-Starter-39dafe1596918155a94cc24a1a41a2a5)
+## Available Scripts
+
+- `pnpm run dev`: Start all applications in development mode
+- `pnpm run build`: Build all applications
+- `pnpm run dev:portal`: Start only the portal application
+- `pnpm run type-check`: Check TypeScript types across all workspaces
+- `pnpm run deploy:dry-run`: Build the portal and verify its Worker bundle

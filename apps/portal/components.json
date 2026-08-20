@@ -5,18 +5,18 @@
   "tsx": true,
   "tailwind": {
     "config": "",
-    "css": "src/styles/globals.css",
+    "css": "../../packages/ui/src/styles/globals.css",
     "baseColor": "neutral",
     "cssVariables": true,
     "prefix": ""
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@feedbax/ui/components",
+    "components": "@/components",
     "utils": "@feedbax/ui/lib/utils",
-    "hooks": "@feedbax/ui/hooks",
-    "lib": "@feedbax/ui/lib",
-    "ui": "@feedbax/ui/components"
+    "ui": "@feedbax/ui/components",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
   },
   "menuColor": "default",
   "menuAccent": "subtle",
