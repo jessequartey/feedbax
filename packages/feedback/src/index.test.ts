@@ -3,6 +3,117 @@ import { describe, expect, it } from "vitest";
 import { createFeedbackModule } from "./index";
 
 describe("Feedback module", () => {
+  it("returns the public roadmap grouped by status and ordered by most recent update", async () => {
+    const createdAt = new Date("2026-08-01T09:00:00.000Z");
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "planned-older",
+          title: "Older planned item",
+          description: "Planned first, updated earlier.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt,
+          updatedAt: new Date("2026-08-18T09:00:00.000Z"),
+          submitter: { email: "private@example.com" },
+          pageBody: "Private Product Team notes",
+        },
+        {
+          id: "planned-newer",
+          title: "Newer planned item",
+          description: "Planned second, updated later.",
+          type: "Bug Report",
+          status: "Planned",
+          published: true,
+          createdAt,
+          updatedAt: new Date("2026-08-20T09:00:00.000Z"),
+        },
+        {
+          id: "in-progress",
+          title: "Active work",
+          description: "Currently being implemented.",
+          type: "General Feedback",
+          status: "In Progress",
+          published: true,
+          createdAt,
+          updatedAt: new Date("2026-08-19T09:00:00.000Z"),
+        },
+        {
+          id: "shipped",
+          title: "Delivered work",
+          description: "Already available.",
+          type: "Feature Request",
+          status: "Shipped",
+          published: true,
+          createdAt,
+          updatedAt: new Date("2026-08-17T09:00:00.000Z"),
+        },
+        {
+          id: "unpublished",
+          title: "Private plan",
+          description: "Not approved for public display.",
+          type: "Feature Request",
+          status: "Planned",
+          published: false,
+          createdAt,
+          updatedAt: new Date("2026-08-21T09:00:00.000Z"),
+        },
+        {
+          id: "outside-roadmap",
+          title: "Still under review",
+          description: "Not part of the roadmap contract.",
+          type: "Feature Request",
+          status: "Reviewing",
+          published: true,
+          createdAt,
+          updatedAt: new Date("2026-08-22T09:00:00.000Z"),
+        },
+      ],
+    });
+
+    await expect(feedback.getPublicRoadmap()).resolves.toEqual({
+      Planned: [
+        {
+          title: "Newer planned item",
+          description: "Planned second, updated later.",
+          type: "Bug Report",
+          status: "Planned",
+          createdAt,
+          updatedAt: new Date("2026-08-20T09:00:00.000Z"),
+        },
+        {
+          title: "Older planned item",
+          description: "Planned first, updated earlier.",
+          type: "Feature Request",
+          status: "Planned",
+          createdAt,
+          updatedAt: new Date("2026-08-18T09:00:00.000Z"),
+        },
+      ],
+      "In Progress": [
+        {
+          title: "Active work",
+          description: "Currently being implemented.",
+          type: "General Feedback",
+          status: "In Progress",
+          createdAt,
+          updatedAt: new Date("2026-08-19T09:00:00.000Z"),
+        },
+      ],
+      Shipped: [
+        {
+          title: "Delivered work",
+          description: "Already available.",
+          type: "Feature Request",
+          status: "Shipped",
+          createdAt,
+          updatedAt: new Date("2026-08-17T09:00:00.000Z"),
+        },
+      ],
+    });
+  });
+
   it("returns the newest 25 Published Feedback Items in the first page", async () => {
     const feedback = createFeedbackModule({
       initialItems: Array.from({ length: 27 }, (_, index) => ({

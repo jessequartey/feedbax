@@ -40,6 +40,13 @@ export interface PublicFeedbackPage {
   nextCursor?: string;
 }
 
+export type RoadmapStatus = Extract<
+  FeedbackStatus,
+  "Planned" | "In Progress" | "Shipped"
+>;
+
+export type PublicRoadmap = Record<RoadmapStatus, PublicFeedbackItem[]>;
+
 type StoredFeedbackItem = FeedbackItem & Record<string, unknown>;
 
 interface FeedbackStorage {
@@ -68,6 +75,7 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 export interface FeedbackModule {
   submit(input: SubmitFeedbackInput): Promise<FeedbackItem>;
   listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
+  getPublicRoadmap(): Promise<PublicRoadmap>;
 }
 
 interface CreateFeedbackModuleOptions {
@@ -126,6 +134,26 @@ export function createFeedbackModule(
           : {}),
       };
     },
+    async getPublicRoadmap() {
+      const roadmap: PublicRoadmap = {
+        Planned: [],
+        "In Progress": [],
+        Shipped: [],
+      };
+      const items = (await storage.list())
+        .filter(isPublicRoadmapItem)
+        .sort(
+          (left, right) =>
+            right.updatedAt.getTime() - left.updatedAt.getTime() ||
+            right.id.localeCompare(left.id),
+        );
+
+      for (const item of items) {
+        roadmap[item.status].push(toPublicFeedbackItem(item));
+      }
+
+      return roadmap;
+    },
   };
 }
 
@@ -146,4 +174,15 @@ function toPublicFeedbackItem(item: FeedbackItem): PublicFeedbackItem {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+}
+
+function isPublicRoadmapItem(
+  item: FeedbackItem,
+): item is FeedbackItem & { status: RoadmapStatus } {
+  return (
+    item.published &&
+    (item.status === "Planned" ||
+      item.status === "In Progress" ||
+      item.status === "Shipped")
+  );
 }
