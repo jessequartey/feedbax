@@ -7,10 +7,49 @@ import {
 } from "./index";
 
 describe("Feedback module", () => {
+  it("lets only the correct Browser Capability withdraw its eligible draft", async () => {
+    const feedback = createFeedbackModule();
+    const submittedItem = await feedback.submit({
+      title: "Withdraw this draft",
+      description: "I no longer want to submit this.",
+      type: "General Feedback",
+    });
+    const wrongCapability =
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as BrowserCapability;
+
+    await expect(
+      feedback.editDraft({
+        id: submittedItem.id,
+        browserCapability: wrongCapability,
+        title: "Unauthorized edit",
+      }),
+    ).rejects.toThrow("Browser Capability did not authorize this draft.");
+    await expect(
+      feedback.withdrawDraft({
+        id: submittedItem.id,
+        browserCapability: wrongCapability,
+      }),
+    ).rejects.toThrow("Browser Capability did not authorize this draft.");
+
+    await expect(
+      feedback.withdrawDraft({
+        id: submittedItem.id,
+        browserCapability: submittedItem.browserCapability,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      feedback.editDraft({
+        id: submittedItem.id,
+        browserCapability: submittedItem.browserCapability,
+        title: "Too late",
+      }),
+    ).rejects.toThrow("Browser Capability did not authorize this draft.");
+  });
+
   it("returns a Browser Capability that edits the permitted fields of its draft", async () => {
     const feedback = createFeedbackModule();
     const submittedItem = await feedback.submit({
-      title: "Orignal title",
+      title: "Original title",
       description: "Original description",
       type: "General Feedback",
       submitter: {
@@ -79,6 +118,12 @@ describe("Feedback module", () => {
           id: "ineligible-item",
           browserCapability,
           title: "Unauthorized edit",
+        }),
+      ).rejects.toThrow("Browser Capability did not authorize this draft.");
+      await expect(
+        feedback.withdrawDraft({
+          id: "ineligible-item",
+          browserCapability,
         }),
       ).rejects.toThrow("Browser Capability did not authorize this draft.");
     },

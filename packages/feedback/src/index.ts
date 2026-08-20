@@ -1,4 +1,9 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 
 export type FeedbackType =
   "Feature Request" | "Bug Report" | "General Feedback";
@@ -46,6 +51,11 @@ export interface EditDraftInput {
   };
 }
 
+export interface WithdrawDraftInput {
+  id: string;
+  browserCapability: BrowserCapability;
+}
+
 export type PublicFeedbackItem = Pick<
   FeedbackItem,
   "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
@@ -77,6 +87,7 @@ type StoredFeedbackItem = FeedbackItem &
 interface FeedbackStorage {
   save(item: StoredFeedbackItem): Promise<void>;
   list(): Promise<StoredFeedbackItem[]>;
+  remove(id: string): Promise<void>;
 }
 
 class InMemoryFeedbackStorage implements FeedbackStorage {
@@ -95,11 +106,16 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
   async list(): Promise<StoredFeedbackItem[]> {
     return [...this.#items.values()].map((item) => structuredClone(item));
   }
+
+  async remove(id: string): Promise<void> {
+    this.#items.delete(id);
+  }
 }
 
 export interface FeedbackModule {
   submit(input: SubmitFeedbackInput): Promise<SubmittedFeedbackItem>;
   editDraft(input: EditDraftInput): Promise<FeedbackItem>;
+  withdrawDraft(input: WithdrawDraftInput): Promise<void>;
   listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
   getPublicRoadmap(): Promise<PublicRoadmap>;
 }
@@ -141,13 +157,7 @@ export function createFeedbackModule(
         (candidate) => candidate.id === input.id,
       );
 
-      if (
-        !item?.browserCapabilityHash ||
-        item.browserCapabilityHash !==
-          hashBrowserCapability(input.browserCapability) ||
-        item.status !== "New" ||
-        item.published
-      ) {
+      if (!authorizesDraft(item, input.browserCapability)) {
         throw new Error("Browser Capability did not authorize this draft.");
       }
 
@@ -167,6 +177,17 @@ export function createFeedbackModule(
       await storage.save(editedItem);
 
       return toFeedbackItem(editedItem);
+    },
+    async withdrawDraft(input) {
+      const item = (await storage.list()).find(
+        (candidate) => candidate.id === input.id,
+      );
+
+      if (!authorizesDraft(item, input.browserCapability)) {
+        throw new Error("Browser Capability did not authorize this draft.");
+      }
+
+      await storage.remove(item.id);
     },
     async listPublic(query = {}) {
       const items = (await storage.list())
@@ -259,6 +280,23 @@ function createBrowserCapability(): BrowserCapability {
 
 function hashBrowserCapability(browserCapability: BrowserCapability): string {
   return createHash("sha256").update(browserCapability).digest("base64url");
+}
+
+function authorizesDraft(
+  item: StoredFeedbackItem | undefined,
+  browserCapability: BrowserCapability,
+): item is StoredFeedbackItem & { browserCapabilityHash: string } {
+  if (!item?.browserCapabilityHash || item.status !== "New" || item.published) {
+    return false;
+  }
+
+  const storedHash = Buffer.from(item.browserCapabilityHash);
+  const presentedHash = Buffer.from(hashBrowserCapability(browserCapability));
+
+  return (
+    storedHash.length === presentedHash.length &&
+    timingSafeEqual(storedHash, presentedHash)
+  );
 }
 
 function isPublicRoadmapItem<Item extends FeedbackItem>(
