@@ -41,6 +41,19 @@ describe("Feedback module", () => {
     await expect(feedback.listPublic()).resolves.toEqual([]);
   });
 
+  it("does not let a caller publish a submitted Feedback Item by mutation", async () => {
+    const feedback = createFeedbackModule();
+    const submittedItem = await feedback.submit({
+      title: "Private draft",
+      description: "This has not been approved for public display.",
+      type: "General Feedback",
+    });
+
+    submittedItem.published = true;
+
+    await expect(feedback.listPublic()).resolves.toEqual([]);
+  });
+
   it("returns only the approved public projection for a Published Feedback Item", async () => {
     const createdAt = new Date("2026-08-19T10:00:00.000Z");
     const updatedAt = new Date("2026-08-20T09:30:00.000Z");

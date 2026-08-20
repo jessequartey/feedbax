@@ -40,15 +40,17 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
   readonly #items: Map<string, FeedbackItem>;
 
   constructor(initialItems: StoredFeedbackItem[] = []) {
-    this.#items = new Map(initialItems.map((item) => [item.id, item]));
+    this.#items = new Map(
+      initialItems.map((item) => [item.id, structuredClone(item)]),
+    );
   }
 
   async save(item: FeedbackItem): Promise<void> {
-    this.#items.set(item.id, item);
+    this.#items.set(item.id, structuredClone(item));
   }
 
   async list(): Promise<FeedbackItem[]> {
-    return [...this.#items.values()];
+    return [...this.#items.values()].map((item) => structuredClone(item));
   }
 }
 
@@ -82,7 +84,7 @@ export function createFeedbackModule(
 
       await storage.save(item);
 
-      return item;
+      return structuredClone(item);
     },
     async listPublic() {
       const items = await storage.list();
