@@ -1,1 +1,349 @@
 @import "@feedbax/ui/globals.css";
+
+:root {
+  --portal-ink: #14171f;
+  --portal-paper: #f4f2ed;
+  --portal-blue: #3157ff;
+  --portal-rule: #cdc9bf;
+}
+
+body {
+  margin: 0;
+  background:
+    linear-gradient(rgba(20, 23, 31, 0.035) 1px, transparent 1px),
+    var(--portal-paper);
+  background-size: 100% 4rem;
+  color: var(--portal-ink);
+}
+
+a,
+button,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a:focus-visible,
+button:focus-visible,
+select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--portal-blue) 65%, transparent);
+  outline-offset: 3px;
+}
+
+.portal-shell {
+  min-height: 100svh;
+}
+
+.portal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.5rem;
+  padding: 0 5vw;
+  border-bottom: 1px solid var(--portal-rule);
+  background: color-mix(in srgb, var(--portal-paper) 92%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.portal-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+
+.portal-brand span {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  background: var(--portal-blue);
+  color: white;
+  font-size: 0.85rem;
+}
+
+.portal-header p {
+  margin: 0;
+  color: #5c606a;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feedback-index {
+  width: min(90vw, 76rem);
+  margin: 0 auto;
+  padding: clamp(3.5rem, 8vw, 8rem) 0 6rem;
+  animation: page-in 480ms ease-out both;
+}
+
+.feedback-intro {
+  max-width: 56rem;
+}
+
+.feedback-eyebrow {
+  margin: 0 0 1rem;
+  color: var(--portal-blue);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.feedback-intro h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(3rem, 7vw, 6.7rem);
+  font-weight: 650;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
+}
+
+.feedback-deck {
+  max-width: 37rem;
+  margin: 2rem 0 0;
+  color: #5c606a;
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  line-height: 1.6;
+}
+
+.feedback-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: 1rem;
+  align-items: end;
+  margin: clamp(3rem, 7vw, 6rem) 0 0;
+  padding: 1.35rem 0;
+  border-block: 1px solid var(--portal-rule);
+}
+
+.feedback-filters label {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.feedback-filters label > span {
+  color: #6a6d75;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feedback-filters select,
+.feedback-filters button {
+  min-height: 2.8rem;
+  border: 1px solid #aaa69c;
+  border-radius: 0;
+  background: transparent;
+  color: var(--portal-ink);
+  font: inherit;
+}
+
+.feedback-filters select {
+  width: 100%;
+  padding: 0 2.5rem 0 0.8rem;
+}
+
+.feedback-filters button {
+  padding: 0 1.35rem;
+  border-color: var(--portal-ink);
+  background: var(--portal-ink);
+  color: white;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.feedback-filters button:hover {
+  background: var(--portal-blue);
+  transform: translateY(-2px);
+}
+
+.feedback-results {
+  padding-top: 3rem;
+}
+
+.feedback-results-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.feedback-results-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.035em;
+}
+
+.feedback-results-heading span {
+  color: #6a6d75;
+  font-size: 0.75rem;
+}
+
+.feedback-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--portal-ink);
+  list-style: none;
+}
+
+.feedback-list li {
+  border-bottom: 1px solid var(--portal-rule);
+}
+
+.feedback-list article {
+  padding: clamp(1.5rem, 3vw, 2.4rem) 0;
+  transition: transform 180ms ease;
+}
+
+.feedback-list li:hover article {
+  transform: translateX(0.45rem);
+}
+
+.feedback-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: #6a6d75;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.feedback-meta span:nth-child(2) {
+  color: var(--portal-blue);
+}
+
+.feedback-list h3 {
+  margin: 0.8rem 0 0;
+  font-size: clamp(1.35rem, 2.5vw, 2.15rem);
+  font-weight: 620;
+  letter-spacing: -0.045em;
+}
+
+.feedback-list article > p {
+  max-width: 47rem;
+  margin: 0.75rem 0 0;
+  color: #5c606a;
+  line-height: 1.65;
+}
+
+.feedback-empty {
+  padding: 5rem 0;
+  border-block: 1px solid var(--portal-rule);
+  text-align: center;
+}
+
+.feedback-empty p {
+  margin: 0 0 1rem;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+.feedback-empty a,
+.feedback-next {
+  color: var(--portal-blue);
+  font-weight: 700;
+  text-underline-offset: 0.25em;
+}
+
+.feedback-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 2rem;
+  text-decoration: none;
+}
+
+.feedback-next svg {
+  width: 1rem;
+  transition: transform 160ms ease;
+}
+
+.feedback-next:hover svg {
+  transform: translateX(0.35rem);
+}
+
+.portal-loading {
+  display: flex;
+  min-height: calc(100svh - 4.5rem);
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #5c606a;
+  font-size: 0.85rem;
+}
+
+.portal-loading svg {
+  width: 1.1rem;
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .portal-header {
+    padding-inline: 1rem;
+  }
+
+  .portal-header p {
+    display: none;
+  }
+
+  .feedback-index {
+    width: auto;
+    padding: 3.5rem 1rem 4rem;
+  }
+
+  .feedback-intro h1 {
+    font-size: clamp(3rem, 15vw, 4.25rem);
+  }
+
+  .feedback-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-filters select,
+  .feedback-filters button {
+    min-height: 3rem;
+  }
+
+  .feedback-list article > p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
