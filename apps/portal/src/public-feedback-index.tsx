@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { feedbackStatuses, feedbackTypes } from "./public-feedback-page";
 import { feedbackItemPath } from "./public-feedback-item-page";
 import { formatPublicDate } from "./public-date";
+import { PortalFeedbackForm } from "./portal-feedback-form";
 
 export function PublicFeedbackIndex({
   page,
@@ -30,6 +31,8 @@ export function PublicFeedbackIndex({
           the community.
         </p>
       </section>
+
+      <PortalFeedbackForm />
 
       <form className="feedback-filters" method="get">
         <label>

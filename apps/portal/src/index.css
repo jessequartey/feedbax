@@ -18,15 +18,125 @@ body {
 
 a,
 button,
-select {
+select,
+input,
+textarea {
   -webkit-tap-highlight-color: transparent;
 }
 
 a:focus-visible,
 button:focus-visible,
-select:focus-visible {
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--portal-blue) 65%, transparent);
   outline-offset: 3px;
+}
+
+.feedback-submit {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(20rem, 1.2fr);
+  gap: clamp(2rem, 7vw, 7rem);
+  margin-top: clamp(3.5rem, 8vw, 7rem);
+  padding: clamp(2rem, 5vw, 4rem);
+  border: 1px solid var(--portal-ink);
+  background: color-mix(in srgb, white 36%, transparent);
+}
+
+.feedback-submit-copy h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.8rem);
+  font-weight: 650;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.feedback-submit-copy > p:last-child {
+  margin: 1.5rem 0 0;
+  color: #5c606a;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.feedback-submit-form,
+.feedback-submit-form label {
+  display: grid;
+}
+
+.feedback-submit-form {
+  gap: 1rem;
+}
+
+.feedback-submit-form label {
+  gap: 0.5rem;
+}
+
+.feedback-submit-form label > span {
+  color: #5c606a;
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feedback-submit-form input,
+.feedback-submit-form textarea,
+.feedback-submit-form select {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #aaa69c;
+  border-radius: 0;
+  background: var(--portal-paper);
+  color: var(--portal-ink);
+  font: inherit;
+}
+
+.feedback-submit-form input,
+.feedback-submit-form select {
+  min-height: 3rem;
+  padding: 0 0.85rem;
+}
+
+.feedback-submit-form textarea {
+  min-height: 9rem;
+  padding: 0.85rem;
+  resize: vertical;
+}
+
+.feedback-submit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.feedback-submit-actions button {
+  min-height: 3rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--portal-ink);
+  border-radius: 0;
+  background: var(--portal-ink);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.feedback-submit-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.feedback-submit-actions .feedback-withdraw {
+  background: transparent;
+  color: #8b2929;
+}
+
+.feedback-submit-message {
+  margin: 0;
+  color: var(--portal-blue);
+  font-size: 0.85rem;
+  font-weight: 650;
 }
 
 .portal-shell {
@@ -431,6 +541,15 @@ select:focus-visible {
   .feedback-index {
     width: auto;
     padding: 3.5rem 1rem 4rem;
+  }
+
+  .feedback-submit {
+    grid-template-columns: 1fr;
+    padding: 1.25rem;
+  }
+
+  .feedback-submit-actions {
+    display: grid;
   }
 
   .feedback-detail {

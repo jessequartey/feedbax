@@ -1,4 +1,6 @@
 import type {
+  BrowserCapability,
+  FeedbackItem,
   FeedbackModule,
   SubmitFeedbackInput,
   SubmittedFeedbackItem,
@@ -19,6 +21,45 @@ interface PortalFeedbackSubmissionOptions {
 
 export interface PortalSubmissionRateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+interface PortalDraftManagementOptions {
+  feedback: Pick<FeedbackModule, "editDraft" | "withdrawDraft">;
+  limits: PortalFeedbackSubmissionOptions["limits"];
+}
+
+export function createPortalDraftManagement({
+  feedback,
+  limits,
+}: PortalDraftManagementOptions): {
+  edit(input: unknown): Promise<FeedbackItem>;
+  withdraw(input: unknown): Promise<void>;
+} {
+  return {
+    edit(input) {
+      const draft = validateDraftIdentity(input);
+      const value = input as Record<string, unknown>;
+      if (
+        !isBoundedRequiredText(value.title, limits.maxTitleLength) ||
+        !isBoundedRequiredText(
+          value.description,
+          limits.maxDescriptionLength,
+        ) ||
+        !isFeedbackType(value.type)
+      ) {
+        throw invalidSubmission();
+      }
+      return feedback.editDraft({
+        ...draft,
+        title: value.title,
+        description: value.description,
+        type: value.type,
+      });
+    },
+    withdraw(input) {
+      return feedback.withdrawDraft(validateDraftIdentity(input));
+    },
+  };
 }
 
 export function createPortalFeedbackSubmission({
@@ -85,6 +126,28 @@ function validateInput(
     description: value.description,
     type: value.type,
     ...(value.submitter ? { submitter: value.submitter } : {}),
+  };
+}
+
+function validateDraftIdentity(input: unknown): {
+  id: string;
+  browserCapability: BrowserCapability;
+} {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw invalidSubmission();
+  }
+  const value = input as Record<string, unknown>;
+  if (
+    typeof value.id !== "string" ||
+    value.id.length === 0 ||
+    typeof value.browserCapability !== "string" ||
+    value.browserCapability.length === 0
+  ) {
+    throw invalidSubmission();
+  }
+  return {
+    id: value.id,
+    browserCapability: value.browserCapability as BrowserCapability,
   };
 }
 

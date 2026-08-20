@@ -6,7 +6,10 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { createCloudflareTurnstileVerifier } from "./cloudflare-turnstile";
-import { createPortalFeedbackSubmission } from "./portal-feedback-submission";
+import {
+  createPortalDraftManagement,
+  createPortalFeedbackSubmission,
+} from "./portal-feedback-submission";
 
 const propertyIds: FeedbackPropertyIds = {
   title: "title-id",
@@ -24,6 +27,54 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion-only feedback submission", () => {
+  it("edits permitted draft fields through the portal mutation boundary", async () => {
+    const feedback = createFeedbackModule();
+    const submitted = await feedback.submit({
+      title: "Original title",
+      description: "Original description",
+      type: "General Feedback",
+    });
+    const drafts = createPortalDraftManagement({
+      feedback,
+      limits: { maxTitleLength: 160, maxDescriptionLength: 5_000 },
+    });
+
+    await expect(
+      drafts.edit({
+        id: submitted.id,
+        browserCapability: submitted.browserCapability,
+        title: "Corrected title",
+        description: "Corrected description",
+        type: "Bug Report",
+      }),
+    ).resolves.toMatchObject({
+      id: submitted.id,
+      title: "Corrected title",
+      description: "Corrected description",
+      type: "Bug Report",
+    });
+  });
+
+  it("withdraws an eligible draft through the portal mutation boundary", async () => {
+    const feedback = createFeedbackModule();
+    const submitted = await feedback.submit({
+      title: "Withdraw this draft",
+      description: "This submission is no longer needed.",
+      type: "General Feedback",
+    });
+    const drafts = createPortalDraftManagement({
+      feedback,
+      limits: { maxTitleLength: 160, maxDescriptionLength: 5_000 },
+    });
+
+    await expect(
+      drafts.withdraw({
+        id: submitted.id,
+        browserCapability: submitted.browserCapability,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it("creates a New unpublished Feedback Item and returns its Browser Capability", async () => {
     const submit = createPortalFeedbackSubmission({
       feedback: createFeedbackModule(),
