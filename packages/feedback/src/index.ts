@@ -5,6 +5,13 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+export {
+  createNotionFeedbackDataSource,
+  validateNotionFeedbackDataSource,
+  type FeedbackDataSourceConfiguration,
+  type FeedbackPropertyIds,
+} from "./notion-data-source";
+
 export type FeedbackType =
   "Feature Request" | "Bug Report" | "General Feedback";
 

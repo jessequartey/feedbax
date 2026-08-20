@@ -4,7 +4,7 @@ import {
   createNotionFeedbackDataSource,
   validateNotionFeedbackDataSource,
   type FeedbackPropertyIds,
-} from "./notion-data-source";
+} from "./index";
 
 const propertyIds: FeedbackPropertyIds = {
   title: "title-id",
