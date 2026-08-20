@@ -9,6 +9,7 @@ import type {
   StoredFeedbackItem,
 } from "./feedback-storage";
 import type { FeedbackPropertyIds } from "./notion-data-source";
+import { requestNotion, type NotionRetryOptions } from "./notion-request";
 
 const NOTION_API_URL = "https://api.notion.com/v1";
 const NOTION_API_VERSION = "2026-03-11";
@@ -18,6 +19,7 @@ export interface NotionFeedbackStorageOptions {
   dataSourceId: string;
   propertyIds: FeedbackPropertyIds;
   request?: typeof fetch;
+  retry?: NotionRetryOptions;
 }
 
 export function createNotionFeedbackStorage({
@@ -25,37 +27,49 @@ export function createNotionFeedbackStorage({
   dataSourceId,
   propertyIds,
   request = fetch,
+  retry,
 }: NotionFeedbackStorageOptions): FeedbackStorage {
   const headers = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
     "Notion-Version": NOTION_API_VERSION,
   };
+  const notionRequest = (
+    input: Parameters<typeof fetch>[0],
+    init: RequestInit = {},
+  ) => requestNotion(input, init, { request, retry, operation: "idempotent" });
 
   return {
     async create(item) {
-      const response = await request(`${NOTION_API_URL}/pages`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          parent: { type: "data_source_id", data_source_id: dataSourceId },
-          properties: propertiesForCreate(item, propertyIds),
-        }),
-      });
+      const response = await requestNotion(
+        `${NOTION_API_URL}/pages`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            parent: { type: "data_source_id", data_source_id: dataSourceId },
+            properties: propertiesForCreate(item, propertyIds),
+          }),
+        },
+        { request, retry, operation: "create" },
+      );
       return feedbackItemFromPage(await readNotionPage(response), propertyIds);
     },
     async save(item) {
-      const response = await request(`${NOTION_API_URL}/pages/${item.id}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
-          properties: propertiesForDraftEdit(item, propertyIds),
-        }),
-      });
+      const response = await notionRequest(
+        `${NOTION_API_URL}/pages/${item.id}`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            properties: propertiesForDraftEdit(item, propertyIds),
+          }),
+        },
+      );
       return feedbackItemFromPage(await readNotionPage(response), propertyIds);
     },
     async find(id) {
-      const response = await request(`${NOTION_API_URL}/pages/${id}`, {
+      const response = await notionRequest(`${NOTION_API_URL}/pages/${id}`, {
         method: "GET",
         headers,
       });
@@ -67,7 +81,7 @@ export function createNotionFeedbackStorage({
       for (const propertyId of publicReadPropertyIds(propertyIds)) {
         query.append("filter_properties", propertyId);
       }
-      const response = await request(
+      const response = await notionRequest(
         `${NOTION_API_URL}/pages/${id}?${query.toString()}`,
         { method: "GET", headers },
       );
@@ -82,7 +96,7 @@ export function createNotionFeedbackStorage({
     },
     async listPublic(query) {
       const response = await queryPublicFeedback({
-        request,
+        request: notionRequest,
         headers,
         dataSourceId,
         propertyIds,
@@ -97,7 +111,7 @@ export function createNotionFeedbackStorage({
     },
     async listPublicRoadmap() {
       const response = await queryPublicFeedback({
-        request,
+        request: notionRequest,
         headers,
         dataSourceId,
         propertyIds,
@@ -113,7 +127,7 @@ export function createNotionFeedbackStorage({
       );
     },
     async remove(id) {
-      const response = await request(`${NOTION_API_URL}/pages/${id}`, {
+      const response = await notionRequest(`${NOTION_API_URL}/pages/${id}`, {
         method: "PATCH",
         headers,
         body: JSON.stringify({ in_trash: true }),

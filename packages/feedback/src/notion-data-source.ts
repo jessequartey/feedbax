@@ -1,3 +1,5 @@
+import { requestNotion, type NotionRetryOptions } from "./notion-request";
+
 const NOTION_API_URL = "https://api.notion.com/v1";
 const NOTION_API_VERSION = "2026-03-11";
 
@@ -97,6 +99,7 @@ interface CreateNotionFeedbackDataSourceOptions {
   token: string;
   parentPageId: string;
   request?: typeof fetch;
+  retry?: NotionRetryOptions;
 }
 
 interface ValidateNotionFeedbackDataSourceOptions {
@@ -104,6 +107,7 @@ interface ValidateNotionFeedbackDataSourceOptions {
   dataSourceId: string;
   propertyIds: FeedbackPropertyIds;
   request?: typeof fetch;
+  retry?: NotionRetryOptions;
 }
 
 interface NotionProperty {
@@ -122,32 +126,38 @@ export async function createNotionFeedbackDataSource({
   token,
   parentPageId,
   request = fetch,
+  retry,
 }: CreateNotionFeedbackDataSourceOptions): Promise<FeedbackDataSourceConfiguration> {
-  const response = await request(`${NOTION_API_URL}/databases`, {
-    method: "POST",
-    headers: notionHeaders(token),
-    body: JSON.stringify({
-      parent: { type: "page_id", page_id: parentPageId },
-      title: [{ type: "text", text: { content: "Feedback" } }],
-      initial_data_source: {
-        properties: Object.fromEntries(
-          Object.values(canonicalProperties).map(({ name, schema }) => [
-            name,
-            schema,
-          ]),
-        ),
-      },
-    }),
-  });
+  const response = await requestNotion(
+    `${NOTION_API_URL}/databases`,
+    {
+      method: "POST",
+      headers: notionHeaders(token),
+      body: JSON.stringify({
+        parent: { type: "page_id", page_id: parentPageId },
+        title: [{ type: "text", text: { content: "Feedback" } }],
+        initial_data_source: {
+          properties: Object.fromEntries(
+            Object.values(canonicalProperties).map(({ name, schema }) => [
+              name,
+              schema,
+            ]),
+          ),
+        },
+      }),
+    },
+    { request, retry, operation: "create" },
+  );
 
   const database = await readNotionResponse(response);
   if (typeof database.id !== "string") {
     throw new Error("Notion did not return the created Feedback database.");
   }
   const dataSourceId = firstDataSourceId(database);
-  const dataSourceResponse = await request(
+  const dataSourceResponse = await requestNotion(
     `${NOTION_API_URL}/data_sources/${dataSourceId}`,
     { method: "GET", headers: notionHeaders(token) },
+    { request, retry, operation: "idempotent" },
   );
   const dataSource = await readNotionResponse(dataSourceResponse);
   return configurationFromCanonicalNames(dataSource, database.id);
@@ -158,13 +168,15 @@ export async function validateNotionFeedbackDataSource({
   dataSourceId,
   propertyIds,
   request = fetch,
+  retry,
 }: ValidateNotionFeedbackDataSourceOptions): Promise<FeedbackDataSourceConfiguration> {
-  const response = await request(
+  const response = await requestNotion(
     `${NOTION_API_URL}/data_sources/${dataSourceId}`,
     {
       method: "GET",
       headers: notionHeaders(token),
     },
+    { request, retry, operation: "idempotent" },
   );
   const dataSource = await readNotionResponse(response);
   const properties = dataSource.properties;

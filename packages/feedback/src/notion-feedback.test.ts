@@ -24,6 +24,117 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion-backed Feedback module", () => {
+  it("retries a 429 response according to Retry-After", async () => {
+    const delays: number[] = [];
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { object: "error", message: "rate limited" },
+          { status: 429, headers: { "Retry-After": "2" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          notionPage({
+            title: "Keyboard-first search",
+            description: "Open search without reaching for the mouse.",
+            type: "Feature Request",
+            status: "Planned",
+            published: true,
+            editTokenHash: "private-hash",
+          }),
+        ),
+      );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+      retry: {
+        sleep: async (milliseconds) => {
+          delays.push(milliseconds);
+        },
+        random: () => 0,
+      },
+    });
+
+    await expect(feedback.getPublic("notion-page-id")).resolves.toMatchObject({
+      title: "Keyboard-first search",
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(delays).toEqual([2_000]);
+  });
+
+  it("bounds 529 retries with exponential jitter and a safe explicit failure", async () => {
+    const delays: number[] = [];
+    const random = vi.fn().mockReturnValueOnce(0).mockReturnValueOnce(1);
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json(
+          { object: "error", message: "temporary Notion outage" },
+          { status: 529 },
+        ),
+      );
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+    const feedback = createNotionFeedbackModule({
+      token: "secret-notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+      retry: {
+        sleep: async (milliseconds) => {
+          delays.push(milliseconds);
+        },
+        random,
+      },
+    });
+
+    const result = feedback.getPublic("private-feedback-id");
+
+    await expect(result).rejects.toThrow(
+      "Notion request failed after 3 attempts (529).",
+    );
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(delays).toEqual([125, 500]);
+    expect(random).toHaveBeenCalledTimes(2);
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(consoleLog).not.toHaveBeenCalled();
+    await expect(result).rejects.not.toThrow("secret-notion-token");
+    consoleError.mockRestore();
+    consoleLog.mockRestore();
+  });
+
+  it("does not repeat a non-idempotent create after a 529 response", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json(
+          { object: "error", message: "temporary Notion outage" },
+          { status: 529 },
+        ),
+      );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    await expect(
+      feedback.submit({
+        title: "Do not duplicate this",
+        description: "The create result is uncertain.",
+        type: "General Feedback",
+      }),
+    ).rejects.toThrow("Notion rejected the Feedback Item request (529).");
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it("retrieves a Published Feedback Item through the approved public projection", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(

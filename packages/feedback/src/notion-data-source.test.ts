@@ -22,6 +22,48 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion Feedback Data Source", () => {
+  it("retries transient failures while validating a Feedback Data Source", async () => {
+    const delays: number[] = [];
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { object: "error", message: "rate limited" },
+          { status: 429, headers: { "Retry-After": "1" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          object: "data_source",
+          id: "feedback-data-source",
+          parent: { type: "database_id", database_id: "feedback-database" },
+          properties: Object.fromEntries(
+            Object.entries(propertyIds).map(([key, id]) => [
+              key,
+              { id, name: key, type: expectedTypes[key] },
+            ]),
+          ),
+        }),
+      );
+
+    await expect(
+      validateNotionFeedbackDataSource({
+        token: "notion-token",
+        dataSourceId: "feedback-data-source",
+        propertyIds,
+        request,
+        retry: {
+          sleep: async (milliseconds) => {
+            delays.push(milliseconds);
+          },
+          random: () => 0,
+        },
+      }),
+    ).resolves.toMatchObject({ dataSourceId: "feedback-data-source" });
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(delays).toEqual([1_000]);
+  });
+
   it("creates every canonical property with Notion API 2026-03-11", async () => {
     const request = vi
       .fn<typeof fetch>()
