@@ -5,7 +5,10 @@ export default function Header() {
         <span aria-hidden="true">F</span>
         Feedbax
       </a>
-      <p>Built in public, with you.</p>
+      <nav aria-label="Public portal">
+        <a href="/">Feedback</a>
+        <a href="/roadmap">Roadmap</a>
+      </nav>
     </header>
   );
 }
