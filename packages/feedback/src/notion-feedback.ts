@@ -1,26 +1,13 @@
+import type { FeedbackStatus, FeedbackType } from "./index";
 import type {
-  FeedbackItem,
-  FeedbackStatus,
-  FeedbackType,
-  SubmitFeedbackInput,
-} from "./index";
+  FeedbackStorage,
+  NewStoredFeedbackItem,
+  StoredFeedbackItem,
+} from "./feedback-storage";
 import type { FeedbackPropertyIds } from "./notion-data-source";
 
 const NOTION_API_URL = "https://api.notion.com/v1";
 const NOTION_API_VERSION = "2026-03-11";
-
-type StoredFeedbackItem = FeedbackItem &
-  Record<string, unknown> & { browserCapabilityHash?: string };
-type NewStoredFeedbackItem = Omit<FeedbackItem, "id"> &
-  Record<string, unknown> & { browserCapabilityHash?: string };
-
-interface FeedbackStorage {
-  create(item: NewStoredFeedbackItem): Promise<StoredFeedbackItem>;
-  save(item: StoredFeedbackItem): Promise<StoredFeedbackItem>;
-  find(id: string): Promise<StoredFeedbackItem | undefined>;
-  list(): Promise<StoredFeedbackItem[]>;
-  remove(id: string): Promise<void>;
-}
 
 export interface NotionFeedbackStorageOptions {
   token: string;
@@ -158,8 +145,10 @@ function feedbackItemFromPage(
       "rich_text",
       "Description",
     ),
-    type: requiredSelect(property(ids.type), "Type") as FeedbackType,
-    status: requiredSelect(property(ids.status), "Status") as FeedbackStatus,
+    type: feedbackTypeFromNotion(requiredSelect(property(ids.type), "Type")),
+    status: feedbackStatusFromNotion(
+      requiredSelect(property(ids.status), "Status"),
+    ),
     published: booleanField(property(ids.published), "checkbox"),
     ...(name || email
       ? {
@@ -172,7 +161,32 @@ function feedbackItemFromPage(
     ),
     createdAt: new Date(stringField(page, "created_time")),
     updatedAt: new Date(stringField(page, "last_edited_time")),
-  } satisfies SubmitFeedbackInput & StoredFeedbackItem;
+  } satisfies StoredFeedbackItem;
+}
+
+function feedbackTypeFromNotion(value: string): FeedbackType {
+  if (
+    value === "Feature Request" ||
+    value === "Bug Report" ||
+    value === "General Feedback"
+  ) {
+    return value;
+  }
+  throw new Error(`Notion returned unsupported Feedback Type "${value}".`);
+}
+
+function feedbackStatusFromNotion(value: string): FeedbackStatus {
+  if (
+    value === "New" ||
+    value === "Reviewing" ||
+    value === "Planned" ||
+    value === "In Progress" ||
+    value === "Shipped" ||
+    value === "Closed"
+  ) {
+    return value;
+  }
+  throw new Error(`Notion returned unsupported Feedback Status "${value}".`);
 }
 
 function propertyById(

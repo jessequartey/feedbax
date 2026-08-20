@@ -9,6 +9,11 @@ import {
   createNotionFeedbackStorage,
   type NotionFeedbackStorageOptions,
 } from "./notion-feedback";
+import type {
+  FeedbackStorage,
+  NewStoredFeedbackItem,
+  StoredFeedbackItem,
+} from "./feedback-storage";
 
 export {
   createNotionFeedbackDataSource,
@@ -91,24 +96,6 @@ export type RoadmapStatus = Extract<
 
 export type PublicRoadmap = Record<RoadmapStatus, PublicFeedbackItem[]>;
 
-type StoredFeedbackItem = FeedbackItem &
-  Record<string, unknown> & {
-    browserCapabilityHash?: string;
-  };
-
-type NewStoredFeedbackItem = Omit<FeedbackItem, "id"> &
-  Record<string, unknown> & {
-    browserCapabilityHash?: string;
-  };
-
-interface FeedbackStorage {
-  create(item: NewStoredFeedbackItem): Promise<StoredFeedbackItem>;
-  save(item: StoredFeedbackItem): Promise<StoredFeedbackItem>;
-  find(id: string): Promise<StoredFeedbackItem | undefined>;
-  list(): Promise<StoredFeedbackItem[]>;
-  remove(id: string): Promise<void>;
-}
-
 class InMemoryFeedbackStorage implements FeedbackStorage {
   readonly #items: Map<string, StoredFeedbackItem>;
 
@@ -148,6 +135,11 @@ export interface FeedbackModule {
   listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
   getPublicRoadmap(): Promise<PublicRoadmap>;
 }
+
+export type FeedbackMutationModule = Pick<
+  FeedbackModule,
+  "submit" | "editDraft" | "withdrawDraft"
+>;
 
 interface CreateFeedbackModuleOptions {
   initialItems?: StoredFeedbackItem[];
@@ -263,7 +255,7 @@ export function createFeedbackModule(
 
 export function createNotionFeedbackModule(
   options: NotionFeedbackStorageOptions,
-): FeedbackModule {
+): FeedbackMutationModule {
   return createFeedbackModule({
     storage: createNotionFeedbackStorage(options),
   });

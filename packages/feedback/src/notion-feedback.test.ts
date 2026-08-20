@@ -235,6 +235,35 @@ describe("Notion-backed Feedback module", () => {
     ).resolves.toBeUndefined();
     expect(mutations[1]).toEqual({ in_trash: true });
   });
+
+  it("rejects Notion select values outside the Feedback domain", async () => {
+    const page = notionPage({
+      title: "Unexpected value",
+      description: "A Team Member changed a select option.",
+      type: "General Feedback",
+      editTokenHash: "stored-hash",
+    });
+    const typeProperty = (page.properties as Record<string, unknown>).Type;
+    Reflect.set(typeProperty as object, "select", { name: "Question" });
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json(page));
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    await expect(
+      feedback.editDraft({
+        id: "notion-page-id",
+        browserCapability:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as BrowserCapability,
+        title: "Do not map this",
+      }),
+    ).rejects.toThrow('Notion returned unsupported Feedback Type "Question".');
+  });
 });
 
 function textContent(property: unknown): string {
