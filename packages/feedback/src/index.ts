@@ -5,6 +5,11 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
+import {
+  createNotionFeedbackStorage,
+  type NotionFeedbackStorageOptions,
+} from "./notion-feedback";
+
 export {
   createNotionFeedbackDataSource,
   validateNotionFeedbackDataSource,
@@ -91,8 +96,15 @@ type StoredFeedbackItem = FeedbackItem &
     browserCapabilityHash?: string;
   };
 
+type NewStoredFeedbackItem = Omit<FeedbackItem, "id"> &
+  Record<string, unknown> & {
+    browserCapabilityHash?: string;
+  };
+
 interface FeedbackStorage {
-  save(item: StoredFeedbackItem): Promise<void>;
+  create(item: NewStoredFeedbackItem): Promise<StoredFeedbackItem>;
+  save(item: StoredFeedbackItem): Promise<StoredFeedbackItem>;
+  find(id: string): Promise<StoredFeedbackItem | undefined>;
   list(): Promise<StoredFeedbackItem[]>;
   remove(id: string): Promise<void>;
 }
@@ -106,8 +118,18 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     );
   }
 
-  async save(item: StoredFeedbackItem): Promise<void> {
+  async create(item: NewStoredFeedbackItem): Promise<StoredFeedbackItem> {
+    return this.save({ ...item, id: randomUUID() });
+  }
+
+  async save(item: StoredFeedbackItem): Promise<StoredFeedbackItem> {
     this.#items.set(item.id, structuredClone(item));
+    return structuredClone(item);
+  }
+
+  async find(id: string): Promise<StoredFeedbackItem | undefined> {
+    const item = this.#items.get(id);
+    return item ? structuredClone(item) : undefined;
   }
 
   async list(): Promise<StoredFeedbackItem[]> {
@@ -129,30 +151,27 @@ export interface FeedbackModule {
 
 interface CreateFeedbackModuleOptions {
   initialItems?: StoredFeedbackItem[];
+  storage?: FeedbackStorage;
 }
 
 export function createFeedbackModule(
   options: CreateFeedbackModuleOptions = {},
 ): FeedbackModule {
-  const storage: FeedbackStorage = new InMemoryFeedbackStorage(
-    options.initialItems,
-  );
+  const storage =
+    options.storage ?? new InMemoryFeedbackStorage(options.initialItems);
 
   return {
     async submit(input) {
       const now = new Date();
       const browserCapability = createBrowserCapability();
-      const item: StoredFeedbackItem = {
+      const item = await storage.create({
         ...input,
-        id: randomUUID(),
         status: "New",
         published: false,
         createdAt: now,
         updatedAt: now,
         browserCapabilityHash: hashBrowserCapability(browserCapability),
-      };
-
-      await storage.save(item);
+      });
 
       return {
         ...toFeedbackItem(item),
@@ -160,9 +179,7 @@ export function createFeedbackModule(
       };
     },
     async editDraft(input) {
-      const item = (await storage.list()).find(
-        (candidate) => candidate.id === input.id,
-      );
+      const item = await storage.find(input.id);
 
       if (!authorizesDraft(item, input.browserCapability)) {
         throw new Error("Browser Capability did not authorize this draft.");
@@ -181,14 +198,10 @@ export function createFeedbackModule(
         updatedAt: new Date(),
       };
 
-      await storage.save(editedItem);
-
-      return toFeedbackItem(editedItem);
+      return toFeedbackItem(await storage.save(editedItem));
     },
     async withdrawDraft(input) {
-      const item = (await storage.list()).find(
-        (candidate) => candidate.id === input.id,
-      );
+      const item = await storage.find(input.id);
 
       if (!authorizesDraft(item, input.browserCapability)) {
         throw new Error("Browser Capability did not authorize this draft.");
@@ -246,6 +259,14 @@ export function createFeedbackModule(
       return roadmap;
     },
   };
+}
+
+export function createNotionFeedbackModule(
+  options: NotionFeedbackStorageOptions,
+): FeedbackModule {
+  return createFeedbackModule({
+    storage: createNotionFeedbackStorage(options),
+  });
 }
 
 function encodeCursor(id: string): string {
