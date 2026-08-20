@@ -69,3 +69,19 @@ feedbax/
 - `pnpm run dev:portal`: Start only the portal application
 - `pnpm run type-check`: Check TypeScript types across all workspaces
 - `pnpm run deploy:dry-run`: Build the portal and verify its Worker bundle
+
+## Project contract
+
+- [Product context](CONTEXT.md)
+- [Core specification](SPEC.md)
+- [Public roadmap](ROADMAP.md)
+- [Testing contract](TESTING.md)
+- [Architecture decisions](docs/adr/)
+- [Contributing](CONTRIBUTING.md)
+- [Governance](GOVERNANCE.md)
+- [Security policy](SECURITY.md)
+- [Community code of conduct](CODE_OF_CONDUCT.md)
+
+## License
+
+Feedbax Core is licensed under [Apache-2.0](LICENSE).

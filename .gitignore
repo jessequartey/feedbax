@@ -13,6 +13,8 @@ apps/web/src/routeTree.gen.ts
 
 # Environment variables
 .env
+.env.*
+!.env.example
 .env*.local
 
 # IDEs and editors
@@ -46,7 +48,15 @@ lerna-debug.log*
 
 # Cloudflare
 .dev.vars
+.dev.vars.*
+!.dev.vars.example
 .wrangler
+
+# Private keys and certificates
+*.key
+*.pem
+*.p12
+*.pfx
 
 # Testing
 coverage
