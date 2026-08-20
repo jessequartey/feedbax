@@ -24,24 +24,49 @@ export interface FeedbackItem extends SubmitFeedbackInput {
   updatedAt: Date;
 }
 
+export type PublicFeedbackItem = Pick<
+  FeedbackItem,
+  "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
+>;
+
+type StoredFeedbackItem = FeedbackItem & Record<string, unknown>;
+
 interface FeedbackStorage {
   save(item: FeedbackItem): Promise<void>;
+  list(): Promise<FeedbackItem[]>;
 }
 
 class InMemoryFeedbackStorage implements FeedbackStorage {
-  readonly #items = new Map<string, FeedbackItem>();
+  readonly #items: Map<string, FeedbackItem>;
+
+  constructor(initialItems: StoredFeedbackItem[] = []) {
+    this.#items = new Map(initialItems.map((item) => [item.id, item]));
+  }
 
   async save(item: FeedbackItem): Promise<void> {
     this.#items.set(item.id, item);
+  }
+
+  async list(): Promise<FeedbackItem[]> {
+    return [...this.#items.values()];
   }
 }
 
 export interface FeedbackModule {
   submit(input: SubmitFeedbackInput): Promise<FeedbackItem>;
+  listPublic(): Promise<PublicFeedbackItem[]>;
 }
 
-export function createFeedbackModule(): FeedbackModule {
-  const storage: FeedbackStorage = new InMemoryFeedbackStorage();
+interface CreateFeedbackModuleOptions {
+  initialItems?: StoredFeedbackItem[];
+}
+
+export function createFeedbackModule(
+  options: CreateFeedbackModuleOptions = {},
+): FeedbackModule {
+  const storage: FeedbackStorage = new InMemoryFeedbackStorage(
+    options.initialItems,
+  );
 
   return {
     async submit(input) {
@@ -59,5 +84,21 @@ export function createFeedbackModule(): FeedbackModule {
 
       return item;
     },
+    async listPublic() {
+      const items = await storage.list();
+
+      return items.filter((item) => item.published).map(toPublicFeedbackItem);
+    },
+  };
+}
+
+function toPublicFeedbackItem(item: FeedbackItem): PublicFeedbackItem {
+  return {
+    title: item.title,
+    description: item.description,
+    type: item.type,
+    status: item.status,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
