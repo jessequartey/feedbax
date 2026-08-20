@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FeedbackIdSlugRouteImport } from './routes/feedback.$id.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FeedbackIdSlugRoute = FeedbackIdSlugRouteImport.update({
+  id: '/feedback/$id/$slug',
+  path: '/feedback/$id/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/feedback/$id/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/feedback/$id/$slug'
+  id: '__root__' | '/' | '/feedback/$id/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FeedbackIdSlugRoute: typeof FeedbackIdSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/feedback/$id/$slug': {
+      id: '/feedback/$id/$slug'
+      path: '/feedback/$id/$slug'
+      fullPath: '/feedback/$id/$slug'
+      preLoaderRoute: typeof FeedbackIdSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FeedbackIdSlugRoute: FeedbackIdSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

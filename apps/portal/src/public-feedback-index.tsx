@@ -5,6 +5,8 @@ import type {
 import { ArrowRight } from "lucide-react";
 
 import { feedbackStatuses, feedbackTypes } from "./public-feedback-page";
+import { feedbackItemPath } from "./public-feedback-item-page";
+import { formatPublicDate } from "./public-date";
 
 export function PublicFeedbackIndex({
   page,
@@ -77,18 +79,20 @@ export function PublicFeedbackIndex({
         ) : (
           <ol className="feedback-list">
             {page.items.map((item) => (
-              <li key={`${item.title}-${item.createdAt.toISOString()}`}>
-                <article>
-                  <div className="feedback-meta">
-                    <span>{item.type}</span>
-                    <span data-status={item.status}>{item.status}</span>
-                    <time dateTime={item.createdAt.toISOString()}>
-                      {formatDate(item.createdAt)}
-                    </time>
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
-                </article>
+              <li key={item.id}>
+                <a className="feedback-item-link" href={feedbackItemPath(item)}>
+                  <article>
+                    <div className="feedback-meta">
+                      <span>{item.type}</span>
+                      <span data-status={item.status}>{item.status}</span>
+                      <time dateTime={item.createdAt.toISOString()}>
+                        {formatPublicDate(item.createdAt)}
+                      </time>
+                    </div>
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </article>
+                </a>
               </li>
             ))}
           </ol>
@@ -102,13 +106,4 @@ export function PublicFeedbackIndex({
       </section>
     </main>
   );
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(date);
 }

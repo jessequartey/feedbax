@@ -84,7 +84,7 @@ export interface WithdrawDraftInput {
 
 export type PublicFeedbackItem = Pick<
   FeedbackItem,
-  "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
+  "id" | "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
 >;
 
 export interface PublicFeedbackQuery {
@@ -337,6 +337,7 @@ function decodeCursor(cursor: string): string {
 
 function toPublicFeedbackItem(item: FeedbackItem): PublicFeedbackItem {
   return {
+    id: item.id,
     title: item.title,
     description: item.description,
     type: item.type,

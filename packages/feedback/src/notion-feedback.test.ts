@@ -156,6 +156,7 @@ describe("Notion-backed Feedback module", () => {
     });
 
     await expect(feedback.getPublic("notion-page-id")).resolves.toEqual({
+      id: "notion-page-id",
       title: "Keyboard-first search",
       description: "Open search without reaching for the mouse.",
       type: "Feature Request",
@@ -211,6 +212,7 @@ describe("Notion-backed Feedback module", () => {
     ).resolves.toEqual({
       items: [
         {
+          id: "published-page",
           title: "Faster exports",
           description: "Export large reports without timing out.",
           type: "Feature Request",

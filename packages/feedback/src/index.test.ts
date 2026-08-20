@@ -263,6 +263,7 @@ describe("Feedback module", () => {
     await expect(feedback.getPublicRoadmap()).resolves.toEqual({
       Planned: [
         {
+          id: "planned-newer",
           title: "Newer planned item",
           description: "Planned second, updated later.",
           type: "Bug Report",
@@ -271,6 +272,7 @@ describe("Feedback module", () => {
           updatedAt: new Date("2026-08-20T09:00:00.000Z"),
         },
         {
+          id: "planned-older",
           title: "Older planned item",
           description: "Planned first, updated earlier.",
           type: "Feature Request",
@@ -281,6 +283,7 @@ describe("Feedback module", () => {
       ],
       "In Progress": [
         {
+          id: "in-progress",
           title: "Active work",
           description: "Currently being implemented.",
           type: "General Feedback",
@@ -291,6 +294,7 @@ describe("Feedback module", () => {
       ],
       Shipped: [
         {
+          id: "shipped",
           title: "Delivered work",
           description: "Already available.",
           type: "Feature Request",
@@ -382,6 +386,7 @@ describe("Feedback module", () => {
     expect(Object.keys(secondPage.items[0]!).sort()).toEqual([
       "createdAt",
       "description",
+      "id",
       "status",
       "title",
       "type",
@@ -469,6 +474,7 @@ describe("Feedback module", () => {
     await expect(feedback.listPublic()).resolves.toEqual({
       items: [
         {
+          id: "feedback-item-id",
           title: "Add keyboard shortcuts",
           description: "Let me navigate the portal without a mouse.",
           type: "Feature Request",

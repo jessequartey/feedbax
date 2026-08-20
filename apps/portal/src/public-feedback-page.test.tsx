@@ -93,4 +93,29 @@ describe("public feedback home page", () => {
     expect(html).toContain("type=Bug+Report");
     expect(html).toContain("status=Reviewing");
   });
+
+  it("links each Published Feedback Item by stable ID and cosmetic title slug", () => {
+    const html = renderToStaticMarkup(
+      <PublicFeedbackIndex
+        page={{
+          items: [
+            {
+              id: "stable-notion-page-id",
+              title: "Keyboard-first search!",
+              description: "Open search without reaching for the mouse.",
+              type: "Feature Request",
+              status: "Planned",
+              createdAt: new Date("2026-08-20T10:00:00.000Z"),
+              updatedAt: new Date("2026-08-20T12:00:00.000Z"),
+            },
+          ],
+        }}
+        search={{}}
+      />,
+    );
+
+    expect(html).toContain(
+      'href="/feedback/stable-notion-page-id/keyboard-first-search"',
+    );
+  });
 });
