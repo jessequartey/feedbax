@@ -29,6 +29,17 @@ export type PublicFeedbackItem = Pick<
   "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
 >;
 
+export interface PublicFeedbackQuery {
+  cursor?: string;
+  type?: FeedbackType;
+  status?: FeedbackStatus;
+}
+
+export interface PublicFeedbackPage {
+  items: PublicFeedbackItem[];
+  nextCursor?: string;
+}
+
 type StoredFeedbackItem = FeedbackItem & Record<string, unknown>;
 
 interface FeedbackStorage {
@@ -56,7 +67,7 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 
 export interface FeedbackModule {
   submit(input: SubmitFeedbackInput): Promise<FeedbackItem>;
-  listPublic(): Promise<PublicFeedbackItem[]>;
+  listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
 }
 
 interface CreateFeedbackModuleOptions {
@@ -86,12 +97,44 @@ export function createFeedbackModule(
 
       return structuredClone(item);
     },
-    async listPublic() {
-      const items = await storage.list();
+    async listPublic(query = {}) {
+      const items = (await storage.list())
+        .filter(
+          (item) =>
+            item.published &&
+            (!query.type || item.type === query.type) &&
+            (!query.status || item.status === query.status),
+        )
+        .sort(
+          (left, right) =>
+            right.createdAt.getTime() - left.createdAt.getTime() ||
+            right.id.localeCompare(left.id),
+        );
+      const cursorId = query.cursor ? decodeCursor(query.cursor) : undefined;
+      const cursorIndex = cursorId
+        ? items.findIndex((item) => item.id === cursorId)
+        : -1;
+      const startIndex = cursorIndex + 1;
+      const pageItems = items.slice(startIndex, startIndex + 25);
+      const hasNextPage = startIndex + pageItems.length < items.length;
+      const lastItem = pageItems.at(-1);
 
-      return items.filter((item) => item.published).map(toPublicFeedbackItem);
+      return {
+        items: pageItems.map(toPublicFeedbackItem),
+        ...(hasNextPage && lastItem
+          ? { nextCursor: encodeCursor(lastItem.id) }
+          : {}),
+      };
     },
   };
+}
+
+function encodeCursor(id: string): string {
+  return Buffer.from(id, "utf8").toString("base64url");
+}
+
+function decodeCursor(cursor: string): string {
+  return Buffer.from(cursor, "base64url").toString("utf8");
 }
 
 function toPublicFeedbackItem(item: FeedbackItem): PublicFeedbackItem {

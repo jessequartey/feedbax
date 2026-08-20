@@ -3,6 +3,93 @@ import { describe, expect, it } from "vitest";
 import { createFeedbackModule } from "./index";
 
 describe("Feedback module", () => {
+  it("returns the newest 25 Published Feedback Items in the first page", async () => {
+    const feedback = createFeedbackModule({
+      initialItems: Array.from({ length: 27 }, (_, index) => ({
+        id: `feedback-${index + 1}`,
+        title: `Feedback ${index + 1}`,
+        description: `Description ${index + 1}`,
+        type: "Feature Request" as const,
+        status: "New" as const,
+        published: true,
+        createdAt: new Date(Date.UTC(2026, 7, index + 1)),
+        updatedAt: new Date(Date.UTC(2026, 7, index + 1)),
+      })),
+    });
+
+    const page = await feedback.listPublic();
+
+    expect(page.items).toHaveLength(25);
+    expect(page.items[0]?.title).toBe("Feedback 27");
+    expect(page.items[24]?.title).toBe("Feedback 3");
+    expect(page.nextCursor).toEqual(expect.any(String));
+  });
+
+  it("advances filtered cursor pages without duplicates, gaps, or private fields", async () => {
+    const matchingItems = Array.from({ length: 30 }, (_, index) => ({
+      id: `matching-${index + 1}`,
+      title: `Matching ${index + 1}`,
+      description: `Description ${index + 1}`,
+      type: "Bug Report" as const,
+      status: "Planned" as const,
+      published: true,
+      createdAt: new Date(Date.UTC(2026, 6, index + 1)),
+      updatedAt: new Date(Date.UTC(2026, 6, index + 1)),
+      submitter: { email: `private-${index + 1}@example.com` },
+      browserCapabilityHash: `private-hash-${index + 1}`,
+      source: "portal",
+      pageBody: "Private notes",
+      customProperty: "private value",
+    }));
+    const feedback = createFeedbackModule({
+      initialItems: [
+        ...matchingItems,
+        {
+          ...matchingItems[0]!,
+          id: "wrong-type",
+          title: "Wrong type",
+          type: "Feature Request",
+        },
+        {
+          ...matchingItems[1]!,
+          id: "wrong-status",
+          title: "Wrong status",
+          status: "Shipped",
+        },
+      ],
+    });
+
+    const firstPage = await feedback.listPublic({
+      type: "Bug Report",
+      status: "Planned",
+    });
+    const secondPage = await feedback.listPublic({
+      type: "Bug Report",
+      status: "Planned",
+      cursor: firstPage.nextCursor,
+    });
+
+    expect(firstPage.items.map((item) => item.title)).toEqual(
+      Array.from({ length: 25 }, (_, index) => `Matching ${30 - index}`),
+    );
+    expect(secondPage.items.map((item) => item.title)).toEqual([
+      "Matching 5",
+      "Matching 4",
+      "Matching 3",
+      "Matching 2",
+      "Matching 1",
+    ]);
+    expect(secondPage.nextCursor).toBeUndefined();
+    expect(Object.keys(secondPage.items[0]!).sort()).toEqual([
+      "createdAt",
+      "description",
+      "status",
+      "title",
+      "type",
+      "updatedAt",
+    ]);
+  });
+
   it("submits a New, unpublished Feedback Item", async () => {
     const feedback = createFeedbackModule();
 
@@ -38,7 +125,7 @@ describe("Feedback module", () => {
       type: "General Feedback",
     });
 
-    await expect(feedback.listPublic()).resolves.toEqual([]);
+    await expect(feedback.listPublic()).resolves.toEqual({ items: [] });
   });
 
   it("does not let a caller publish a submitted Feedback Item by mutation", async () => {
@@ -51,7 +138,7 @@ describe("Feedback module", () => {
 
     submittedItem.published = true;
 
-    await expect(feedback.listPublic()).resolves.toEqual([]);
+    await expect(feedback.listPublic()).resolves.toEqual({ items: [] });
   });
 
   it("returns only the approved public projection for a Published Feedback Item", async () => {
@@ -80,15 +167,17 @@ describe("Feedback module", () => {
       ],
     });
 
-    await expect(feedback.listPublic()).resolves.toEqual([
-      {
-        title: "Add keyboard shortcuts",
-        description: "Let me navigate the portal without a mouse.",
-        type: "Feature Request",
-        status: "New",
-        createdAt,
-        updatedAt,
-      },
-    ]);
+    await expect(feedback.listPublic()).resolves.toEqual({
+      items: [
+        {
+          title: "Add keyboard shortcuts",
+          description: "Let me navigate the portal without a mouse.",
+          type: "Feature Request",
+          status: "New",
+          createdAt,
+          updatedAt,
+        },
+      ],
+    });
   });
 });
