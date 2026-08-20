@@ -56,6 +56,13 @@ export type BrowserCapability = string & {
   readonly [browserCapabilityBrand]: true;
 };
 
+export class BrowserCapabilityAuthorizationError extends Error {
+  constructor() {
+    super("Browser Capability did not authorize this draft.");
+    this.name = "BrowserCapabilityAuthorizationError";
+  }
+}
+
 export type SubmittedFeedbackItem = FeedbackItem & {
   browserCapability: BrowserCapability;
 };
@@ -261,7 +268,7 @@ export function createFeedbackModule(
       const item = await storage.find(input.id);
 
       if (!authorizesDraft(item, input.browserCapability)) {
-        throw new Error("Browser Capability did not authorize this draft.");
+        throw new BrowserCapabilityAuthorizationError();
       }
 
       const editedItem: StoredFeedbackItem = {
@@ -283,7 +290,7 @@ export function createFeedbackModule(
       const item = await storage.find(input.id);
 
       if (!authorizesDraft(item, input.browserCapability)) {
-        throw new Error("Browser Capability did not authorize this draft.");
+        throw new BrowserCapabilityAuthorizationError();
       }
 
       await storage.remove(item.id);

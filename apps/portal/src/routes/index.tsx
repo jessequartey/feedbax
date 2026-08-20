@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { PublicFeedbackIndex } from "../public-feedback-index";
+import { PublicPortalError } from "../public-portal-error";
 import { publicFeedbackSearch } from "../public-feedback-page";
 import { getPublicFeedbackPage } from "../public-feedback-server-function";
 
@@ -9,6 +10,7 @@ export const Route = createFileRoute("/")({
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => getPublicFeedbackPage({ data: deps }),
   component: HomeComponent,
+  errorComponent: PublicPortalError,
 });
 
 function HomeComponent() {

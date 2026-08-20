@@ -5,6 +5,7 @@ import {
   loadPublicFeedbackPage,
   publicFeedbackSearch,
 } from "./public-feedback-page";
+import { runSafePublicRead } from "./safe-public-failure";
 
 export const getPublicFeedbackPage = createServerFn({ method: "GET" })
   .validator((input: unknown) =>
@@ -15,8 +16,10 @@ export const getPublicFeedbackPage = createServerFn({ method: "GET" })
     ),
   )
   .handler(({ data }) =>
-    loadPublicFeedbackPage({
-      feedback: createConfiguredFeedbackModule(),
-      search: data,
-    }),
+    runSafePublicRead(() =>
+      loadPublicFeedbackPage({
+        feedback: createConfiguredFeedbackModule(),
+        search: data,
+      }),
+    ),
   );

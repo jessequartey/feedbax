@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
+import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as FeedbackIdSlugRouteImport } from './routes/feedback.$id.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const RoadmapRoute = RoadmapRouteImport.update({
   path: '/roadmap',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SubmitRoute = SubmitRouteImport.update({
+  id: '/submit',
+  path: '/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FeedbackIdSlugRoute = FeedbackIdSlugRouteImport.update({
   id: '/feedback/$id/$slug',
   path: '/feedback/$id/$slug',
@@ -32,30 +38,34 @@ const FeedbackIdSlugRoute = FeedbackIdSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/roadmap': typeof RoadmapRoute
+  '/submit': typeof SubmitRoute
   '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/roadmap': typeof RoadmapRoute
+  '/submit': typeof SubmitRoute
   '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/roadmap': typeof RoadmapRoute
+  '/submit': typeof SubmitRoute
   '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/roadmap' | '/feedback/$id/$slug'
+  fullPaths: '/' | '/roadmap' | '/submit' | '/feedback/$id/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/roadmap' | '/feedback/$id/$slug'
-  id: '__root__' | '/' | '/roadmap' | '/feedback/$id/$slug'
+  to: '/' | '/roadmap' | '/submit' | '/feedback/$id/$slug'
+  id: '__root__' | '/' | '/roadmap' | '/submit' | '/feedback/$id/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RoadmapRoute: typeof RoadmapRoute
+  SubmitRoute: typeof SubmitRoute
   FeedbackIdSlugRoute: typeof FeedbackIdSlugRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoadmapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/submit': {
+      id: '/submit'
+      path: '/submit'
+      fullPath: '/submit'
+      preLoaderRoute: typeof SubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/feedback/$id/$slug': {
       id: '/feedback/$id/$slug'
       path: '/feedback/$id/$slug'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RoadmapRoute: RoadmapRoute,
+  SubmitRoute: SubmitRoute,
   FeedbackIdSlugRoute: FeedbackIdSlugRoute,
 }
 export const routeTree = rootRouteImport

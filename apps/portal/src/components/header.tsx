@@ -8,6 +8,7 @@ export default function Header() {
       <nav aria-label="Public portal">
         <a href="/">Feedback</a>
         <a href="/roadmap">Roadmap</a>
+        <a href="/submit">Submit</a>
       </nav>
     </header>
   );

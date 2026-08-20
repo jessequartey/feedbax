@@ -2,14 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { createConfiguredFeedbackModule } from "./feedback-runtime";
 import { loadPublicFeedbackItem } from "./public-feedback-item-page";
+import { runSafePublicRead } from "./safe-public-failure";
 
 export const getPublicFeedbackItem = createServerFn({ method: "GET" })
   .validator(publicFeedbackItemParams)
   .handler(({ data }) =>
-    loadPublicFeedbackItem({
-      feedback: createConfiguredFeedbackModule(),
-      ...data,
-    }),
+    runSafePublicRead(() =>
+      loadPublicFeedbackItem({
+        feedback: createConfiguredFeedbackModule(),
+        ...data,
+      }),
+    ),
   );
 
 function publicFeedbackItemParams(input: unknown): {

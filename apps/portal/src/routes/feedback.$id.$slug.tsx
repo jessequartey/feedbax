@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { PublicFeedbackItemDetail } from "../public-feedback-item-detail";
+import { PublicPortalError } from "../public-portal-error";
 import { getPublicFeedbackItem } from "../public-feedback-item-server-function";
 
 export const Route = createFileRoute("/feedback/$id/$slug")({
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/feedback/$id/$slug")({
   },
   component: FeedbackItemComponent,
   notFoundComponent: FeedbackItemNotFound,
+  errorComponent: PublicPortalError,
 });
 
 function FeedbackItemComponent() {

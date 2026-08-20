@@ -7,6 +7,7 @@ import type {
 } from "@feedbax/feedback";
 
 import type { TurnstileVerifier } from "./cloudflare-turnstile";
+import { ActionablePortalFailure } from "./safe-public-failure";
 
 interface PortalFeedbackSubmissionOptions {
   feedback: Pick<FeedbackModule, "submit">;
@@ -74,7 +75,9 @@ export function createPortalFeedbackSubmission({
   return async (input) => {
     const { success } = await rateLimiter.limit({ key: rateLimitKey });
     if (!success) {
-      throw new Error("Feedback submission rate limit exceeded.");
+      throw new ActionablePortalFailure(
+        "Feedback submission rate limit exceeded.",
+      );
     }
     if (turnstileVerifier) {
       await verifyTurnstile(input, rateLimitKey, turnstileVerifier);
@@ -101,7 +104,9 @@ async function verifyTurnstile(
 }
 
 function turnstileFailure(): Error {
-  return new Error("Feedback submission verification failed.");
+  return new ActionablePortalFailure(
+    "Feedback submission verification failed.",
+  );
 }
 
 function validateInput(
@@ -183,5 +188,5 @@ function isValidSubmitter(
 }
 
 function invalidSubmission(): Error {
-  return new Error("Feedback submission is invalid.");
+  return new ActionablePortalFailure("Feedback submission is invalid.");
 }

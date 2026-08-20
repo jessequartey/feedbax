@@ -24,6 +24,22 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("trusted feedback Worker handler", () => {
+  it("serves minimal deployment health without invoking application handlers", async () => {
+    const server = createPortalServerEntry({
+      trustedFeedbackHandler: async () => {
+        throw new Error("Health dispatch reached the trusted handler.");
+      },
+    });
+
+    const response = await server.fetch(
+      new Request("https://feedback.example.com/health"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({ status: "ok" });
+  });
+
   it("serves the trusted POST contract through the production server-entry dispatch", async () => {
     const server = createPortalServerEntry({
       trustedFeedbackHandler: createTrustedFeedbackHandler({

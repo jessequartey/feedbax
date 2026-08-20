@@ -648,6 +648,62 @@ textarea:focus-visible {
   font-size: 1.05rem;
 }
 
+.public-error {
+  display: flex;
+  width: min(90vw, 76rem);
+  min-height: calc(100svh - 4.5rem);
+  margin: 0 auto;
+  padding-block: 3rem;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.public-error h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(3rem, 7vw, 6.5rem);
+  font-weight: 650;
+  letter-spacing: -0.075em;
+  line-height: 0.94;
+}
+
+.public-error > p:not(.feedback-eyebrow) {
+  max-width: 38rem;
+  margin: 1.5rem 0 2rem;
+  color: #5c606a;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.public-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.public-error-actions button,
+.public-error-actions a {
+  display: inline-flex;
+  min-height: 3rem;
+  padding: 0 1.25rem;
+  align-items: center;
+  border: 1px solid var(--portal-ink);
+  border-radius: 0;
+  background: var(--portal-ink);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.public-error-actions a {
+  background: transparent;
+  color: var(--portal-ink);
+}
+
 .portal-loading {
   display: flex;
   min-height: calc(100svh - 4.5rem);
@@ -706,6 +762,21 @@ textarea:focus-visible {
   .feedback-detail {
     width: auto;
     padding: 2.5rem 1rem 4rem;
+  }
+
+  .public-error {
+    width: auto;
+    padding: 3rem 1rem;
+  }
+
+  .public-error-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .public-error-actions button,
+  .public-error-actions a {
+    justify-content: center;
   }
 
   .roadmap-page {
