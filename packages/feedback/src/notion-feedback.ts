@@ -1,4 +1,8 @@
-import type { FeedbackStatus, FeedbackType } from "./index";
+import type {
+  FeedbackStatus,
+  FeedbackType,
+  PublicFeedbackQuery,
+} from "./index";
 import type {
   FeedbackStorage,
   NewStoredFeedbackItem,
@@ -58,8 +62,55 @@ export function createNotionFeedbackStorage({
       if (response.status === 404) return undefined;
       return feedbackItemFromPage(await readNotionPage(response), propertyIds);
     },
+    async findPublic(id) {
+      const query = new URLSearchParams();
+      for (const propertyId of publicReadPropertyIds(propertyIds)) {
+        query.append("filter_properties", propertyId);
+      }
+      const response = await request(
+        `${NOTION_API_URL}/pages/${id}?${query.toString()}`,
+        { method: "GET", headers },
+      );
+      if (response.status === 404) return undefined;
+      return feedbackItemFromPublicPage(
+        await readNotionPage(response),
+        propertyIds,
+      );
+    },
     async list() {
       throw new Error("Notion public retrieval is not implemented yet.");
+    },
+    async listPublic(query) {
+      const response = await queryPublicFeedback({
+        request,
+        headers,
+        dataSourceId,
+        propertyIds,
+        body: publicListQuery(query, propertyIds),
+      });
+      return {
+        items: response.results.map((page) =>
+          feedbackItemFromPublicPage(page, propertyIds, true),
+        ),
+        ...(response.nextCursor ? { nextCursor: response.nextCursor } : {}),
+      };
+    },
+    async listPublicRoadmap() {
+      const response = await queryPublicFeedback({
+        request,
+        headers,
+        dataSourceId,
+        propertyIds,
+        body: publicRoadmapQuery(propertyIds),
+      });
+      if (response.hasMore) {
+        throw new Error(
+          "Notion returned more public roadmap items than one query can serve.",
+        );
+      }
+      return response.results.map((page) =>
+        feedbackItemFromPublicPage(page, propertyIds, true),
+      );
     },
     async remove(id) {
       const response = await request(`${NOTION_API_URL}/pages/${id}`, {
@@ -69,6 +120,130 @@ export function createNotionFeedbackStorage({
       });
       await readNotionPage(response);
     },
+  };
+}
+
+function publicListQuery(
+  query: PublicFeedbackQuery,
+  ids: FeedbackPropertyIds,
+): Record<string, unknown> {
+  return {
+    page_size: 25,
+    ...(query.cursor ? { start_cursor: query.cursor } : {}),
+    filter: {
+      and: [
+        { property: ids.published, checkbox: { equals: true } },
+        ...(query.type
+          ? [{ property: ids.type, select: { equals: query.type } }]
+          : []),
+        ...(query.status
+          ? [{ property: ids.status, select: { equals: query.status } }]
+          : []),
+      ],
+    },
+    sorts: [{ property: ids.createdAt, direction: "descending" }],
+  };
+}
+
+function publicRoadmapQuery(ids: FeedbackPropertyIds): Record<string, unknown> {
+  return {
+    page_size: 100,
+    filter: {
+      and: [
+        { property: ids.published, checkbox: { equals: true } },
+        {
+          or: ["Planned", "In Progress", "Shipped"].map((status) => ({
+            property: ids.status,
+            select: { equals: status },
+          })),
+        },
+      ],
+    },
+    sorts: [{ property: ids.updatedAt, direction: "descending" }],
+  };
+}
+
+async function queryPublicFeedback({
+  request,
+  headers,
+  dataSourceId,
+  propertyIds,
+  body,
+}: {
+  request: typeof fetch;
+  headers: Record<string, string>;
+  dataSourceId: string;
+  propertyIds: FeedbackPropertyIds;
+  body: Record<string, unknown>;
+}): Promise<{
+  results: Array<Record<string, unknown>>;
+  nextCursor?: string;
+  hasMore: boolean;
+}> {
+  const query = new URLSearchParams();
+  for (const propertyId of publicProjectionPropertyIds(propertyIds)) {
+    query.append("filter_properties", propertyId);
+  }
+  const response = await request(
+    `${NOTION_API_URL}/data_sources/${dataSourceId}/query?${query.toString()}`,
+    { method: "POST", headers, body: JSON.stringify(body) },
+  );
+  const value = await readNotionPage(response);
+  const results = value.results;
+  if (!Array.isArray(results)) {
+    throw new Error("Notion returned an invalid Feedback Item list.");
+  }
+  return {
+    results: results.map((result) => {
+      if (!result || typeof result !== "object" || Array.isArray(result)) {
+        throw new Error("Notion returned an invalid Feedback Item list.");
+      }
+      return result as Record<string, unknown>;
+    }),
+    ...(typeof value.next_cursor === "string"
+      ? { nextCursor: value.next_cursor }
+      : {}),
+    hasMore: value.has_more === true,
+  };
+}
+
+function publicReadPropertyIds(ids: FeedbackPropertyIds): string[] {
+  return [...publicProjectionPropertyIds(ids), ids.published];
+}
+
+function publicProjectionPropertyIds(ids: FeedbackPropertyIds): string[] {
+  return [
+    ids.title,
+    ids.description,
+    ids.type,
+    ids.status,
+    ids.createdAt,
+    ids.updatedAt,
+  ];
+}
+
+function feedbackItemFromPublicPage(
+  page: Record<string, unknown>,
+  ids: FeedbackPropertyIds,
+  published?: boolean,
+): StoredFeedbackItem {
+  const properties = recordField(page, "properties");
+  const property = (propertyId: string) => propertyById(properties, propertyId);
+  return {
+    id: stringField(page, "id"),
+    title: requiredText(property(ids.title), "title", "Title"),
+    description: requiredText(
+      property(ids.description),
+      "rich_text",
+      "Description",
+    ),
+    type: feedbackTypeFromNotion(requiredSelect(property(ids.type), "Type")),
+    status: feedbackStatusFromNotion(
+      requiredSelect(property(ids.status), "Status"),
+    ),
+    published: published ?? booleanField(property(ids.published), "checkbox"),
+    createdAt: new Date(stringField(page, "created_time")),
+    updatedAt: new Date(stringField(page, "last_edited_time")),
   };
 }
 
@@ -131,25 +306,14 @@ function feedbackItemFromPage(
   page: Record<string, unknown>,
   ids: FeedbackPropertyIds,
 ): StoredFeedbackItem {
-  const id = stringField(page, "id");
+  const publicItem = feedbackItemFromPublicPage(page, ids);
   const properties = recordField(page, "properties");
   const property = (propertyId: string) => propertyById(properties, propertyId);
   const name = optionalText(property(ids.submitterName), "rich_text");
   const email = optionalString(property(ids.submitterEmail), "email");
 
   return {
-    id,
-    title: requiredText(property(ids.title), "title", "Title"),
-    description: requiredText(
-      property(ids.description),
-      "rich_text",
-      "Description",
-    ),
-    type: feedbackTypeFromNotion(requiredSelect(property(ids.type), "Type")),
-    status: feedbackStatusFromNotion(
-      requiredSelect(property(ids.status), "Status"),
-    ),
-    published: booleanField(property(ids.published), "checkbox"),
+    ...publicItem,
     ...(name || email
       ? {
           submitter: { ...(name ? { name } : {}), ...(email ? { email } : {}) },
@@ -159,8 +323,6 @@ function feedbackItemFromPage(
       property(ids.editTokenHash),
       "rich_text",
     ),
-    createdAt: new Date(stringField(page, "created_time")),
-    updatedAt: new Date(stringField(page, "last_edited_time")),
   } satisfies StoredFeedbackItem;
 }
 

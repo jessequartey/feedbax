@@ -24,6 +24,188 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion-backed Feedback module", () => {
+  it("retrieves a Published Feedback Item through the approved public projection", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        notionPage({
+          title: "Keyboard-first search",
+          description: "Open search without reaching for the mouse.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          editTokenHash: "must-not-reach-the-caller",
+        }),
+      ),
+    );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    await expect(feedback.getPublic("notion-page-id")).resolves.toEqual({
+      title: "Keyboard-first search",
+      description: "Open search without reaching for the mouse.",
+      type: "Feature Request",
+      status: "Planned",
+      createdAt: new Date("2026-08-20T13:00:00.000Z"),
+      updatedAt: new Date("2026-08-20T13:00:00.000Z"),
+    });
+    expect(request).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "https://api.notion.com/v1/pages/notion-page-id?",
+      ),
+      expect.objectContaining({ method: "GET" }),
+    );
+    const [url] = request.mock.calls[0]!;
+    expect(String(url)).toContain("filter_properties=title-id");
+    expect(String(url)).toContain("filter_properties=published-id");
+    expect(String(url)).not.toContain("submitter-email-id");
+    expect(String(url)).not.toContain("edit-token-hash-id");
+  });
+
+  it("lists a filtered cursor page with one publication-gated Notion query", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        object: "list",
+        results: [
+          notionPage({
+            id: "published-page",
+            title: "Faster exports",
+            description: "Export large reports without timing out.",
+            type: "Feature Request",
+            status: "In Progress",
+            published: true,
+            editTokenHash: "private-hash",
+          }),
+        ],
+        has_more: true,
+        next_cursor: "notion-next-cursor",
+      }),
+    );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    await expect(
+      feedback.listPublic({
+        cursor: "notion-start-cursor",
+        type: "Feature Request",
+        status: "In Progress",
+      }),
+    ).resolves.toEqual({
+      items: [
+        {
+          title: "Faster exports",
+          description: "Export large reports without timing out.",
+          type: "Feature Request",
+          status: "In Progress",
+          createdAt: new Date("2026-08-20T13:00:00.000Z"),
+          updatedAt: new Date("2026-08-20T13:00:00.000Z"),
+        },
+      ],
+      nextCursor: "notion-next-cursor",
+    });
+    expect(request).toHaveBeenCalledOnce();
+    const [url, init] = request.mock.calls[0]!;
+    expect(String(url)).toContain("/data_sources/feedback-data-source/query?");
+    expect(String(url)).not.toContain("published-id");
+    expect(String(url)).not.toContain("submitter-name-id");
+    expect(String(url)).not.toContain("edit-token-hash-id");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      page_size: 25,
+      start_cursor: "notion-start-cursor",
+      filter: {
+        and: [
+          { property: "published-id", checkbox: { equals: true } },
+          { property: "type-id", select: { equals: "Feature Request" } },
+          { property: "status-id", select: { equals: "In Progress" } },
+        ],
+      },
+      sorts: [{ property: "created-at-id", direction: "descending" }],
+    });
+  });
+
+  it("loads the public roadmap with one Notion query ordered by update time", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        object: "list",
+        results: [
+          notionPage({
+            id: "shipped-page",
+            title: "CSV export",
+            description: "Download feedback as CSV.",
+            type: "Feature Request",
+            status: "Shipped",
+            published: true,
+            editTokenHash: "private-hash",
+          }),
+        ],
+        has_more: false,
+        next_cursor: null,
+      }),
+    );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    const roadmap = await feedback.getPublicRoadmap();
+
+    expect(roadmap.Planned).toEqual([]);
+    expect(roadmap["In Progress"]).toEqual([]);
+    expect(roadmap.Shipped).toHaveLength(1);
+    expect(request).toHaveBeenCalledOnce();
+    const [, init] = request.mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      page_size: 100,
+      filter: {
+        and: [
+          { property: "published-id", checkbox: { equals: true } },
+          {
+            or: [
+              { property: "status-id", select: { equals: "Planned" } },
+              {
+                property: "status-id",
+                select: { equals: "In Progress" },
+              },
+              { property: "status-id", select: { equals: "Shipped" } },
+            ],
+          },
+        ],
+      },
+      sorts: [{ property: "updated-at-id", direction: "descending" }],
+    });
+  });
+
+  it("refuses to serve a partial roadmap when one Notion query cannot contain it", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        object: "list",
+        results: [],
+        has_more: true,
+        next_cursor: "another-roadmap-page",
+      }),
+    );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    await expect(feedback.getPublicRoadmap()).rejects.toThrow(
+      "Notion returned more public roadmap items than one query can serve.",
+    );
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it("submits canonical properties while keeping the raw Browser Capability out of Notion", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(
@@ -275,23 +457,30 @@ function textContent(property: unknown): string {
 }
 
 function notionPage({
+  id = "notion-page-id",
   title,
   description,
   type,
   submitterName,
   submitterEmail,
   editTokenHash,
+  status = "New",
+  published = false,
 }: {
+  id?: string;
   title: string;
   description: string;
   type: "Feature Request" | "Bug Report" | "General Feedback";
   submitterName?: string;
   submitterEmail?: string;
   editTokenHash: string;
+  status?:
+    "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
+  published?: boolean;
 }) {
   return {
     object: "page",
-    id: "notion-page-id",
+    id,
     created_time: "2026-08-20T13:00:00.000Z",
     last_edited_time: "2026-08-20T13:00:00.000Z",
     properties: {
@@ -306,11 +495,11 @@ function notionPage({
         rich_text: [{ plain_text: description }],
       },
       Type: { id: "type-id", type: "select", select: { name: type } },
-      Status: { id: "status-id", type: "select", select: { name: "New" } },
+      Status: { id: "status-id", type: "select", select: { name: status } },
       Published: {
         id: "published-id",
         type: "checkbox",
-        checkbox: false,
+        checkbox: published,
       },
       "Submitter Name": {
         id: "submitter-name-id",
