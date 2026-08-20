@@ -7,6 +7,35 @@ import {
 } from "./index";
 
 describe("Feedback module", () => {
+  it("returns the original Feedback Item for a repeated trusted submission", async () => {
+    const feedback = createFeedbackModule();
+
+    const first = await feedback.submitTrusted({
+      externalId: "product-a:feedback-123",
+      title: "Keyboard navigation",
+      description: "Let users navigate the product without a mouse.",
+      type: "Feature Request",
+      submitter: { name: "Ama", email: "ama@example.com" },
+    });
+    const retried = await feedback.submitTrusted({
+      externalId: "product-a:feedback-123",
+      title: "A changed retry must not overwrite the original",
+      description: "The first accepted request remains canonical.",
+      type: "Bug Report",
+    });
+
+    expect(retried).toEqual(first);
+    expect(retried).toMatchObject({
+      title: "Keyboard navigation",
+      description: "Let users navigate the product without a mouse.",
+      type: "Feature Request",
+      status: "New",
+    });
+    expect(retried).not.toHaveProperty("browserCapability");
+    expect(retried).not.toHaveProperty("published");
+    expect(retried).not.toHaveProperty("submitter");
+  });
+
   it("lets only the correct Browser Capability withdraw its eligible draft", async () => {
     const feedback = createFeedbackModule();
     const submittedItem = await feedback.submit({

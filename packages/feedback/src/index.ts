@@ -38,6 +38,10 @@ export interface SubmitFeedbackInput {
   };
 }
 
+export interface SubmitTrustedFeedbackInput extends SubmitFeedbackInput {
+  externalId: string;
+}
+
 export interface FeedbackItem extends SubmitFeedbackInput {
   id: string;
   status: FeedbackStatus;
@@ -55,6 +59,11 @@ export type BrowserCapability = string & {
 export type SubmittedFeedbackItem = FeedbackItem & {
   browserCapability: BrowserCapability;
 };
+
+export type TrustedSubmittedFeedbackItem = Omit<
+  FeedbackItem,
+  "published" | "submitter"
+>;
 
 export interface EditDraftInput {
   id: string;
@@ -123,6 +132,15 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     return this.find(id);
   }
 
+  async findByExternalId(
+    externalId: string,
+  ): Promise<StoredFeedbackItem | undefined> {
+    const item = [...this.#items.values()].find(
+      (candidate) => candidate.externalId === externalId,
+    );
+    return item ? structuredClone(item) : undefined;
+  }
+
   async list(): Promise<StoredFeedbackItem[]> {
     return [...this.#items.values()].map((item) => structuredClone(item));
   }
@@ -176,6 +194,9 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 
 export interface FeedbackModule {
   submit(input: SubmitFeedbackInput): Promise<SubmittedFeedbackItem>;
+  submitTrusted(
+    input: SubmitTrustedFeedbackInput,
+  ): Promise<TrustedSubmittedFeedbackItem>;
   editDraft(input: EditDraftInput): Promise<FeedbackItem>;
   withdrawDraft(input: WithdrawDraftInput): Promise<void>;
   getPublic(id: string): Promise<PublicFeedbackItem | undefined>;
@@ -216,6 +237,25 @@ export function createFeedbackModule(
         ...toFeedbackItem(item),
         browserCapability,
       };
+    },
+    async submitTrusted(input) {
+      const existingItem = await storage.findByExternalId(input.externalId);
+      if (existingItem) return toTrustedSubmittedFeedbackItem(existingItem);
+
+      const now = new Date();
+      const item = await storage.create({
+        title: input.title,
+        description: input.description,
+        type: input.type,
+        ...(input.submitter ? { submitter: input.submitter } : {}),
+        status: "New",
+        published: false,
+        createdAt: now,
+        updatedAt: now,
+        source: "API",
+        externalId: input.externalId,
+      });
+      return toTrustedSubmittedFeedbackItem(item);
     },
     async editDraft(input) {
       const item = await storage.find(input.id);
@@ -315,6 +355,20 @@ function toFeedbackItem(item: FeedbackItem): FeedbackItem {
     ...(item.submitter === undefined ? {} : { submitter: item.submitter }),
     status: item.status,
     published: item.published,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function toTrustedSubmittedFeedbackItem(
+  item: FeedbackItem,
+): TrustedSubmittedFeedbackItem {
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    type: item.type,
+    status: item.status,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@feedbax/env": "workspace:*",
+    "@feedbax/feedback": "workspace:*",
     "@feedbax/ui": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-query": "5.101.4",

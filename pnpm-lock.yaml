@@ -93,6 +93,9 @@ importers:
       '@feedbax/env':
         specifier: workspace:*
         version: link:../../packages/env
+      '@feedbax/feedback':
+        specifier: workspace:*
+        version: link:../../packages/feedback
       '@feedbax/ui':
         specifier: workspace:*
         version: link:../../packages/ui

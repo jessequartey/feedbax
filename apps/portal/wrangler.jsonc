@@ -3,7 +3,14 @@
   "name": "feedbax",
   "compatibility_date": "2026-08-20",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "./src/server.ts",
+  "ratelimits": [
+    {
+      "name": "TRUSTED_SUBMISSIONS_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 },
+    },
+  ],
   "observability": {
     "enabled": true,
   },

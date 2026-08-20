@@ -76,6 +76,30 @@ export function createNotionFeedbackStorage({
       if (response.status === 404) return undefined;
       return feedbackItemFromPage(await readNotionPage(response), propertyIds);
     },
+    async findByExternalId(externalId) {
+      const response = await notionRequest(
+        `${NOTION_API_URL}/data_sources/${dataSourceId}/query`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            page_size: 1,
+            filter: {
+              property: propertyIds.externalId,
+              rich_text: { equals: externalId },
+            },
+          }),
+        },
+      );
+      const value = await readNotionPage(response);
+      const results = value.results;
+      if (!Array.isArray(results) || results.length === 0) return undefined;
+      const page = results[0];
+      if (!page || typeof page !== "object" || Array.isArray(page)) {
+        throw new Error("Notion returned an invalid Feedback Item list.");
+      }
+      return feedbackItemFromPage(page as Record<string, unknown>, propertyIds);
+    },
     async findPublic(id) {
       const query = new URLSearchParams();
       for (const propertyId of publicReadPropertyIds(propertyIds)) {
@@ -286,7 +310,10 @@ function propertiesForCreate(
     [ids.published]: { checkbox: item.published },
     [ids.submitterName]: richText(item.submitter?.name),
     [ids.submitterEmail]: { email: item.submitter?.email ?? null },
-    [ids.source]: { select: { name: "Portal" } },
+    [ids.source]: { select: { name: item.source ?? "Portal" } },
+    [ids.externalId]: richText(
+      typeof item.externalId === "string" ? item.externalId : undefined,
+    ),
     [ids.editTokenHash]: richText(item.browserCapabilityHash),
   };
 }

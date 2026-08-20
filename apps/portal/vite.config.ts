@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({ server: { entry: "./server.ts" } }),
     viteReact(),
   ],
 });

@@ -14,6 +14,7 @@ export interface FeedbackStorage {
   create(item: NewStoredFeedbackItem): Promise<StoredFeedbackItem>;
   save(item: StoredFeedbackItem): Promise<StoredFeedbackItem>;
   find(id: string): Promise<StoredFeedbackItem | undefined>;
+  findByExternalId(externalId: string): Promise<StoredFeedbackItem | undefined>;
   findPublic(id: string): Promise<StoredFeedbackItem | undefined>;
   list(): Promise<StoredFeedbackItem[]>;
   listPublic(query: PublicFeedbackQuery): Promise<{
