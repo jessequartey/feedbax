@@ -3,6 +3,48 @@ import { describe, expect, it } from "vitest";
 import { createFeedbackModule } from "./index";
 
 describe("Feedback module", () => {
+  it("returns a Browser Capability that edits the permitted fields of its draft", async () => {
+    const feedback = createFeedbackModule();
+    const submittedItem = await feedback.submit({
+      title: "Orignal title",
+      description: "Original description",
+      type: "General Feedback",
+      submitter: {
+        name: "Ama",
+        email: "ama@example.com",
+      },
+    });
+
+    expect(submittedItem.browserCapability).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    const editedItem = await feedback.editDraft({
+      id: submittedItem.id,
+      browserCapability: submittedItem.browserCapability,
+      title: "Corrected title",
+      description: "Corrected description",
+      type: "Bug Report",
+      submitter: {
+        name: "Amina",
+        email: "amina@example.com",
+      },
+    });
+
+    expect(editedItem).toMatchObject({
+      id: submittedItem.id,
+      title: "Corrected title",
+      description: "Corrected description",
+      type: "Bug Report",
+      submitter: {
+        name: "Amina",
+        email: "amina@example.com",
+      },
+      status: "New",
+      published: false,
+    });
+    expect(editedItem).not.toHaveProperty("browserCapability");
+    expect(editedItem).not.toHaveProperty("browserCapabilityHash");
+  });
+
   it("returns the public roadmap grouped by status and ordered by most recent update", async () => {
     const createdAt = new Date("2026-08-01T09:00:00.000Z");
     const feedback = createFeedbackModule({

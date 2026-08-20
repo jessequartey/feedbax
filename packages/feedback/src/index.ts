@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 export type FeedbackType =
   "Feature Request" | "Bug Report" | "General Feedback";
@@ -24,6 +24,28 @@ export interface FeedbackItem extends SubmitFeedbackInput {
   updatedAt: Date;
 }
 
+declare const browserCapabilityBrand: unique symbol;
+
+export type BrowserCapability = string & {
+  readonly [browserCapabilityBrand]: true;
+};
+
+export type SubmittedFeedbackItem = FeedbackItem & {
+  browserCapability: BrowserCapability;
+};
+
+export interface EditDraftInput {
+  id: string;
+  browserCapability: BrowserCapability;
+  title?: string;
+  description?: string;
+  type?: FeedbackType;
+  submitter?: {
+    name?: string;
+    email?: string;
+  };
+}
+
 export type PublicFeedbackItem = Pick<
   FeedbackItem,
   "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
@@ -47,15 +69,18 @@ export type RoadmapStatus = Extract<
 
 export type PublicRoadmap = Record<RoadmapStatus, PublicFeedbackItem[]>;
 
-type StoredFeedbackItem = FeedbackItem & Record<string, unknown>;
+type StoredFeedbackItem = FeedbackItem &
+  Record<string, unknown> & {
+    browserCapabilityHash?: string;
+  };
 
 interface FeedbackStorage {
-  save(item: FeedbackItem): Promise<void>;
-  list(): Promise<FeedbackItem[]>;
+  save(item: StoredFeedbackItem): Promise<void>;
+  list(): Promise<StoredFeedbackItem[]>;
 }
 
 class InMemoryFeedbackStorage implements FeedbackStorage {
-  readonly #items: Map<string, FeedbackItem>;
+  readonly #items: Map<string, StoredFeedbackItem>;
 
   constructor(initialItems: StoredFeedbackItem[] = []) {
     this.#items = new Map(
@@ -63,17 +88,18 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     );
   }
 
-  async save(item: FeedbackItem): Promise<void> {
+  async save(item: StoredFeedbackItem): Promise<void> {
     this.#items.set(item.id, structuredClone(item));
   }
 
-  async list(): Promise<FeedbackItem[]> {
+  async list(): Promise<StoredFeedbackItem[]> {
     return [...this.#items.values()].map((item) => structuredClone(item));
   }
 }
 
 export interface FeedbackModule {
-  submit(input: SubmitFeedbackInput): Promise<FeedbackItem>;
+  submit(input: SubmitFeedbackInput): Promise<SubmittedFeedbackItem>;
+  editDraft(input: EditDraftInput): Promise<FeedbackItem>;
   listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
   getPublicRoadmap(): Promise<PublicRoadmap>;
 }
@@ -92,18 +118,53 @@ export function createFeedbackModule(
   return {
     async submit(input) {
       const now = new Date();
-      const item: FeedbackItem = {
+      const browserCapability = createBrowserCapability();
+      const item: StoredFeedbackItem = {
         ...input,
         id: randomUUID(),
         status: "New",
         published: false,
         createdAt: now,
         updatedAt: now,
+        browserCapabilityHash: hashBrowserCapability(browserCapability),
       };
 
       await storage.save(item);
 
-      return structuredClone(item);
+      return {
+        ...toFeedbackItem(item),
+        browserCapability,
+      };
+    },
+    async editDraft(input) {
+      const item = (await storage.list()).find(
+        (candidate) => candidate.id === input.id,
+      );
+
+      if (
+        !item?.browserCapabilityHash ||
+        item.browserCapabilityHash !==
+          hashBrowserCapability(input.browserCapability)
+      ) {
+        throw new Error("Browser Capability did not authorize this draft.");
+      }
+
+      const editedItem: StoredFeedbackItem = {
+        ...item,
+        ...(input.title === undefined ? {} : { title: input.title }),
+        ...(input.description === undefined
+          ? {}
+          : { description: input.description }),
+        ...(input.type === undefined ? {} : { type: input.type }),
+        ...(input.submitter === undefined
+          ? {}
+          : { submitter: input.submitter }),
+        updatedAt: new Date(),
+      };
+
+      await storage.save(editedItem);
+
+      return toFeedbackItem(editedItem);
     },
     async listPublic(query = {}) {
       const items = (await storage.list())
@@ -176,9 +237,31 @@ function toPublicFeedbackItem(item: FeedbackItem): PublicFeedbackItem {
   };
 }
 
-function isPublicRoadmapItem(
-  item: FeedbackItem,
-): item is FeedbackItem & { status: RoadmapStatus } {
+function toFeedbackItem(item: FeedbackItem): FeedbackItem {
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    type: item.type,
+    ...(item.submitter === undefined ? {} : { submitter: item.submitter }),
+    status: item.status,
+    published: item.published,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+}
+
+function createBrowserCapability(): BrowserCapability {
+  return randomBytes(32).toString("base64url") as BrowserCapability;
+}
+
+function hashBrowserCapability(browserCapability: BrowserCapability): string {
+  return createHash("sha256").update(browserCapability).digest("base64url");
+}
+
+function isPublicRoadmapItem<Item extends FeedbackItem>(
+  item: Item,
+): item is Item & { status: RoadmapStatus } {
   return (
     item.published &&
     (item.status === "Planned" ||
