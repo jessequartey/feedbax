@@ -7,6 +7,8 @@ Feedbax uses small red-green slices at pre-agreed seams. Tests describe observab
 - **Feedback module interface:** domain behavior and caller-visible failures
 - **Notion adapter HTTP boundary:** requests to and responses from the external Notion API
 - **Worker HTTP handlers:** authentication, validation, and serialized responses
+- **Cloudflare Rate Limit binding:** limiter decisions at the external binding boundary
+- **Turnstile Siteverify HTTP boundary:** verification requests and responses
 
 ## Essential replacement-release tests
 

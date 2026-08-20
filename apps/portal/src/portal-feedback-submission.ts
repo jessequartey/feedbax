@@ -4,21 +4,63 @@ import type {
   SubmittedFeedbackItem,
 } from "@feedbax/feedback";
 
+import type { TurnstileVerifier } from "./cloudflare-turnstile";
+
 interface PortalFeedbackSubmissionOptions {
   feedback: Pick<FeedbackModule, "submit">;
   limits: {
     maxTitleLength: number;
     maxDescriptionLength: number;
   };
+  rateLimiter: PortalSubmissionRateLimiter;
+  rateLimitKey: string;
+  turnstileVerifier?: TurnstileVerifier;
+}
+
+export interface PortalSubmissionRateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
 export function createPortalFeedbackSubmission({
   feedback,
   limits,
+  rateLimiter,
+  rateLimitKey,
+  turnstileVerifier,
 }: PortalFeedbackSubmissionOptions): (
   input: unknown,
 ) => Promise<SubmittedFeedbackItem> {
-  return async (input) => feedback.submit(validateInput(input, limits));
+  return async (input) => {
+    const { success } = await rateLimiter.limit({ key: rateLimitKey });
+    if (!success) {
+      throw new Error("Feedback submission rate limit exceeded.");
+    }
+    if (turnstileVerifier) {
+      await verifyTurnstile(input, rateLimitKey, turnstileVerifier);
+    }
+    return feedback.submit(validateInput(input, limits));
+  };
+}
+
+async function verifyTurnstile(
+  input: unknown,
+  remoteIp: string,
+  turnstileVerifier: TurnstileVerifier,
+): Promise<void> {
+  const token =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? Reflect.get(input, "turnstileToken")
+      : undefined;
+  if (typeof token !== "string" || token.length === 0) {
+    throw turnstileFailure();
+  }
+
+  const verified = await turnstileVerifier.verify({ token, remoteIp });
+  if (!verified) throw turnstileFailure();
+}
+
+function turnstileFailure(): Error {
+  return new Error("Feedback submission verification failed.");
 }
 
 function validateInput(
