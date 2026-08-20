@@ -144,7 +144,9 @@ export function createFeedbackModule(
       if (
         !item?.browserCapabilityHash ||
         item.browserCapabilityHash !==
-          hashBrowserCapability(input.browserCapability)
+          hashBrowserCapability(input.browserCapability) ||
+        item.status !== "New" ||
+        item.published
       ) {
         throw new Error("Browser Capability did not authorize this draft.");
       }
@@ -158,7 +160,7 @@ export function createFeedbackModule(
         ...(input.type === undefined ? {} : { type: input.type }),
         ...(input.submitter === undefined
           ? {}
-          : { submitter: input.submitter }),
+          : { submitter: { ...item.submitter, ...input.submitter } }),
         updatedAt: new Date(),
       };
 

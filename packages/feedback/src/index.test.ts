@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createFeedbackModule } from "./index";
+import {
+  createFeedbackModule,
+  type BrowserCapability,
+  type FeedbackStatus,
+} from "./index";
 
 describe("Feedback module", () => {
   it("returns a Browser Capability that edits the permitted fields of its draft", async () => {
@@ -43,6 +47,74 @@ describe("Feedback module", () => {
     });
     expect(editedItem).not.toHaveProperty("browserCapability");
     expect(editedItem).not.toHaveProperty("browserCapabilityHash");
+  });
+
+  it.each([
+    { status: "New" as const, published: true },
+    { status: "Reviewing" as const, published: false },
+  ])(
+    "does not edit a draft after its lifecycle eligibility ends: $status, published=$published",
+    async ({ status, published }) => {
+      const browserCapability =
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as BrowserCapability;
+      const feedback = createFeedbackModule({
+        initialItems: [
+          {
+            id: "ineligible-item",
+            title: "Protected title",
+            description: "Protected description",
+            type: "Feature Request",
+            status: status satisfies FeedbackStatus,
+            published,
+            createdAt: new Date("2026-08-20T09:00:00.000Z"),
+            updatedAt: new Date("2026-08-20T09:00:00.000Z"),
+            browserCapabilityHash:
+              "ZtNPunH49FD35FWYhT5Tv8I7vRKQJ8uxMaL0_9eHjNA",
+          },
+        ],
+      });
+
+      await expect(
+        feedback.editDraft({
+          id: "ineligible-item",
+          browserCapability,
+          title: "Unauthorized edit",
+        }),
+      ).rejects.toThrow("Browser Capability did not authorize this draft.");
+    },
+  );
+
+  it("edits optional submitter fields independently", async () => {
+    const feedback = createFeedbackModule();
+    const submittedItem = await feedback.submit({
+      title: "Keep in touch",
+      description: "Contact me about this Feedback Item.",
+      type: "General Feedback",
+      submitter: {
+        name: "Ama",
+        email: "ama@example.com",
+      },
+    });
+
+    const renamedItem = await feedback.editDraft({
+      id: submittedItem.id,
+      browserCapability: submittedItem.browserCapability,
+      submitter: { name: "Amina" },
+    });
+    const readdressedItem = await feedback.editDraft({
+      id: submittedItem.id,
+      browserCapability: submittedItem.browserCapability,
+      submitter: { email: "amina@example.com" },
+    });
+
+    expect(renamedItem.submitter).toEqual({
+      name: "Amina",
+      email: "ama@example.com",
+    });
+    expect(readdressedItem.submitter).toEqual({
+      name: "Amina",
+      email: "amina@example.com",
+    });
   });
 
   it("returns the public roadmap grouped by status and ordered by most recent update", async () => {
