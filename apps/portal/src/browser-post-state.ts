@@ -52,3 +52,11 @@ export function retainCapability(
     }),
   );
 }
+export function removeCapability(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  id: string,
+) {
+  const capabilities = readCapabilities(storage);
+  delete capabilities[id];
+  storage.setItem(capabilitiesKey, JSON.stringify(capabilities));
+}

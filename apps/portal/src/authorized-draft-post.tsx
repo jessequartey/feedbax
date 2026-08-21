@@ -43,7 +43,17 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
         <h1>{post.title}</h1>
         <p className="feedback-detail-description">{post.description}</p>
       </article>
-      <PortalFeedbackForm />
+      <PortalFeedbackForm
+        initialDraft={{
+          id: post.id,
+          browserCapability: Object.values(readCapabilities(localStorage)).find(
+            (item) => item.id === post.id,
+          )!.browserCapability,
+          title: post.title,
+          description: post.description,
+          type: post.type,
+        }}
+      />
     </main>
   );
 }

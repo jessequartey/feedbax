@@ -135,6 +135,26 @@
     transition-duration: 0.01ms !important;
   }
 }
+.mobile-menu {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.mobile-nav {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+@media (max-width: 720px) {
+  .portal-header .desktop-nav {
+    display: none;
+  }
+  .mobile-menu {
+    display: inline-grid;
+    place-items: center;
+  }
+}
 
 body {
   margin: 0;

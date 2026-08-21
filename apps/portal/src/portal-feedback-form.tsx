@@ -1,18 +1,32 @@
 import type { FeedbackType } from "@feedbax/feedback";
 import { useEffect, useState, type FormEvent } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@feedbax/ui/components/alert-dialog";
 
 import {
   editPortalFeedbackDraft,
   submitPortalPost,
   withdrawPortalFeedbackDraft,
 } from "./portal-feedback-server-function";
-import { readDeviceProfile, retainCapability } from "./browser-post-state";
+import {
+  readDeviceProfile,
+  removeCapability,
+  retainCapability,
+} from "./browser-post-state";
 
 const draftStorageKey = "feedbax:portal-draft";
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
   string | undefined;
 
-interface StoredDraft {
+export interface StoredDraft {
   id: string;
   browserCapability: string;
   title: string;
@@ -26,12 +40,16 @@ const feedbackTypes: FeedbackType[] = [
   "General Feedback",
 ];
 
-export function PortalFeedbackForm() {
-  const [draft, setDraft] = useState<StoredDraft>();
+export function PortalFeedbackForm({
+  initialDraft,
+}: { initialDraft?: StoredDraft } = {}) {
+  const [draft, setDraft] = useState<StoredDraft | undefined>(initialDraft);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [confirmingWithdrawal, setConfirmingWithdrawal] = useState(false);
 
   useEffect(() => {
+    if (initialDraft) return;
     const stored = window.localStorage.getItem(draftStorageKey);
     if (!stored) return;
     try {
@@ -39,7 +57,7 @@ export function PortalFeedbackForm() {
     } catch {
       window.localStorage.removeItem(draftStorageKey);
     }
-  }, []);
+  }, [initialDraft]);
 
   useEffect(() => {
     if (!turnstileSiteKey || document.querySelector("script[data-turnstile]")) {
@@ -130,7 +148,7 @@ export function PortalFeedbackForm() {
   }
 
   async function withdraw() {
-    if (!draft || !window.confirm("Withdraw this draft permanently?")) return;
+    if (!draft) return;
     setPending(true);
     setMessage(undefined);
     try {
@@ -141,6 +159,7 @@ export function PortalFeedbackForm() {
         },
       });
       window.localStorage.removeItem(draftStorageKey);
+      removeCapability(window.localStorage, draft.id);
       setDraft(undefined);
       setMessage("Draft withdrawn.");
       window.location.assign("/");
@@ -214,7 +233,7 @@ export function PortalFeedbackForm() {
             <button
               type="button"
               className="feedback-withdraw"
-              onClick={withdraw}
+              onClick={() => setConfirmingWithdrawal(true)}
               disabled={pending}
             >
               Withdraw draft
@@ -227,6 +246,27 @@ export function PortalFeedbackForm() {
           </p>
         ) : null}
       </form>
+      <AlertDialog
+        open={confirmingWithdrawal}
+        onOpenChange={setConfirmingWithdrawal}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Withdraw this Draft Post permanently?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={withdraw}>
+              Withdraw Draft Post
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
