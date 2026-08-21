@@ -24,6 +24,26 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("trusted feedback Worker handler", () => {
+  it("redirects equivalent public filter URLs to one canonical cache identity", async () => {
+    const applicationHandler = vi.fn(async () => new Response("public"));
+    const server = createPortalServerEntry({
+      trustedFeedbackHandler: vi.fn(),
+      applicationHandler,
+    });
+
+    const response = await server.fetch(
+      new Request(
+        "https://feedback.example.com/?type=Bug%20Report&status=New&ignored=value",
+      ),
+    );
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(
+      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=created-at-desc&schema=1",
+    );
+    expect(applicationHandler).not.toHaveBeenCalled();
+  });
+
   it("serves minimal deployment health without invoking application handlers", async () => {
     const server = createPortalServerEntry({
       trustedFeedbackHandler: async () => {

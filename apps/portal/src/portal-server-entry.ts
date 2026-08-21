@@ -2,10 +2,17 @@ import startHandler, {
   createServerEntry,
 } from "@tanstack/react-start/server-entry";
 
+import {
+  applyPublicCachePolicy,
+  canonicalPublicRequest,
+} from "./public-cache-policy";
+
 export function createPortalServerEntry({
   trustedFeedbackHandler,
+  applicationHandler = startHandler.fetch,
 }: {
   trustedFeedbackHandler: (request: Request) => Promise<Response>;
+  applicationHandler?: typeof startHandler.fetch;
 }) {
   return createServerEntry({
     async fetch(request, options) {
@@ -19,7 +26,12 @@ export function createPortalServerEntry({
       if (request.method === "POST" && url.pathname === "/api/v1/feedback") {
         return trustedFeedbackHandler(request);
       }
-      return startHandler.fetch(request, options);
+      const canonicalRequest = canonicalPublicRequest(request);
+      if (canonicalRequest) {
+        return Response.redirect(canonicalRequest.url, 308);
+      }
+      const response = await applicationHandler(request, options);
+      return applyPublicCachePolicy(request, response);
     },
   });
 }
