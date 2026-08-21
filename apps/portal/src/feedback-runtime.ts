@@ -1,4 +1,10 @@
 import { createNotionFeedbackModule } from "@feedbax/feedback";
+import { cache } from "cloudflare:workers";
+
+import {
+  createInvalidatingFeedbackModule,
+  createPublicCacheInvalidator,
+} from "./feedback-cache-invalidation";
 
 export const feedbackSubmissionLimits = {
   maxTitleLength: 160,
@@ -6,7 +12,7 @@ export const feedbackSubmissionLimits = {
 } as const;
 
 export function createConfiguredFeedbackModule() {
-  return createNotionFeedbackModule({
+  const feedback = createNotionFeedbackModule({
     token: requiredEnvironmentValue("NOTION_TOKEN"),
     dataSourceId: requiredEnvironmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
     propertyIds: {
@@ -39,6 +45,12 @@ export function createConfiguredFeedbackModule() {
         "NOTION_FEEDBACK_UPDATED_AT_PROPERTY_ID",
       ),
     },
+  });
+  return createInvalidatingFeedbackModule({
+    feedback,
+    invalidator: createPublicCacheInvalidator({
+      purge: (options) => cache.purge(options),
+    }),
   });
 }
 

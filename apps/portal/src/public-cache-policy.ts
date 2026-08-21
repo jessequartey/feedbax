@@ -1,4 +1,9 @@
 import { feedbackStatuses, feedbackTypes } from "./public-feedback-page";
+import {
+  publicFeedbackCacheTag,
+  publicFeedbackItemCacheTag,
+  publicRoadmapCacheTag,
+} from "./public-cache-tags";
 
 const BROWSER_CACHE_CONTROL = "public, max-age=30";
 const EDGE_CACHE_CONTROL =
@@ -67,17 +72,21 @@ function isPublicPath(pathname: string): boolean {
 
 function publicCacheTags(url: URL): string {
   if (url.pathname === "/roadmap") {
-    return "feedbax-public,feedbax-roadmap";
+    return `feedbax-public,${publicRoadmapCacheTag}`;
   }
   const itemId = /^\/feedback\/([^/]+)\//.exec(url.pathname)?.[1];
   if (itemId) {
-    return `feedbax-public,feedbax-feedback,feedbax-item-${safeTag(itemId)}`;
+    return `feedbax-public,${publicFeedbackCacheTag},${publicFeedbackItemCacheTag(decodePathSegment(itemId))}`;
   }
-  return "feedbax-public,feedbax-feedback";
+  return `feedbax-public,${publicFeedbackCacheTag}`;
 }
 
-function safeTag(value: string): string {
-  return decodeURIComponent(value).replace(/[^A-Za-z0-9_.:-]/g, "-");
+function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function appendAllowed(
