@@ -13,6 +13,7 @@ import {
 
 const propertyIds: FeedbackPropertyIds = {
   title: "title-id",
+  slug: "slug-id",
   description: "description-id",
   type: "type-id",
   status: "status-id",

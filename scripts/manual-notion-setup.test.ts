@@ -14,6 +14,7 @@ describe("manual Notion setup", () => {
     const properties = Object.fromEntries(
       [
         ["Title", "title-id", "title"],
+        ["Slug", "slug-id", "rich_text"],
         ["Description", "description-id", "rich_text"],
         ["Type", "type-id", "select"],
         ["Status", "status-id", "select"],
@@ -55,6 +56,7 @@ describe("manual Notion setup", () => {
     );
     const expectedPropertyIds = {
       title: "title-id",
+      slug: "slug-id",
       description: "description-id",
       type: "type-id",
       status: "status-id",
@@ -89,6 +91,7 @@ describe("manual Notion setup", () => {
       ),
     ).toMatchObject({
       NOTION_FEEDBACK_TITLE_PROPERTY_ID: expectedPropertyIds.title,
+      NOTION_FEEDBACK_SLUG_PROPERTY_ID: expectedPropertyIds.slug,
       NOTION_FEEDBACK_DESCRIPTION_PROPERTY_ID: expectedPropertyIds.description,
       NOTION_FEEDBACK_TYPE_PROPERTY_ID: expectedPropertyIds.type,
       NOTION_FEEDBACK_STATUS_PROPERTY_ID: expectedPropertyIds.status,

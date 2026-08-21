@@ -10,6 +10,7 @@ import {
 
 const propertyIds: FeedbackPropertyIds = {
   title: "title-id",
+  slug: "slug-id",
   description: "description-id",
   type: "type-id",
   status: "status-id",
@@ -413,6 +414,208 @@ describe("Notion-backed Feedback module", () => {
     expect(submitted).not.toHaveProperty("Product Team Priority");
   });
 
+  it("persists a unique Post slug after checking the Notion data source", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          object: "list",
+          results: [
+            notionPage({
+              slug: "keyboard-navigation",
+              title: "Existing Post",
+              description: "Already claimed this slug.",
+              type: "Feature Request",
+              editTokenHash: "existing-hash",
+            }),
+          ],
+          has_more: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ object: "list", results: [], has_more: false }),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          notionPage({
+            slug: "keyboard-navigation-2",
+            title: "Keyboard navigation",
+            description: "Navigate without a mouse.",
+            type: "Feature Request",
+            editTokenHash: "returned-hash",
+          }),
+        ),
+      );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    const submitted = await feedback.submitPost({
+      title: "Keyboard navigation",
+      description: "Navigate without a mouse.",
+      type: "Feature Request",
+    });
+
+    const firstSlugLookup = JSON.parse(
+      String(request.mock.calls[0]?.[1]?.body),
+    ) as Record<string, unknown>;
+    expect(firstSlugLookup).toEqual({
+      page_size: 1,
+      filter: {
+        property: "slug-id",
+        rich_text: { equals: "keyboard-navigation" },
+      },
+    });
+    expect(JSON.parse(String(request.mock.calls[1]?.[1]?.body))).toEqual({
+      page_size: 1,
+      filter: {
+        property: "slug-id",
+        rich_text: { equals: "keyboard-navigation-2" },
+      },
+    });
+    const createBody = JSON.parse(String(request.mock.calls[2]?.[1]?.body)) as {
+      properties: Record<string, unknown>;
+    };
+    expect(createBody.properties["slug-id"]).toEqual({
+      rich_text: [{ type: "text", text: { content: "keyboard-navigation-2" } }],
+    });
+    expect(submitted).toMatchObject({
+      id: "notion-page-id",
+      slug: "keyboard-navigation-2",
+    });
+  });
+
+  it("keeps the persisted Notion slug unchanged when a Draft Post title is edited", async () => {
+    let page = notionPage({
+      slug: "original-title",
+      title: "Original title",
+      description: "Original description",
+      type: "General Feedback",
+      editTokenHash: "",
+    });
+    let editProperties: Record<string, unknown> | undefined;
+    const request = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/query") && init?.method === "POST") {
+        return Response.json({ object: "list", results: [], has_more: false });
+      }
+      if (url.endsWith("/pages") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as {
+          properties: Record<
+            string,
+            { rich_text?: Array<{ text: { content: string } }> }
+          >;
+        };
+        page = notionPage({
+          slug: "original-title",
+          title: "Original title",
+          description: "Original description",
+          type: "General Feedback",
+          editTokenHash:
+            body.properties["edit-token-hash-id"]?.rich_text?.[0]?.text
+              .content ?? "",
+        });
+        return Response.json(page);
+      }
+      if (url.endsWith("/pages/notion-page-id") && init?.method === "GET") {
+        return Response.json(page);
+      }
+      if (url.endsWith("/pages/notion-page-id") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body)) as {
+          properties: Record<string, unknown>;
+        };
+        editProperties = body.properties;
+        page = notionPage({
+          slug: "original-title",
+          title: "Renamed Post",
+          description: "Original description",
+          type: "General Feedback",
+          editTokenHash: textContent(
+            (page.properties as Record<string, unknown>)["Edit Token Hash"],
+          ),
+        });
+        return Response.json(page);
+      }
+      return Response.json({ message: "unexpected request" }, { status: 500 });
+    });
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+    const submitted = await feedback.submitPost({
+      title: "Original title",
+      description: "Original description",
+      type: "General Feedback",
+    });
+
+    const edited = await feedback.editDraftPost({
+      id: submitted.id,
+      browserCapability: submitted.browserCapability,
+      title: "Renamed Post",
+    });
+
+    expect(editProperties).not.toHaveProperty("slug-id");
+    expect(edited).toMatchObject({
+      title: "Renamed Post",
+      slug: "original-title",
+    });
+  });
+
+  it("retrieves a published Post by slug through a public-only Notion projection", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        object: "list",
+        results: [
+          notionPage({
+            slug: "keyboard-navigation",
+            title: "Keyboard navigation",
+            description: "Navigate without a mouse.",
+            type: "Feature Request",
+            status: "Planned",
+            published: true,
+            submitterEmail: "private@example.com",
+            editTokenHash: "private-hash",
+          }),
+        ],
+        has_more: false,
+      }),
+    );
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+    });
+
+    const post = await feedback.getPublicPost("keyboard-navigation");
+
+    const [url, init] = request.mock.calls[0]!;
+    expect(String(url)).toContain("filter_properties=slug-id");
+    expect(String(url)).not.toContain("filter_properties=submitter-email-id");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      page_size: 1,
+      filter: {
+        and: [
+          { property: "slug-id", rich_text: { equals: "keyboard-navigation" } },
+          { property: "published-id", checkbox: { equals: true } },
+        ],
+      },
+    });
+    expect(post).toMatchObject({
+      slug: "keyboard-navigation",
+      title: "Keyboard navigation",
+      status: "Planned",
+    });
+    expect(post).not.toHaveProperty("id");
+    expect(post).not.toHaveProperty("submitter");
+    expect(post).not.toHaveProperty("browserCapabilityHash");
+  });
+
   it("authorizes draft edits and withdrawal before mutating canonical Notion properties", async () => {
     let page = notionPage({
       title: "Original title",
@@ -571,6 +774,7 @@ function textContent(property: unknown): string {
 
 function notionPage({
   id = "notion-page-id",
+  slug,
   title,
   description,
   type,
@@ -581,6 +785,7 @@ function notionPage({
   published = false,
 }: {
   id?: string;
+  slug?: string;
   title: string;
   description: string;
   type: "Feature Request" | "Bug Report" | "General Feedback";
@@ -601,6 +806,11 @@ function notionPage({
         id: "title-id",
         type: "title",
         title: [{ plain_text: title }],
+      },
+      Slug: {
+        id: "slug-id",
+        type: "rich_text",
+        rich_text: slug ? [{ plain_text: slug }] : [],
       },
       "Description from Notion": {
         id: "description-id",

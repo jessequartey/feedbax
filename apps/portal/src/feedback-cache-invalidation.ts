@@ -43,6 +43,12 @@ export function createInvalidatingFeedbackModule({
   invalidator: PublicCacheInvalidator;
 }): FeedbackModule {
   return {
+    submitPost: (input) =>
+      runInvalidatingWrite(() => feedback.submitPost(input), invalidator),
+    editDraftPost: (input) =>
+      runInvalidatingWrite(() => feedback.editDraftPost(input), invalidator),
+    getPublicPost: (slug) => feedback.getPublicPost(slug),
+    getDraftPost: (input) => feedback.getDraftPost(input),
     submit: (input) =>
       runInvalidatingWrite(() => feedback.submit(input), invalidator),
     submitTrusted: (input) =>

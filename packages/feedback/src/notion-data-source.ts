@@ -5,6 +5,7 @@ const NOTION_API_VERSION = "2026-03-11";
 
 const canonicalProperties = {
   title: { name: "Title", type: "title", schema: { title: {} } },
+  slug: { name: "Slug", type: "rich_text", schema: { rich_text: {} } },
   description: {
     name: "Description",
     type: "rich_text",

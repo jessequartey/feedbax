@@ -7,6 +7,127 @@ import {
 } from "./index";
 
 describe("Feedback module", () => {
+  it("submits a Post with persisted public identity and private edit authority", async () => {
+    const feedback = createFeedbackModule();
+
+    const submitted = await feedback.submitPost({
+      title: "Keyboard navigation",
+      description: "Let Participants navigate without a mouse.",
+      type: "Feature Request",
+    });
+
+    expect(submitted).toMatchObject({
+      id: expect.any(String),
+      slug: "keyboard-navigation",
+      title: "Keyboard navigation",
+      description: "Let Participants navigate without a mouse.",
+      type: "Feature Request",
+      status: "New",
+      published: false,
+      browserCapability: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+    });
+    expect(submitted).not.toHaveProperty("browserCapabilityHash");
+  });
+
+  it("suffixes duplicate Post slugs and keeps each slug immutable after title edits", async () => {
+    const feedback = createFeedbackModule();
+    const first = await feedback.submitPost({
+      title: "Dark mode!",
+      description: "Respect the device theme.",
+      type: "Feature Request",
+    });
+    const second = await feedback.submitPost({
+      title: "Dark mode",
+      description: "Offer a theme preference.",
+      type: "Feature Request",
+    });
+
+    const edited = await feedback.editDraftPost({
+      id: first.id,
+      browserCapability: first.browserCapability,
+      title: "System theme",
+    });
+
+    expect([first.slug, second.slug]).toEqual(["dark-mode", "dark-mode-2"]);
+    expect(edited).toMatchObject({
+      id: first.id,
+      slug: "dark-mode",
+      title: "System theme",
+    });
+  });
+
+  it("allocates distinct slugs for concurrent Post submissions", async () => {
+    const feedback = createFeedbackModule();
+
+    const [first, second] = await Promise.all([
+      feedback.submitPost({
+        title: "Dark mode",
+        description: "Respect the device theme.",
+        type: "Feature Request",
+      }),
+      feedback.submitPost({
+        title: "Dark mode",
+        description: "Offer a theme preference.",
+        type: "Feature Request",
+      }),
+    ]);
+
+    expect([first.slug, second.slug]).toEqual(["dark-mode", "dark-mode-2"]);
+  });
+
+  it("returns allowlisted public and authorized Draft Post projections without capabilities", async () => {
+    const createdAt = new Date("2026-08-21T10:00:00.000Z");
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "published-storage-id",
+          slug: "keyboard-navigation",
+          title: "Keyboard navigation",
+          description: "Navigate without a mouse.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt,
+          updatedAt: createdAt,
+          submitter: { email: "private@example.com" },
+          browserCapabilityHash: "private-hash",
+          pageBody: "Private Product Team notes",
+        },
+      ],
+    });
+    const draft = await feedback.submitPost({
+      title: "Dark mode",
+      description: "Respect the device theme.",
+      type: "Feature Request",
+      submitter: { name: "Ama", email: "ama@example.com" },
+    });
+
+    const publicPost = await feedback.getPublicPost("keyboard-navigation");
+    const draftPost = await feedback.getDraftPost({
+      id: draft.id,
+      browserCapability: draft.browserCapability,
+    });
+
+    expect(publicPost).toEqual({
+      slug: "keyboard-navigation",
+      title: "Keyboard navigation",
+      description: "Navigate without a mouse.",
+      type: "Feature Request",
+      status: "Planned",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    expect(draftPost).toMatchObject({
+      id: draft.id,
+      slug: "dark-mode",
+      submitter: { name: "Ama", email: "ama@example.com" },
+      status: "New",
+    });
+    expect(draftPost).not.toHaveProperty("browserCapability");
+    expect(draftPost).not.toHaveProperty("browserCapabilityHash");
+    expect(draftPost).not.toHaveProperty("pageBody");
+  });
+
   it("returns the original Feedback Item for a repeated trusted submission", async () => {
     const feedback = createFeedbackModule();
 

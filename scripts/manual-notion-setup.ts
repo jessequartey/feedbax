@@ -16,6 +16,7 @@ interface ManualInstallationOptions {
 
 const propertyEnvironmentNames = {
   title: "NOTION_FEEDBACK_TITLE_PROPERTY_ID",
+  slug: "NOTION_FEEDBACK_SLUG_PROPERTY_ID",
   description: "NOTION_FEEDBACK_DESCRIPTION_PROPERTY_ID",
   type: "NOTION_FEEDBACK_TYPE_PROPERTY_ID",
   status: "NOTION_FEEDBACK_STATUS_PROPERTY_ID",

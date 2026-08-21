@@ -6,6 +6,7 @@ import type {
 import type {
   FeedbackStorage,
   NewStoredFeedbackItem,
+  StoredPost,
   StoredFeedbackItem,
 } from "./feedback-storage";
 import type { FeedbackPropertyIds } from "./notion-data-source";
@@ -39,21 +40,28 @@ export function createNotionFeedbackStorage({
     init: RequestInit = {},
   ) => requestNotion(input, init, { request, retry, operation: "idempotent" });
 
+  const createStoredItem = async (item: NewStoredFeedbackItem) => {
+    const response = await requestNotion(
+      `${NOTION_API_URL}/pages`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          parent: { type: "data_source_id", data_source_id: dataSourceId },
+          properties: propertiesForCreate(item, propertyIds),
+        }),
+      },
+      { request, retry, operation: "create" },
+    );
+    return feedbackItemFromPage(await readNotionPage(response), propertyIds);
+  };
+
   return {
     async create(item) {
-      const response = await requestNotion(
-        `${NOTION_API_URL}/pages`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            parent: { type: "data_source_id", data_source_id: dataSourceId },
-            properties: propertiesForCreate(item, propertyIds),
-          }),
-        },
-        { request, retry, operation: "create" },
-      );
-      return feedbackItemFromPage(await readNotionPage(response), propertyIds);
+      return createStoredItem(item);
+    },
+    async createPost(item) {
+      return createStoredItem(item) as Promise<StoredPost>;
     },
     async save(item) {
       const response = await notionRequest(
@@ -75,6 +83,47 @@ export function createNotionFeedbackStorage({
       });
       if (response.status === 404) return undefined;
       return feedbackItemFromPage(await readNotionPage(response), propertyIds);
+    },
+    async findBySlug(slug) {
+      const response = await notionRequest(
+        `${NOTION_API_URL}/data_sources/${dataSourceId}/query`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(slugQuery(slug, propertyIds)),
+        },
+      );
+      const page = firstQueryResult(await readNotionPage(response));
+      return page ? feedbackItemFromPage(page, propertyIds) : undefined;
+    },
+    async findPublicBySlug(slug) {
+      const query = new URLSearchParams();
+      for (const propertyId of publicProjectionPropertyIds(propertyIds)) {
+        query.append("filter_properties", propertyId);
+      }
+      const response = await notionRequest(
+        `${NOTION_API_URL}/data_sources/${dataSourceId}/query?${query.toString()}`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            page_size: 1,
+            filter: {
+              and: [
+                { property: propertyIds.slug, rich_text: { equals: slug } },
+                {
+                  property: propertyIds.published,
+                  checkbox: { equals: true },
+                },
+              ],
+            },
+          }),
+        },
+      );
+      const page = firstQueryResult(await readNotionPage(response));
+      return page
+        ? feedbackItemFromPublicPage(page, propertyIds, true)
+        : undefined;
     },
     async findByExternalId(externalId) {
       const response = await notionRequest(
@@ -183,6 +232,16 @@ function publicListQuery(
   };
 }
 
+function slugQuery(
+  slug: string,
+  ids: FeedbackPropertyIds,
+): Record<string, unknown> {
+  return {
+    page_size: 1,
+    filter: { property: ids.slug, rich_text: { equals: slug } },
+  };
+}
+
 function publicRoadmapQuery(ids: FeedbackPropertyIds): Record<string, unknown> {
   return {
     page_size: 100,
@@ -252,6 +311,7 @@ function publicReadPropertyIds(ids: FeedbackPropertyIds): string[] {
 function publicProjectionPropertyIds(ids: FeedbackPropertyIds): string[] {
   return [
     ids.title,
+    ids.slug,
     ids.description,
     ids.type,
     ids.status,
@@ -267,8 +327,13 @@ function feedbackItemFromPublicPage(
 ): StoredFeedbackItem {
   const properties = recordField(page, "properties");
   const property = (propertyId: string) => propertyById(properties, propertyId);
+  const slugProperty = optionalPropertyById(properties, ids.slug);
+  const slug = slugProperty
+    ? optionalText(slugProperty, "rich_text")
+    : undefined;
   return {
     id: stringField(page, "id"),
+    ...(slug ? { slug } : {}),
     title: requiredText(property(ids.title), "title", "Title"),
     description: requiredText(
       property(ids.description),
@@ -304,6 +369,7 @@ function propertiesForCreate(
 ): Record<string, unknown> {
   return {
     [ids.title]: richTitle(item.title),
+    ...(item.slug ? { [ids.slug]: richText(item.slug) } : {}),
     [ids.description]: richText(item.description),
     [ids.type]: { select: { name: item.type } },
     [ids.status]: { select: { name: item.status } },
@@ -367,6 +433,21 @@ function feedbackItemFromPage(
   } satisfies StoredFeedbackItem;
 }
 
+function firstQueryResult(
+  response: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const results = response.results;
+  if (!Array.isArray(results)) {
+    throw new Error("Notion returned an invalid Post list.");
+  }
+  const first = results[0];
+  if (first === undefined) return undefined;
+  if (!first || typeof first !== "object" || Array.isArray(first)) {
+    throw new Error("Notion returned an invalid Post list.");
+  }
+  return first as Record<string, unknown>;
+}
+
 function feedbackTypeFromNotion(value: string): FeedbackType {
   if (
     value === "Feature Request" ||
@@ -396,12 +477,21 @@ function propertyById(
   properties: Record<string, unknown>,
   id: string,
 ): Record<string, unknown> {
+  const property = optionalPropertyById(properties, id);
+  if (property) return property;
+  throw new Error(`Notion omitted configured Feedback property ID "${id}".`);
+}
+
+function optionalPropertyById(
+  properties: Record<string, unknown>,
+  id: string,
+): Record<string, unknown> | undefined {
   for (const value of Object.values(properties)) {
     if (value && typeof value === "object" && Reflect.get(value, "id") === id) {
       return value as Record<string, unknown>;
     }
   }
-  throw new Error(`Notion omitted configured Feedback property ID "${id}".`);
+  return undefined;
 }
 
 function requiredText(

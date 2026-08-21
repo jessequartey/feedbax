@@ -8,6 +8,7 @@ import {
 
 const propertyIds: FeedbackPropertyIds = {
   title: "title-id",
+  slug: "slug-id",
   description: "description-id",
   type: "type-id",
   status: "status-id",
@@ -83,6 +84,7 @@ describe("Notion Feedback Data Source", () => {
           properties: Object.fromEntries(
             [
               ["Title", "title-id", "title"],
+              ["Slug", "slug-id", "rich_text"],
               ["Description", "description-id", "rich_text"],
               ["Type", "type-id", "select"],
               ["Status", "status-id", "select"],
@@ -127,6 +129,7 @@ describe("Notion Feedback Data Source", () => {
       initial_data_source: {
         properties: {
           Title: { title: {} },
+          Slug: { rich_text: {} },
           Description: { rich_text: {} },
           Type: {
             select: {
@@ -181,6 +184,7 @@ describe("Notion Feedback Data Source", () => {
       dataSourceId: "feedback-data-source",
       propertyIds: {
         title: "title-id",
+        slug: "slug-id",
         description: "description-id",
         type: "type-id",
         status: "status-id",
@@ -204,6 +208,7 @@ describe("Notion Feedback Data Source", () => {
         parent: { type: "database_id", database_id: "feedback-database" },
         properties: {
           Summary: { id: "title-id", name: "Summary", type: "title" },
+          Path: { id: "slug-id", name: "Path", type: "rich_text" },
           Details: {
             id: "description-id",
             name: "Details",
@@ -316,6 +321,7 @@ describe("Notion Feedback Data Source", () => {
 
 const expectedTypes: Record<string, string> = {
   title: "title",
+  slug: "rich_text",
   description: "rich_text",
   type: "select",
   status: "select",

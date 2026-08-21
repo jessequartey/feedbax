@@ -12,7 +12,9 @@ import {
 import type {
   FeedbackStorage,
   NewStoredFeedbackItem,
+  NewStoredPost,
   StoredFeedbackItem,
+  StoredPost,
 } from "./feedback-storage";
 
 export {
@@ -27,6 +29,19 @@ export type FeedbackType =
 
 export type FeedbackStatus =
   "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
+
+export type PostType = FeedbackType;
+export type PostStatus = FeedbackStatus;
+
+export interface SubmitPostInput {
+  title: string;
+  description: string;
+  type: PostType;
+  submitter?: {
+    name?: string;
+    email?: string;
+  };
+}
 
 export interface SubmitFeedbackInput {
   title: string;
@@ -50,6 +65,15 @@ export interface FeedbackItem extends SubmitFeedbackInput {
   updatedAt: Date;
 }
 
+export interface Post extends SubmitPostInput {
+  id: string;
+  slug: string;
+  status: PostStatus;
+  published: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 declare const browserCapabilityBrand: unique symbol;
 
 export type BrowserCapability = string & {
@@ -66,6 +90,34 @@ export class BrowserCapabilityAuthorizationError extends Error {
 export type SubmittedFeedbackItem = FeedbackItem & {
   browserCapability: BrowserCapability;
 };
+
+export type SubmittedPost = Post & {
+  browserCapability: BrowserCapability;
+};
+
+export type PublicPost = Pick<
+  Post,
+  | "slug"
+  | "title"
+  | "description"
+  | "type"
+  | "status"
+  | "createdAt"
+  | "updatedAt"
+>;
+
+export type DraftPost = Pick<
+  Post,
+  | "id"
+  | "slug"
+  | "title"
+  | "description"
+  | "type"
+  | "status"
+  | "createdAt"
+  | "updatedAt"
+  | "submitter"
+>;
 
 export type TrustedSubmittedFeedbackItem = Omit<
   FeedbackItem,
@@ -88,6 +140,9 @@ export interface WithdrawDraftInput {
   id: string;
   browserCapability: BrowserCapability;
 }
+
+export type EditDraftPostInput = Omit<EditDraftInput, "submitter">;
+export type GetDraftPostInput = WithdrawDraftInput;
 
 export type PublicFeedbackItem = Pick<
   FeedbackItem,
@@ -112,6 +167,8 @@ export type RoadmapStatus = Extract<
 
 export type PublicRoadmap = Record<RoadmapStatus, PublicFeedbackItem[]>;
 
+let postCreationQueue: Promise<void> = Promise.resolve();
+
 class InMemoryFeedbackStorage implements FeedbackStorage {
   readonly #items: Map<string, StoredFeedbackItem>;
 
@@ -125,6 +182,10 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     return this.save({ ...item, id: randomUUID() });
   }
 
+  async createPost(item: NewStoredPost): Promise<StoredPost> {
+    return this.save({ ...item, id: randomUUID() }) as Promise<StoredPost>;
+  }
+
   async save(item: StoredFeedbackItem): Promise<StoredFeedbackItem> {
     this.#items.set(item.id, structuredClone(item));
     return structuredClone(item);
@@ -133,6 +194,19 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
   async find(id: string): Promise<StoredFeedbackItem | undefined> {
     const item = this.#items.get(id);
     return item ? structuredClone(item) : undefined;
+  }
+
+  async findBySlug(slug: string): Promise<StoredFeedbackItem | undefined> {
+    const item = [...this.#items.values()].find(
+      (candidate) => candidate.slug === slug,
+    );
+    return item ? structuredClone(item) : undefined;
+  }
+
+  async findPublicBySlug(
+    slug: string,
+  ): Promise<StoredFeedbackItem | undefined> {
+    return this.findBySlug(slug);
   }
 
   async findPublic(id: string): Promise<StoredFeedbackItem | undefined> {
@@ -200,6 +274,10 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 }
 
 export interface FeedbackModule {
+  submitPost(input: SubmitPostInput): Promise<SubmittedPost>;
+  editDraftPost(input: EditDraftPostInput): Promise<Post>;
+  getPublicPost(slug: string): Promise<PublicPost | undefined>;
+  getDraftPost(input: GetDraftPostInput): Promise<DraftPost>;
   submit(input: SubmitFeedbackInput): Promise<SubmittedFeedbackItem>;
   submitTrusted(
     input: SubmitTrustedFeedbackInput,
@@ -226,8 +304,68 @@ export function createFeedbackModule(
 ): FeedbackModule {
   const storage =
     options.storage ?? new InMemoryFeedbackStorage(options.initialItems);
+  const editStoredDraft = async (input: EditDraftInput) => {
+    const item = await storage.find(input.id);
+
+    if (!authorizesDraft(item, input.browserCapability)) {
+      throw new BrowserCapabilityAuthorizationError();
+    }
+
+    return storage.save({
+      ...item,
+      ...(input.title === undefined ? {} : { title: input.title }),
+      ...(input.description === undefined
+        ? {}
+        : { description: input.description }),
+      ...(input.type === undefined ? {} : { type: input.type }),
+      ...(input.submitter === undefined
+        ? {}
+        : { submitter: { ...item.submitter, ...input.submitter } }),
+      updatedAt: new Date(),
+    });
+  };
 
   return {
+    submitPost(input) {
+      const submission = postCreationQueue.then(async () => {
+        const now = new Date();
+        const browserCapability = createBrowserCapability();
+        const slug = await createUniqueSlug(input.title, storage);
+        const item = await storage.createPost({
+          ...input,
+          slug,
+          status: "New",
+          published: false,
+          createdAt: now,
+          updatedAt: now,
+          browserCapabilityHash: hashBrowserCapability(browserCapability),
+        });
+
+        return {
+          ...toPost(item),
+          browserCapability,
+        };
+      });
+      postCreationQueue = submission.then(
+        () => undefined,
+        () => undefined,
+      );
+      return submission;
+    },
+    async editDraftPost(input) {
+      return toPost(await editStoredDraft(input));
+    },
+    async getPublicPost(slug) {
+      const item = await storage.findPublicBySlug(slug);
+      return item?.published ? toPublicPost(toPost(item)) : undefined;
+    },
+    async getDraftPost(input) {
+      const item = await storage.find(input.id);
+      if (!authorizesDraft(item, input.browserCapability)) {
+        throw new BrowserCapabilityAuthorizationError();
+      }
+      return toDraftPost(toPost(item));
+    },
     async submit(input) {
       const now = new Date();
       const browserCapability = createBrowserCapability();
@@ -265,26 +403,7 @@ export function createFeedbackModule(
       return toTrustedSubmittedFeedbackItem(item);
     },
     async editDraft(input) {
-      const item = await storage.find(input.id);
-
-      if (!authorizesDraft(item, input.browserCapability)) {
-        throw new BrowserCapabilityAuthorizationError();
-      }
-
-      const editedItem: StoredFeedbackItem = {
-        ...item,
-        ...(input.title === undefined ? {} : { title: input.title }),
-        ...(input.description === undefined
-          ? {}
-          : { description: input.description }),
-        ...(input.type === undefined ? {} : { type: input.type }),
-        ...(input.submitter === undefined
-          ? {}
-          : { submitter: { ...item.submitter, ...input.submitter } }),
-        updatedAt: new Date(),
-      };
-
-      return toFeedbackItem(await storage.save(editedItem));
+      return toFeedbackItem(await editStoredDraft(input));
     },
     async withdrawDraft(input) {
       const item = await storage.find(input.id);
@@ -366,6 +485,58 @@ function toFeedbackItem(item: FeedbackItem): FeedbackItem {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+}
+
+function toPost(item: StoredFeedbackItem): Post {
+  if (!item.slug) throw new Error("Stored Post is missing its slug.");
+  return { ...toFeedbackItem(item), slug: item.slug };
+}
+
+function toPublicPost(post: Post): PublicPost {
+  return {
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    type: post.type,
+    status: post.status,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+  };
+}
+
+function toDraftPost(post: Post): DraftPost {
+  return {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    type: post.type,
+    status: post.status,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    ...(post.submitter ? { submitter: { ...post.submitter } } : {}),
+  };
+}
+
+async function createUniqueSlug(
+  title: string,
+  storage: FeedbackStorage,
+): Promise<string> {
+  const baseSlug =
+    title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "post";
+
+  let slug = baseSlug;
+  let suffix = 2;
+  while (await storage.findBySlug(slug)) {
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+  return slug;
 }
 
 function toTrustedSubmittedFeedbackItem(

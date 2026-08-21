@@ -17,6 +17,7 @@ export function createConfiguredFeedbackModule() {
     dataSourceId: requiredEnvironmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
     propertyIds: {
       title: requiredEnvironmentValue("NOTION_FEEDBACK_TITLE_PROPERTY_ID"),
+      slug: requiredEnvironmentValue("NOTION_FEEDBACK_SLUG_PROPERTY_ID"),
       description: requiredEnvironmentValue(
         "NOTION_FEEDBACK_DESCRIPTION_PROPERTY_ID",
       ),
