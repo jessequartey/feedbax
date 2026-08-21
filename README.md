@@ -70,6 +70,19 @@ feedbax/
 - `pnpm run type-check`: Check TypeScript types across all workspaces
 - `pnpm run deploy:dry-run`: Build the portal and verify its Worker bundle
 
+## Manual production proof
+
+Before the setup and deployment workflow is extracted into the lifecycle CLI,
+run the guided Notion and Cloudflare proof:
+
+```bash
+./scripts/prove-manual-production.sh
+```
+
+The repeatable checklist, security boundaries, recovery steps, and deferred
+custom-domain procedure are in
+[the manual production proof runbook](docs/manual-production-proof.md).
+
 ## Project contract
 
 - [Product context](CONTEXT.md)
