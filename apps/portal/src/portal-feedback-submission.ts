@@ -4,6 +4,7 @@ import type {
   FeedbackModule,
   SubmitFeedbackInput,
   SubmittedFeedbackItem,
+  SubmittedPost,
 } from "@feedbax/feedback";
 
 import type { TurnstileVerifier } from "./cloudflare-turnstile";
@@ -18,6 +19,27 @@ interface PortalFeedbackSubmissionOptions {
   rateLimiter: PortalSubmissionRateLimiter;
   rateLimitKey: string;
   turnstileVerifier?: TurnstileVerifier;
+}
+
+export function createPortalPostSubmission(
+  options: Omit<PortalFeedbackSubmissionOptions, "feedback"> & {
+    feedback: Pick<FeedbackModule, "submitPost">;
+  },
+): (input: unknown) => Promise<SubmittedPost> {
+  return async (input) => {
+    const { success } = await options.rateLimiter.limit({
+      key: options.rateLimitKey,
+    });
+    if (!success)
+      throw new ActionablePortalFailure("Post submission rate limit exceeded.");
+    if (options.turnstileVerifier)
+      await verifyTurnstile(
+        input,
+        options.rateLimitKey,
+        options.turnstileVerifier,
+      );
+    return options.feedback.submitPost(validateInput(input, options.limits));
+  };
 }
 
 export interface PortalSubmissionRateLimiter {

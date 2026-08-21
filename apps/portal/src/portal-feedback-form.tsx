@@ -3,9 +3,10 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import {
   editPortalFeedbackDraft,
-  submitPortalFeedback,
+  submitPortalPost,
   withdrawPortalFeedbackDraft,
 } from "./portal-feedback-server-function";
+import { readDeviceProfile, retainCapability } from "./browser-post-state";
 
 const draftStorageKey = "feedbax:portal-draft";
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
@@ -65,7 +66,9 @@ export function PortalFeedbackForm() {
     setPending(true);
     setMessage(undefined);
     try {
-      const result = await submitPortalFeedback({ data: values });
+      const result = await submitPortalPost({
+        data: { ...values, submitter: readDeviceProfile(window.localStorage) },
+      });
       const storedDraft: StoredDraft = {
         id: result.id,
         browserCapability: result.browserCapability,
@@ -75,6 +78,11 @@ export function PortalFeedbackForm() {
       };
       setDraft(storedDraft);
       try {
+        retainCapability(window.localStorage, {
+          id: result.id,
+          slug: result.slug,
+          browserCapability: result.browserCapability,
+        });
         window.localStorage.setItem(
           draftStorageKey,
           JSON.stringify(storedDraft),
@@ -88,6 +96,7 @@ export function PortalFeedbackForm() {
       setMessage(
         "Draft submitted. You can edit or withdraw it from this browser.",
       );
+      window.location.assign(`/p/${encodeURIComponent(result.slug)}`);
     } catch (error) {
       setMessage(submissionFailureMessage(error));
     } finally {
@@ -134,6 +143,7 @@ export function PortalFeedbackForm() {
       window.localStorage.removeItem(draftStorageKey);
       setDraft(undefined);
       setMessage("Draft withdrawn.");
+      window.location.assign("/");
     } catch (error) {
       setMessage(draftFailureMessage(error));
     } finally {
@@ -146,7 +156,7 @@ export function PortalFeedbackForm() {
       <div className="feedback-submit-copy">
         <p className="feedback-eyebrow">Share feedback</p>
         <h2 id="submit-heading">
-          {draft ? "Manage your draft." : "What should we improve?"}
+          {draft ? "Manage your Draft Post." : "Create a Post"}
         </h2>
         <p>
           Draft access is stored only in this browser. It does not verify your
@@ -198,7 +208,7 @@ export function PortalFeedbackForm() {
         </label>
         <div className="feedback-submit-actions">
           <button type="submit" disabled={pending}>
-            {pending ? "Working…" : draft ? "Save changes" : "Submit feedback"}
+            {pending ? "Working…" : draft ? "Save changes" : "Create Post"}
           </button>
           {draft ? (
             <button

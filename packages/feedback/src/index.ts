@@ -153,6 +153,15 @@ export interface PublicFeedbackQuery {
   cursor?: string;
   type?: FeedbackType;
   status?: FeedbackStatus;
+  types?: FeedbackType[];
+  statuses?: FeedbackStatus[];
+  search?: string;
+  sort?: "trending" | "top" | "new";
+}
+
+export interface PublicPostPage {
+  items: PublicPost[];
+  nextCursor?: string;
 }
 
 export interface PublicFeedbackPage {
@@ -166,6 +175,7 @@ export type RoadmapStatus = Extract<
 >;
 
 export type PublicRoadmap = Record<RoadmapStatus, PublicFeedbackItem[]>;
+export type PublicPostRoadmap = Record<RoadmapStatus, PublicPost[]>;
 
 let postCreationQueue: Promise<void> = Promise.resolve();
 
@@ -235,7 +245,13 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
         (item) =>
           item.published &&
           (!query.type || item.type === query.type) &&
-          (!query.status || item.status === query.status),
+          (!query.status || item.status === query.status) &&
+          (!query.types?.length || query.types.includes(item.type)) &&
+          (!query.statuses?.length || query.statuses.includes(item.status)) &&
+          (!query.search ||
+            `${item.title}\n${item.description}`
+              .toLocaleLowerCase()
+              .includes(query.search.toLocaleLowerCase())),
       )
       .sort(
         (left, right) =>
@@ -278,6 +294,7 @@ export interface FeedbackModule {
   editDraftPost(input: EditDraftPostInput): Promise<Post>;
   getPublicPost(slug: string): Promise<PublicPost | undefined>;
   getDraftPost(input: GetDraftPostInput): Promise<DraftPost>;
+  listPublicPosts(query?: PublicFeedbackQuery): Promise<PublicPostPage>;
   submit(input: SubmitFeedbackInput): Promise<SubmittedFeedbackItem>;
   submitTrusted(
     input: SubmitTrustedFeedbackInput,
@@ -287,6 +304,7 @@ export interface FeedbackModule {
   getPublic(id: string): Promise<PublicFeedbackItem | undefined>;
   listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
   getPublicRoadmap(): Promise<PublicRoadmap>;
+  getPublicPostRoadmap(): Promise<PublicPostRoadmap>;
 }
 
 export type FeedbackMutationModule = Pick<
@@ -366,6 +384,13 @@ export function createFeedbackModule(
       }
       return toDraftPost(toPost(item));
     },
+    async listPublicPosts(query = {}) {
+      const page = await storage.listPublic(query);
+      return {
+        items: page.items.map((item) => toPublicPost(toPost(item))),
+        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      };
+    },
     async submit(input) {
       const now = new Date();
       const browserCapability = createBrowserCapability();
@@ -440,6 +465,17 @@ export function createFeedbackModule(
         }
       }
 
+      return roadmap;
+    },
+    async getPublicPostRoadmap() {
+      const roadmap: PublicPostRoadmap = {
+        Planned: [],
+        "In Progress": [],
+        Shipped: [],
+      };
+      for (const item of await storage.listPublicRoadmap())
+        if (isPublicRoadmapItem(item))
+          roadmap[item.status].push(toPublicPost(toPost(item)));
       return roadmap;
     },
   };

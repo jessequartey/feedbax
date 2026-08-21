@@ -12,7 +12,7 @@ Feedbax uses small red-green slices at pre-agreed seams. Tests describe observab
 
 ## Essential replacement-release tests
 
-- A submission becomes a New, unpublished Feedback Item.
+- A submission becomes a New, unpublished Post with an immutable slug.
 - Public output contains only allowlisted fields.
 - A Browser Capability edits an unpublished draft but not a published item.
 - Trusted submission rejects an invalid API key and honors idempotency.

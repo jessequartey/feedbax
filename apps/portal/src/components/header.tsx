@@ -1,3 +1,5 @@
+import { DeviceProfileControl } from "../device-profile-control";
+
 export default function Header() {
   return (
     <header className="portal-header">
@@ -8,7 +10,9 @@ export default function Header() {
       <nav aria-label="Public portal">
         <a href="/">Feedback</a>
         <a href="/roadmap">Roadmap</a>
-        <a href="/submit">Submit</a>
+        <a href="/changelog">Changelog</a>
+        <a href="/submit">Create Post</a>
+        <DeviceProfileControl />
       </nav>
     </header>
   );

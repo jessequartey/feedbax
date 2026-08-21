@@ -1,57 +1,66 @@
 import type {
   FeedbackModule,
-  FeedbackStatus,
-  FeedbackType,
-  PublicFeedbackPage,
+  PostStatus,
+  PostType,
   PublicFeedbackQuery,
+  PublicPostPage,
 } from "@feedbax/feedback";
 
-export const feedbackTypes = [
+export const postTypes = [
   "Feature Request",
   "Bug Report",
   "General Feedback",
-] as const satisfies readonly FeedbackType[];
-
-export const feedbackStatuses = [
+] as const satisfies readonly PostType[];
+export const postStatuses = [
   "New",
   "Reviewing",
   "Planned",
   "In Progress",
   "Shipped",
   "Closed",
-] as const satisfies readonly FeedbackStatus[];
+] as const satisfies readonly PostStatus[];
+export const feedbackTypes = postTypes;
+export const feedbackStatuses = postStatuses;
+export const postSorts = ["trending", "top", "new"] as const;
 
 export async function loadPublicFeedbackPage({
   feedback,
   search,
 }: {
-  feedback: Pick<FeedbackModule, "listPublic">;
+  feedback: Pick<FeedbackModule, "listPublicPosts">;
   search: Record<string, unknown>;
-}): Promise<PublicFeedbackPage> {
-  return feedback.listPublic(publicFeedbackSearch(search));
+}): Promise<PublicPostPage> {
+  return feedback.listPublicPosts(publicFeedbackSearch(search));
 }
 
 export function publicFeedbackSearch(
   search: Record<string, unknown>,
 ): PublicFeedbackQuery {
-  const cursor = stringValue(search.cursor);
-  const type = stringValue(search.type);
-  const status = stringValue(search.status);
-
+  const cursor = text(search.cursor);
+  const query = text(search.search);
+  const sortValue = text(search.sort);
   return {
     ...(cursor ? { cursor } : {}),
-    ...(isIncluded(feedbackTypes, type) ? { type } : {}),
-    ...(isIncluded(feedbackStatuses, status) ? { status } : {}),
+    ...(query ? { search: query } : {}),
+    sort: postSorts.includes(sortValue as (typeof postSorts)[number])
+      ? (sortValue as PublicFeedbackQuery["sort"])
+      : "trending",
+    types: values(search.types).filter((value): value is PostType =>
+      postTypes.includes(value as PostType),
+    ),
+    statuses: values(search.statuses).filter((value): value is PostStatus =>
+      postStatuses.includes(value as PostStatus),
+    ),
   };
 }
 
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+function text(value: unknown) {
+  return typeof value === "string" && value ? value : undefined;
 }
-
-function isIncluded<Value extends string>(
-  values: readonly Value[],
-  value: string | undefined,
-): value is Value {
-  return value !== undefined && values.includes(value as Value);
+function values(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : typeof value === "string"
+      ? value.split(",").filter(Boolean)
+      : [];
 }

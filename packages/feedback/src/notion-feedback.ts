@@ -226,6 +226,39 @@ function publicListQuery(
         ...(query.status
           ? [{ property: ids.status, select: { equals: query.status } }]
           : []),
+        ...(query.types?.length
+          ? [
+              {
+                or: query.types.map((type) => ({
+                  property: ids.type,
+                  select: { equals: type },
+                })),
+              },
+            ]
+          : []),
+        ...(query.statuses?.length
+          ? [
+              {
+                or: query.statuses.map((status) => ({
+                  property: ids.status,
+                  select: { equals: status },
+                })),
+              },
+            ]
+          : []),
+        ...(query.search
+          ? [
+              {
+                or: [
+                  { property: ids.title, title: { contains: query.search } },
+                  {
+                    property: ids.description,
+                    rich_text: { contains: query.search },
+                  },
+                ],
+              },
+            ]
+          : []),
       ],
     },
     sorts: [{ property: ids.createdAt, direction: "descending" }],

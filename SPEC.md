@@ -73,7 +73,7 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 
 ## Feedback model
 
-Every submission is a **Feedback Item** with one of three types:
+Every submission is a **Post** with one of three Post Types:
 
 - **Feature Request:** proposes a capability the product does not currently provide
 - **Bug Report:** describes existing behavior that does not work as intended
@@ -81,7 +81,7 @@ Every submission is a **Feedback Item** with one of three types:
 
 Support questions are outside the 0.2.0 product boundary.
 
-A Feedback Item moves through this lifecycle:
+A Post moves through this Post Status lifecycle:
 
 1. **New:** received but not yet evaluated
 2. **Reviewing:** being investigated or considered
@@ -155,8 +155,14 @@ Anonymous portal submissions always use Cloudflare's native rate-limit binding. 
 
 The standalone portal exposes:
 
-- `/` for published Feedback Items, newest first, with Type and Status filters
-- `/feedback/:id/:slug` for a Feedback Item detail page
+- `/` for a unified Post feed with URL-backed search, multi-select Type and Status filters, Trending/Top/New sorting, pinned browser-editable Draft Posts, and explicit append pagination
+- `/p/:slug` for canonical Post detail pages; internal storage IDs are never part of public URLs
+- `/submit` for Post creation, routed contextually from the feed and complete on direct navigation
+- `/roadmap` for a responsive, read-only Planned/In Progress/Shipped board
+- `/changelog` for the product-update placeholder
+
+A device-local Participant profile may store a required display name and optional email. It applies privately to future submissions only, is not authentication, and is independent from Browser Capabilities. TanStack Router owns validated URL and loader state; TanStack Query owns cached server state and mutation reconciliation. Public and capability-authorized Draft Post reads use separate cache paths, and authorized reads are private and `no-store`.
+
 - `/submit` for anonymous submission
 - `/roadmap` for Planned, In Progress, and Shipped groups
 - `/health` for minimal deployment health
@@ -306,7 +312,7 @@ Implementation uses red-green test-driven slices at three confirmed seams: the F
 
 The initial essential suite proves that:
 
-- A submission becomes a New, unpublished Feedback Item.
+- A submission becomes a New, unpublished Post with an immutable slug.
 - Public output contains only allowlisted fields.
 - A Browser Capability edits an unpublished draft but not a published item.
 - Trusted submission rejects an invalid API key and honors idempotency.

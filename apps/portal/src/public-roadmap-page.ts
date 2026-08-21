@@ -1,9 +1,9 @@
-import type { FeedbackModule, PublicRoadmap } from "@feedbax/feedback";
+import type { FeedbackModule, PublicPostRoadmap } from "@feedbax/feedback";
 
 export function loadPublicRoadmapPage({
   feedback,
 }: {
-  feedback: Pick<FeedbackModule, "getPublicRoadmap">;
-}): Promise<PublicRoadmap> {
-  return feedback.getPublicRoadmap();
+  feedback: Pick<FeedbackModule, "getPublicPostRoadmap">;
+}): Promise<PublicPostRoadmap> {
+  return feedback.getPublicPostRoadmap();
 }

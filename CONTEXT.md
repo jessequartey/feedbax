@@ -38,36 +38,44 @@ _Avoid_: Full mode, premium mode
 
 ## Feedback
 
-**Feedback Item**:
-A submission describing one proposed capability, defect, or product observation.
-_Avoid_: Feature, ticket, post
+**Post**:
+A submission describing one proposed capability, defect, or product observation in the feedback portal.
+_Avoid_: Feedback Item, feature, ticket
 
 **Feature Request**:
-A Feedback Item proposing a capability the product does not currently provide.
+A Post proposing a capability the product does not currently provide.
 _Avoid_: Feature, idea
 
 **Bug Report**:
-A Feedback Item describing existing product behavior that does not work as intended.
+A Post describing existing product behavior that does not work as intended.
 _Avoid_: Issue, defect
 
 **General Feedback**:
-A Feedback Item containing a product observation that is neither a Feature Request nor a Bug Report.
+A Post containing a product observation that is neither a Feature Request nor a Bug Report.
 _Avoid_: Improvement, question, other
 
-**Feedback Status**:
-The lifecycle classification of a Feedback Item: New, Reviewing, Planned, In Progress, Shipped, or Closed.
+**Post Status**:
+The lifecycle classification of a Post: New, Reviewing, Planned, In Progress, Shipped, or Closed.
 _Avoid_: Stage, state
 
-**Published Feedback Item**:
-A Feedback Item a Team Member has approved for public display. Publication is independent of Feedback Status.
-_Avoid_: Public status, approved feedback
+**Published Post**:
+A Post a Team Member has approved for public display. Publication is independent of Post Status.
+_Avoid_: Public status, approved post
+
+**Draft Post**:
+A New, unpublished Post that may be edited from a browser holding its Browser Capability.
+_Avoid_: Owned Post, private Post, user Post
 
 **Browser Capability**:
-A secret held by the submitting browser that permits limited changes to a New, unpublished Feedback Item. It is not a Participant identity or proof of email ownership.
+A secret held by the submitting browser that permits limited changes to a New, unpublished Post. It is not a Participant identity or proof of email ownership.
 _Avoid_: Account, session, verified owner
 
+**Device Profile**:
+Optional Participant details stored in one browser and attached privately to new Post submissions. A Device Profile is not verified identity, an account, or editing authority.
+_Avoid_: Account, sign-in, user profile
+
 **Feedback Data Source**:
-The Notion data source that holds a Product Team's Feedback Items using the Feedbax schema.
+The Notion data source that holds a Product Team's Posts using the Feedbax schema.
 _Avoid_: Arbitrary database, CRM
 
 ## Editions

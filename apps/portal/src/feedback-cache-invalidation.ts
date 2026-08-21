@@ -49,6 +49,7 @@ export function createInvalidatingFeedbackModule({
       runInvalidatingWrite(() => feedback.editDraftPost(input), invalidator),
     getPublicPost: (slug) => feedback.getPublicPost(slug),
     getDraftPost: (input) => feedback.getDraftPost(input),
+    listPublicPosts: (query) => feedback.listPublicPosts(query),
     submit: (input) =>
       runInvalidatingWrite(() => feedback.submit(input), invalidator),
     submitTrusted: (input) =>
@@ -62,6 +63,7 @@ export function createInvalidatingFeedbackModule({
     getPublic: (id) => feedback.getPublic(id),
     listPublic: (query) => feedback.listPublic(query),
     getPublicRoadmap: () => feedback.getPublicRoadmap(),
+    getPublicPostRoadmap: () => feedback.getPublicPostRoadmap(),
   };
 }
 

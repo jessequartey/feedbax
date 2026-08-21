@@ -6,12 +6,16 @@ import {
   createRootRouteWithContext,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { ThemeProvider } from "next-themes";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/header";
 
 import appCss from "../index.css?url";
 
-export type RouterAppContext = Record<string, never>;
+export type RouterAppContext = {
+  queryClient: import("@tanstack/react-query").QueryClient;
+};
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
@@ -39,16 +43,21 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+  const { queryClient } = Route.useRouteContext();
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
-        <div className="portal-shell">
-          <Header />
-          <Outlet />
-        </div>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <div className="portal-shell">
+              <Header />
+              <Outlet />
+            </div>
+          </ThemeProvider>
+        </QueryClientProvider>
         <Toaster richColors />
         <TanStackRouterDevtools position="bottom-left" />
         <Scripts />

@@ -65,10 +65,10 @@ describe("public roadmap page", () => {
     expect(html).toContain("Planned");
     expect(html).toContain("In progress");
     expect(html).toContain("Shipped");
-    expect(html.match(/No Feedback Items here yet\./g)).toHaveLength(3);
+    expect(html.match(/No Posts here yet\./g)).toHaveLength(3);
   });
 
-  it("links roadmap items by stable ID and cosmetic title slug", () => {
+  it("links roadmap Posts by immutable slug", () => {
     const item = roadmapItem(
       "stable-notion-page-id",
       "Keyboard-first search!",
@@ -81,9 +81,7 @@ describe("public roadmap page", () => {
       />,
     );
 
-    expect(html).toContain(
-      'href="/feedback/stable-notion-page-id/keyboard-first-search"',
-    );
+    expect(html).toContain('href="/p/keyboard-first-search"');
   });
 });
 
@@ -95,6 +93,10 @@ function roadmapItem(
 ) {
   return {
     id,
+    slug: title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/-$/, ""),
     title,
     description: `${title} description`,
     type: "Feature Request" as const,

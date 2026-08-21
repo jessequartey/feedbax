@@ -10,13 +10,19 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as SubmitRouteImport } from './routes/submit'
-import { Route as FeedbackIdSlugRouteImport } from './routes/feedback.$id.$slug'
+import { Route as PSlugRouteImport } from './routes/p.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoadmapRoute = RoadmapRouteImport.update({
@@ -29,44 +35,48 @@ const SubmitRoute = SubmitRouteImport.update({
   path: '/submit',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FeedbackIdSlugRoute = FeedbackIdSlugRouteImport.update({
-  id: '/feedback/$id/$slug',
-  path: '/feedback/$id/$slug',
+const PSlugRoute = PSlugRouteImport.update({
+  id: '/p/$slug',
+  path: '/p/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/changelog': typeof ChangelogRoute
   '/roadmap': typeof RoadmapRoute
   '/submit': typeof SubmitRoute
-  '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
+  '/p/$slug': typeof PSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/changelog': typeof ChangelogRoute
   '/roadmap': typeof RoadmapRoute
   '/submit': typeof SubmitRoute
-  '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
+  '/p/$slug': typeof PSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/changelog': typeof ChangelogRoute
   '/roadmap': typeof RoadmapRoute
   '/submit': typeof SubmitRoute
-  '/feedback/$id/$slug': typeof FeedbackIdSlugRoute
+  '/p/$slug': typeof PSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/roadmap' | '/submit' | '/feedback/$id/$slug'
+  fullPaths: '/' | '/changelog' | '/roadmap' | '/submit' | '/p/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/roadmap' | '/submit' | '/feedback/$id/$slug'
-  id: '__root__' | '/' | '/roadmap' | '/submit' | '/feedback/$id/$slug'
+  to: '/' | '/changelog' | '/roadmap' | '/submit' | '/p/$slug'
+  id: '__root__' | '/' | '/changelog' | '/roadmap' | '/submit' | '/p/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ChangelogRoute: typeof ChangelogRoute
   RoadmapRoute: typeof RoadmapRoute
   SubmitRoute: typeof SubmitRoute
-  FeedbackIdSlugRoute: typeof FeedbackIdSlugRoute
+  PSlugRoute: typeof PSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changelog': {
+      id: '/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/roadmap': {
@@ -92,11 +109,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubmitRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/feedback/$id/$slug': {
-      id: '/feedback/$id/$slug'
-      path: '/feedback/$id/$slug'
-      fullPath: '/feedback/$id/$slug'
-      preLoaderRoute: typeof FeedbackIdSlugRouteImport
+    '/p/$slug': {
+      id: '/p/$slug'
+      path: '/p/$slug'
+      fullPath: '/p/$slug'
+      preLoaderRoute: typeof PSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -104,10 +121,20 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ChangelogRoute: ChangelogRoute,
   RoadmapRoute: RoadmapRoute,
   SubmitRoute: SubmitRoute,
-  FeedbackIdSlugRoute: FeedbackIdSlugRoute,
+  PSlugRoute: PSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

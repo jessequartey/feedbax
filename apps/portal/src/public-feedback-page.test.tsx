@@ -6,10 +6,11 @@ import { PublicFeedbackIndex } from "./public-feedback-index";
 import { loadPublicFeedbackPage } from "./public-feedback-page";
 
 describe("public feedback home page", () => {
-  it("loads the newest 25 Published Feedback Items and an opaque next-page cursor", async () => {
+  it("loads 25 Published Posts and an opaque next-page cursor", async () => {
     const feedback = createFeedbackModule({
       initialItems: Array.from({ length: 26 }, (_, index) => ({
         id: `feedback-${index + 1}`,
+        slug: `feedback-${index + 1}`,
         title: `Feedback ${index + 1}`,
         description: `Description ${index + 1}`,
         type: "Feature Request" as const,
@@ -39,6 +40,7 @@ describe("public feedback home page", () => {
       initialItems: [
         {
           id: "matching-feedback",
+          slug: "matching-feedback",
           title: "Matching feedback",
           description: "A planned feature request.",
           type: "Feature Request",
@@ -49,6 +51,7 @@ describe("public feedback home page", () => {
         },
         {
           id: "wrong-status",
+          slug: "wrong-status",
           title: "New feature request",
           description: "This should be filtered out.",
           type: "Feature Request",
@@ -59,6 +62,7 @@ describe("public feedback home page", () => {
         },
         {
           id: "wrong-type",
+          slug: "wrong-type",
           title: "Planned bug report",
           description: "This should also be filtered out.",
           type: "Bug Report",
@@ -72,7 +76,7 @@ describe("public feedback home page", () => {
 
     const page = await loadPublicFeedbackPage({
       feedback,
-      search: { type: "Feature Request", status: "Planned" },
+      search: { types: ["Feature Request"], statuses: ["Planned"] },
     });
 
     expect(page.items.map((item) => item.title)).toEqual(["Matching feedback"]);
@@ -82,25 +86,25 @@ describe("public feedback home page", () => {
     const html = renderToStaticMarkup(
       <PublicFeedbackIndex
         page={{ items: [], nextCursor: "opaque-next-page" }}
-        search={{ type: "Bug Report", status: "Reviewing" }}
+        search={{ types: ["Bug Report"], statuses: ["Reviewing"] }}
       />,
     );
 
-    expect(html).toContain("No feedback matches these filters");
-    expect(html).toContain('aria-label="Feedback Type"');
-    expect(html).toContain('aria-label="Feedback Status"');
-    expect(html).toContain("cursor=opaque-next-page");
-    expect(html).toContain("type=Bug+Report");
-    expect(html).toContain("status=Reviewing");
+    expect(html).toContain("No Posts match this view");
+    expect(html).toContain("Post Types");
+    expect(html).toContain("Post Statuses");
+    expect(html).toContain("Filters (2)");
+    expect(html).toContain('checked="" value="Bug Report"');
+    expect(html).toContain('checked="" value="Reviewing"');
   });
 
-  it("links each Published Feedback Item by stable ID and cosmetic title slug", () => {
+  it("links each Published Post by immutable slug", () => {
     const html = renderToStaticMarkup(
       <PublicFeedbackIndex
         page={{
           items: [
             {
-              id: "stable-notion-page-id",
+              slug: "keyboard-first-search",
               title: "Keyboard-first search!",
               description: "Open search without reaching for the mouse.",
               type: "Feature Request",
@@ -114,8 +118,6 @@ describe("public feedback home page", () => {
       />,
     );
 
-    expect(html).toContain(
-      'href="/feedback/stable-notion-page-id/keyboard-first-search"',
-    );
+    expect(html).toContain('href="/p/keyboard-first-search"');
   });
 });

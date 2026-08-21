@@ -1,6 +1,6 @@
-import type { PublicFeedbackItem, PublicRoadmap } from "@feedbax/feedback";
+import type { PublicPost, PublicPostRoadmap } from "@feedbax/feedback";
 
-import { feedbackItemPath } from "./public-feedback-item-page";
+import { postPath } from "./public-post-page";
 import { formatPublicDate } from "./public-date";
 
 const roadmapGroups = [
@@ -13,7 +13,7 @@ const roadmapGroups = [
   { status: "Shipped", heading: "Shipped", headingId: "roadmap-shipped" },
 ] as const;
 
-export function PublicRoadmapView({ roadmap }: { roadmap: PublicRoadmap }) {
+export function PublicRoadmapView({ roadmap }: { roadmap: PublicPostRoadmap }) {
   return (
     <main className="roadmap-page">
       <section className="roadmap-intro" aria-labelledby="roadmap-heading">
@@ -37,11 +37,11 @@ export function PublicRoadmapView({ roadmap }: { roadmap: PublicRoadmap }) {
               <span>{roadmap[status].length}</span>
             </header>
             {roadmap[status].length === 0 ? (
-              <p className="roadmap-empty">No Feedback Items here yet.</p>
+              <p className="roadmap-empty">No Posts here yet.</p>
             ) : (
               <ol className="roadmap-list">
                 {roadmap[status].map((item) => (
-                  <RoadmapItem item={item} key={item.id} />
+                  <RoadmapItem item={item} key={item.slug} />
                 ))}
               </ol>
             )}
@@ -52,10 +52,10 @@ export function PublicRoadmapView({ roadmap }: { roadmap: PublicRoadmap }) {
   );
 }
 
-function RoadmapItem({ item }: { item: PublicFeedbackItem }) {
+function RoadmapItem({ item }: { item: PublicPost }) {
   return (
     <li>
-      <a href={feedbackItemPath(item)}>
+      <a href={postPath(item)}>
         <article>
           <div className="roadmap-item-meta">
             <span>{item.type}</span>

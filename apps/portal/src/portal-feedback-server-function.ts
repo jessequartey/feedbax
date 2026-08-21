@@ -8,6 +8,7 @@ import {
 import {
   createPortalDraftManagement,
   createPortalFeedbackSubmission,
+  createPortalPostSubmission,
 } from "./portal-feedback-submission";
 import {
   createPortalSubmissionSecurity,
@@ -25,6 +26,22 @@ export const submitPortalFeedback = createServerFn({ method: "POST" })
     });
     return runSafePortalMutation(() =>
       createPortalFeedbackSubmission({
+        feedback: createConfiguredFeedbackModule(),
+        limits: feedbackSubmissionLimits,
+        ...createPortalSubmissionSecurity({
+          environment: env,
+          rateLimitKey: getRequestIP() ?? "unknown-participant-ip",
+        }),
+      })(data),
+    );
+  });
+
+export const submitPortalPost = createServerFn({ method: "POST" })
+  .validator((input: unknown) => input)
+  .handler(async ({ data }) => {
+    const { env } = await import("cloudflare:workers");
+    return runSafePortalMutation(() =>
+      createPortalPostSubmission({
         feedback: createConfiguredFeedbackModule(),
         limits: feedbackSubmissionLimits,
         ...createPortalSubmissionSecurity({
@@ -56,3 +73,21 @@ export const withdrawPortalFeedbackDraft = createServerFn({ method: "POST" })
       }).withdraw(data),
     ),
   );
+
+export const getPortalDraftPost = createServerFn({ method: "POST" })
+  .validator((input: unknown) => input)
+  .handler(({ data }) => {
+    if (!data || typeof data !== "object")
+      throw new Error("Draft Post request is invalid.");
+    const id = Reflect.get(data, "id");
+    const browserCapability = Reflect.get(data, "browserCapability");
+    if (typeof id !== "string" || typeof browserCapability !== "string")
+      throw new Error("Draft Post request is invalid.");
+    return runSafePortalMutation(() =>
+      createConfiguredFeedbackModule().getDraftPost({
+        id,
+        browserCapability:
+          browserCapability as import("@feedbax/feedback").BrowserCapability,
+      }),
+    );
+  });
