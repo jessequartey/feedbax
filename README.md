@@ -36,10 +36,10 @@ React web apps in this stack share shadcn/ui primitives through `packages/ui`.
 
 ### Add more shared components
 
-Run this from the project root to add more primitives to the shared UI package:
+Run the pinned generator from the project root through the portal workspace. It detects TanStack Start there and follows the configured aliases into the shared UI package:
 
 ```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
+pnpm dlx shadcn@4.18.0 add accordion dialog popover sheet table -c apps/portal
 ```
 
 Import shared components like this:
@@ -50,7 +50,7 @@ import { Button } from "@feedbax/ui/components/button";
 
 ### Add app-specific blocks
 
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/portal`.
+Keep app-specific blocks and product compositions in `apps/portal`; move only reusable registry primitives into `packages/ui`.
 
 ## Project Structure
 

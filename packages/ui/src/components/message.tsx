@@ -1,5 +1,6 @@
-import { cn } from "@feedbax/ui/lib/utils";
 import * as React from "react";
+
+import { cn } from "@feedbax/ui/lib/utils";
 
 function MessageGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
