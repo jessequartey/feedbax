@@ -12,6 +12,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import Header from "../components/header";
 import { CreatePostOverlay } from "../create-post-overlay";
 import { portalFeedbackMutations } from "../routed-post-creation-form";
+import { PostDetailOverlay } from "../post-detail-overlay";
+import { OverlayPostDetail } from "../overlay-post-detail";
 
 import appCss from "../index.css?url";
 
@@ -58,6 +60,9 @@ function RootDocument() {
               <Header />
               <Outlet />
               <CreatePostOverlay mutations={portalFeedbackMutations} />
+              <PostDetailOverlay
+                renderDetail={(slug) => <OverlayPostDetail slug={slug} />}
+              />
             </div>
           </ThemeProvider>
         </QueryClientProvider>

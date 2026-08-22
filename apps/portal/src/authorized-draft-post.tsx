@@ -1,7 +1,31 @@
 import type { DraftPost } from "@feedbax/feedback";
+import { MoreHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
-import { PortalFeedbackForm } from "./portal-feedback-form";
-import { readCapabilities } from "./browser-post-state";
+import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@feedbax/ui/components/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@feedbax/ui/components/dropdown-menu";
+import { toast } from "sonner";
+
+import {
+  PortalFeedbackForm,
+  type PortalFeedbackMutations,
+} from "./portal-feedback-form";
+import { readCapabilities, removeCapability } from "./browser-post-state";
 import {
   editPortalFeedbackDraft,
   getPortalDraftPost,
@@ -12,51 +36,159 @@ import { PublicPostUnavailable } from "./public-post-unavailable";
 
 export function AuthorizedDraftPost({ slug }: { slug: string }) {
   const [post, setPost] = useState<DraftPost | null>();
+  const [editing, setEditing] = useState(false);
+  const [confirmingWithdrawal, setConfirmingWithdrawal] = useState(false);
+  const [withdrawalError, setWithdrawalError] = useState<string>();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const navigate = useNavigate();
+  const overlaid = useRouterState({
+    select: (state) => Boolean(state.location.state.postDetailOverlay),
+  });
+  const capability = Object.values(readCapabilities(localStorage)).find(
+    (item) => item.slug === slug,
+  );
+
   useEffect(() => {
-    const capability = Object.values(readCapabilities(localStorage)).find(
-      (item) => item.slug === slug,
-    );
     if (!capability) {
       setPost(null);
       return;
     }
     getPortalDraftPost({ data: capability })
       .then(setPost)
-      .catch(() => setPost(null));
-  }, [slug]);
+      .catch((error: unknown) => {
+        if (isAuthorizationFailure(error)) {
+          removeCapability(localStorage, capability.id);
+        }
+        setPost(null);
+      });
+  }, [capability?.browserCapability, capability?.id, slug]);
+
   if (post === undefined)
     return (
       <main className="feedback-detail">
         <p>Loading Draft Post…</p>
       </main>
     );
-  if (post === null) return <PublicPostUnavailable />;
+  if (post === null || !capability) return <PublicPostUnavailable />;
+
+  const updateVisibleDraft = (
+    edited: Awaited<ReturnType<PortalFeedbackMutations["editDraft"]>>,
+  ) => {
+    const next = { ...post, ...edited, slug: post.slug };
+    setPost(next);
+    setEditing(false);
+    queryClient.setQueriesData<DraftPost[]>(
+      { queryKey: ["authorized-draft-posts"] },
+      (current) => current?.map((item) => (item.id === next.id ? next : item)),
+    );
+    toast.success("Draft updated.");
+  };
+
+  const withdraw = async () => {
+    setWithdrawalError(undefined);
+    try {
+      await withdrawPortalFeedbackDraft({ data: capability });
+      removeCapability(localStorage, post.id);
+      queryClient.setQueriesData<DraftPost[]>(
+        { queryKey: ["authorized-draft-posts"] },
+        (current) => current?.filter((item) => item.id !== post.id),
+      );
+      await queryClient.invalidateQueries({ queryKey: ["public-posts"] });
+      if (overlaid) router.history.back();
+      else await navigate({ to: "/" });
+    } catch (error) {
+      if (isAuthorizationFailure(error)) {
+        removeCapability(localStorage, post.id);
+        setPost(null);
+      } else {
+        setWithdrawalError(
+          "The draft could not be withdrawn. Please try again.",
+        );
+      }
+    } finally {
+      setConfirmingWithdrawal(false);
+    }
+  };
+
   return (
     <main className="feedback-detail">
-      <article>
-        <div className="feedback-detail-meta">
-          <span>Draft</span>
-          <span>{post.type}</span>
-        </div>
-        <h1>{post.title}</h1>
-        <p className="feedback-detail-description">{post.description}</p>
-      </article>
-      <PortalFeedbackForm
-        mutations={{
-          submitPost: submitPortalPost,
-          editDraft: editPortalFeedbackDraft,
-          withdrawDraft: withdrawPortalFeedbackDraft,
-        }}
-        initialDraft={{
-          id: post.id,
-          browserCapability: Object.values(readCapabilities(localStorage)).find(
-            (item) => item.id === post.id,
-          )!.browserCapability,
-          title: post.title,
-          description: post.description,
-          type: post.type,
-        }}
-      />
+      {editing ? (
+        <PortalFeedbackForm
+          display="overlay"
+          onCancel={() => setEditing(false)}
+          onEdited={updateVisibleDraft}
+          onAuthorizationLost={() => {
+            removeCapability(localStorage, post.id);
+            setPost(null);
+          }}
+          showWithdrawal={false}
+          mutations={{
+            submitPost: submitPortalPost,
+            editDraft: editPortalFeedbackDraft,
+            withdrawDraft: withdrawPortalFeedbackDraft,
+          }}
+          initialDraft={{
+            id: post.id,
+            browserCapability: capability.browserCapability,
+            title: post.title,
+            description: post.description,
+            type: post.type,
+          }}
+        />
+      ) : (
+        <>
+          <div className="draft-detail-actions">
+            <button type="button" onClick={() => setEditing(true)}>
+              Edit
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger aria-label="Draft actions">
+                <MoreHorizontal aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setConfirmingWithdrawal(true)}>
+                  Withdraw draft
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <article>
+            <div className="feedback-detail-meta">
+              <span>Draft</span>
+              <span>{post.type}</span>
+            </div>
+            <h1>{post.title}</h1>
+            <p className="feedback-detail-description">{post.description}</p>
+          </article>
+          {withdrawalError ? <p role="alert">{withdrawalError}</p> : null}
+        </>
+      )}
+      <AlertDialog
+        open={confirmingWithdrawal}
+        onOpenChange={setConfirmingWithdrawal}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Withdraw this Draft Post permanently?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={withdraw}>
+              Withdraw Draft Post
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
+}
+
+function isAuthorizationFailure(error: unknown) {
+  return error instanceof Error && error.message.includes("did not authorize");
 }

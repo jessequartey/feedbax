@@ -50,13 +50,19 @@ export function PortalFeedbackForm({
   display = "page",
   onCancel,
   onCreated,
+  onEdited,
+  onAuthorizationLost,
   mutations,
+  showWithdrawal = true,
 }: {
   initialDraft?: StoredDraft;
   display?: "page" | "overlay";
   onCancel?: () => void;
   onCreated?: (post: SubmittedPost) => void | Promise<void>;
+  onEdited?: (post: FeedbackItem) => void | Promise<void>;
+  onAuthorizationLost?: () => void;
   mutations: PortalFeedbackMutations;
+  showWithdrawal?: boolean;
 }) {
   const [draft, setDraft] = useState<StoredDraft | undefined>(initialDraft);
   const [pending, setPending] = useState(false);
@@ -141,10 +147,13 @@ export function PortalFeedbackForm({
     event.preventDefault();
     if (!draft) return;
     const values = readFeedbackForm(event.currentTarget);
+    const errors = validateFeedbackForm(values);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     setPending(true);
     setMessage(undefined);
     try {
-      await mutations.editDraft({
+      const edited = await mutations.editDraft({
         data: {
           id: draft.id,
           browserCapability: draft.browserCapability,
@@ -155,7 +164,9 @@ export function PortalFeedbackForm({
       window.localStorage.setItem(draftStorageKey, JSON.stringify(storedDraft));
       setDraft(storedDraft);
       setMessage("Draft updated.");
+      await onEdited?.(edited);
     } catch (error) {
+      if (isAuthorizationFailure(error)) onAuthorizationLost?.();
       setMessage(draftFailureMessage(error));
     } finally {
       setPending(false);
@@ -279,7 +290,7 @@ export function PortalFeedbackForm({
           <button type="submit" disabled={pending}>
             {pending ? "Working…" : draft ? "Save changes" : "Create Post"}
           </button>
-          {display === "overlay" && !draft ? (
+          {display === "overlay" ? (
             <button
               type="button"
               className="feedback-cancel"
@@ -289,7 +300,7 @@ export function PortalFeedbackForm({
               Cancel
             </button>
           ) : null}
-          {draft ? (
+          {draft && showWithdrawal ? (
             <button
               type="button"
               className="feedback-withdraw"
@@ -389,4 +400,8 @@ function draftFailureMessage(error: unknown): string {
     return "Check the required fields and their length, then try again.";
   }
   return "The draft could not be changed. Please try again.";
+}
+
+function isAuthorizationFailure(error: unknown) {
+  return error instanceof Error && error.message.includes("did not authorize");
 }

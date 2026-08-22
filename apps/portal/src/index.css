@@ -327,6 +327,49 @@ textarea:focus-visible {
   font-weight: 650;
 }
 
+.post-detail-dialog {
+  width: min(46rem, calc(100vw - 2rem));
+  max-width: 46rem;
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
+}
+
+.post-detail-drawer {
+  max-height: 92svh;
+  overflow-y: auto;
+}
+
+.overlay-post-detail {
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.post-full-page-link {
+  display: block;
+  margin-bottom: 1rem;
+  color: var(--portal-blue);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.draft-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.draft-detail-actions button {
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--portal-rule);
+  background: transparent;
+  color: var(--portal-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .portal-shell {
   min-height: 100svh;
 }

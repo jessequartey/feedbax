@@ -11,5 +11,5 @@ export const Route = createFileRoute("/roadmap")({
 });
 
 function RoadmapComponent() {
-  return <PublicRoadmapView roadmap={Route.useLoaderData()} />;
+  return <PublicRoadmapView roadmap={Route.useLoaderData()} maskPostLinks />;
 }

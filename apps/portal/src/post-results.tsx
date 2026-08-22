@@ -1,6 +1,6 @@
 import type { DraftPost, PublicPost } from "@feedbax/feedback";
-import { postPath } from "./public-post-page";
 import { formatPublicDate } from "./public-date";
+import { PostLink } from "./masked-post-link";
 
 export function PostResults({
   drafts = [],
@@ -9,6 +9,7 @@ export function PostResults({
   loadMore,
   loadingMore = false,
   loadMoreError = false,
+  maskPostLinks = false,
 }: {
   drafts?: DraftPost[];
   initialItems: PublicPost[];
@@ -16,6 +17,7 @@ export function PostResults({
   loadMore?: () => void;
   loadingMore?: boolean;
   loadMoreError?: boolean;
+  maskPostLinks?: boolean;
 }) {
   const items = initialItems;
   if (!drafts.length && !items.length)
@@ -30,9 +32,10 @@ export function PostResults({
       <ol className="feedback-list">
         {drafts.map((post) => (
           <li key={post.id}>
-            <a
+            <PostLink
               className="feedback-item-link draft-post-link"
-              href={`/p/${encodeURIComponent(post.slug)}`}
+              slug={post.slug}
+              contextual={maskPostLinks}
             >
               <article>
                 <div className="feedback-meta">
@@ -45,12 +48,16 @@ export function PostResults({
                 <h3>{post.title}</h3>
                 <p>{post.description}</p>
               </article>
-            </a>
+            </PostLink>
           </li>
         ))}
         {items.map((post) => (
           <li key={post.slug}>
-            <a className="feedback-item-link" href={postPath(post)}>
+            <PostLink
+              className="feedback-item-link"
+              slug={post.slug}
+              contextual={maskPostLinks}
+            >
               <article>
                 <div className="feedback-meta">
                   <span>{post.type}</span>
@@ -62,7 +69,7 @@ export function PostResults({
                 <h3>{post.title}</h3>
                 <p>{post.description}</p>
               </article>
-            </a>
+            </PostLink>
           </li>
         ))}
       </ol>

@@ -1,7 +1,7 @@
 import type { PublicPost, PublicPostRoadmap } from "@feedbax/feedback";
 
-import { postPath } from "./public-post-page";
 import { formatPublicDate } from "./public-date";
+import { PostLink } from "./masked-post-link";
 
 const roadmapGroups = [
   { status: "Planned", heading: "Planned", headingId: "roadmap-planned" },
@@ -13,7 +13,13 @@ const roadmapGroups = [
   { status: "Shipped", heading: "Shipped", headingId: "roadmap-shipped" },
 ] as const;
 
-export function PublicRoadmapView({ roadmap }: { roadmap: PublicPostRoadmap }) {
+export function PublicRoadmapView({
+  roadmap,
+  maskPostLinks = false,
+}: {
+  roadmap: PublicPostRoadmap;
+  maskPostLinks?: boolean;
+}) {
   return (
     <main className="roadmap-page">
       <section className="roadmap-intro" aria-labelledby="roadmap-heading">
@@ -41,7 +47,11 @@ export function PublicRoadmapView({ roadmap }: { roadmap: PublicPostRoadmap }) {
             ) : (
               <ol className="roadmap-list">
                 {roadmap[status].map((item) => (
-                  <RoadmapItem item={item} key={item.slug} />
+                  <RoadmapItem
+                    item={item}
+                    key={item.slug}
+                    masked={maskPostLinks}
+                  />
                 ))}
               </ol>
             )}
@@ -52,10 +62,10 @@ export function PublicRoadmapView({ roadmap }: { roadmap: PublicPostRoadmap }) {
   );
 }
 
-function RoadmapItem({ item }: { item: PublicPost }) {
+function RoadmapItem({ item, masked }: { item: PublicPost; masked: boolean }) {
   return (
     <li>
-      <a href={postPath(item)}>
+      <PostLink slug={item.slug} contextual={masked}>
         <article>
           <div className="roadmap-item-meta">
             <span>{item.type}</span>
@@ -66,7 +76,7 @@ function RoadmapItem({ item }: { item: PublicPost }) {
           <h3>{item.title}</h3>
           <p>{item.description}</p>
         </article>
-      </a>
+      </PostLink>
     </li>
   );
 }

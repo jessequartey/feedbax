@@ -35,6 +35,7 @@ function HomeComponent() {
       onSearchChange={(nextSearch) =>
         navigate({ search: nextSearch, replace: false })
       }
+      maskPostLinks
     />
   );
 }

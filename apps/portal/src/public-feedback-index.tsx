@@ -10,6 +10,7 @@ export function PublicFeedbackIndex({
   loadingMore,
   loadMoreError,
   onSearchChange,
+  maskPostLinks = false,
 }: {
   page: PublicPostPage;
   search: PublicFeedbackQuery;
@@ -17,6 +18,7 @@ export function PublicFeedbackIndex({
   loadingMore?: boolean;
   loadMoreError?: boolean;
   onSearchChange?: (search: PublicFeedbackQuery) => void;
+  maskPostLinks?: boolean;
 }) {
   const drafts = useAuthorizedDraftPosts(search);
   return (
@@ -40,6 +42,7 @@ export function PublicFeedbackIndex({
           loadMore={loadMore}
           loadingMore={loadingMore}
           loadMoreError={loadMoreError}
+          maskPostLinks={maskPostLinks}
         />
       </section>
     </main>
