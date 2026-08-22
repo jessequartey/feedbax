@@ -2,7 +2,12 @@ import type { DraftPost } from "@feedbax/feedback";
 import { useEffect, useState } from "react";
 import { PortalFeedbackForm } from "./portal-feedback-form";
 import { readCapabilities } from "./browser-post-state";
-import { getPortalDraftPost } from "./portal-feedback-server-function";
+import {
+  editPortalFeedbackDraft,
+  getPortalDraftPost,
+  submitPortalPost,
+  withdrawPortalFeedbackDraft,
+} from "./portal-feedback-server-function";
 import { PublicPostUnavailable } from "./public-post-unavailable";
 
 export function AuthorizedDraftPost({ slug }: { slug: string }) {
@@ -37,6 +42,11 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
         <p className="feedback-detail-description">{post.description}</p>
       </article>
       <PortalFeedbackForm
+        mutations={{
+          submitPost: submitPortalPost,
+          editDraft: editPortalFeedbackDraft,
+          withdrawDraft: withdrawPortalFeedbackDraft,
+        }}
         initialDraft={{
           id: post.id,
           browserCapability: Object.values(readCapabilities(localStorage)).find(

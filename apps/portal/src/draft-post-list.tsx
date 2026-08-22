@@ -1,6 +1,6 @@
 import type { DraftPost, PublicFeedbackQuery } from "@feedbax/feedback";
 import { useEffect, useState } from "react";
-import { readCapabilities } from "./browser-post-state";
+import { draftPostCreatedEvent, readCapabilities } from "./browser-post-state";
 import { formatPublicDate } from "./public-date";
 
 export function DraftPostList({ search }: { search: PublicFeedbackQuery }) {
@@ -20,6 +20,18 @@ export function DraftPostList({ search }: { search: PublicFeedbackQuery }) {
           ),
         ),
     );
+  }, []);
+  useEffect(() => {
+    const addCreatedDraft = (event: Event) => {
+      const post = (event as CustomEvent<DraftPost>).detail;
+      setDrafts((current) => [
+        post,
+        ...current.filter((item) => item.id !== post.id),
+      ]);
+    };
+    window.addEventListener(draftPostCreatedEvent, addCreatedDraft);
+    return () =>
+      window.removeEventListener(draftPostCreatedEvent, addCreatedDraft);
   }, []);
   const query = search.search?.toLocaleLowerCase();
   const visible = drafts.filter(

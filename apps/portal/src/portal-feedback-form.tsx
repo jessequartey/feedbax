@@ -1,4 +1,8 @@
-import type { FeedbackType } from "@feedbax/feedback";
+import type {
+  FeedbackItem,
+  FeedbackType,
+  SubmittedPost,
+} from "@feedbax/feedback";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AlertDialog,
@@ -11,11 +15,6 @@ import {
   AlertDialogTitle,
 } from "@feedbax/ui/components/alert-dialog";
 
-import {
-  editPortalFeedbackDraft,
-  submitPortalPost,
-  withdrawPortalFeedbackDraft,
-} from "./portal-feedback-server-function";
 import {
   readDeviceProfile,
   removeCapability,
@@ -34,6 +33,12 @@ export interface StoredDraft {
   type: FeedbackType;
 }
 
+export interface PortalFeedbackMutations {
+  submitPost(input: { data: unknown }): Promise<SubmittedPost>;
+  editDraft(input: { data: unknown }): Promise<FeedbackItem>;
+  withdrawDraft(input: { data: unknown }): Promise<void>;
+}
+
 const feedbackTypes: FeedbackType[] = [
   "Feature Request",
   "Bug Report",
@@ -45,12 +50,14 @@ export function PortalFeedbackForm({
   display = "page",
   onCancel,
   onCreated,
+  mutations,
 }: {
   initialDraft?: StoredDraft;
   display?: "page" | "overlay";
   onCancel?: () => void;
-  onCreated?: (slug: string) => void | Promise<void>;
-} = {}) {
+  onCreated?: (post: SubmittedPost) => void | Promise<void>;
+  mutations: PortalFeedbackMutations;
+}) {
   const [draft, setDraft] = useState<StoredDraft | undefined>(initialDraft);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -91,7 +98,7 @@ export function PortalFeedbackForm({
     setPending(true);
     setMessage(undefined);
     try {
-      const result = await submitPortalPost({
+      const result = await mutations.submitPost({
         data: { ...values, submitter: readDeviceProfile(window.localStorage) },
       });
       const storedDraft: StoredDraft = {
@@ -121,7 +128,7 @@ export function PortalFeedbackForm({
       setMessage(
         "Draft submitted. You can edit or withdraw it from this browser.",
       );
-      if (onCreated) await onCreated(result.slug);
+      if (onCreated) await onCreated(result);
       else window.location.assign(`/p/${encodeURIComponent(result.slug)}`);
     } catch (error) {
       setMessage(submissionFailureMessage(error));
@@ -137,7 +144,7 @@ export function PortalFeedbackForm({
     setPending(true);
     setMessage(undefined);
     try {
-      await editPortalFeedbackDraft({
+      await mutations.editDraft({
         data: {
           id: draft.id,
           browserCapability: draft.browserCapability,
@@ -160,7 +167,7 @@ export function PortalFeedbackForm({
     setPending(true);
     setMessage(undefined);
     try {
-      await withdrawPortalFeedbackDraft({
+      await mutations.withdrawDraft({
         data: {
           id: draft.id,
           browserCapability: draft.browserCapability,

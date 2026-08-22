@@ -11,6 +11,15 @@ export interface StoredPostCapability {
   slug: string;
   browserCapability: string;
 }
+export const draftPostCreatedEvent = "feedbax:draft-post-created";
+
+export function notifyDraftPostCreated(
+  post: import("@feedbax/feedback").DraftPost,
+) {
+  window.dispatchEvent(
+    new CustomEvent(draftPostCreatedEvent, { detail: post }),
+  );
+}
 
 export function readDeviceProfile(
   storage: Pick<Storage, "getItem">,

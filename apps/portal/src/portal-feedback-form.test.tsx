@@ -3,14 +3,13 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./portal-feedback-server-function", () => ({
-  submitPortalPost: vi.fn(),
-  editPortalFeedbackDraft: vi.fn(),
-  withdrawPortalFeedbackDraft: vi.fn(),
-}));
-
 import { PortalFeedbackForm } from "./portal-feedback-form";
-import { submitPortalPost } from "./portal-feedback-server-function";
+
+const mutations = {
+  submitPost: vi.fn(),
+  editDraft: vi.fn(),
+  withdrawDraft: vi.fn(),
+};
 
 afterEach(() => {
   cleanup();
@@ -19,7 +18,7 @@ afterEach(() => {
 
 describe("Post creation form", () => {
   it("shows character feedback and field-level validation", () => {
-    render(<PortalFeedbackForm />);
+    render(<PortalFeedbackForm mutations={mutations} />);
 
     expect(screen.getByText("0 / 5,000 characters")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Description"), {
@@ -37,7 +36,13 @@ describe("Post creation form", () => {
 
   it("offers Cancel in an overlay and delegates history restoration", () => {
     const cancel = vi.fn();
-    render(<PortalFeedbackForm display="overlay" onCancel={cancel} />);
+    render(
+      <PortalFeedbackForm
+        mutations={mutations}
+        display="overlay"
+        onCancel={cancel}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
@@ -45,13 +50,13 @@ describe("Post creation form", () => {
   });
 
   it("retains the returned Browser Capability before navigating to the new Post", async () => {
-    vi.mocked(submitPortalPost).mockResolvedValue({
+    mutations.submitPost.mockResolvedValue({
       id: "post-1",
       slug: "keyboard-navigation",
       browserCapability: "browser-capability",
     } as never);
     const onCreated = vi.fn();
-    render(<PortalFeedbackForm onCreated={onCreated} />);
+    render(<PortalFeedbackForm mutations={mutations} onCreated={onCreated} />);
     fireEvent.change(screen.getByLabelText("Title"), {
       target: { value: "Keyboard navigation" },
     });
@@ -64,7 +69,9 @@ describe("Post creation form", () => {
     );
 
     await vi.waitFor(() =>
-      expect(onCreated).toHaveBeenCalledWith("keyboard-navigation"),
+      expect(onCreated).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: "keyboard-navigation" }),
+      ),
     );
     expect(window.localStorage.getItem("feedbax:post-capabilities")).toContain(
       "browser-capability",

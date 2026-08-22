@@ -1,7 +1,15 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import {
+  editPortalFeedbackDraft,
+  submitPortalPost,
+  withdrawPortalFeedbackDraft,
+} from "./portal-feedback-server-function";
+import { PostCreationFlow } from "./post-creation-flow";
 
-import { PortalFeedbackForm } from "./portal-feedback-form";
+const mutations = {
+  submitPost: submitPortalPost,
+  editDraft: editPortalFeedbackDraft,
+  withdrawDraft: withdrawPortalFeedbackDraft,
+};
 
 export function RoutedPostCreationForm({
   display = "page",
@@ -10,17 +18,11 @@ export function RoutedPostCreationForm({
   display?: "page" | "overlay";
   onCancel?: () => void;
 }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
   return (
-    <PortalFeedbackForm
+    <PostCreationFlow
       display={display}
       onCancel={onCancel}
-      onCreated={async (slug) => {
-        await queryClient.invalidateQueries({ queryKey: ["public-posts"] });
-        await navigate({ to: "/p/$slug", params: { slug } });
-      }}
+      mutations={mutations}
     />
   );
 }
