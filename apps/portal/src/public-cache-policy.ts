@@ -13,8 +13,8 @@ const PUBLIC_FEEDBACK_PAGE_SIZE = "25";
 const PUBLIC_FEEDBACK_SORT = "created-at-desc";
 const PUBLIC_ROADMAP_SORT = "updated-at-desc";
 
-const feedbackTypeSet = new Set<string>(postTypes);
-const feedbackStatusSet = new Set<string>(postStatuses);
+const postTypeSet = new Set<string>(postTypes);
+const postStatusSet = new Set<string>(postStatuses);
 
 export function canonicalPublicRequest(request: Request): Request | undefined {
   if (request.method !== "GET") return undefined;
@@ -24,8 +24,8 @@ export function canonicalPublicRequest(request: Request): Request | undefined {
   const canonical = new URL(source.origin + source.pathname);
   if (source.pathname === "/") {
     appendAllowed(canonical, source, "cursor");
-    appendAllowed(canonical, source, "status", feedbackStatusSet);
-    appendAllowed(canonical, source, "type", feedbackTypeSet);
+    appendAllowed(canonical, source, "status", postStatusSet);
+    appendAllowed(canonical, source, "type", postTypeSet);
     canonical.searchParams.set("pageSize", PUBLIC_FEEDBACK_PAGE_SIZE);
     canonical.searchParams.set("sort", PUBLIC_FEEDBACK_SORT);
   } else if (source.pathname === "/roadmap") {

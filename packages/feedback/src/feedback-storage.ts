@@ -1,9 +1,11 @@
 import type { Post, PublicPostQuery } from "./index";
 
+export type PostSource = "Portal" | "API";
+
 export type StoredPost = Post &
   Partial<{
     browserCapabilityHash: string;
-    source: "portal" | "api" | "API";
+    source: PostSource;
     externalId: string;
   }> &
   Record<string, unknown>;
@@ -11,7 +13,7 @@ export type StoredPost = Post &
 export type NewStoredPost = Omit<Post, "id"> &
   Partial<{
     browserCapabilityHash: string;
-    source: "portal" | "api" | "API";
+    source: PostSource;
     externalId: string;
   }> &
   Record<string, unknown>;

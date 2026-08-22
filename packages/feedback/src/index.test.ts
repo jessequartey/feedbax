@@ -430,7 +430,7 @@ describe("Feedback module", () => {
       updatedAt: new Date(Date.UTC(2026, 6, index + 1)),
       submitter: { email: `private-${index + 1}@example.com` },
       browserCapabilityHash: `private-hash-${index + 1}`,
-      source: "portal" as const,
+      source: "Portal" as const,
       pageBody: "Private notes",
       customProperty: "private value",
     }));
