@@ -14,6 +14,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 
 import { PostCreationFlow } from "./post-creation-flow";
+import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
+import { readCapabilities } from "./browser-post-state";
 
 afterEach(() => {
   cleanup();
@@ -75,7 +77,11 @@ describe("routed Post creation", () => {
     expect(window.localStorage.getItem("feedbax:post-capabilities")).toContain(
       "browser-capability",
     );
-    expect(queryClient.getQueryData(["authorized-draft-posts"])).toEqual([
+    expect(
+      queryClient.getQueryData(
+        authorizedDraftPostsQueryKey(readCapabilities(localStorage)),
+      ),
+    ).toEqual([
       expect.objectContaining({ id: "post-1", slug: "keyboard-navigation" }),
     ]);
     expect(

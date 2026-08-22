@@ -5,7 +5,8 @@ import {
   PortalFeedbackForm,
   type PortalFeedbackMutations,
 } from "./portal-feedback-form";
-import { notifyDraftPostCreated } from "./browser-post-state";
+import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
+import { readCapabilities } from "./browser-post-state";
 
 export function PostCreationFlow({
   display = "page",
@@ -36,13 +37,12 @@ export function PostCreationFlow({
           updatedAt: post.updatedAt,
         };
         queryClient.setQueryData(
-          ["authorized-draft-posts"],
+          authorizedDraftPostsQueryKey(readCapabilities(localStorage)),
           (current: (typeof draft)[] | undefined) => [
             draft,
             ...(current ?? []).filter((item) => item.id !== draft.id),
           ],
         );
-        notifyDraftPostCreated(draft);
         await queryClient.invalidateQueries({ queryKey: ["public-posts"] });
         await navigate({ to: "/p/$slug", params: { slug: post.slug } });
       }}

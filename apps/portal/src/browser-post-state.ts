@@ -11,15 +11,6 @@ export interface StoredPostCapability {
   slug: string;
   browserCapability: string;
 }
-export const draftPostCreatedEvent = "feedbax:draft-post-created";
-
-export function notifyDraftPostCreated(
-  post: import("@feedbax/feedback").DraftPost,
-) {
-  window.dispatchEvent(
-    new CustomEvent(draftPostCreatedEvent, { detail: post }),
-  );
-}
 
 export function readDeviceProfile(
   storage: Pick<Storage, "getItem">,
@@ -87,9 +78,24 @@ export function readCapabilities(
     const value = JSON.parse(
       storage.getItem(capabilitiesKey) ?? "{}",
     ) as unknown;
-    return value && typeof value === "object"
-      ? (value as Record<string, StoredPostCapability>)
-      : {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, StoredPostCapability] => {
+          const [key, capability] = entry;
+          return (
+            capability !== null &&
+            typeof capability === "object" &&
+            !Array.isArray(capability) &&
+            Reflect.get(capability, "id") === key &&
+            typeof Reflect.get(capability, "slug") === "string" &&
+            Reflect.get(capability, "slug").length > 0 &&
+            typeof Reflect.get(capability, "browserCapability") === "string" &&
+            Reflect.get(capability, "browserCapability").length > 0
+          );
+        },
+      ),
+    );
   } catch {
     return {};
   }

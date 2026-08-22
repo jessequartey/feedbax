@@ -1,74 +1,39 @@
-import type { DraftPost, PublicFeedbackQuery } from "@feedbax/feedback";
-import { useEffect, useState } from "react";
-import { draftPostCreatedEvent, readCapabilities } from "./browser-post-state";
-import { formatPublicDate } from "./public-date";
+import type { PublicFeedbackQuery } from "@feedbax/feedback";
+import { useQuery } from "@tanstack/react-query";
+import { readCapabilities } from "./browser-post-state";
+import { authorizedDraftPostsQuery } from "./authorized-draft-query";
 
-export function DraftPostList({ search }: { search: PublicFeedbackQuery }) {
-  const [drafts, setDrafts] = useState<DraftPost[]>([]);
-  useEffect(() => {
-    void import("./portal-feedback-server-function").then(
-      ({ getPortalDraftPost }) =>
-        Promise.allSettled(
-          Object.values(readCapabilities(localStorage)).map((value) =>
-            getPortalDraftPost({ data: value }),
-          ),
-        ).then((results) =>
-          setDrafts(
-            results.flatMap((result) =>
-              result.status === "fulfilled" ? [result.value] : [],
-            ),
-          ),
-        ),
-    );
-  }, []);
-  useEffect(() => {
-    const addCreatedDraft = (event: Event) => {
-      const post = (event as CustomEvent<DraftPost>).detail;
-      setDrafts((current) => [
-        post,
-        ...current.filter((item) => item.id !== post.id),
-      ]);
-    };
-    window.addEventListener(draftPostCreatedEvent, addCreatedDraft);
-    return () =>
-      window.removeEventListener(draftPostCreatedEvent, addCreatedDraft);
-  }, []);
-  const query = search.search?.toLocaleLowerCase();
+const fetchAuthorizedDraft = async (
+  input: Parameters<
+    typeof import("./portal-feedback-server-function").getPortalDraftPost
+  >[0],
+) => {
+  const { getPortalDraftPost } =
+    await import("./portal-feedback-server-function");
+  return getPortalDraftPost(input);
+};
+
+export function useAuthorizedDraftPosts(search: PublicFeedbackQuery) {
+  const browser = typeof window !== "undefined";
+  const capabilities = browser ? readCapabilities(window.localStorage) : {};
+  const draftQuery = useQuery({
+    ...authorizedDraftPostsQuery(
+      capabilities,
+      fetchAuthorizedDraft,
+      browser ? window.localStorage : undefined,
+    ),
+    enabled: browser && Object.keys(capabilities).length > 0,
+  });
+  const drafts = draftQuery.data ?? [];
+  const searchQuery = search.search?.toLocaleLowerCase();
   const visible = drafts.filter(
     (post) =>
-      (!query ||
+      (!searchQuery ||
         `${post.title}\n${post.description}`
           .toLocaleLowerCase()
-          .includes(query)) &&
+          .includes(searchQuery)) &&
       (!search.types?.length || search.types.includes(post.type)) &&
       (!search.statuses?.length || search.statuses.includes(post.status)),
   );
-  if (!visible.length) return null;
-  return (
-    <ol
-      className="feedback-list draft-post-list"
-      aria-label="Draft Posts editable from this browser"
-    >
-      {visible.map((post) => (
-        <li key={post.id}>
-          <a
-            className="feedback-item-link draft-post-link"
-            href={`/p/${encodeURIComponent(post.slug)}`}
-          >
-            <article>
-              <div className="feedback-meta">
-                <strong>Draft</strong>
-                <span>{post.type}</span>
-                <time dateTime={post.updatedAt.toISOString()}>
-                  {formatPublicDate(post.updatedAt)}
-                </time>
-              </div>
-              <h3>{post.title}</h3>
-              <p>{post.description}</p>
-            </article>
-          </a>
-        </li>
-      ))}
-    </ol>
-  );
+  return visible;
 }

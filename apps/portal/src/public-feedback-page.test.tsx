@@ -1,9 +1,11 @@
 import { createFeedbackModule } from "@feedbax/feedback";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { PublicFeedbackIndex } from "./public-feedback-index";
 import { loadPublicFeedbackPage } from "./public-feedback-page";
+import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
 
 describe("public feedback home page", () => {
   it("loads 25 Published Posts and an opaque next-page cursor", async () => {
@@ -83,7 +85,7 @@ describe("public feedback home page", () => {
   });
 
   it("renders explicit empty state and accessible filters", () => {
-    const html = renderToStaticMarkup(
+    const html = renderIndex(
       <PublicFeedbackIndex
         page={{ items: [], nextCursor: "opaque-next-page" }}
         search={{ types: ["Bug Report"], statuses: ["Reviewing"] }}
@@ -99,7 +101,7 @@ describe("public feedback home page", () => {
   });
 
   it("links each Published Post by immutable slug", () => {
-    const html = renderToStaticMarkup(
+    const html = renderIndex(
       <PublicFeedbackIndex
         page={{
           items: [
@@ -122,7 +124,7 @@ describe("public feedback home page", () => {
   });
 
   it("keeps visible Posts and offers retry when Load More fails", () => {
-    const html = renderToStaticMarkup(
+    const html = renderIndex(
       <PublicFeedbackIndex
         page={{ items: [publishedPost], nextCursor: "opaque-next-page" }}
         search={{}}
@@ -135,7 +137,46 @@ describe("public feedback home page", () => {
     expect(html).toContain("Couldn’t load more Posts");
     expect(html).toContain("Try again");
   });
+
+  it("pins recognizable matching Draft Posts above Published Posts", () => {
+    const draft = {
+      id: "draft-id",
+      slug: "keyboard-draft",
+      title: "Keyboard draft",
+      description: "Keyboard access still being drafted.",
+      type: "Feature Request" as const,
+      status: "New" as const,
+      submitter: {},
+      createdAt: new Date("2026-08-22T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-22T10:00:00.000Z"),
+    };
+    const html = renderIndex(
+      <PublicFeedbackIndex
+        page={{ items: [publishedPost] }}
+        search={{ search: "keyboard", types: ["Feature Request"] }}
+      />,
+      [draft],
+    );
+
+    expect(html.indexOf("Keyboard draft")).toBeLessThan(
+      html.indexOf("Keyboard-first search!"),
+    );
+    expect(html.match(/<ol class="feedback-list">/g)).toHaveLength(1);
+    expect(html).toContain("draft-post-link");
+    expect(html).toContain("<strong>Draft</strong>");
+  });
 });
+
+function renderIndex(
+  element: React.ReactElement,
+  drafts: unknown[] = [],
+): string {
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(authorizedDraftPostsQueryKey({}), drafts);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>,
+  );
+}
 
 const publishedPost = {
   slug: "keyboard-first-search",

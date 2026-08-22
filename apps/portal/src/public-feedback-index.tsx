@@ -1,5 +1,5 @@
 import type { PublicFeedbackQuery, PublicPostPage } from "@feedbax/feedback";
-import { DraftPostList } from "./draft-post-list";
+import { useAuthorizedDraftPosts } from "./draft-post-list";
 import { PostFeedControls } from "./post-feed-controls";
 import { PostResults } from "./post-results";
 
@@ -18,6 +18,7 @@ export function PublicFeedbackIndex({
   loadMoreError?: boolean;
   onSearchChange?: (search: PublicFeedbackQuery) => void;
 }) {
+  const drafts = useAuthorizedDraftPosts(search);
   return (
     <main className="feedback-index">
       <section className="feedback-intro" aria-labelledby="feedback-heading">
@@ -32,8 +33,8 @@ export function PublicFeedbackIndex({
           <h2>Posts</h2>
           <span>{page.items.length} shown</span>
         </div>
-        <DraftPostList search={search} />
         <PostResults
+          drafts={drafts}
           initialItems={page.items}
           nextCursor={page.nextCursor}
           loadMore={loadMore}
