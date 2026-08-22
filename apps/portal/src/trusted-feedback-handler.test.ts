@@ -40,7 +40,7 @@ describe("trusted feedback Worker handler", () => {
 
     expect(response.status).toBe(308);
     expect(response.headers.get("location")).toBe(
-      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=created-at-desc&schema=1",
+      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=trending&schema=1",
     );
     expect(applicationHandler).not.toHaveBeenCalled();
   });

@@ -1,4 +1,7 @@
-import { createNotionFeedbackModule } from "@feedbax/feedback";
+import {
+  createFeedbackModule,
+  createNotionFeedbackModule,
+} from "@feedbax/feedback";
 import { cache } from "cloudflare:workers";
 
 import {
@@ -12,6 +15,7 @@ export const feedbackSubmissionLimits = {
 } as const;
 
 export function createConfiguredFeedbackModule() {
+  if (import.meta.env.MODE === "demo") return demoFeedbackModule();
   const feedback = createNotionFeedbackModule({
     token: requiredEnvironmentValue("NOTION_TOKEN"),
     dataSourceId: requiredEnvironmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
@@ -53,6 +57,78 @@ export function createConfiguredFeedbackModule() {
       purge: (options) => cache.purge(options),
     }),
   });
+}
+
+let demoFeedback: ReturnType<typeof createFeedbackModule> | undefined;
+
+function demoFeedbackModule() {
+  demoFeedback ??= createFeedbackModule({
+    initialItems: [
+      demoPost(
+        "keyboard-first-search",
+        "Keyboard-first search",
+        "Open search without reaching for the mouse.",
+        "Feature Request",
+        "Planned",
+        42,
+      ),
+      demoPost(
+        "public-api-access",
+        "Public API access",
+        "Connect product feedback to internal tools.",
+        "Feature Request",
+        "Planned",
+        31,
+      ),
+      demoPost(
+        "improve-mobile-navigation",
+        "Improve mobile navigation",
+        "Make boards easier to browse on smaller screens.",
+        "Bug Report",
+        "In Progress",
+        18,
+      ),
+      demoPost(
+        "weekly-digest-emails",
+        "Weekly digest emails",
+        "A short summary of new Posts and status changes.",
+        "General Feedback",
+        "In Progress",
+        12,
+      ),
+      demoPost(
+        "dark-mode",
+        "Dark mode",
+        "A comfortable theme for low light.",
+        "Feature Request",
+        "Shipped",
+        67,
+      ),
+    ],
+  });
+  return demoFeedback;
+}
+
+function demoPost(
+  slug: string,
+  title: string,
+  description: string,
+  type: "Feature Request" | "Bug Report" | "General Feedback",
+  status: "Planned" | "In Progress" | "Shipped",
+  day: number,
+) {
+  const date = new Date(Date.UTC(2026, 6, Math.min(day, 28)));
+  return {
+    id: `demo-${slug}`,
+    slug,
+    title,
+    description,
+    type,
+    status,
+    published: true,
+    createdAt: date,
+    updatedAt: date,
+  };
 }
 
 export function requiredEnvironmentValue(name: string): string {

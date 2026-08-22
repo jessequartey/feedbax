@@ -103,6 +103,17 @@ describe("public feedback home page", () => {
     expect(html).toContain('checked="" value="Reviewing"');
   });
 
+  it("renders the feedback workspace described by the visual brief", () => {
+    const html = renderIndex(
+      <PublicPostIndex page={{ items: [publishedPost] }} search={{}} />,
+    );
+
+    expect(html).toContain("Share ideas and vote on what matters.");
+    expect(html).toContain("Boards");
+    expect(html).toContain("All posts");
+    expect(html).toContain("New post");
+  });
+
   it("links each Published Post by immutable slug", () => {
     const html = renderIndex(
       <PublicPostIndex
@@ -173,9 +184,9 @@ describe("public feedback home page", () => {
     expect(html.indexOf("Keyboard draft")).toBeLessThan(
       html.indexOf("Keyboard-first search!"),
     );
-    expect(html.match(/<ol class="feedback-list">/g)).toHaveLength(1);
+    expect(html.match(/<ol class="divide-y/g)).toHaveLength(1);
     expect(html).toContain("draft-post-link");
-    expect(html).toContain("<strong>Draft</strong>");
+    expect(html).toContain(">Draft</span>");
   });
 });
 

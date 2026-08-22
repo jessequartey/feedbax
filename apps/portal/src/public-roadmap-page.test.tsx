@@ -71,6 +71,19 @@ describe("public roadmap page", () => {
     expect(html.match(/No Posts here yet\./g)).toHaveLength(3);
   });
 
+  it("renders the roadmap workspace described by the visual brief", () => {
+    const html = renderToStaticMarkup(
+      <PublicRoadmapView
+        roadmap={{ Planned: [], "In Progress": [], Shipped: [] }}
+      />,
+    );
+
+    expect(html).toContain("What we’re planning, building, and shipping.");
+    expect(html).toContain("Search");
+    expect(html).toContain("Filters");
+    expect(html).toContain("New post");
+  });
+
   it("links roadmap Posts by immutable slug", () => {
     const item = roadmapItem(
       "stable-notion-page-id",
@@ -92,7 +105,7 @@ describe("public roadmap page", () => {
 
     expect(html).toContain('aria-label="Loading roadmap"');
     expect(html.match(/data-roadmap-skeleton-column/g)).toHaveLength(3);
-    expect(html).toContain("See where feedback is heading.");
+    expect(html).toContain("What we’re planning, building, and shipping.");
   });
 });
 

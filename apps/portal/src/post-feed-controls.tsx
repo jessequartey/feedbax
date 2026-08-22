@@ -1,5 +1,12 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Search } from "lucide-react";
+import { Button } from "@feedbax/ui/components/button";
+import { Input } from "@feedbax/ui/components/input";
+import { Card } from "@feedbax/ui/components/card";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@feedbax/ui/components/native-select";
 import { useEffect, useRef, useState } from "react";
 
 import { postStatuses, postTypes } from "./public-feedback-page";
@@ -62,25 +69,31 @@ export function PostFeedControls({
 
   return (
     <div
-      className="post-controls"
+      className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end"
       role="group"
       aria-label="Post feed controls"
       aria-busy={pending || undefined}
     >
       {pending ? <span className="sr-only">Updating Posts…</span> : null}
-      <div className="post-search" data-expanded={searchExpanded || undefined}>
-        <button
+      <div
+        className={`flex ${searchExpanded ? "flex-1" : ""}`}
+        data-expanded={searchExpanded || undefined}
+      >
+        <Button
+          className="h-10 gap-2 px-4 text-sm"
+          variant="outline"
           type="button"
           aria-label={searchExpanded ? "Hide search" : "Show search"}
           aria-expanded={searchExpanded}
           onClick={() => setSearchExpanded((expanded) => !expanded)}
         >
-          <Search aria-hidden="true" />
-        </button>
+          <Search aria-hidden="true" /> Search
+        </Button>
         {searchExpanded ? (
           <label>
             <span className="sr-only">Search Posts</span>
-            <input
+            <Input
+              className="h-10 text-sm"
               ref={searchInput}
               name="search"
               type="search"
@@ -91,9 +104,10 @@ export function PostFeedControls({
           </label>
         ) : null}
       </div>
-      <label>
-        <span>Sort</span>
-        <select
+      <label className="order-first sm:mr-auto">
+        <span className="sr-only">Sort</span>
+        <NativeSelect
+          className="min-w-48 [&_select]:h-10 [&_select]:text-sm"
           name="sort"
           value={search.sort ?? "trending"}
           onChange={(event) =>
@@ -104,73 +118,78 @@ export function PostFeedControls({
             })
           }
         >
-          <option value="trending">Trending</option>
-          <option value="top">Top</option>
-          <option value="new">New</option>
-        </select>
+          <NativeSelectOption value="trending">Trending</NativeSelectOption>
+          <NativeSelectOption value="top">Top</NativeSelectOption>
+          <NativeSelectOption value="new">New</NativeSelectOption>
+        </NativeSelect>
       </label>
-      <details className="post-filters">
-        <summary>Filters{activeCount ? ` (${activeCount})` : ""}</summary>
-        <fieldset>
-          <legend>Post Types</legend>
-          {postTypes.map((type) => (
-            <label key={type}>
-              <input
-                type="checkbox"
-                name="types"
-                value={type}
-                checked={types.includes(type)}
-                onChange={() => toggleType(type)}
-              />
-              {type}
-            </label>
-          ))}
-        </fieldset>
-        <fieldset>
-          <legend>Post Statuses</legend>
-          {postStatuses.map((status) => (
-            <label key={status}>
-              <input
-                type="checkbox"
-                name="statuses"
-                value={status}
-                checked={statuses.includes(status)}
-                onChange={() => toggleStatus(status)}
-              />
-              {status}
-            </label>
-          ))}
-        </fieldset>
-        <div>
-          <button
-            type="button"
-            onClick={() => {
-              setTypes([]);
-              setStatuses([]);
-              onSearchChange?.({
-                ...search,
-                cursor: undefined,
-                types: [],
-                statuses: [],
-              });
-            }}
-          >
-            Clear All
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              onSearchChange?.({
-                ...search,
-                cursor: undefined,
-                types,
-                statuses,
-              })
-            }
-          >
-            Apply
-          </button>
-        </div>
+      <details className="relative">
+        <summary className="flex h-10 cursor-pointer list-none items-center border border-input px-4 text-sm text-muted-foreground hover:bg-muted">
+          Filters{activeCount ? ` (${activeCount})` : ""}
+        </summary>
+        <Card className="absolute right-0 z-20 mt-2 w-72 gap-4 p-4">
+          <fieldset className="grid gap-2">
+            <legend>Post Types</legend>
+            {postTypes.map((type) => (
+              <label key={type}>
+                <input
+                  type="checkbox"
+                  name="types"
+                  value={type}
+                  checked={types.includes(type)}
+                  onChange={() => toggleType(type)}
+                />
+                {type}
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="grid gap-2">
+            <legend>Post Statuses</legend>
+            {postStatuses.map((status) => (
+              <label key={status}>
+                <input
+                  type="checkbox"
+                  name="statuses"
+                  value={status}
+                  checked={statuses.includes(status)}
+                  onChange={() => toggleStatus(status)}
+                />
+                {status}
+              </label>
+            ))}
+          </fieldset>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                setTypes([]);
+                setStatuses([]);
+                onSearchChange?.({
+                  ...search,
+                  cursor: undefined,
+                  types: [],
+                  statuses: [],
+                });
+              }}
+            >
+              Clear All
+            </Button>
+            <Button
+              type="button"
+              onClick={() =>
+                onSearchChange?.({
+                  ...search,
+                  cursor: undefined,
+                  types,
+                  statuses,
+                })
+              }
+            >
+              Apply
+            </Button>
+          </div>
+        </Card>
       </details>
     </div>
   );

@@ -57,7 +57,7 @@ describe("public portal cache policy", () => {
     );
 
     expect(first?.url).toBe(
-      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=created-at-desc&schema=1",
+      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=trending&schema=1",
     );
     expect(second?.url).toBe(first?.url);
   });

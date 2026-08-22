@@ -10,7 +10,7 @@ const EDGE_CACHE_CONTROL =
   "public, max-age=120, stale-while-revalidate=600, stale-if-error=86400";
 const PUBLIC_PROJECTION_SCHEMA_VERSION = "1";
 const PUBLIC_FEEDBACK_PAGE_SIZE = "25";
-const PUBLIC_FEEDBACK_SORT = "created-at-desc";
+const PUBLIC_FEEDBACK_SORT = "trending";
 const PUBLIC_ROADMAP_SORT = "updated-at-desc";
 
 const postTypeSet = new Set<string>(postTypes);

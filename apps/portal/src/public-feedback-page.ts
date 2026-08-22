@@ -33,22 +33,27 @@ export async function loadPublicPostPage({
 
 export function publicPostSearch(
   search: Record<string, unknown>,
-): PublicPostQuery {
+): PublicPostQuery & { pageSize?: string; schema?: string } {
   const cursor = text(search.cursor);
   const query = text(search.search);
   const sortValue = text(search.sort);
+  const types = values(search.types).filter((value): value is PostType =>
+    postTypes.includes(value as PostType),
+  );
+  const statuses = values(search.statuses).filter(
+    (value): value is PostStatus =>
+      postStatuses.includes(value as PostStatus),
+  );
   return {
+    ...(text(search.pageSize) ? { pageSize: text(search.pageSize) } : {}),
+    ...(text(search.schema) ? { schema: text(search.schema) } : {}),
     ...(cursor ? { cursor } : {}),
     ...(query ? { search: query } : {}),
     sort: postSorts.includes(sortValue as (typeof postSorts)[number])
       ? (sortValue as PublicPostQuery["sort"])
       : "trending",
-    types: values(search.types).filter((value): value is PostType =>
-      postTypes.includes(value as PostType),
-    ),
-    statuses: values(search.statuses).filter((value): value is PostStatus =>
-      postStatuses.includes(value as PostStatus),
-    ),
+    ...(types.length ? { types } : {}),
+    ...(statuses.length ? { statuses } : {}),
   };
 }
 
