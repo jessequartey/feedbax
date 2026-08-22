@@ -1,5 +1,6 @@
 import type { PublicPost, PublicPostRoadmap } from "@feedbax/feedback";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
+import type { ReactNode } from "react";
 
 import { formatPublicDate } from "./public-date";
 import { PostLink } from "./masked-post-link";
@@ -27,15 +28,12 @@ export function PublicRoadmapView({
 
       <div className="roadmap-groups" aria-label="Product roadmap">
         {roadmapGroups.map(({ status, heading, headingId }) => (
-          <section
-            className="roadmap-group"
-            aria-labelledby={headingId}
+          <RoadmapColumn
+            count={<span>{roadmap[status].length}</span>}
+            heading={heading}
+            headingId={headingId}
             key={status}
           >
-            <header>
-              <h2 id={headingId}>{heading}</h2>
-              <span>{roadmap[status].length}</span>
-            </header>
             {roadmap[status].length === 0 ? (
               <p className="roadmap-empty">No Posts here yet.</p>
             ) : (
@@ -49,7 +47,7 @@ export function PublicRoadmapView({
                 ))}
               </ol>
             )}
-          </section>
+          </RoadmapColumn>
         ))}
       </div>
     </main>
@@ -65,27 +63,53 @@ export function PublicRoadmapSkeleton() {
     >
       <RoadmapIntro />
       <div className="roadmap-groups roadmap-skeleton-groups">
-        {roadmapGroups.map(({ status, heading }) => (
-          <section
-            className="roadmap-group"
-            data-roadmap-skeleton-column=""
+        {roadmapGroups.map(({ status, heading, headingId }) => (
+          <RoadmapColumn
+            count={<Skeleton className="roadmap-skeleton-count" />}
+            heading={heading}
+            headingId={headingId}
             key={status}
+            skeleton
           >
-            <header>
-              <h2>{heading}</h2>
-              <Skeleton className="roadmap-skeleton-count" />
-            </header>
             <div className="roadmap-skeleton-card">
               <Skeleton className="roadmap-skeleton-meta" />
               <Skeleton className="roadmap-skeleton-title" />
               <Skeleton className="roadmap-skeleton-copy" />
               <Skeleton className="roadmap-skeleton-copy roadmap-skeleton-copy-short" />
             </div>
-          </section>
+          </RoadmapColumn>
         ))}
       </div>
       <span className="sr-only">Loading roadmap Posts…</span>
     </main>
+  );
+}
+
+function RoadmapColumn({
+  children,
+  count,
+  heading,
+  headingId,
+  skeleton = false,
+}: {
+  children: ReactNode;
+  count: ReactNode;
+  heading: string;
+  headingId: string;
+  skeleton?: boolean;
+}) {
+  return (
+    <section
+      className="roadmap-group"
+      aria-labelledby={headingId}
+      {...(skeleton ? { "data-roadmap-skeleton-column": "" } : {})}
+    >
+      <header>
+        <h2 id={headingId}>{heading}</h2>
+        {count}
+      </header>
+      {children}
+    </section>
   );
 }
 
