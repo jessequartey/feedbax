@@ -79,18 +79,47 @@ describe("Post feed controls", () => {
       screen.getByRole("searchbox", { name: "Search Posts" }),
     );
   });
+
+  it("does not steal restored focus when URL search is already expanded", () => {
+    const origin = document.createElement("button");
+    document.body.append(origin);
+    origin.focus();
+
+    render(<Harness initialSearch="restored" />);
+
+    expect(document.activeElement).toBe(origin);
+  });
+
+  it("announces route updates locally from the feed controls", () => {
+    render(<Harness pending />);
+
+    expect(
+      screen
+        .getByRole("group", { name: "Post feed controls" })
+        .getAttribute("aria-busy"),
+    ).toBe("true");
+    expect(screen.getByText("Updating Posts…").className).toBe("sr-only");
+  });
 });
 
-function Harness() {
+function Harness({
+  initialSearch,
+  pending = false,
+}: {
+  initialSearch?: string;
+  pending?: boolean;
+} = {}) {
   const [search, setSearch] = useState<PublicPostQuery>({
     sort: "trending",
     types: [],
     statuses: [],
+    ...(initialSearch ? { search: initialSearch } : {}),
   });
   return (
     <>
       <PostFeedControls
         search={search}
+        pending={pending}
         onSearchChange={(next) => setSearch(next)}
       />
       <output data-testid="route-state">{JSON.stringify(search)}</output>

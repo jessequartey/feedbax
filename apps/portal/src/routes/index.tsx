@@ -8,6 +8,7 @@ import { PublicPortalError } from "../public-portal-error";
 import { publicPostSearch } from "../public-feedback-page";
 import { publicPostsQuery } from "../post-queries";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
+import { useTransition } from "react";
 
 export const Route = createFileRoute("/")({
   validateSearch: publicPostSearch,
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/")({
 function HomeComponent() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const [pending, startTransition] = useTransition();
   const query = useSuspenseInfiniteQuery(publicPostsQuery(search));
   const pages = query.data.pages;
   const page = {
@@ -33,11 +35,14 @@ function HomeComponent() {
     <PublicPostIndex
       page={page}
       search={search}
+      pending={pending}
       loadMore={() => query.fetchNextPage()}
       loadingMore={query.isFetchingNextPage}
       loadMoreError={query.isFetchNextPageError}
       onSearchChange={(nextSearch) =>
-        navigate({ search: nextSearch, replace: false })
+        startTransition(() => {
+          void navigate({ search: nextSearch, replace: false });
+        })
       }
       maskPostLinks
     />

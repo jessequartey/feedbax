@@ -14,6 +14,8 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CreatePostOverlay } from "./create-post-overlay";
+import { PostCreationSkeleton } from "./post-creation-flow";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const mutations = {
   submitPost: vi.fn(),
@@ -71,6 +73,14 @@ describe("/submit", () => {
     history.back();
     await vi.waitFor(() => expect(history.location.pathname).toBe("/"));
     await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("has a contextual creation skeleton for routed loading", () => {
+    const html = renderToStaticMarkup(<PostCreationSkeleton />);
+
+    expect(html).toContain('aria-label="Loading Post creation"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain("Loading Post creation…");
   });
 });
 

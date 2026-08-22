@@ -11,6 +11,7 @@ export function PublicPostIndex({
   loadingMore,
   loadMoreError,
   onSearchChange,
+  pending = false,
   maskPostLinks = false,
 }: {
   page: PublicPostPage;
@@ -19,6 +20,7 @@ export function PublicPostIndex({
   loadingMore?: boolean;
   loadMoreError?: boolean;
   onSearchChange?: (search: PublicPostQuery) => void;
+  pending?: boolean;
   maskPostLinks?: boolean;
 }) {
   const drafts = useAuthorizedDraftPosts(search);
@@ -30,7 +32,11 @@ export function PublicPostIndex({
           Share ideas, report bugs, and follow the Posts shaping the product.
         </p>
       </section>
-      <PostFeedControls search={search} onSearchChange={onSearchChange} />
+      <PostFeedControls
+        search={search}
+        onSearchChange={onSearchChange}
+        pending={pending}
+      />
       <section className="feedback-results" aria-live="polite">
         <div className="feedback-results-heading">
           <h2>Posts</h2>

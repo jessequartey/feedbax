@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { Skeleton } from "@feedbax/ui/components/skeleton";
 
 import {
   PortalFeedbackForm,
@@ -47,5 +48,30 @@ export function PostCreationFlow({
         await navigate({ to: "/p/$slug", params: { slug: post.slug } });
       }}
     />
+  );
+}
+
+export function PostCreationSkeleton() {
+  return (
+    <main
+      className="feedback-index submission-page"
+      aria-label="Loading Post creation"
+      aria-busy="true"
+    >
+      <section className="feedback-submit creation-skeleton" aria-hidden="true">
+        <div className="feedback-submit-copy">
+          <Skeleton className="creation-skeleton-eyebrow" />
+          <Skeleton className="creation-skeleton-heading" />
+          <Skeleton className="creation-skeleton-copy" />
+        </div>
+        <div className="feedback-submit-form">
+          <Skeleton className="creation-skeleton-field" />
+          <Skeleton className="creation-skeleton-textarea" />
+          <Skeleton className="creation-skeleton-field" />
+          <Skeleton className="creation-skeleton-action" />
+        </div>
+      </section>
+      <span className="sr-only">Loading Post creation…</span>
+    </main>
   );
 }

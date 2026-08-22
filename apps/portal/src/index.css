@@ -647,6 +647,38 @@ textarea:focus-visible {
   margin-top: 0.75rem;
 }
 
+.creation-skeleton-eyebrow {
+  width: 7rem;
+  height: 0.75rem;
+}
+
+.creation-skeleton-heading {
+  width: min(22rem, 70vw);
+  height: clamp(3rem, 6vw, 5rem);
+  margin-top: 1rem;
+}
+
+.creation-skeleton-copy {
+  width: min(26rem, 75vw);
+  height: 3rem;
+  margin-top: 1.5rem;
+}
+
+.creation-skeleton-field,
+.creation-skeleton-textarea,
+.creation-skeleton-action {
+  width: 100%;
+  height: 3rem;
+}
+
+.creation-skeleton-textarea {
+  height: 9rem;
+}
+
+.creation-skeleton-action {
+  width: 8rem;
+}
+
 .feedback-results-heading {
   display: flex;
   align-items: baseline;

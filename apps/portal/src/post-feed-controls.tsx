@@ -7,15 +7,18 @@ import { postStatuses, postTypes } from "./public-feedback-page";
 export function PostFeedControls({
   search,
   onSearchChange,
+  pending = false,
 }: {
   search: PublicPostQuery;
   onSearchChange?: (search: PublicPostQuery) => void;
+  pending?: boolean;
 }) {
   const [query, setQuery] = useState(search.search ?? "");
   const [searchExpanded, setSearchExpanded] = useState(Boolean(search.search));
   const [types, setTypes] = useState<PostType[]>(search.types ?? []);
   const [statuses, setStatuses] = useState<PostStatus[]>(search.statuses ?? []);
   const searchInput = useRef<HTMLInputElement>(null);
+  const mounted = useRef(false);
   const activeCount =
     (search.types?.length ?? 0) + (search.statuses?.length ?? 0);
 
@@ -23,6 +26,10 @@ export function PostFeedControls({
   useEffect(() => setTypes(search.types ?? []), [search.types]);
   useEffect(() => setStatuses(search.statuses ?? []), [search.statuses]);
   useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
     if (searchExpanded) searchInput.current?.focus();
   }, [searchExpanded]);
   useEffect(() => {
@@ -54,7 +61,13 @@ export function PostFeedControls({
   }
 
   return (
-    <div className="post-controls">
+    <div
+      className="post-controls"
+      role="group"
+      aria-label="Post feed controls"
+      aria-busy={pending || undefined}
+    >
+      {pending ? <span className="sr-only">Updating Posts…</span> : null}
       <div className="post-search" data-expanded={searchExpanded || undefined}>
         <button
           type="button"
