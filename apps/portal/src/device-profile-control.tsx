@@ -8,10 +8,35 @@ import {
 } from "./browser-post-state";
 import { useTheme } from "next-themes";
 
-export function DeviceProfileControl() {
-  const [profile, setProfile] = useState<DeviceProfile>();
+export function ThemeControl() {
   const { theme, setTheme } = useTheme();
-  useEffect(() => setProfile(readDeviceProfile(localStorage)), []);
+  return (
+    <label className="theme-control">
+      Theme
+      <select
+        aria-label="Theme"
+        value={theme ?? "system"}
+        onChange={(event) => setTheme(event.target.value)}
+      >
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </label>
+  );
+}
+
+export function DeviceProfileControl({
+  onProfileChange,
+}: {
+  onProfileChange?: (configured: boolean) => void;
+}) {
+  const [profile, setProfile] = useState<DeviceProfile>();
+  useEffect(() => {
+    const storedProfile = readDeviceProfile(localStorage);
+    setProfile(storedProfile);
+    onProfileChange?.(Boolean(storedProfile));
+  }, [onProfileChange]);
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -22,6 +47,7 @@ export function DeviceProfileControl() {
     if (!next.name) return;
     saveDeviceProfile(localStorage, next);
     setProfile(next);
+    onProfileChange?.(true);
   }
   const initials = profile ? deriveDeviceProfileInitials(profile) : undefined;
   return (
@@ -48,23 +74,14 @@ export function DeviceProfileControl() {
               onClick={() => {
                 clearDeviceProfile(localStorage);
                 setProfile(undefined);
+                onProfileChange?.(false);
               }}
             >
               Clear profile
             </button>
           ) : null}
         </form>
-        <label>
-          Theme
-          <select
-            value={theme ?? "system"}
-            onChange={(event) => setTheme(event.target.value)}
-          >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
+        {profile ? <ThemeControl /> : null}
       </div>
     </details>
   );

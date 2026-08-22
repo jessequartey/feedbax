@@ -1,16 +1,10 @@
 @import "@feedbax/ui/globals.css";
 
 :root {
-  --portal-ink: #14171f;
-  --portal-paper: #f4f2ed;
-  --portal-blue: #3157ff;
-  --portal-rule: #cdc9bf;
-}
-
-.dark {
-  --portal-ink: #f4f4f5;
-  --portal-paper: #111113;
-  --portal-rule: #343438;
+  --portal-ink: var(--foreground);
+  --portal-paper: var(--background);
+  --portal-accent: var(--primary);
+  --portal-rule: var(--border);
 }
 .sr-only {
   position: absolute;
@@ -178,7 +172,7 @@ button:focus-visible,
 select:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--portal-blue) 65%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--portal-accent) 65%, transparent);
   outline-offset: 3px;
 }
 
@@ -222,7 +216,7 @@ textarea:focus-visible {
 
 .feedback-submit-copy > p:last-child {
   margin: 1.5rem 0 0;
-  color: #5c606a;
+  color: var(--muted-foreground);
   font-size: 0.88rem;
   line-height: 1.65;
 }
@@ -241,7 +235,7 @@ textarea:focus-visible {
 }
 
 .feedback-submit-field > label {
-  color: #5c606a;
+  color: var(--muted-foreground);
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -254,7 +248,7 @@ textarea:focus-visible {
 }
 
 .feedback-character-count {
-  color: #6a6d75;
+  color: var(--muted-foreground);
   text-align: right;
 }
 
@@ -322,7 +316,7 @@ textarea:focus-visible {
 
 .feedback-submit-message {
   margin: 0;
-  color: var(--portal-blue);
+  color: var(--portal-accent);
   font-size: 0.85rem;
   font-weight: 650;
 }
@@ -346,7 +340,7 @@ textarea:focus-visible {
 .post-full-page-link {
   display: block;
   margin-bottom: 1rem;
-  color: var(--portal-blue);
+  color: var(--portal-accent);
   font-size: 0.8rem;
   font-weight: 700;
   text-align: right;
@@ -401,7 +395,7 @@ textarea:focus-visible {
   width: 2rem;
   height: 2rem;
   place-items: center;
-  background: var(--portal-blue);
+  background: var(--portal-accent);
   color: white;
   font-size: 0.85rem;
 }
@@ -413,7 +407,9 @@ textarea:focus-visible {
 }
 
 .portal-header nav a {
-  color: #5c606a;
+  padding-block: 0.35rem;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-foreground);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -422,23 +418,35 @@ textarea:focus-visible {
 }
 
 .portal-header nav a:hover {
-  color: var(--portal-blue);
+  color: var(--portal-ink);
+}
+
+.portal-header nav a[aria-current="page"] {
+  border-bottom-color: currentColor;
+  color: var(--portal-ink);
+}
+
+.portal-header nav a.create-post-link {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--portal-ink);
+  background: var(--portal-ink);
+  color: var(--portal-paper);
 }
 
 .feedback-index {
   width: min(90vw, 76rem);
   margin: 0 auto;
-  padding: clamp(3.5rem, 8vw, 8rem) 0 6rem;
+  padding: clamp(2.5rem, 6vw, 5rem) 0 6rem;
   animation: page-in 480ms ease-out both;
 }
 
 .feedback-intro {
-  max-width: 56rem;
+  max-width: 42rem;
 }
 
 .feedback-eyebrow {
   margin: 0 0 1rem;
-  color: var(--portal-blue);
+  color: var(--portal-accent);
   font-size: 0.75rem;
   font-weight: 750;
   letter-spacing: 0.13em;
@@ -446,20 +454,65 @@ textarea:focus-visible {
 }
 
 .feedback-intro h1 {
-  max-width: 12ch;
   margin: 0;
-  font-size: clamp(3rem, 7vw, 6.7rem);
+  font-size: clamp(2rem, 4vw, 3.4rem);
   font-weight: 650;
-  letter-spacing: -0.075em;
-  line-height: 0.92;
+  letter-spacing: -0.055em;
+  line-height: 1;
 }
 
 .feedback-deck {
   max-width: 37rem;
-  margin: 2rem 0 0;
-  color: #5c606a;
-  font-size: clamp(1rem, 1.5vw, 1.25rem);
-  line-height: 1.6;
+  margin: 0.85rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.changelog-page {
+  display: grid;
+  min-height: calc(100svh - 4.5rem);
+  padding-block: clamp(2rem, 5vw, 4rem);
+  place-items: center;
+}
+
+.changelog-page [data-slot="empty"] {
+  min-height: min(32rem, 65svh);
+  border: 1px dashed var(--portal-rule);
+  background: var(--card);
+}
+
+.changelog-page [data-slot="empty-title"] {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  letter-spacing: -0.045em;
+}
+
+.changelog-page [data-slot="empty-description"] {
+  font-size: 0.95rem;
+}
+
+.changelog-page > [data-slot="empty"] > a {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--portal-ink);
+  color: var(--portal-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.theme-control {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.theme-control select {
+  min-height: 2.5rem;
+  border: 1px solid var(--portal-rule);
+  background: var(--portal-paper);
+  color: var(--portal-ink);
 }
 
 .feedback-filters {
@@ -478,7 +531,7 @@ textarea:focus-visible {
 }
 
 .feedback-filters label > span {
-  color: #6a6d75;
+  color: var(--muted-foreground);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -514,7 +567,7 @@ textarea:focus-visible {
 }
 
 .feedback-filters button:hover {
-  background: var(--portal-blue);
+  background: var(--portal-accent);
   transform: translateY(-2px);
 }
 
@@ -537,7 +590,7 @@ textarea:focus-visible {
 }
 
 .feedback-results-heading span {
-  color: #6a6d75;
+  color: var(--muted-foreground);
   font-size: 0.75rem;
 }
 
@@ -571,7 +624,7 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
-  color: #6a6d75;
+  color: var(--muted-foreground);
   font-size: 0.7rem;
   font-weight: 650;
   letter-spacing: 0.045em;
@@ -579,7 +632,7 @@ textarea:focus-visible {
 }
 
 .feedback-meta span:nth-child(2) {
-  color: var(--portal-blue);
+  color: var(--portal-accent);
 }
 
 .feedback-list h3 {
@@ -592,7 +645,7 @@ textarea:focus-visible {
 .feedback-list article > p {
   max-width: 47rem;
   margin: 0.75rem 0 0;
-  color: #5c606a;
+  color: var(--muted-foreground);
   line-height: 1.65;
 }
 
@@ -610,7 +663,7 @@ textarea:focus-visible {
 
 .feedback-empty a,
 .feedback-next {
-  color: var(--portal-blue);
+  color: var(--portal-accent);
   font-weight: 700;
   text-underline-offset: 0.25em;
 }
@@ -662,7 +715,7 @@ textarea:focus-visible {
 
 .roadmap-intro > p:last-child {
   margin: 0;
-  color: #5c606a;
+  color: var(--muted-foreground);
   font-size: clamp(1rem, 1.5vw, 1.2rem);
   line-height: 1.65;
 }
@@ -698,7 +751,7 @@ textarea:focus-visible {
 }
 
 .roadmap-group > header span {
-  color: var(--portal-blue);
+  color: var(--portal-accent);
   font-size: 0.75rem;
   font-weight: 750;
 }
@@ -725,14 +778,14 @@ textarea:focus-visible {
 }
 
 .roadmap-list a:hover article {
-  background: color-mix(in srgb, var(--portal-blue) 6%, transparent);
+  background: color-mix(in srgb, var(--portal-accent) 6%, transparent);
 }
 
 .roadmap-item-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem 0.8rem;
-  color: #6a6d75;
+  color: var(--muted-foreground);
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.045em;
@@ -740,7 +793,7 @@ textarea:focus-visible {
 }
 
 .roadmap-item-meta span {
-  color: var(--portal-blue);
+  color: var(--portal-accent);
 }
 
 .roadmap-list h3 {
@@ -755,7 +808,7 @@ textarea:focus-visible {
   overflow: hidden;
   margin: 0.65rem 0 0;
   -webkit-box-orient: vertical;
-  color: #5c606a;
+  color: var(--muted-foreground);
   line-height: 1.55;
   -webkit-line-clamp: 3;
 }
@@ -763,7 +816,7 @@ textarea:focus-visible {
 .roadmap-empty {
   margin: 0;
   padding: 3.5rem 1.25rem;
-  color: #6a6d75;
+  color: var(--muted-foreground);
   font-size: 0.86rem;
   line-height: 1.5;
 }
@@ -833,7 +886,7 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1.25rem;
-  color: var(--portal-blue);
+  color: var(--portal-accent);
   font-size: 0.72rem;
   font-weight: 750;
   letter-spacing: 0.08em;
@@ -841,7 +894,7 @@ textarea:focus-visible {
 }
 
 .feedback-detail-meta span + span {
-  color: #6a6d75;
+  color: var(--muted-foreground);
 }
 
 .feedback-detail h1 {
@@ -876,7 +929,7 @@ textarea:focus-visible {
 }
 
 .feedback-detail-dates dt {
-  color: #6a6d75;
+  color: var(--muted-foreground);
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -905,7 +958,7 @@ textarea:focus-visible {
 .feedback-detail-missing > p:not(.feedback-eyebrow) {
   max-width: 34rem;
   margin: 1.5rem 0 2rem;
-  color: #5c606a;
+  color: var(--muted-foreground);
   font-size: 1.05rem;
 }
 
@@ -932,7 +985,7 @@ textarea:focus-visible {
 .public-error > p:not(.feedback-eyebrow) {
   max-width: 38rem;
   margin: 1.5rem 0 2rem;
-  color: #5c606a;
+  color: var(--muted-foreground);
   font-size: 1.05rem;
   line-height: 1.65;
 }
@@ -971,7 +1024,7 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  color: #5c606a;
+  color: var(--muted-foreground);
   font-size: 0.85rem;
 }
 
@@ -1084,7 +1137,7 @@ textarea:focus-visible {
   }
 
   .feedback-intro h1 {
-    font-size: clamp(3rem, 15vw, 4.25rem);
+    font-size: clamp(2rem, 10vw, 3rem);
   }
 
   .feedback-filters {

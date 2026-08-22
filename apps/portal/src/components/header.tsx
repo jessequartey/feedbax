@@ -6,21 +6,28 @@ import {
   DrawerTitle,
 } from "@feedbax/ui/components/drawer";
 import { Menu } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { DeviceProfileControl } from "../device-profile-control";
+import { DeviceProfileControl, ThemeControl } from "../device-profile-control";
 
 function Navigation({ onCreate }: { onCreate?: () => void }) {
   return (
     <>
-      <a href="/">Feedback</a>
-      <a href="/roadmap">Roadmap</a>
-      <a href="/changelog">Changelog</a>
+      <Link to="/" activeOptions={{ exact: true }} onClick={onCreate}>
+        Feedback
+      </Link>
+      <Link to="/roadmap" onClick={onCreate}>
+        Roadmap
+      </Link>
+      <Link to="/changelog" onClick={onCreate}>
+        Changelog
+      </Link>
       <Link
         to="."
         state={{ createPostOverlay: true }}
         mask={{ to: "/submit", unmaskOnReload: true }}
         onClick={onCreate}
+        activeProps={{ "aria-current": false, className: "create-post-link" }}
       >
         Create Post
       </Link>
@@ -29,6 +36,11 @@ function Navigation({ onCreate }: { onCreate?: () => void }) {
 }
 export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileConfigured, setProfileConfigured] = useState(false);
+  const updateProfileConfigured = useCallback(
+    (configured: boolean) => setProfileConfigured(configured),
+    [],
+  );
   return (
     <header className="portal-header">
       <a className="portal-brand" href="/" aria-label="Feedbax home">
@@ -36,7 +48,10 @@ export default function Header() {
       </a>
       <nav className="desktop-nav" aria-label="Public portal">
         <Navigation />
-        <DeviceProfileControl />
+        <DeviceProfileControl
+          key={profileConfigured ? "configured" : "empty"}
+          onProfileChange={updateProfileConfigured}
+        />
       </nav>
       <button
         className="mobile-menu"
@@ -54,7 +69,11 @@ export default function Header() {
           </DrawerHeader>
           <nav className="mobile-nav" aria-label="Mobile public portal">
             <Navigation onCreate={() => setMobileOpen(false)} />
-            <DeviceProfileControl />
+            <DeviceProfileControl
+              key={profileConfigured ? "configured" : "empty"}
+              onProfileChange={updateProfileConfigured}
+            />
+            {!profileConfigured ? <ThemeControl /> : null}
           </nav>
         </DrawerContent>
       </Drawer>
