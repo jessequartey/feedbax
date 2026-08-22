@@ -33,6 +33,7 @@ import {
   withdrawPortalFeedbackDraft,
 } from "./portal-feedback-server-function";
 import { PublicPostUnavailable } from "./public-post-unavailable";
+import { isCapabilityAuthorizationFailure } from "./capability-authorization-error";
 
 export function AuthorizedDraftPost({ slug }: { slug: string }) {
   const [post, setPost] = useState<DraftPost | null>();
@@ -50,6 +51,7 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
   );
 
   useEffect(() => {
+    setPost(undefined);
     if (!capability) {
       setPost(null);
       return;
@@ -57,7 +59,7 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
     getPortalDraftPost({ data: capability })
       .then(setPost)
       .catch((error: unknown) => {
-        if (isAuthorizationFailure(error)) {
+        if (isCapabilityAuthorizationFailure(error)) {
           removeCapability(localStorage, capability.id);
         }
         setPost(null);
@@ -98,7 +100,7 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
       if (overlaid) router.history.back();
       else await navigate({ to: "/" });
     } catch (error) {
-      if (isAuthorizationFailure(error)) {
+      if (isCapabilityAuthorizationFailure(error)) {
         removeCapability(localStorage, post.id);
         setPost(null);
       } else {
@@ -187,8 +189,4 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
       </AlertDialog>
     </main>
   );
-}
-
-function isAuthorizationFailure(error: unknown) {
-  return error instanceof Error && error.message.includes("did not authorize");
 }

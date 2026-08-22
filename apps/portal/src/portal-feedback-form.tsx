@@ -20,6 +20,7 @@ import {
   removeCapability,
   retainCapability,
 } from "./browser-post-state";
+import { isCapabilityAuthorizationFailure } from "./capability-authorization-error";
 
 const draftStorageKey = "feedbax:portal-draft";
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
@@ -166,7 +167,7 @@ export function PortalFeedbackForm({
       setMessage("Draft updated.");
       await onEdited?.(edited);
     } catch (error) {
-      if (isAuthorizationFailure(error)) onAuthorizationLost?.();
+      if (isCapabilityAuthorizationFailure(error)) onAuthorizationLost?.();
       setMessage(draftFailureMessage(error));
     } finally {
       setPending(false);
@@ -400,8 +401,4 @@ function draftFailureMessage(error: unknown): string {
     return "Check the required fields and their length, then try again.";
   }
   return "The draft could not be changed. Please try again.";
-}
-
-function isAuthorizationFailure(error: unknown) {
-  return error instanceof Error && error.message.includes("did not authorize");
 }

@@ -9,6 +9,7 @@ export function OverlayPostDetail({ slug }: { slug: string }) {
   const [post, setPost] = useState<PublicPost | null>();
   useEffect(() => {
     let current = true;
+    setPost(undefined);
     getPublicPost({ data: { slug } })
       .then((value) => current && setPost(value))
       .catch(() => current && setPost(null));

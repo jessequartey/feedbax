@@ -46,6 +46,36 @@ it("masks a Post detail over its originating route and Back restores that route"
   await vi.waitFor(() => expect(document.activeElement).toBe(origin));
 });
 
+it("uses a Drawer on mobile and follows browser Back and Forward history", async () => {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 720px)",
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  const history = createMemoryHistory({ initialEntries: ["/?query=search"] });
+  const router = createTestRouter(history);
+
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole("link", { name: "Open Post" }));
+
+  const drawer = await screen.findByRole("dialog", { name: "Post details" });
+  expect(drawer.closest('[data-slot="drawer-popup"]')).toBeTruthy();
+  history.back();
+  await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(history.location.search).toBe("?query=search");
+
+  history.forward();
+  expect(
+    await screen.findByRole("dialog", { name: "Post details" }),
+  ).toBeTruthy();
+  expect(history.location.pathname).toBe("/p/masked-post");
+});
+
 function createTestRouter(history: ReturnType<typeof createMemoryHistory>) {
   const root = createRootRoute({
     component: () => (

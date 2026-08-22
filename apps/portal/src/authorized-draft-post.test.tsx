@@ -116,7 +116,9 @@ it("confirms withdrawal, removes visible state, and cleans up authority", async 
   client.setQueryData(["authorized-draft-posts", ["draft"]], [draft]);
   renderDraft(client);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Draft actions" }));
+  const actions = await screen.findByRole("button", { name: "Draft actions" });
+  actions.focus();
+  fireEvent.keyDown(actions, { key: "ArrowDown" });
   fireEvent.click(
     await screen.findByRole("menuitem", { name: "Withdraw draft" }),
   );
@@ -128,6 +130,30 @@ it("confirms withdrawal, removes visible state, and cleans up authority", async 
   expect(
     client.getQueryData<unknown[]>(["authorized-draft-posts", ["draft"]]),
   ).toEqual([]);
+});
+
+it("keeps the draft visible and reports a withdrawal failure", async () => {
+  vi.mocked(withdrawPortalFeedbackDraft).mockRejectedValue(
+    new Error("offline"),
+  );
+  renderDraft();
+
+  const actions = await screen.findByRole("button", { name: "Draft actions" });
+  actions.focus();
+  fireEvent.keyDown(actions, { key: "ArrowDown" });
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Withdraw draft" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Withdraw Draft Post" }),
+  );
+
+  const alert = await screen.findByRole("alert");
+  expect(alert.textContent).toBe(
+    "The draft could not be withdrawn. Please try again.",
+  );
+  expect(screen.getByRole("heading", { name: "Original title" })).toBeTruthy();
+  expect(Object.keys(readCapabilities(localStorage))).toEqual(["draft"]);
 });
 
 function renderDraft(client = new QueryClient()) {
