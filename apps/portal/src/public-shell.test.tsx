@@ -15,21 +15,30 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ThemeProvider } from "next-themes";
 
 import Header from "./components/header";
 import { deviceProfileKey } from "./browser-post-state";
 import { Changelog } from "./routes/changelog";
 
-const setTheme = vi.fn();
-
-vi.mock("next-themes", () => ({
-  useTheme: () => ({ theme: "system", setTheme }),
-}));
-
 beforeEach(() => {
   localStorage.clear();
-  setTheme.mockClear();
+  document.documentElement.className = "";
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: (query: string): MediaQueryList =>
+      ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => true,
+      }) as MediaQueryList,
+  });
 });
 afterEach(cleanup);
 
@@ -62,7 +71,9 @@ describe("public portal shell", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Theme" }), {
       target: { value: "dark" },
     });
-    expect(setTheme).toHaveBeenCalledWith("dark");
+    await waitFor(() =>
+      expect(document.documentElement.classList.contains("dark")).toBe(true),
+    );
 
     unmount();
     localStorage.setItem(deviceProfileKey, JSON.stringify({ name: "Ama" }));
@@ -87,10 +98,10 @@ describe("public portal shell", () => {
 function renderShell(initialEntry: string) {
   const root = createRootRoute({
     component: () => (
-      <>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <Header />
         <Outlet />
-      </>
+      </ThemeProvider>
     ),
   });
   const index = createRoute({

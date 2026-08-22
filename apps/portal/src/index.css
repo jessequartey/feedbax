@@ -135,9 +135,11 @@
   background: transparent;
   color: inherit;
 }
-.mobile-nav {
+.portal-header .mobile-nav {
   display: grid;
+  align-items: stretch;
   gap: 1rem;
+  overflow: visible;
   padding: 1.5rem;
 }
 @media (max-width: 720px) {
