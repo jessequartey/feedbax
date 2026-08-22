@@ -7,10 +7,10 @@ export function PublicPortalError({
   return (
     <main className="public-error">
       <p className="feedback-eyebrow">Temporary interruption</p>
-      <h1>Feedback is temporarily unavailable.</h1>
+      <h1>Posts are temporarily unavailable.</h1>
       <p>
-        We couldn’t reach the feedback service after several attempts. Your
-        private information has not been displayed.
+        We couldn’t reach the Post service after several attempts. Your private
+        information has not been displayed.
       </p>
       <div className="public-error-actions">
         <button type="button" onClick={reset}>

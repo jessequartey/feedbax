@@ -1,38 +1,19 @@
-import type { PublicFeedbackQuery, PublicPost } from "@feedbax/feedback";
-import { useState } from "react";
+import type { PublicPost } from "@feedbax/feedback";
 import { postPath } from "./public-post-page";
 import { formatPublicDate } from "./public-date";
 
 export function PostResults({
   initialItems,
   nextCursor,
-  search,
+  loadMore,
+  loadingMore = false,
 }: {
   initialItems: PublicPost[];
   nextCursor?: string;
-  search: PublicFeedbackQuery;
+  loadMore?: () => void;
+  loadingMore?: boolean;
 }) {
-  const [items, setItems] = useState(initialItems);
-  const [cursor, setCursor] = useState(nextCursor);
-  const [pending, setPending] = useState(false);
-  async function loadMore() {
-    if (!cursor) return;
-    setPending(true);
-    try {
-      const { getPublicFeedbackPage } =
-        await import("./public-feedback-server-function");
-      const page = await getPublicFeedbackPage({ data: { ...search, cursor } });
-      setItems((current) => [
-        ...current,
-        ...page.items.filter(
-          (next) => !current.some((item) => item.slug === next.slug),
-        ),
-      ]);
-      setCursor(page.nextCursor);
-    } finally {
-      setPending(false);
-    }
-  }
+  const items = initialItems;
   if (!items.length)
     return (
       <div className="feedback-empty">
@@ -61,14 +42,14 @@ export function PostResults({
           </li>
         ))}
       </ol>
-      {cursor ? (
+      {nextCursor ? (
         <button
           className="feedback-next"
           type="button"
           onClick={loadMore}
-          disabled={pending}
+          disabled={loadingMore || !loadMore}
         >
-          {pending ? "Loading…" : "Load More"}
+          {loadingMore ? "Loading…" : "Load More"}
         </button>
       ) : null}
     </>

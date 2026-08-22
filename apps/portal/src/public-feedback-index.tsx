@@ -1,18 +1,21 @@
 import type { PublicFeedbackQuery, PublicPostPage } from "@feedbax/feedback";
-import { Search } from "lucide-react";
-import { postStatuses, postTypes } from "./public-feedback-page";
 import { DraftPostList } from "./draft-post-list";
+import { PostFeedControls } from "./post-feed-controls";
 import { PostResults } from "./post-results";
 
 export function PublicFeedbackIndex({
   page,
   search,
+  loadMore,
+  loadingMore,
+  onSearchChange,
 }: {
   page: PublicPostPage;
   search: PublicFeedbackQuery;
+  loadMore?: () => void;
+  loadingMore?: boolean;
+  onSearchChange?: (search: PublicFeedbackQuery) => void;
 }) {
-  const activeCount =
-    (search.types?.length ?? 0) + (search.statuses?.length ?? 0);
   return (
     <main className="feedback-index">
       <section className="feedback-intro" aria-labelledby="feedback-heading">
@@ -21,62 +24,7 @@ export function PublicFeedbackIndex({
           Share ideas, report bugs, and follow the Posts shaping the product.
         </p>
       </section>
-      <form className="post-controls" method="get">
-        <label className="post-search">
-          <Search aria-hidden="true" />
-          <span className="sr-only">Search Posts</span>
-          <input
-            name="search"
-            type="search"
-            defaultValue={search.search}
-            placeholder="Search Posts"
-          />
-        </label>
-        <label>
-          <span>Sort</span>
-          <select name="sort" defaultValue={search.sort ?? "trending"}>
-            <option value="trending">Trending</option>
-            <option value="top">Top</option>
-            <option value="new">New</option>
-          </select>
-        </label>
-        <details className="post-filters">
-          <summary>Filters{activeCount ? ` (${activeCount})` : ""}</summary>
-          <fieldset>
-            <legend>Post Types</legend>
-            {postTypes.map((type) => (
-              <label key={type}>
-                <input
-                  type="checkbox"
-                  name="types"
-                  value={type}
-                  defaultChecked={search.types?.includes(type)}
-                />
-                {type}
-              </label>
-            ))}
-          </fieldset>
-          <fieldset>
-            <legend>Post Statuses</legend>
-            {postStatuses.map((status) => (
-              <label key={status}>
-                <input
-                  type="checkbox"
-                  name="statuses"
-                  value={status}
-                  defaultChecked={search.statuses?.includes(status)}
-                />
-                {status}
-              </label>
-            ))}
-          </fieldset>
-          <div>
-            <a href="/">Clear All</a>
-            <button type="submit">Apply</button>
-          </div>
-        </details>
-        <button type="submit">Update</button>
-      </form>
+      <PostFeedControls search={search} onSearchChange={onSearchChange} />
       <section className="feedback-results" aria-live="polite">
         <div className="feedback-results-heading">
           <h2>Posts</h2>
@@ -86,7 +34,8 @@ export function PublicFeedbackIndex({
         <PostResults
           initialItems={page.items}
           nextCursor={page.nextCursor}
-          search={search}
+          loadMore={loadMore}
+          loadingMore={loadingMore}
         />
       </section>
     </main>

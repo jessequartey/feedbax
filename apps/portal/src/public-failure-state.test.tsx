@@ -37,7 +37,7 @@ describe("public portal failure state", () => {
       <PublicPortalError error={privateFailure} reset={() => undefined} />,
     );
 
-    expect(html).toContain("Feedback is temporarily unavailable");
+    expect(html).toContain("Posts are temporarily unavailable");
     expect(html).toContain("Try again");
     expect(html).not.toContain("secret-token");
     expect(html).not.toContain("private-field");

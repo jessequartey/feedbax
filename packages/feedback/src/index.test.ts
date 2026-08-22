@@ -515,6 +515,56 @@ describe("Feedback module", () => {
     ]);
   });
 
+  it("composes Post search, multi-select filters, and sorting", async () => {
+    const base = {
+      status: "Planned" as const,
+      published: true,
+      createdAt: new Date("2026-08-22T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-22T10:00:00.000Z"),
+    };
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          ...base,
+          id: "matching-description",
+          slug: "matching-description",
+          title: "Keyboard navigation",
+          description: "Reveal search without using a pointer.",
+          type: "Feature Request",
+        },
+        {
+          ...base,
+          id: "matching-title",
+          slug: "matching-title",
+          title: "Faster search",
+          description: "Find Posts by title.",
+          type: "Bug Report",
+        },
+        {
+          ...base,
+          id: "wrong-status",
+          slug: "wrong-status",
+          title: "Search closed Posts",
+          description: "This should not match.",
+          type: "Bug Report",
+          status: "Closed",
+        },
+      ],
+    });
+
+    const page = await feedback.listPublicPosts({
+      search: "search",
+      types: ["Feature Request", "Bug Report"],
+      statuses: ["Planned"],
+      sort: "trending",
+    });
+
+    expect(page.items.map((post) => post.slug).sort()).toEqual([
+      "matching-description",
+      "matching-title",
+    ]);
+  });
+
   it("submits a New, unpublished Feedback Item", async () => {
     const feedback = createFeedbackModule();
 
