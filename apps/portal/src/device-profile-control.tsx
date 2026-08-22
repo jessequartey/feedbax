@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
-  deviceProfileKey,
+  clearDeviceProfile,
+  deriveDeviceProfileInitials,
   readDeviceProfile,
+  saveDeviceProfile,
   type DeviceProfile,
 } from "./browser-post-state";
 import { useTheme } from "next-themes";
@@ -18,14 +20,10 @@ export function DeviceProfileControl() {
       email: String(data.get("email") ?? "").trim() || undefined,
     };
     if (!next.name) return;
-    localStorage.setItem(deviceProfileKey, JSON.stringify(next));
+    saveDeviceProfile(localStorage, next);
     setProfile(next);
   }
-  const initials = profile?.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
+  const initials = profile ? deriveDeviceProfileInitials(profile) : undefined;
   return (
     <details className="profile-control">
       <summary>{initials || "Profile"}</summary>
@@ -48,7 +46,7 @@ export function DeviceProfileControl() {
             <button
               type="button"
               onClick={() => {
-                localStorage.removeItem(deviceProfileKey);
+                clearDeviceProfile(localStorage);
                 setProfile(undefined);
               }}
             >
