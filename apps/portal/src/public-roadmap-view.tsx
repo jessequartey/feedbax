@@ -1,4 +1,5 @@
 import type { PublicPost, PublicPostRoadmap } from "@feedbax/feedback";
+import { Skeleton } from "@feedbax/ui/components/skeleton";
 
 import { formatPublicDate } from "./public-date";
 import { PostLink } from "./masked-post-link";
@@ -22,16 +23,9 @@ export function PublicRoadmapView({
 }) {
   return (
     <main className="roadmap-page">
-      <section className="roadmap-intro" aria-labelledby="roadmap-heading">
-        <p className="feedback-eyebrow">Public roadmap</p>
-        <h1 id="roadmap-heading">See where feedback is heading.</h1>
-        <p>
-          Follow what the Product Team has planned, what is being built, and
-          what has already shipped.
-        </p>
-      </section>
+      <RoadmapIntro />
 
-      <div className="roadmap-groups">
+      <div className="roadmap-groups" aria-label="Product roadmap">
         {roadmapGroups.map(({ status, heading, headingId }) => (
           <section
             className="roadmap-group"
@@ -59,6 +53,52 @@ export function PublicRoadmapView({
         ))}
       </div>
     </main>
+  );
+}
+
+export function PublicRoadmapSkeleton() {
+  return (
+    <main
+      className="roadmap-page"
+      aria-label="Loading roadmap"
+      aria-busy="true"
+    >
+      <RoadmapIntro />
+      <div className="roadmap-groups roadmap-skeleton-groups">
+        {roadmapGroups.map(({ status, heading }) => (
+          <section
+            className="roadmap-group"
+            data-roadmap-skeleton-column=""
+            key={status}
+          >
+            <header>
+              <h2>{heading}</h2>
+              <Skeleton className="roadmap-skeleton-count" />
+            </header>
+            <div className="roadmap-skeleton-card">
+              <Skeleton className="roadmap-skeleton-meta" />
+              <Skeleton className="roadmap-skeleton-title" />
+              <Skeleton className="roadmap-skeleton-copy" />
+              <Skeleton className="roadmap-skeleton-copy roadmap-skeleton-copy-short" />
+            </div>
+          </section>
+        ))}
+      </div>
+      <span className="sr-only">Loading roadmap Posts…</span>
+    </main>
+  );
+}
+
+function RoadmapIntro() {
+  return (
+    <section className="roadmap-intro" aria-labelledby="roadmap-heading">
+      <p className="feedback-eyebrow">Public roadmap</p>
+      <h1 id="roadmap-heading">See where feedback is heading.</h1>
+      <p>
+        Follow what the Product Team has planned, what is being built, and what
+        has already shipped.
+      </p>
+    </section>
   );
 }
 

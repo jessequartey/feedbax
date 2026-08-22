@@ -1,9 +1,18 @@
 import { createFeedbackModule } from "@feedbax/feedback";
+import { QueryClient } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { loadPublicRoadmapPage } from "./public-roadmap-page";
-import { PublicRoadmapView } from "./public-roadmap-view";
+import { publicRoadmapQuery } from "./roadmap-query";
+import {
+  PublicRoadmapSkeleton,
+  PublicRoadmapView,
+} from "./public-roadmap-view";
+
+vi.mock("./public-roadmap-server-function", () => ({
+  getPublicRoadmapPage: vi.fn(),
+}));
 
 describe("public roadmap page", () => {
   it("loads Published Feedback Items in the agreed roadmap groups and order", async () => {
@@ -82,6 +91,27 @@ describe("public roadmap page", () => {
     );
 
     expect(html).toContain('href="/p/keyboard-first-search"');
+  });
+
+  it("renders three roadmap skeleton columns while the route is loading", () => {
+    const html = renderToStaticMarkup(<PublicRoadmapSkeleton />);
+
+    expect(html).toContain('aria-label="Loading roadmap"');
+    expect(html.match(/data-roadmap-skeleton-column/g)).toHaveLength(3);
+    expect(html).toContain("See where feedback is heading.");
+  });
+
+  it("reuses the roadmap loaded into the Query cache", async () => {
+    const roadmap = { Planned: [], "In Progress": [], Shipped: [] };
+    const fetchRoadmap = vi.fn(async () => roadmap);
+    const queryClient = new QueryClient();
+    const options = publicRoadmapQuery(fetchRoadmap);
+
+    await queryClient.ensureQueryData(options);
+    await queryClient.ensureQueryData(options);
+
+    expect(fetchRoadmap).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(options.queryKey)).toEqual(roadmap);
   });
 });
 
