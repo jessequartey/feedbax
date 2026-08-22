@@ -2,7 +2,10 @@ import type { PublicPost } from "@feedbax/feedback";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { PublicPostDetail } from "./public-post-detail";
+import {
+  PublicPostDetail,
+  PublicPostDetailSkeleton,
+} from "./public-post-detail";
 
 export function createPublicPostRoute({
   loadPost,
@@ -14,6 +17,7 @@ export function createPublicPostRoute({
   const route = createFileRoute("/p/$slug")({
     loader: ({ params }) => loadPost(params.slug),
     component: PostRoute,
+    pendingComponent: PublicPostDetailSkeleton,
   });
 
   function PostRoute() {

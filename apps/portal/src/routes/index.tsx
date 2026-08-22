@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PublicPostIndex } from "../public-feedback-index";
+import {
+  PublicPostFeedSkeleton,
+  PublicPostIndex,
+} from "../public-feedback-index";
 import { PublicPortalError } from "../public-portal-error";
 import { publicPostSearch } from "../public-feedback-page";
 import { publicPostsQuery } from "../post-queries";
@@ -12,6 +15,7 @@ export const Route = createFileRoute("/")({
   loader: ({ deps, context }) =>
     context.queryClient.ensureInfiniteQueryData(publicPostsQuery(deps)),
   component: HomeComponent,
+  pendingComponent: PublicPostFeedSkeleton,
   errorComponent: PublicPortalError,
 });
 

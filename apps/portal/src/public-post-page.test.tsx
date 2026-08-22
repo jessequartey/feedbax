@@ -1,6 +1,8 @@
 import { createFeedbackModule } from "@feedbax/feedback";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { loadPublicPost, postPath } from "./public-post-page";
+import { PublicPostDetailSkeleton } from "./public-post-detail";
 
 describe("canonical Post page", () => {
   it("uses only the immutable slug as public identity", async () => {
@@ -49,5 +51,13 @@ describe("canonical Post page", () => {
     await expect(
       loadPublicPost({ feedback, slug: "missing-post" }),
     ).resolves.toBeUndefined();
+  });
+
+  it("renders a contextual Post detail skeleton", () => {
+    const html = renderToStaticMarkup(<PublicPostDetailSkeleton />);
+
+    expect(html).toContain('aria-label="Loading Post details"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain("Loading Post details…");
   });
 });

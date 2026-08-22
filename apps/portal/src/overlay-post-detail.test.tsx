@@ -34,7 +34,11 @@ it("shows loading instead of stale content when the requested slug changes", asy
   ).toBeTruthy();
 
   view.rerender(<OverlayPostDetail slug="second-post" />);
-  expect(screen.getByText("Loading Post…")).toBeTruthy();
+  expect(
+    screen
+      .getByRole("main", { name: "Loading Post details" })
+      .getAttribute("aria-busy"),
+  ).toBe("true");
   expect(screen.queryByRole("heading", { name: "First Post" })).toBeNull();
 
   resolveSecond({ ...firstPost, slug: "second-post", title: "Second Post" });

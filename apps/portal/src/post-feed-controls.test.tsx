@@ -69,6 +69,16 @@ describe("Post feed controls", () => {
       '"statuses":[]',
     );
   });
+
+  it("moves keyboard focus into search when search is revealed", () => {
+    render(<Harness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show search" }));
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("searchbox", { name: "Search Posts" }),
+    );
+  });
 });
 
 function Harness() {

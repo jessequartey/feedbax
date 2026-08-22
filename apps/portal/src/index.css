@@ -577,6 +577,76 @@ textarea:focus-visible {
   padding-top: 3rem;
 }
 
+.feedback-feed-skeleton .animate-pulse,
+.post-detail-skeleton .animate-pulse {
+  border-radius: 0;
+}
+
+.feedback-skeleton-heading {
+  width: min(34rem, 80vw);
+  height: clamp(2.5rem, 7vw, 5.5rem);
+}
+
+.feedback-skeleton-deck {
+  width: min(32rem, 70vw);
+  height: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.feedback-skeleton-control {
+  width: 9rem;
+  height: 2.75rem;
+}
+
+.feedback-skeleton-section-heading,
+.feedback-skeleton-meta {
+  width: 8rem;
+  height: 0.75rem;
+}
+
+.feedback-skeleton-row {
+  display: grid;
+  gap: 0.8rem;
+  padding: clamp(1.5rem, 3vw, 2.4rem) 0;
+}
+
+.feedback-skeleton-title {
+  width: min(30rem, 70vw);
+  height: 2rem;
+}
+
+.feedback-skeleton-copy {
+  width: min(42rem, 80vw);
+  height: 1rem;
+}
+
+.post-detail-skeleton-back {
+  width: 8rem;
+  height: 1rem;
+}
+
+.post-detail-skeleton-meta {
+  width: 12rem;
+  height: 0.8rem;
+}
+
+.post-detail-skeleton-title {
+  width: min(44rem, 75vw);
+  height: clamp(3rem, 7vw, 6rem);
+  margin-top: 1.25rem;
+}
+
+.post-detail-skeleton-copy {
+  width: min(52rem, 80vw);
+  height: 1rem;
+  margin-top: 2rem;
+}
+
+.post-detail-skeleton-copy-short {
+  width: min(35rem, 60vw);
+  margin-top: 0.75rem;
+}
+
 .feedback-results-heading {
   display: flex;
   align-items: baseline;

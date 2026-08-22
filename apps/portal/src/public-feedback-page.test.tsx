@@ -3,7 +3,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PublicPostIndex } from "./public-feedback-index";
+import {
+  PublicPostFeedSkeleton,
+  PublicPostIndex,
+} from "./public-feedback-index";
 import { loadPublicPostPage } from "./public-feedback-page";
 import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
 
@@ -136,6 +139,15 @@ describe("public feedback home page", () => {
     expect(html).toContain("Keyboard-first search!");
     expect(html).toContain("Couldn’t load more Posts");
     expect(html).toContain("Try again");
+  });
+
+  it("renders a contextual feed skeleton while the route is loading", () => {
+    const html = renderToStaticMarkup(<PublicPostFeedSkeleton />);
+
+    expect(html).toContain('aria-label="Loading Posts"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html.match(/data-post-skeleton-row/g)).toHaveLength(3);
+    expect(html).toContain("Loading Posts…");
   });
 
   it("pins recognizable matching Draft Posts above Published Posts", () => {

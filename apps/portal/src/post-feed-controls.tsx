@@ -1,6 +1,6 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { postStatuses, postTypes } from "./public-feedback-page";
 
@@ -15,12 +15,16 @@ export function PostFeedControls({
   const [searchExpanded, setSearchExpanded] = useState(Boolean(search.search));
   const [types, setTypes] = useState<PostType[]>(search.types ?? []);
   const [statuses, setStatuses] = useState<PostStatus[]>(search.statuses ?? []);
+  const searchInput = useRef<HTMLInputElement>(null);
   const activeCount =
     (search.types?.length ?? 0) + (search.statuses?.length ?? 0);
 
   useEffect(() => setQuery(search.search ?? ""), [search.search]);
   useEffect(() => setTypes(search.types ?? []), [search.types]);
   useEffect(() => setStatuses(search.statuses ?? []), [search.statuses]);
+  useEffect(() => {
+    if (searchExpanded) searchInput.current?.focus();
+  }, [searchExpanded]);
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       if (query === (search.search ?? "")) return;
@@ -64,6 +68,7 @@ export function PostFeedControls({
           <label>
             <span className="sr-only">Search Posts</span>
             <input
+              ref={searchInput}
               name="search"
               type="search"
               value={query}

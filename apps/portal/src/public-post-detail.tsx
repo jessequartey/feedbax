@@ -1,4 +1,5 @@
 import type { PublicPost } from "@feedbax/feedback";
+import { Skeleton } from "@feedbax/ui/components/skeleton";
 import { ArrowLeft } from "lucide-react";
 import { formatPublicDate } from "./public-date";
 
@@ -34,6 +35,27 @@ export function PublicPostDetail({ post }: { post: PublicPost }) {
           </div>
         </dl>
       </article>
+    </main>
+  );
+}
+
+export function PublicPostDetailSkeleton() {
+  return (
+    <main
+      className="feedback-detail post-detail-skeleton"
+      aria-label="Loading Post details"
+      aria-busy="true"
+    >
+      <div aria-hidden="true">
+        <Skeleton className="post-detail-skeleton-back" />
+        <article>
+          <Skeleton className="post-detail-skeleton-meta" />
+          <Skeleton className="post-detail-skeleton-title" />
+          <Skeleton className="post-detail-skeleton-copy" />
+          <Skeleton className="post-detail-skeleton-copy post-detail-skeleton-copy-short" />
+        </article>
+      </div>
+      <span className="sr-only">Loading Post details…</span>
     </main>
   );
 }

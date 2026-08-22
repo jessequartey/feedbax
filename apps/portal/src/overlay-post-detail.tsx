@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import type { PublicPost } from "@feedbax/feedback";
 
 import { getPublicPost } from "./public-post-server-function";
-import { PublicPostDetail } from "./public-post-detail";
+import {
+  PublicPostDetail,
+  PublicPostDetailSkeleton,
+} from "./public-post-detail";
 import { AuthorizedDraftPost } from "./authorized-draft-post";
 
 export function OverlayPostDetail({ slug }: { slug: string }) {
@@ -18,8 +21,7 @@ export function OverlayPostDetail({ slug }: { slug: string }) {
     };
   }, [slug]);
 
-  if (post === undefined)
-    return <p className="post-detail-loading">Loading Post…</p>;
+  if (post === undefined) return <PublicPostDetailSkeleton />;
   return (
     <div className="overlay-post-detail">
       <a
