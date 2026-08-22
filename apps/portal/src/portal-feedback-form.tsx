@@ -42,22 +42,26 @@ const feedbackTypes: FeedbackType[] = [
 
 export function PortalFeedbackForm({
   initialDraft,
-}: { initialDraft?: StoredDraft } = {}) {
+  display = "page",
+  onCancel,
+  onCreated,
+}: {
+  initialDraft?: StoredDraft;
+  display?: "page" | "overlay";
+  onCancel?: () => void;
+  onCreated?: (slug: string) => void | Promise<void>;
+} = {}) {
   const [draft, setDraft] = useState<StoredDraft | undefined>(initialDraft);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
   const [confirmingWithdrawal, setConfirmingWithdrawal] = useState(false);
-
-  useEffect(() => {
-    if (initialDraft) return;
-    const stored = window.localStorage.getItem(draftStorageKey);
-    if (!stored) return;
-    try {
-      setDraft(JSON.parse(stored) as StoredDraft);
-    } catch {
-      window.localStorage.removeItem(draftStorageKey);
-    }
-  }, [initialDraft]);
+  const [descriptionLength, setDescriptionLength] = useState(
+    initialDraft?.description.length ?? 0,
+  );
+  const [fieldErrors, setFieldErrors] = useState<{
+    title?: string;
+    description?: string;
+  }>({});
 
   useEffect(() => {
     if (!turnstileSiteKey || document.querySelector("script[data-turnstile]")) {
@@ -75,6 +79,9 @@ export function PortalFeedbackForm({
     event.preventDefault();
     const form = event.currentTarget;
     const values = readFeedbackForm(form);
+    const errors = validateFeedbackForm(values);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     if (!browserCanStoreDraft()) {
       setMessage(
         "Enable browser storage before submitting so this browser can retain draft access.",
@@ -114,7 +121,8 @@ export function PortalFeedbackForm({
       setMessage(
         "Draft submitted. You can edit or withdraw it from this browser.",
       );
-      window.location.assign(`/p/${encodeURIComponent(result.slug)}`);
+      if (onCreated) await onCreated(result.slug);
+      else window.location.assign(`/p/${encodeURIComponent(result.slug)}`);
     } catch (error) {
       setMessage(submissionFailureMessage(error));
     } finally {
@@ -171,7 +179,11 @@ export function PortalFeedbackForm({
   }
 
   return (
-    <section className="feedback-submit" aria-labelledby="submit-heading">
+    <section
+      className="feedback-submit"
+      data-display={display}
+      aria-labelledby="submit-heading"
+    >
       <div className="feedback-submit-copy">
         <p className="feedback-eyebrow">Share feedback</p>
         <h2 id="submit-heading">
@@ -184,17 +196,29 @@ export function PortalFeedbackForm({
         </p>
       </div>
 
-      <form onSubmit={draft ? edit : submit} className="feedback-submit-form">
-        <label>
-          <span>Title</span>
+      <form
+        onSubmit={draft ? edit : submit}
+        className="feedback-submit-form"
+        noValidate
+      >
+        <div className="feedback-submit-field">
+          <label htmlFor="post-title">Title</label>
           <input
+            id="post-title"
             name="title"
             required
             maxLength={160}
             defaultValue={draft?.title}
             key={`title-${draft?.id ?? "new"}`}
+            aria-invalid={fieldErrors.title ? true : undefined}
+            aria-describedby={fieldErrors.title ? "title-error" : undefined}
           />
-        </label>
+          {fieldErrors.title ? (
+            <small id="title-error" className="feedback-field-error">
+              {fieldErrors.title}
+            </small>
+          ) : null}
+        </div>
         {turnstileSiteKey && !draft ? (
           <div
             className="cf-turnstile"
@@ -202,20 +226,39 @@ export function PortalFeedbackForm({
             data-theme="light"
           />
         ) : null}
-        <label>
-          <span>Description</span>
+        <div className="feedback-submit-field">
+          <label htmlFor="post-description">Description</label>
           <textarea
+            id="post-description"
             name="description"
             required
             maxLength={5_000}
             rows={6}
             defaultValue={draft?.description}
             key={`description-${draft?.id ?? "new"}`}
+            onChange={(event) =>
+              setDescriptionLength(event.currentTarget.value.length)
+            }
+            aria-invalid={fieldErrors.description ? true : undefined}
+            aria-describedby={
+              fieldErrors.description
+                ? "description-error description-count"
+                : "description-count"
+            }
           />
-        </label>
-        <label>
-          <span>Feedback type</span>
+          <small id="description-count" className="feedback-character-count">
+            {descriptionLength.toLocaleString("en-US")} / 5,000 characters
+          </small>
+          {fieldErrors.description ? (
+            <small id="description-error" className="feedback-field-error">
+              {fieldErrors.description}
+            </small>
+          ) : null}
+        </div>
+        <div className="feedback-submit-field">
+          <label htmlFor="post-type">Post Type</label>
           <select
+            id="post-type"
             name="type"
             defaultValue={draft?.type ?? "Feature Request"}
             key={`type-${draft?.id ?? "new"}`}
@@ -224,11 +267,21 @@ export function PortalFeedbackForm({
               <option key={type}>{type}</option>
             ))}
           </select>
-        </label>
+        </div>
         <div className="feedback-submit-actions">
           <button type="submit" disabled={pending}>
             {pending ? "Working…" : draft ? "Save changes" : "Create Post"}
           </button>
+          {display === "overlay" && !draft ? (
+            <button
+              type="button"
+              className="feedback-cancel"
+              onClick={onCancel}
+              disabled={pending}
+            >
+              Cancel
+            </button>
+          ) : null}
           {draft ? (
             <button
               type="button"
@@ -269,6 +322,15 @@ export function PortalFeedbackForm({
       </AlertDialog>
     </section>
   );
+}
+
+function validateFeedbackForm(values: ReturnType<typeof readFeedbackForm>) {
+  return {
+    ...(!values.title.trim() ? { title: "Enter a title." } : {}),
+    ...(!values.description.trim()
+      ? { description: "Enter a description." }
+      : {}),
+  };
 }
 
 function readFeedbackForm(form: HTMLFormElement) {

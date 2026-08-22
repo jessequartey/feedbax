@@ -7,15 +7,23 @@ import {
 } from "@feedbax/ui/components/drawer";
 import { Menu } from "lucide-react";
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { DeviceProfileControl } from "../device-profile-control";
 
-function Navigation() {
+function Navigation({ onCreate }: { onCreate?: () => void }) {
   return (
     <>
       <a href="/">Feedback</a>
       <a href="/roadmap">Roadmap</a>
       <a href="/changelog">Changelog</a>
-      <a href="/submit">Create Post</a>
+      <Link
+        to="."
+        state={{ createPostOverlay: true }}
+        mask={{ to: "/submit", unmaskOnReload: true }}
+        onClick={onCreate}
+      >
+        Create Post
+      </Link>
     </>
   );
 }
@@ -45,7 +53,7 @@ export default function Header() {
             <DrawerDescription>Public portal navigation</DrawerDescription>
           </DrawerHeader>
           <nav className="mobile-nav" aria-label="Mobile public portal">
-            <Navigation />
+            <Navigation onCreate={() => setMobileOpen(false)} />
             <DeviceProfileControl />
           </nav>
         </DrawerContent>

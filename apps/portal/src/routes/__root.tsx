@@ -10,6 +10,8 @@ import { ThemeProvider } from "next-themes";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/header";
+import { CreatePostOverlay } from "../create-post-overlay";
+import { RoutedPostCreationForm } from "../routed-post-creation-form";
 
 import appCss from "../index.css?url";
 
@@ -55,6 +57,11 @@ function RootDocument() {
             <div className="portal-shell">
               <Header />
               <Outlet />
+              <CreatePostOverlay
+                renderForm={(close) => (
+                  <RoutedPostCreationForm display="overlay" onCancel={close} />
+                )}
+              />
             </div>
           </ThemeProvider>
         </QueryClientProvider>

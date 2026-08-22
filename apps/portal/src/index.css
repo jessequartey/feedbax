@@ -192,6 +192,26 @@ textarea:focus-visible {
   background: color-mix(in srgb, white 36%, transparent);
 }
 
+.create-post-dialog {
+  max-height: min(90dvh, 52rem);
+  max-width: min(56rem, calc(100vw - 2rem));
+  overflow-y: auto;
+  padding: 0;
+}
+
+.create-post-drawer .feedback-submit {
+  overflow-y: auto;
+}
+
+.feedback-submit[data-display="overlay"] {
+  grid-template-columns: minmax(0, 0.7fr) minmax(20rem, 1.3fr);
+  gap: 2rem;
+  margin: 0;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  border: 0;
+  background: transparent;
+}
+
 .feedback-submit-copy h2 {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3.8rem);
@@ -208,7 +228,7 @@ textarea:focus-visible {
 }
 
 .feedback-submit-form,
-.feedback-submit-form label {
+.feedback-submit-field {
   display: grid;
 }
 
@@ -216,16 +236,30 @@ textarea:focus-visible {
   gap: 1rem;
 }
 
-.feedback-submit-form label {
+.feedback-submit-field {
   gap: 0.5rem;
 }
 
-.feedback-submit-form label > span {
+.feedback-submit-field > label {
   color: #5c606a;
   font-size: 0.68rem;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.feedback-character-count,
+.feedback-field-error {
+  font-size: 0.72rem;
+}
+
+.feedback-character-count {
+  color: #6a6d75;
+  text-align: right;
+}
+
+.feedback-field-error {
+  color: #a52a2a;
 }
 
 .feedback-submit-form input,
@@ -279,6 +313,11 @@ textarea:focus-visible {
 .feedback-submit-actions .feedback-withdraw {
   background: transparent;
   color: #8b2929;
+}
+
+.feedback-submit-actions .feedback-cancel {
+  background: transparent;
+  color: var(--portal-ink);
 }
 
 .feedback-submit-message {
