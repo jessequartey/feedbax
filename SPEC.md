@@ -98,7 +98,7 @@ The Notion-only Profile displays all submitters as Anonymous. Optional name and 
 
 ### Browser-held draft editing
 
-After a portal submission, the browser receives and stores a secret Browser Capability while Notion stores only its cryptographic hash. Possession permits the browser to edit the title, description, type, optional name, and optional email, or to withdraw the Post, only while the item remains New and unpublished.
+After a portal submission, the browser receives and stores a secret Browser Capability while Notion stores only its cryptographic hash. Possession permits the browser to edit the title, description, and type, or to withdraw the Post, only while the item remains New and unpublished. Device Profile details are captured privately when a Post is created and are not retroactively changed through draft editing.
 
 A Browser Capability never permits changes to status, publication, prioritization, tags, or internal fields. It stops granting edit access when a Team Member publishes the item or moves it beyond New. Clearing browser storage loses access permanently; the Notion-only Profile provides no recovery or cross-device access. The interface describes this as editing a draft from the current browser, not as an account or verified ownership.
 
@@ -111,6 +111,7 @@ The Feedback Data Source has this canonical schema:
 | Property          | Notion type      | Public output | Purpose                                          |
 | ----------------- | ---------------- | ------------: | ------------------------------------------------ |
 | `Title`           | Title            |           Yes | Short summary                                    |
+| `Slug`            | Rich text        |           Yes | Immutable canonical public identity              |
 | `Description`     | Rich text        |           Yes | Participant-supplied details                     |
 | `Type`            | Select           |           Yes | Feature Request, Bug Report, or General Feedback |
 | `Status`          | Select           |           Yes | Post Status                                      |
@@ -123,7 +124,9 @@ The Feedback Data Source has this canonical schema:
 | `Created At`      | Created time     |           Yes | Submission time                                  |
 | `Updated At`      | Last edited time |           Yes | Most recent change                               |
 
-Public pages and APIs use an explicit allowlist containing only Title, Description, Type, Status, Created At, and Updated At. The public description lives in its dedicated property; Feedbax never renders the page body, so Team Members may use it for private notes without accidentally publishing them.
+Public pages and APIs use an explicit allowlist containing only Slug, Title, Description, Type, Status, Created At, and Updated At. The public description lives in its dedicated property; Feedbax never renders the page body, so Team Members may use it for private notes without accidentally publishing them.
+
+Slugs are derived at creation, receive deterministic numeric suffixes when titles collide, and never change when a title is edited. Storage IDs remain internal and never appear in canonical public URLs.
 
 Product Teams may add custom properties and page-body content. Feedbax ignores unknown properties. Required properties may be renamed when their stable Notion property IDs remain configured. Deleting a required property or changing its type causes `doctor` to report a precise repair instruction.
 
@@ -161,13 +164,9 @@ The standalone portal exposes:
 - `/roadmap` for a responsive, read-only Planned/In Progress/Shipped board
 - `/changelog` for the product-update placeholder
 
-A device-local Participant profile may store a required display name and optional email. It applies privately to future submissions only, is not authentication, and is independent from Browser Capabilities. TanStack Router owns validated URL and loader state; TanStack Query owns cached server state and mutation reconciliation. Public and capability-authorized Draft Post reads use separate cache paths, and authorized reads are private and `no-store`.
+A Device Profile stores a required display name and optional email on one device. It applies privately to future submissions only, is not authentication or editing authority, and can be cleared without removing Browser Capabilities.
 
-- `/submit` for anonymous submission
-- `/roadmap` for Planned, In Progress, and Shipped groups
-- `/health` for minimal deployment health
-
-The stable Notion page ID is the public `:id`; the title-derived slug is cosmetic and may change without breaking identity.
+TanStack Router owns validated URL state, route masking, and loader orchestration. Loaders seed the same typed TanStack Query definitions consumed by components, so preload and render share one server-state path. Mutations update or invalidate every affected feed, detail, draft, and roadmap query. Public and capability-authorized Draft Post reads use separate query definitions and cache paths; authorized reads are private and `no-store`, and raw Browser Capabilities never enter Query keys or persisted Query caches.
 
 The stable external HTTP contract initially contains:
 
@@ -179,9 +178,9 @@ Public form submission and public reads use internal TanStack server functions. 
 
 ## Public read query
 
-Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. The feedback list sorts by Created At descending; roadmap groups by Post Status and sorts within groups by Updated At descending.
+Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Trending is the default validated sort state; Top and New are immediate alternatives preserved in the URL. Because the current Post schema has no engagement or ranking signal, all three currently resolve to the same deterministic Created At descending storage order rather than mislabeling age or Post Status as popularity. A later ranking signal may give Trending and Top distinct ordering without changing the route contract. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
 
-Each cache miss performs one Notion query with no per-item follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable sorting and page size are deferred.
+Each cache miss performs one Notion query with no per-item follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable page size is deferred.
 
 The public-read cache requires no KV or D1. TanStack Start routes produce invariant public responses and cache headers; Cloudflare Workers Caching provides the shared edge storage, tiering, request collapsing, stale refresh, and stale-on-error behavior.
 
@@ -207,7 +206,7 @@ A pinned Better-T-Stack release is used once to generate a pnpm workspace with T
 
 Version 0.2.0 uses a typed `feedbax.ts` file for product identity, public copy, the shadcn theme preset, Notion connection identifiers, publication/display settings, optional Turnstile configuration, and submission limits. Secrets never appear in this file. A generic plugin interface is deferred until the first real connector exists; runtime connectors will use versioned npm packages, while shadcn registry items are reserved for intentionally copied source and integration recipes.
 
-The initial shadcn preset is applied immediately after scaffolding and before application UI is customized. Later changes use partial theme/font application or reviewed diffs rather than blindly overwriting locally owned component source.
+Fresh installations apply shadcn `4.18.0` preset `buFyyzw` immediately after scaffolding and before application UI is customized. The preset establishes Base UI Lyra, neutral tokens and charts, Geist typography, Lucide icons, and Lyra's native square geometry. Established installations may apply supported theme and font changes or reviewed component diffs, but must not reapply the full preset over locally owned product components. Shared registry primitives belong in `packages/ui`; portal-specific compositions remain in `apps/portal`.
 
 Implementation proceeds in this order:
 
