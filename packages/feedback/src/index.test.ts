@@ -552,14 +552,14 @@ describe("Feedback module", () => {
       ],
     });
 
-    const page = await feedback.listPublicPosts({
+    const trending = await feedback.listPublicPosts({
       search: "search",
       types: ["Feature Request", "Bug Report"],
       statuses: ["Planned"],
       sort: "trending",
     });
 
-    expect(page.items.map((post) => post.slug).sort()).toEqual([
+    expect(trending.items.map((post) => post.slug).sort()).toEqual([
       "matching-description",
       "matching-title",
     ]);

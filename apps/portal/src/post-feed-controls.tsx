@@ -16,6 +16,7 @@ export function PostFeedControls({
   onSearchChange?: (search: PublicFeedbackQuery) => void;
 }) {
   const [query, setQuery] = useState(search.search ?? "");
+  const [searchExpanded, setSearchExpanded] = useState(Boolean(search.search));
   const [types, setTypes] = useState<PostType[]>(search.types ?? []);
   const [statuses, setStatuses] = useState<PostStatus[]>(search.statuses ?? []);
   const activeCount =
@@ -54,17 +55,28 @@ export function PostFeedControls({
 
   return (
     <div className="post-controls">
-      <label className="post-search">
-        <Search aria-hidden="true" />
-        <span className="sr-only">Search Posts</span>
-        <input
-          name="search"
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder="Search Posts"
-        />
-      </label>
+      <div className="post-search" data-expanded={searchExpanded || undefined}>
+        <button
+          type="button"
+          aria-label={searchExpanded ? "Hide search" : "Show search"}
+          aria-expanded={searchExpanded}
+          onClick={() => setSearchExpanded((expanded) => !expanded)}
+        >
+          <Search aria-hidden="true" />
+        </button>
+        {searchExpanded ? (
+          <label>
+            <span className="sr-only">Search Posts</span>
+            <input
+              name="search"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Search Posts"
+            />
+          </label>
+        ) : null}
+      </div>
       <label>
         <span>Sort</span>
         <select

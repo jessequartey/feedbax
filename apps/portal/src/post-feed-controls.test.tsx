@@ -30,6 +30,8 @@ describe("Post feed controls", () => {
       '"sort":"new"',
     );
 
+    expect(screen.queryByPlaceholderText("Search Posts")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show search" }));
     fireEvent.change(screen.getByPlaceholderText("Search Posts"), {
       target: { value: "keyboard" },
     });

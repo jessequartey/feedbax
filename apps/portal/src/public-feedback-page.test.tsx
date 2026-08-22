@@ -120,4 +120,29 @@ describe("public feedback home page", () => {
 
     expect(html).toContain('href="/p/keyboard-first-search"');
   });
+
+  it("keeps visible Posts and offers retry when Load More fails", () => {
+    const html = renderToStaticMarkup(
+      <PublicFeedbackIndex
+        page={{ items: [publishedPost], nextCursor: "opaque-next-page" }}
+        search={{}}
+        loadMore={() => undefined}
+        loadMoreError
+      />,
+    );
+
+    expect(html).toContain("Keyboard-first search!");
+    expect(html).toContain("Couldn’t load more Posts");
+    expect(html).toContain("Try again");
+  });
 });
+
+const publishedPost = {
+  slug: "keyboard-first-search",
+  title: "Keyboard-first search!",
+  description: "Open search without reaching for the mouse.",
+  type: "Feature Request" as const,
+  status: "Planned" as const,
+  createdAt: new Date("2026-08-20T10:00:00.000Z"),
+  updatedAt: new Date("2026-08-20T12:00:00.000Z"),
+};

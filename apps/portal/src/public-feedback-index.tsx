@@ -8,12 +8,14 @@ export function PublicFeedbackIndex({
   search,
   loadMore,
   loadingMore,
+  loadMoreError,
   onSearchChange,
 }: {
   page: PublicPostPage;
   search: PublicFeedbackQuery;
   loadMore?: () => void;
   loadingMore?: boolean;
+  loadMoreError?: boolean;
   onSearchChange?: (search: PublicFeedbackQuery) => void;
 }) {
   return (
@@ -36,6 +38,7 @@ export function PublicFeedbackIndex({
           nextCursor={page.nextCursor}
           loadMore={loadMore}
           loadingMore={loadingMore}
+          loadMoreError={loadMoreError}
         />
       </section>
     </main>

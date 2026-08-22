@@ -7,11 +7,13 @@ export function PostResults({
   nextCursor,
   loadMore,
   loadingMore = false,
+  loadMoreError = false,
 }: {
   initialItems: PublicPost[];
   nextCursor?: string;
   loadMore?: () => void;
   loadingMore?: boolean;
+  loadMoreError?: boolean;
 }) {
   const items = initialItems;
   if (!items.length)
@@ -42,12 +44,20 @@ export function PostResults({
           </li>
         ))}
       </ol>
+      {loadMoreError ? (
+        <div role="alert" className="feedback-pagination-error">
+          <p>Couldn’t load more Posts.</p>
+          <button type="button" onClick={loadMore}>
+            Try again
+          </button>
+        </div>
+      ) : null}
       {nextCursor ? (
         <button
           className="feedback-next"
           type="button"
           onClick={loadMore}
-          disabled={loadingMore || !loadMore}
+          disabled={loadingMore || loadMoreError || !loadMore}
         >
           {loadingMore ? "Loading…" : "Load More"}
         </button>

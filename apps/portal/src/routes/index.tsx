@@ -31,6 +31,7 @@ function HomeComponent() {
       search={search}
       loadMore={() => query.fetchNextPage()}
       loadingMore={query.isFetchingNextPage}
+      loadMoreError={query.isFetchNextPageError}
       onSearchChange={(nextSearch) =>
         navigate({ search: nextSearch, replace: false })
       }
