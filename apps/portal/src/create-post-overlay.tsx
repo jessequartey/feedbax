@@ -13,7 +13,9 @@ import {
   DrawerTitle,
 } from "@feedbax/ui/components/drawer";
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import type { PortalFeedbackMutations } from "./portal-feedback-form";
+import { PostCreationFlow } from "./post-creation-flow";
 
 const mobileMediaQuery = "(max-width: 720px)";
 
@@ -24,9 +26,9 @@ declare module "@tanstack/react-router" {
 }
 
 export function CreatePostOverlay({
-  renderForm,
+  mutations,
 }: {
-  renderForm: (close: () => void) => ReactNode;
+  mutations: PortalFeedbackMutations;
 }) {
   const router = useRouter();
   const overlayRequested = useRouterState({
@@ -50,7 +52,11 @@ export function CreatePostOverlay({
               Share a feature request, bug report, or product observation.
             </DrawerDescription>
           </DrawerHeader>
-          {renderForm(() => close(false))}
+          <PostCreationFlow
+            display="overlay"
+            onCancel={() => close(false)}
+            mutations={mutations}
+          />
         </DrawerContent>
       </Drawer>
     );
@@ -65,7 +71,11 @@ export function CreatePostOverlay({
             Share a feature request, bug report, or product observation.
           </DialogDescription>
         </DialogHeader>
-        {renderForm(() => close(false))}
+        <PostCreationFlow
+          display="overlay"
+          onCancel={() => close(false)}
+          mutations={mutations}
+        />
       </DialogContent>
     </Dialog>
   );

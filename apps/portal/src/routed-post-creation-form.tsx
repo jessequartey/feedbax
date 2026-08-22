@@ -5,7 +5,7 @@ import {
 } from "./portal-feedback-server-function";
 import { PostCreationFlow } from "./post-creation-flow";
 
-const mutations = {
+export const portalFeedbackMutations = {
   submitPost: submitPortalPost,
   editDraft: editPortalFeedbackDraft,
   withdrawDraft: withdrawPortalFeedbackDraft,
@@ -22,7 +22,7 @@ export function RoutedPostCreationForm({
     <PostCreationFlow
       display={display}
       onCancel={onCancel}
-      mutations={mutations}
+      mutations={portalFeedbackMutations}
     />
   );
 }

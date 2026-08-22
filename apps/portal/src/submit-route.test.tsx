@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Link,
   Outlet,
@@ -14,6 +15,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CreatePostOverlay } from "./create-post-overlay";
 
+const mutations = {
+  submitPost: vi.fn(),
+  editDraft: vi.fn(),
+  withdrawDraft: vi.fn(),
+};
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -25,7 +32,7 @@ describe("/submit", () => {
     const history = createMemoryHistory({ initialEntries: ["/"] });
     const router = createSubmitRouter(history);
 
-    render(<RouterProvider router={router} />);
+    renderSubmitRouter(router);
     fireEvent.click(await screen.findByRole("link", { name: "Create Post" }));
 
     expect(
@@ -39,7 +46,7 @@ describe("/submit", () => {
     const history = createMemoryHistory({ initialEntries: ["/submit"] });
     const router = createSubmitRouter(history);
 
-    render(<RouterProvider router={router} />);
+    renderSubmitRouter(router);
 
     expect(await screen.findByRole("main")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Create a Post" })).toBeTruthy();
@@ -56,7 +63,7 @@ describe("/submit", () => {
     const history = createMemoryHistory({ initialEntries: ["/"] });
     const router = createSubmitRouter(history);
 
-    render(<RouterProvider router={router} />);
+    renderSubmitRouter(router);
     fireEvent.click(await screen.findByRole("link", { name: "Create Post" }));
 
     const drawer = await screen.findByRole("dialog", { name: "Create a Post" });
@@ -67,12 +74,20 @@ describe("/submit", () => {
   });
 });
 
+function renderSubmitRouter(router: ReturnType<typeof createSubmitRouter>) {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
+
 function createSubmitRouter(history: ReturnType<typeof createMemoryHistory>) {
   const root = createRootRoute({
     component: () => (
       <>
         <Outlet />
-        <CreatePostOverlay renderForm={() => <h2>Create a Post</h2>} />
+        <CreatePostOverlay mutations={mutations} />
       </>
     ),
   });

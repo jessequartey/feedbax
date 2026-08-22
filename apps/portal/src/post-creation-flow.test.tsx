@@ -51,12 +51,19 @@ describe("routed Post creation", () => {
         <RouterProvider router={router} />
       </QueryClientProvider>,
     );
+    expect(await screen.findByText("0 / 5,000 characters")).toBeTruthy();
+    fireEvent.submit(
+      screen.getByRole("button", { name: "Create Post" }).closest("form")!,
+    );
+    expect(screen.getByText("Enter a title.")).toBeTruthy();
+    expect(screen.getByText("Enter a description.")).toBeTruthy();
     fireEvent.change(await screen.findByLabelText("Title"), {
       target: { value: created.title },
     });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: created.description },
     });
+    expect(screen.getByText("44 / 5,000 characters")).toBeTruthy();
     fireEvent.submit(
       screen.getByRole("button", { name: "Create Post" }).closest("form")!,
     );
