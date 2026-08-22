@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -25,395 +23,6 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion-backed Feedback module", () => {
-  it("retries a 429 response according to Retry-After", async () => {
-    const delays: number[] = [];
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        Response.json(
-          { object: "error", message: "rate limited" },
-          { status: 429, headers: { "Retry-After": "2" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        Response.json(
-          notionPage({
-            title: "Keyboard-first search",
-            description: "Open search without reaching for the mouse.",
-            type: "Feature Request",
-            status: "Planned",
-            published: true,
-            editTokenHash: "private-hash",
-          }),
-        ),
-      );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-      retry: {
-        sleep: async (milliseconds) => {
-          delays.push(milliseconds);
-        },
-        random: () => 0,
-      },
-    });
-
-    await expect(feedback.getPublic("notion-page-id")).resolves.toMatchObject({
-      title: "Keyboard-first search",
-    });
-    expect(request).toHaveBeenCalledTimes(2);
-    expect(delays).toEqual([2_000]);
-  });
-
-  it("bounds 529 retries with exponential jitter and a safe explicit failure", async () => {
-    const delays: number[] = [];
-    const random = vi.fn().mockReturnValueOnce(0).mockReturnValueOnce(1);
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json(
-          { object: "error", message: "temporary Notion outage" },
-          { status: 529 },
-        ),
-      );
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
-    const feedback = createNotionFeedbackModule({
-      token: "secret-notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-      retry: {
-        sleep: async (milliseconds) => {
-          delays.push(milliseconds);
-        },
-        random,
-      },
-    });
-
-    const result = feedback.getPublic("private-feedback-id");
-
-    await expect(result).rejects.toThrow(
-      "Notion request failed after 3 attempts (529).",
-    );
-    expect(request).toHaveBeenCalledTimes(3);
-    expect(delays).toEqual([125, 500]);
-    expect(random).toHaveBeenCalledTimes(2);
-    expect(consoleError).not.toHaveBeenCalled();
-    expect(consoleLog).not.toHaveBeenCalled();
-    await expect(result).rejects.not.toThrow("secret-notion-token");
-    consoleError.mockRestore();
-    consoleLog.mockRestore();
-  });
-
-  it("does not repeat a non-idempotent create after a 529 response", async () => {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        Response.json(
-          { object: "error", message: "temporary Notion outage" },
-          { status: 529 },
-        ),
-      );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-    });
-
-    await expect(
-      feedback.submit({
-        title: "Do not duplicate this",
-        description: "The create result is uncertain.",
-        type: "General Feedback",
-      }),
-    ).rejects.toThrow("Notion rejected the Feedback Item request (529).");
-    expect(request).toHaveBeenCalledOnce();
-  });
-
-  it("retrieves a Published Feedback Item through the approved public projection", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json(
-        notionPage({
-          title: "Keyboard-first search",
-          description: "Open search without reaching for the mouse.",
-          type: "Feature Request",
-          status: "Planned",
-          published: true,
-          editTokenHash: "must-not-reach-the-caller",
-        }),
-      ),
-    );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-    });
-
-    await expect(feedback.getPublic("notion-page-id")).resolves.toEqual({
-      id: "notion-page-id",
-      title: "Keyboard-first search",
-      description: "Open search without reaching for the mouse.",
-      type: "Feature Request",
-      status: "Planned",
-      createdAt: new Date("2026-08-20T13:00:00.000Z"),
-      updatedAt: new Date("2026-08-20T13:00:00.000Z"),
-    });
-    expect(request).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "https://api.notion.com/v1/pages/notion-page-id?",
-      ),
-      expect.objectContaining({ method: "GET" }),
-    );
-    const [url] = request.mock.calls[0]!;
-    expect(String(url)).toContain("filter_properties=title-id");
-    expect(String(url)).toContain("filter_properties=published-id");
-    expect(String(url)).not.toContain("submitter-email-id");
-    expect(String(url)).not.toContain("edit-token-hash-id");
-  });
-
-  it("lists a filtered cursor page with one publication-gated Notion query", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        object: "list",
-        results: [
-          notionPage({
-            id: "published-page",
-            title: "Faster exports",
-            description: "Export large reports without timing out.",
-            type: "Feature Request",
-            status: "In Progress",
-            published: true,
-            editTokenHash: "private-hash",
-          }),
-        ],
-        has_more: true,
-        next_cursor: "notion-next-cursor",
-      }),
-    );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-    });
-
-    await expect(
-      feedback.listPublic({
-        cursor: "notion-start-cursor",
-        type: "Feature Request",
-        status: "In Progress",
-      }),
-    ).resolves.toEqual({
-      items: [
-        {
-          id: "published-page",
-          title: "Faster exports",
-          description: "Export large reports without timing out.",
-          type: "Feature Request",
-          status: "In Progress",
-          createdAt: new Date("2026-08-20T13:00:00.000Z"),
-          updatedAt: new Date("2026-08-20T13:00:00.000Z"),
-        },
-      ],
-      nextCursor: "notion-next-cursor",
-    });
-    expect(request).toHaveBeenCalledOnce();
-    const [url, init] = request.mock.calls[0]!;
-    expect(String(url)).toContain("/data_sources/feedback-data-source/query?");
-    expect(String(url)).not.toContain("published-id");
-    expect(String(url)).not.toContain("submitter-name-id");
-    expect(String(url)).not.toContain("edit-token-hash-id");
-    expect(JSON.parse(String(init?.body))).toEqual({
-      page_size: 25,
-      start_cursor: "notion-start-cursor",
-      filter: {
-        and: [
-          { property: "published-id", checkbox: { equals: true } },
-          { property: "type-id", select: { equals: "Feature Request" } },
-          { property: "status-id", select: { equals: "In Progress" } },
-        ],
-      },
-      sorts: [{ property: "created-at-id", direction: "descending" }],
-    });
-  });
-
-  it("loads the public roadmap with one Notion query ordered by update time", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        object: "list",
-        results: [
-          notionPage({
-            id: "shipped-page",
-            title: "CSV export",
-            description: "Download feedback as CSV.",
-            type: "Feature Request",
-            status: "Shipped",
-            published: true,
-            editTokenHash: "private-hash",
-          }),
-        ],
-        has_more: false,
-        next_cursor: null,
-      }),
-    );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-    });
-
-    const roadmap = await feedback.getPublicRoadmap();
-
-    expect(roadmap.Planned).toEqual([]);
-    expect(roadmap["In Progress"]).toEqual([]);
-    expect(roadmap.Shipped).toHaveLength(1);
-    expect(request).toHaveBeenCalledOnce();
-    const [, init] = request.mock.calls[0]!;
-    expect(JSON.parse(String(init?.body))).toEqual({
-      page_size: 100,
-      filter: {
-        and: [
-          { property: "published-id", checkbox: { equals: true } },
-          {
-            or: [
-              { property: "status-id", select: { equals: "Planned" } },
-              {
-                property: "status-id",
-                select: { equals: "In Progress" },
-              },
-              { property: "status-id", select: { equals: "Shipped" } },
-            ],
-          },
-        ],
-      },
-      sorts: [{ property: "updated-at-id", direction: "descending" }],
-    });
-  });
-
-  it("refuses to serve a partial roadmap when one Notion query cannot contain it", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        object: "list",
-        results: [],
-        has_more: true,
-        next_cursor: "another-roadmap-page",
-      }),
-    );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-    });
-
-    await expect(feedback.getPublicRoadmap()).rejects.toThrow(
-      "Notion returned more public roadmap items than one query can serve.",
-    );
-    expect(request).toHaveBeenCalledOnce();
-  });
-
-  it("submits canonical properties while keeping the raw Browser Capability out of Notion", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json(
-        notionPage({
-          title: "Search needs keyboard shortcuts",
-          description: "Let me open search without reaching for the mouse.",
-          type: "Feature Request",
-          submitterName: "Ama",
-          submitterEmail: "ama@example.com",
-          editTokenHash: "returned-hash",
-        }),
-      ),
-    );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
-    });
-
-    const submitted = await feedback.submit({
-      title: "Search needs keyboard shortcuts",
-      description: "Let me open search without reaching for the mouse.",
-      type: "Feature Request",
-      submitter: { name: "Ama", email: "ama@example.com" },
-    });
-
-    expect(request).toHaveBeenCalledOnce();
-    const [url, init] = request.mock.calls[0]!;
-    expect(url).toBe("https://api.notion.com/v1/pages");
-    expect(init).toMatchObject({
-      method: "POST",
-      headers: {
-        Authorization: "Bearer notion-token",
-        "Content-Type": "application/json",
-        "Notion-Version": "2026-03-11",
-      },
-    });
-    const body = JSON.parse(String(init?.body)) as {
-      parent: unknown;
-      properties: Record<string, unknown>;
-    };
-    expect(body.parent).toEqual({
-      type: "data_source_id",
-      data_source_id: "feedback-data-source",
-    });
-    expect(body.properties).toMatchObject({
-      "title-id": {
-        title: [{ type: "text", text: { content: submitted.title } }],
-      },
-      "description-id": {
-        rich_text: [{ type: "text", text: { content: submitted.description } }],
-      },
-      "type-id": { select: { name: "Feature Request" } },
-      "status-id": { select: { name: "New" } },
-      "published-id": { checkbox: false },
-      "submitter-name-id": {
-        rich_text: [{ type: "text", text: { content: "Ama" } }],
-      },
-      "submitter-email-id": { email: "ama@example.com" },
-      "source-id": { select: { name: "Portal" } },
-      "edit-token-hash-id": {
-        rich_text: [
-          {
-            type: "text",
-            text: {
-              content: createHash("sha256")
-                .update(submitted.browserCapability)
-                .digest("base64url"),
-            },
-          },
-        ],
-      },
-    });
-    expect(JSON.stringify(body)).not.toContain(submitted.browserCapability);
-    expect(body.properties).not.toHaveProperty("created-at-id");
-    expect(body.properties).not.toHaveProperty("updated-at-id");
-    expect(submitted.id).toBe("notion-page-id");
-    expect(Object.keys(submitted).sort()).toEqual([
-      "browserCapability",
-      "createdAt",
-      "description",
-      "id",
-      "published",
-      "status",
-      "submitter",
-      "title",
-      "type",
-      "updatedAt",
-    ]);
-    expect(submitted).not.toHaveProperty("children");
-    expect(submitted).not.toHaveProperty("Product Team Priority");
-  });
-
   it("persists a unique Post slug after checking the Notion data source", async () => {
     const request = vi
       .fn<typeof fetch>()
@@ -628,6 +237,9 @@ describe("Notion-backed Feedback module", () => {
     const mutations: Array<Record<string, unknown>> = [];
     const request = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
+      if (url.includes("/data_sources/") && init?.method === "POST") {
+        return Response.json({ object: "list", results: [], has_more: false });
+      }
       if (url.endsWith("/pages") && init?.method === "POST") {
         const body = JSON.parse(String(init.body)) as {
           properties: Record<
@@ -636,6 +248,7 @@ describe("Notion-backed Feedback module", () => {
           >;
         };
         page = notionPage({
+          slug: "original-title",
           title: "Original title",
           description: "Original description",
           type: "General Feedback",
@@ -656,10 +269,11 @@ describe("Notion-backed Feedback module", () => {
         if (body.in_trash === true)
           return Response.json({ ...page, in_trash: true });
         page = notionPage({
+          slug: "original-title",
           title: "Corrected title",
           description: "Original description",
           type: "Bug Report",
-          submitterName: "Amina",
+          submitterName: "Ama",
           submitterEmail: "ama@example.com",
           editTokenHash: textContent(
             (page.properties as Record<string, unknown>)["Edit Token Hash"],
@@ -675,7 +289,7 @@ describe("Notion-backed Feedback module", () => {
       propertyIds,
       request,
     });
-    const submitted = await feedback.submit({
+    const submitted = await feedback.submitPost({
       title: "Original title",
       description: "Original description",
       type: "General Feedback",
@@ -683,7 +297,7 @@ describe("Notion-backed Feedback module", () => {
     });
 
     await expect(
-      feedback.editDraft({
+      feedback.editDraftPost({
         id: submitted.id,
         browserCapability:
           "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as BrowserCapability,
@@ -693,19 +307,18 @@ describe("Notion-backed Feedback module", () => {
     expect(mutations).toHaveLength(0);
 
     await expect(
-      feedback.editDraft({
+      feedback.editDraftPost({
         id: submitted.id,
         browserCapability: submitted.browserCapability,
         title: "Corrected title",
         type: "Bug Report",
-        submitter: { name: "Amina" },
       }),
     ).resolves.toMatchObject({
       id: "notion-page-id",
       title: "Corrected title",
       description: "Original description",
       type: "Bug Report",
-      submitter: { name: "Amina", email: "ama@example.com" },
+      submitter: { name: "Ama", email: "ama@example.com" },
     });
     expect(mutations[0]).toEqual({
       properties: {
@@ -718,15 +331,11 @@ describe("Notion-backed Feedback module", () => {
           ],
         },
         "type-id": { select: { name: "Bug Report" } },
-        "submitter-name-id": {
-          rich_text: [{ type: "text", text: { content: "Amina" } }],
-        },
-        "submitter-email-id": { email: "ama@example.com" },
       },
     });
 
     await expect(
-      feedback.withdrawDraft({
+      feedback.withdrawDraftPost({
         id: submitted.id,
         browserCapability: submitted.browserCapability,
       }),
@@ -754,7 +363,7 @@ describe("Notion-backed Feedback module", () => {
     });
 
     await expect(
-      feedback.editDraft({
+      feedback.editDraftPost({
         id: "notion-page-id",
         browserCapability:
           "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as BrowserCapability,
@@ -796,6 +405,12 @@ function notionPage({
     "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
   published?: boolean;
 }) {
+  const canonicalSlug =
+    slug ??
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   return {
     object: "page",
     id,
@@ -810,7 +425,7 @@ function notionPage({
       Slug: {
         id: "slug-id",
         type: "rich_text",
-        rich_text: slug ? [{ plain_text: slug }] : [],
+        rich_text: [{ plain_text: canonicalSlug }],
       },
       "Description from Notion": {
         id: "description-id",

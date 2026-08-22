@@ -2,7 +2,7 @@
 
 This runbook proves the first real Feedbax Installation before its successful
 steps are extracted into the creator and lifecycle CLI. It intentionally uses a
-dedicated Notion page, test-only Feedback Items, and a `workers.dev` hostname.
+dedicated Notion page, test-only Posts, and a `workers.dev` hostname.
 
 ## Preconditions
 
@@ -47,7 +47,7 @@ Record pass/fail and a non-secret timestamp for each item:
 - [ ] The deployed Worker has no Turnstile secret and the production-warning
       runtime test passes. Live console capture is optional because Worker tail
       logs are ephemeral rather than durable proof evidence.
-- [ ] An anonymous portal submission creates a New, unpublished Feedback Item.
+- [ ] An anonymous portal submission creates a New, unpublished Post.
 - [ ] The same browser can edit its title, description, type, optional name, and
       optional email while the item remains New and unpublished.
 - [ ] A second eligible draft can be withdrawn and its Notion page is trashed.
@@ -62,7 +62,7 @@ Record pass/fail and a non-secret timestamp for each item:
 - [ ] A live Feedbax write exercises invalidation and the Worker cache-purge
       boundary integration test passes. A live purge receipt is not required:
       Cloudflare's Cache API returns it only inside the Worker, and published
-      Feedback Items are intentionally not writable through Feedbax.
+      Posts are intentionally not writable through Feedbax.
 - [ ] A direct Notion edit appears within the accepted two-minute freshness
       window.
 - [ ] Temporarily replacing the deployed data-source ID produces a safe public
@@ -86,7 +86,7 @@ restoration pipeline even if that assertion fails.
 ### Trusted submission and idempotency
 
 Load the ignored smoke key without displaying it, submit twice with the same
-idempotency key, and compare the returned Feedback Item identity:
+idempotency key, and compare the returned Post identity:
 
 ```bash
 set -a
@@ -98,18 +98,18 @@ curl --fail-with-body --silent --show-error \
   -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
   -H 'Content-Type: application/json' \
   --data '{"title":"Manual trusted proof","description":"Test-only trusted submission.","type":"General Feedback"}' \
-  "$FEEDBAX_WORKERS_URL/api/v1/feedback"
+  "$FEEDBAX_WORKERS_URL/api/v1/posts"
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer $FEEDBAX_SMOKE_API_KEY" \
   -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
   -H 'Content-Type: application/json' \
   --data '{"title":"Manual trusted proof","description":"Test-only trusted submission.","type":"General Feedback"}' \
-  "$FEEDBAX_WORKERS_URL/api/v1/feedback"
+  "$FEEDBAX_WORKERS_URL/api/v1/posts"
 unset FEEDBAX_SMOKE_API_KEY IDEMPOTENCY_KEY
 ```
 
 Do not save terminal output if it contains private diagnostic data. Record only
-that both successful responses returned the same public Feedback Item ID.
+that both successful responses returned the same public Post ID.
 
 ## Browser acceptance pass
 
@@ -156,7 +156,7 @@ git check-ignore apps/portal/.dev.vars
 git status --short
 ```
 
-Delete the test Feedback Items from the dedicated Notion database. When the
+Delete the test Posts from the dedicated Notion database. When the
 Installation is no longer required, delete the test Worker after confirming its
 resolved name, then remove local secrets:
 

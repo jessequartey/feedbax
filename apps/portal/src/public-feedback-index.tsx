@@ -1,9 +1,9 @@
-import type { PublicFeedbackQuery, PublicPostPage } from "@feedbax/feedback";
+import type { PublicPostQuery, PublicPostPage } from "@feedbax/feedback";
 import { useAuthorizedDraftPosts } from "./draft-post-list";
 import { PostFeedControls } from "./post-feed-controls";
 import { PostResults } from "./post-results";
 
-export function PublicFeedbackIndex({
+export function PublicPostIndex({
   page,
   search,
   loadMore,
@@ -13,11 +13,11 @@ export function PublicFeedbackIndex({
   maskPostLinks = false,
 }: {
   page: PublicPostPage;
-  search: PublicFeedbackQuery;
+  search: PublicPostQuery;
   loadMore?: () => void;
   loadingMore?: boolean;
   loadMoreError?: boolean;
-  onSearchChange?: (search: PublicFeedbackQuery) => void;
+  onSearchChange?: (search: PublicPostQuery) => void;
   maskPostLinks?: boolean;
 }) {
   const drafts = useAuthorizedDraftPosts(search);

@@ -1,7 +1,7 @@
-import { feedbackStatuses, feedbackTypes } from "./public-feedback-page";
+import { postStatuses, postTypes } from "./public-feedback-page";
 import {
   publicFeedbackCacheTag,
-  publicFeedbackItemCacheTag,
+  publicPostCacheTag,
   publicRoadmapCacheTag,
 } from "./public-cache-tags";
 
@@ -13,8 +13,8 @@ const PUBLIC_FEEDBACK_PAGE_SIZE = "25";
 const PUBLIC_FEEDBACK_SORT = "created-at-desc";
 const PUBLIC_ROADMAP_SORT = "updated-at-desc";
 
-const feedbackTypeSet = new Set<string>(feedbackTypes);
-const feedbackStatusSet = new Set<string>(feedbackStatuses);
+const feedbackTypeSet = new Set<string>(postTypes);
+const feedbackStatusSet = new Set<string>(postStatuses);
 
 export function canonicalPublicRequest(request: Request): Request | undefined {
   if (request.method !== "GET") return undefined;
@@ -64,9 +64,7 @@ function isSafePublicProjection(request: Request, response: Response): boolean {
 
 function isPublicPath(pathname: string): boolean {
   return (
-    pathname === "/" ||
-    pathname === "/roadmap" ||
-    /^\/feedback\/[^/]+\/[^/]+$/.test(pathname)
+    pathname === "/" || pathname === "/roadmap" || /^\/p\/[^/]+$/.test(pathname)
   );
 }
 
@@ -74,9 +72,9 @@ function publicCacheTags(url: URL): string {
   if (url.pathname === "/roadmap") {
     return `feedbax-public,${publicRoadmapCacheTag}`;
   }
-  const itemId = /^\/feedback\/([^/]+)\//.exec(url.pathname)?.[1];
-  if (itemId) {
-    return `feedbax-public,${publicFeedbackCacheTag},${publicFeedbackItemCacheTag(decodePathSegment(itemId))}`;
+  const slug = /^\/p\/([^/]+)$/.exec(url.pathname)?.[1];
+  if (slug) {
+    return `feedbax-public,${publicFeedbackCacheTag},${publicPostCacheTag(decodePathSegment(slug))}`;
   }
   return `feedbax-public,${publicFeedbackCacheTag}`;
 }

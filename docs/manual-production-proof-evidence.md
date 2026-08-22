@@ -12,7 +12,7 @@
 - PASS: canonical Feedback Data Source created from the manual setup command.
 - PASS: Worker deployed with all 15 required encrypted secrets.
 - PASS: `/health` returned `200`, `{"status":"ok"}`, and `Cache-Control: no-store`.
-- PASS: anonymous portal submission created a New, unpublished Feedback Item.
+- PASS: anonymous portal submission created a New, unpublished Post.
 - PASS: the submitting browser edited its draft.
 - PASS: a Team Member changed the item to Planned and Published in Notion.
 - PASS: the published item appeared on the public list and Planned roadmap group.
@@ -20,7 +20,7 @@
   its Feature Request Type and Planned Status filters.
 - PASS: the browser edit was rejected after publication.
 - PASS: a separate eligible browser draft was withdrawn and trashed.
-- PASS: trusted submission authenticated successfully; retrying one idempotency key returned the same Feedback Item ID.
+- PASS: trusted submission authenticated successfully; retrying one idempotency key returned the same Post ID.
 - PASS: a controlled invalid deployed data-source secret produced the safe public failure state; the valid secret was restored automatically.
 - PASS: the direct Notion moderation edit appeared publicly during the same
   smoke window, within the accepted two-minute freshness bound.
@@ -28,7 +28,7 @@
   the live draft edit exercised that write path. No published item is writable
   through Feedbax, so a public live item cannot be mutated solely to observe a
   cache purge, and Cloudflare exposes no external purge receipt.
-- PASS: public pages omitted the unpublished trusted Feedback Item and Notion-private properties.
+- PASS: public pages omitted the unpublished trusted Post and Notion-private properties.
 - PASS: desktop and keyboard-only navigation, submission, editing, moderation,
   Type/Status filtering, detail, and roadmap paths completed with visible focus,
   labeled controls, validation/submission feedback, and a clear rejection state.

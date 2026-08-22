@@ -1,10 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import type { FeedbackModule } from "@feedbax/feedback";
-import type {
-  FeedbackType,
-  SubmitTrustedFeedbackInput,
-} from "@feedbax/feedback";
+import type { PostType, SubmitTrustedPostInput } from "@feedbax/feedback";
 
 const FIXED_TRUSTED_SUBMISSION_BOUNDS = {
   submitterName: 200,
@@ -19,7 +16,7 @@ export interface TrustedSubmissionRateLimiter {
 
 interface TrustedFeedbackHandlerOptions {
   apiKeyHash: string;
-  feedback: Pick<FeedbackModule, "submitTrusted">;
+  feedback: Pick<FeedbackModule, "submitTrustedPost">;
   rateLimiter: TrustedSubmissionRateLimiter;
   limits: {
     maxTitleLength: number;
@@ -65,7 +62,7 @@ export function createTrustedFeedbackHandler({
     if (input instanceof Response) return input;
 
     try {
-      const item = await feedback.submitTrusted(input);
+      const item = await feedback.submitTrustedPost(input);
       return jsonResponse(200, item);
     } catch {
       return jsonResponse(502, { error: "Trusted submission failed." });
@@ -77,7 +74,7 @@ async function readTrustedSubmission(
   request: Request,
   externalId: string,
   limits: TrustedFeedbackHandlerOptions["limits"],
-): Promise<SubmitTrustedFeedbackInput | Response> {
+): Promise<SubmitTrustedPostInput | Response> {
   let body: unknown;
   try {
     const text = await request.text();
@@ -98,7 +95,7 @@ async function readTrustedSubmission(
   if (
     typeof value.title !== "string" ||
     typeof value.description !== "string" ||
-    !isFeedbackType(value.type)
+    !isPostType(value.type)
   ) {
     return jsonResponse(400, { error: "Request body is invalid." });
   }
@@ -121,7 +118,7 @@ async function readTrustedSubmission(
 
 function readSubmitter(
   value: unknown,
-): SubmitTrustedFeedbackInput["submitter"] | Response {
+): SubmitTrustedPostInput["submitter"] | Response {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return jsonResponse(400, { error: "Request body is invalid." });
@@ -157,7 +154,7 @@ function boundsError(): Response {
   });
 }
 
-function isFeedbackType(value: unknown): value is FeedbackType {
+function isPostType(value: unknown): value is PostType {
   return (
     value === "Feature Request" ||
     value === "Bug Report" ||

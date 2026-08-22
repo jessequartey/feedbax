@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { PublicFeedbackIndex } from "../public-feedback-index";
+import { PublicPostIndex } from "../public-feedback-index";
 import { PublicPortalError } from "../public-portal-error";
-import { publicFeedbackSearch } from "../public-feedback-page";
+import { publicPostSearch } from "../public-feedback-page";
 import { publicPostsQuery } from "../post-queries";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/")({
-  validateSearch: publicFeedbackSearch,
+  validateSearch: publicPostSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ deps, context }) =>
     context.queryClient.ensureInfiniteQueryData(publicPostsQuery(deps)),
@@ -26,7 +26,7 @@ function HomeComponent() {
   };
 
   return (
-    <PublicFeedbackIndex
+    <PublicPostIndex
       page={page}
       search={search}
       loadMore={() => query.fetchNextPage()}

@@ -1,4 +1,4 @@
-import type { PublicFeedbackQuery } from "@feedbax/feedback";
+import type { PublicPostQuery } from "@feedbax/feedback";
 import { useQuery } from "@tanstack/react-query";
 import { readCapabilities } from "./browser-post-state";
 import { authorizedDraftPostsQuery } from "./authorized-draft-query";
@@ -13,7 +13,7 @@ const fetchAuthorizedDraft = async (
   return getPortalDraftPost(input);
 };
 
-export function useAuthorizedDraftPosts(search: PublicFeedbackQuery) {
+export function useAuthorizedDraftPosts(search: PublicPostQuery) {
   const browser = typeof window !== "undefined";
   const capabilities = browser ? readCapabilities(window.localStorage) : {};
   const draftQuery = useQuery({

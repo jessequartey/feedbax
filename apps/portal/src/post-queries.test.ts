@@ -7,7 +7,7 @@ import { authorizedDraftPostsQuery } from "./authorized-draft-query";
 import { capabilitiesKey, readCapabilities } from "./browser-post-state";
 
 vi.mock("./public-feedback-server-function", () => ({
-  getPublicFeedbackPage: vi.fn(),
+  getPublicPostPage: vi.fn(),
 }));
 
 describe("public Posts query", () => {

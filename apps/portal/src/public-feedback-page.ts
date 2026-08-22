@@ -2,7 +2,7 @@ import type {
   FeedbackModule,
   PostStatus,
   PostType,
-  PublicFeedbackQuery,
+  PublicPostQuery,
   PublicPostPage,
 } from "@feedbax/feedback";
 
@@ -19,23 +19,21 @@ export const postStatuses = [
   "Shipped",
   "Closed",
 ] as const satisfies readonly PostStatus[];
-export const feedbackTypes = postTypes;
-export const feedbackStatuses = postStatuses;
 export const postSorts = ["trending", "top", "new"] as const;
 
-export async function loadPublicFeedbackPage({
+export async function loadPublicPostPage({
   feedback,
   search,
 }: {
   feedback: Pick<FeedbackModule, "listPublicPosts">;
   search: Record<string, unknown>;
 }): Promise<PublicPostPage> {
-  return feedback.listPublicPosts(publicFeedbackSearch(search));
+  return feedback.listPublicPosts(publicPostSearch(search));
 }
 
-export function publicFeedbackSearch(
+export function publicPostSearch(
   search: Record<string, unknown>,
-): PublicFeedbackQuery {
+): PublicPostQuery {
   const cursor = text(search.cursor);
   const query = text(search.search);
   const sortValue = text(search.sort);
@@ -43,7 +41,7 @@ export function publicFeedbackSearch(
     ...(cursor ? { cursor } : {}),
     ...(query ? { search: query } : {}),
     sort: postSorts.includes(sortValue as (typeof postSorts)[number])
-      ? (sortValue as PublicFeedbackQuery["sort"])
+      ? (sortValue as PublicPostQuery["sort"])
       : "trending",
     types: values(search.types).filter((value): value is PostType =>
       postTypes.includes(value as PostType),

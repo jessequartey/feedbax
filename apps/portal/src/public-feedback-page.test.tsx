@@ -3,8 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PublicFeedbackIndex } from "./public-feedback-index";
-import { loadPublicFeedbackPage } from "./public-feedback-page";
+import { PublicPostIndex } from "./public-feedback-index";
+import { loadPublicPostPage } from "./public-feedback-page";
 import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
 
 describe("public feedback home page", () => {
@@ -23,7 +23,7 @@ describe("public feedback home page", () => {
       })),
     });
 
-    const page = await loadPublicFeedbackPage({
+    const page = await loadPublicPostPage({
       feedback,
       search: {},
     });
@@ -76,7 +76,7 @@ describe("public feedback home page", () => {
       ],
     });
 
-    const page = await loadPublicFeedbackPage({
+    const page = await loadPublicPostPage({
       feedback,
       search: { types: ["Feature Request"], statuses: ["Planned"] },
     });
@@ -86,7 +86,7 @@ describe("public feedback home page", () => {
 
   it("renders explicit empty state and accessible filters", () => {
     const html = renderIndex(
-      <PublicFeedbackIndex
+      <PublicPostIndex
         page={{ items: [], nextCursor: "opaque-next-page" }}
         search={{ types: ["Bug Report"], statuses: ["Reviewing"] }}
       />,
@@ -102,7 +102,7 @@ describe("public feedback home page", () => {
 
   it("links each Published Post by immutable slug", () => {
     const html = renderIndex(
-      <PublicFeedbackIndex
+      <PublicPostIndex
         page={{
           items: [
             {
@@ -125,7 +125,7 @@ describe("public feedback home page", () => {
 
   it("keeps visible Posts and offers retry when Load More fails", () => {
     const html = renderIndex(
-      <PublicFeedbackIndex
+      <PublicPostIndex
         page={{ items: [publishedPost], nextCursor: "opaque-next-page" }}
         search={{}}
         loadMore={() => undefined}
@@ -151,7 +151,7 @@ describe("public feedback home page", () => {
       updatedAt: new Date("2026-08-22T10:00:00.000Z"),
     };
     const html = renderIndex(
-      <PublicFeedbackIndex
+      <PublicPostIndex
         page={{ items: [publishedPost] }}
         search={{ search: "keyboard", types: ["Feature Request"] }}
       />,

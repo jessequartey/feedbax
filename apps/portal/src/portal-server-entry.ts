@@ -23,7 +23,7 @@ export function createPortalServerEntry({
           { headers: { "Cache-Control": "no-store" } },
         );
       }
-      if (request.method === "POST" && url.pathname === "/api/v1/feedback") {
+      if (request.method === "POST" && url.pathname === "/api/v1/posts") {
         return trustedFeedbackHandler(request);
       }
       const canonicalRequest = canonicalPublicRequest(request);

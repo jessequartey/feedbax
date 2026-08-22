@@ -75,7 +75,7 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
   if (post === null || !capability) return <PublicPostUnavailable />;
 
   const updateVisibleDraft = (
-    edited: Awaited<ReturnType<PortalFeedbackMutations["editDraft"]>>,
+    edited: Awaited<ReturnType<PortalFeedbackMutations["editDraftPost"]>>,
   ) => {
     const next = { ...post, ...edited, slug: post.slug };
     setPost(next);
@@ -127,8 +127,8 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
           showWithdrawal={false}
           mutations={{
             submitPost: submitPortalPost,
-            editDraft: editPortalFeedbackDraft,
-            withdrawDraft: withdrawPortalFeedbackDraft,
+            editDraftPost: editPortalFeedbackDraft,
+            withdrawDraftPost: withdrawPortalFeedbackDraft,
           }}
           initialDraft={{
             id: post.id,

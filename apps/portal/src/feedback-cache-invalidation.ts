@@ -2,11 +2,11 @@ import type { FeedbackModule } from "@feedbax/feedback";
 
 import {
   publicFeedbackCacheTag,
-  publicFeedbackItemCacheTag,
+  publicPostCacheTag,
 } from "./public-cache-tags";
 
 interface PublicCacheInvalidator {
-  invalidateFeedbackItem(id: string): Promise<void>;
+  invalidatePost(slug: string): Promise<void>;
 }
 
 interface CachePurgeResult {
@@ -24,9 +24,9 @@ export function createPublicCacheInvalidator({
   purge: PurgePublicCache;
 }): PublicCacheInvalidator {
   return {
-    async invalidateFeedbackItem(id) {
+    async invalidatePost(slug) {
       const result = await purge({
-        tags: [publicFeedbackCacheTag, publicFeedbackItemCacheTag(id)],
+        tags: [publicFeedbackCacheTag, publicPostCacheTag(slug)],
       });
       if (!result.success) {
         throw new Error("Public feedback cache invalidation failed.");
@@ -50,28 +50,25 @@ export function createInvalidatingFeedbackModule({
     getPublicPost: (slug) => feedback.getPublicPost(slug),
     getDraftPost: (input) => feedback.getDraftPost(input),
     listPublicPosts: (query) => feedback.listPublicPosts(query),
-    submit: (input) =>
-      runInvalidatingWrite(() => feedback.submit(input), invalidator),
-    submitTrusted: (input) =>
-      runInvalidatingWrite(() => feedback.submitTrusted(input), invalidator),
-    editDraft: (input) =>
-      runInvalidatingWrite(() => feedback.editDraft(input), invalidator),
-    async withdrawDraft(input) {
-      await feedback.withdrawDraft(input);
-      await invalidator.invalidateFeedbackItem(input.id);
+    submitTrustedPost: (input) =>
+      runInvalidatingWrite(
+        () => feedback.submitTrustedPost(input),
+        invalidator,
+      ),
+    async withdrawDraftPost(input) {
+      const draft = await feedback.getDraftPost(input);
+      await feedback.withdrawDraftPost(input);
+      await invalidator.invalidatePost(draft.slug);
     },
-    getPublic: (id) => feedback.getPublic(id),
-    listPublic: (query) => feedback.listPublic(query),
-    getPublicRoadmap: () => feedback.getPublicRoadmap(),
     getPublicPostRoadmap: () => feedback.getPublicPostRoadmap(),
   };
 }
 
-async function runInvalidatingWrite<Item extends { id: string }>(
+async function runInvalidatingWrite<Item extends { slug: string }>(
   write: () => Promise<Item>,
   invalidator: PublicCacheInvalidator,
 ): Promise<Item> {
   const item = await write();
-  await invalidator.invalidateFeedbackItem(item.id);
+  await invalidator.invalidatePost(item.slug);
   return item;
 }

@@ -98,7 +98,7 @@ The Notion-only Profile displays all submitters as Anonymous. Optional name and 
 
 ### Browser-held draft editing
 
-After a portal submission, the browser receives and stores a secret Browser Capability while Notion stores only its cryptographic hash. Possession permits the browser to edit the title, description, type, optional name, and optional email, or to withdraw the Feedback Item, only while the item remains New and unpublished.
+After a portal submission, the browser receives and stores a secret Browser Capability while Notion stores only its cryptographic hash. Possession permits the browser to edit the title, description, type, optional name, and optional email, or to withdraw the Post, only while the item remains New and unpublished.
 
 A Browser Capability never permits changes to status, publication, prioritization, tags, or internal fields. It stops granting edit access when a Team Member publishes the item or moves it beyond New. Clearing browser storage loses access permanently; the Notion-only Profile provides no recovery or cross-device access. The interface describes this as editing a draft from the current browser, not as an account or verified ownership.
 
@@ -113,7 +113,7 @@ The Feedback Data Source has this canonical schema:
 | `Title`           | Title            |           Yes | Short summary                                    |
 | `Description`     | Rich text        |           Yes | Participant-supplied details                     |
 | `Type`            | Select           |           Yes | Feature Request, Bug Report, or General Feedback |
-| `Status`          | Select           |           Yes | Feedback Status                                  |
+| `Status`          | Select           |           Yes | Post Status                                      |
 | `Published`       | Checkbox         |            No | Controls public visibility                       |
 | `Submitter Name`  | Rich text        |            No | Optional unverified follow-up information        |
 | `Submitter Email` | Email            |            No | Optional unverified follow-up information        |
@@ -127,7 +127,7 @@ Public pages and APIs use an explicit allowlist containing only Title, Descripti
 
 Product Teams may add custom properties and page-body content. Feedbax ignores unknown properties. Required properties may be renamed when their stable Notion property IDs remain configured. Deleting a required property or changing its type causes `doctor` to report a precise repair instruction.
 
-API submissions require an `Idempotency-Key` header, stored as External ID. Retrying the same key returns the original Feedback Item. This is best-effort in the Notion-only Profile because Notion does not provide a transactional uniqueness constraint.
+API submissions require an `Idempotency-Key` header, stored as External ID. Retrying the same key returns the original Post. This is best-effort in the Notion-only Profile because Notion does not provide a transactional uniqueness constraint.
 
 ## Technical architecture
 
@@ -171,7 +171,7 @@ The stable Notion page ID is the public `:id`; the title-derived slug is cosmeti
 
 The stable external HTTP contract initially contains:
 
-- `POST /api/v1/feedback` for trusted SaaS submissions using a Bearer key and `Idempotency-Key`
+- `POST /api/v1/posts` for trusted SaaS submissions using a Bearer key and `Idempotency-Key`
 - `PATCH /api/drafts/:id` for Browser Capability draft edits
 - `DELETE /api/drafts/:id` for Browser Capability withdrawal
 
@@ -179,7 +179,7 @@ Public form submission and public reads use internal TanStack server functions. 
 
 ## Public read query
 
-Public lists query 25 Feedback Items at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. The feedback list sorts by Created At descending; roadmap groups by Feedback Status and sorts within groups by Updated At descending.
+Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. The feedback list sorts by Created At descending; roadmap groups by Post Status and sorts within groups by Updated At descending.
 
 Each cache miss performs one Notion query with no per-item follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable sorting and page size are deferred.
 
@@ -302,7 +302,7 @@ The Product Team owns and may customize the generated application source under A
 
 ### Diagnostics and deployment
 
-`doctor` is read-only. It checks supported Node/pnpm versions, Wrangler configuration, presence of secrets without printing values, Notion capabilities and data access, property IDs and types, allowed Feedback Status and Type options, Cloudflare bindings, Turnstile configuration, build success, and a read-only Notion query. A future `doctor --fix` may offer individually confirmed repairs.
+`doctor` is read-only. It checks supported Node/pnpm versions, Wrangler configuration, presence of secrets without printing values, Notion capabilities and data access, property IDs and types, allowed Post Status and Type options, Cloudflare bindings, Turnstile configuration, build success, and a read-only Notion query. A future `doctor --fix` may offer individually confirmed repairs.
 
 `deploy` runs `doctor`, displays the target Cloudflare account, project, and hostname, and requests confirmation before invoking Wrangler.
 

@@ -11,7 +11,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PostFeedControls } from "./post-feed-controls";
-import type { PublicFeedbackQuery } from "@feedbax/feedback";
+import type { PublicPostQuery } from "@feedbax/feedback";
 
 afterEach(() => {
   cleanup();
@@ -72,7 +72,7 @@ describe("Post feed controls", () => {
 });
 
 function Harness() {
-  const [search, setSearch] = useState<PublicFeedbackQuery>({
+  const [search, setSearch] = useState<PublicPostQuery>({
     sort: "trending",
     types: [],
     statuses: [],

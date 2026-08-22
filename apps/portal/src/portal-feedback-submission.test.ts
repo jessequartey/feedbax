@@ -30,7 +30,7 @@ const propertyIds: FeedbackPropertyIds = {
 describe("Notion-only feedback submission", () => {
   it("edits permitted draft fields through the portal mutation boundary", async () => {
     const feedback = createFeedbackModule();
-    const submitted = await feedback.submit({
+    const submitted = await feedback.submitPost({
       title: "Original title",
       description: "Original description",
       type: "General Feedback",
@@ -58,7 +58,7 @@ describe("Notion-only feedback submission", () => {
 
   it("withdraws an eligible draft through the portal mutation boundary", async () => {
     const feedback = createFeedbackModule();
-    const submitted = await feedback.submit({
+    const submitted = await feedback.submitPost({
       title: "Withdraw this draft",
       description: "This submission is no longer needed.",
       type: "General Feedback",
@@ -76,7 +76,7 @@ describe("Notion-only feedback submission", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("creates a New unpublished Feedback Item and returns its Browser Capability", async () => {
+  it("creates a New unpublished Post and returns its Browser Capability", async () => {
     const submit = createPortalFeedbackSubmission({
       feedback: createFeedbackModule(),
       limits: { maxTitleLength: 160, maxDescriptionLength: 5_000 },
@@ -161,7 +161,7 @@ describe("Notion-only feedback submission", () => {
       email: "ama@example.com",
     });
     expect(submitted).toMatchObject({ status: "New", published: false });
-    await expect(feedback.listPublic()).resolves.toEqual({ items: [] });
+    await expect(feedback.listPublicPosts()).resolves.toEqual({ items: [] });
   });
 
   it("rejects a burst-limited submission before Notion writes", async () => {

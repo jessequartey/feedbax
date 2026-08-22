@@ -9,7 +9,7 @@ import {
 } from "./public-roadmap-view";
 
 describe("public roadmap page", () => {
-  it("loads Published Feedback Items in the agreed roadmap groups and order", async () => {
+  it("loads Published Posts in the agreed roadmap groups and order", async () => {
     const createdAt = new Date("2026-08-01T09:00:00.000Z");
     const feedback = createFeedbackModule({
       initialItems: [

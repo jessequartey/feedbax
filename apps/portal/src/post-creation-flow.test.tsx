@@ -38,8 +38,8 @@ describe("routed Post creation", () => {
     };
     const mutations = {
       submitPost: vi.fn().mockResolvedValue(created),
-      editDraft: vi.fn(),
-      withdrawDraft: vi.fn(),
+      editDraftPost: vi.fn(),
+      withdrawDraftPost: vi.fn(),
     };
     const queryClient = new QueryClient();
     queryClient.setQueryData(["public-posts", { sort: "trending" }], {

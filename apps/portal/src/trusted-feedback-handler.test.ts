@@ -102,14 +102,14 @@ describe("trusted feedback Worker handler", () => {
     });
 
     const missing = await handler(
-      new Request("https://feedback.example.com/api/v1/feedback", {
+      new Request("https://feedback.example.com/api/v1/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body,
       }),
     );
     const invalid = await handler(
-      new Request("https://feedback.example.com/api/v1/feedback", {
+      new Request("https://feedback.example.com/api/v1/posts", {
         method: "POST",
         headers: {
           Authorization: "Bearer wrong-api-key",
@@ -130,7 +130,7 @@ describe("trusted feedback Worker handler", () => {
     expect(notionRequest).not.toHaveBeenCalled();
   });
 
-  it("requires and honors Idempotency-Key by returning the original Feedback Item", async () => {
+  it("requires and honors Idempotency-Key by returning the original Post", async () => {
     const page = notionPage({
       title: "Keyboard navigation",
       description: "Let users navigate without a mouse.",
@@ -139,6 +139,9 @@ describe("trusted feedback Worker handler", () => {
     });
     const notionRequest = vi
       .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ results: [], has_more: false, next_cursor: null }),
+      )
       .mockResolvedValueOnce(
         Response.json({ results: [], has_more: false, next_cursor: null }),
       )
@@ -179,7 +182,7 @@ describe("trusted feedback Worker handler", () => {
     expect(retriedBody).toEqual(firstBody);
     expect(firstBody).not.toHaveProperty("published");
     expect(firstBody).not.toHaveProperty("submitter");
-    expect(notionRequest).toHaveBeenCalledTimes(3);
+    expect(notionRequest).toHaveBeenCalledTimes(4);
     expect(
       notionRequest.mock.calls.filter(([url]) =>
         String(url).endsWith("/pages"),
@@ -196,7 +199,7 @@ describe("trusted feedback Worker handler", () => {
         rich_text: { equals: "product-a:feedback-123" },
       },
     });
-    const createInit = notionRequest.mock.calls[1]?.[1];
+    const createInit = notionRequest.mock.calls[2]?.[1];
     const createBody = JSON.parse(String(createInit?.body)) as {
       properties: Record<string, unknown>;
     };
@@ -271,23 +274,20 @@ describe("trusted feedback Worker handler", () => {
         request: notionRequest,
       }),
     });
-    const request = new Request(
-      "https://feedback.example.com/api/v1/feedback",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer plaintext-api-key",
-          "Content-Type": "application/json",
-          "Idempotency-Key": "private-external-id",
-        },
-        body: JSON.stringify({
-          title: "private title",
-          description: "private description",
-          type: "General Feedback",
-          submitter: { email: "private@example.com" },
-        }),
+    const request = new Request("https://feedback.example.com/api/v1/posts", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer plaintext-api-key",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "private-external-id",
       },
-    );
+      body: JSON.stringify({
+        title: "private title",
+        description: "private description",
+        type: "General Feedback",
+        submitter: { email: "private@example.com" },
+      }),
+    });
 
     const response = await handler(request);
     const serialized = await response.text();
@@ -353,7 +353,7 @@ function trustedRequest(
   overrides: Record<string, unknown>,
   idempotencyKey?: string,
 ): Request {
-  return new Request("https://feedback.example.com/api/v1/feedback", {
+  return new Request("https://feedback.example.com/api/v1/posts", {
     method: "POST",
     headers: {
       Authorization: "Bearer correct-api-key",
@@ -388,6 +388,10 @@ function notionPage({
     last_edited_time: "2026-08-20T13:00:00.000Z",
     properties: {
       Title: { id: "title-id", title: [{ plain_text: title }] },
+      Slug: {
+        id: "slug-id",
+        rich_text: [{ plain_text: "keyboard-navigation" }],
+      },
       Description: {
         id: "description-id",
         rich_text: [{ plain_text: description }],

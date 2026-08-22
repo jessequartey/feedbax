@@ -1,9 +1,8 @@
 import type {
   BrowserCapability,
-  FeedbackItem,
+  Post,
   FeedbackModule,
-  SubmitFeedbackInput,
-  SubmittedFeedbackItem,
+  SubmitPostInput,
   SubmittedPost,
 } from "@feedbax/feedback";
 
@@ -11,7 +10,7 @@ import type { TurnstileVerifier } from "./cloudflare-turnstile";
 import { ActionablePortalFailure } from "./safe-public-failure";
 
 interface PortalFeedbackSubmissionOptions {
-  feedback: Pick<FeedbackModule, "submit">;
+  feedback: Pick<FeedbackModule, "submitPost">;
   limits: {
     maxTitleLength: number;
     maxDescriptionLength: number;
@@ -47,7 +46,7 @@ export interface PortalSubmissionRateLimiter {
 }
 
 interface PortalDraftManagementOptions {
-  feedback: Pick<FeedbackModule, "editDraft" | "withdrawDraft">;
+  feedback: Pick<FeedbackModule, "editDraftPost" | "withdrawDraftPost">;
   limits: PortalFeedbackSubmissionOptions["limits"];
 }
 
@@ -55,7 +54,7 @@ export function createPortalDraftManagement({
   feedback,
   limits,
 }: PortalDraftManagementOptions): {
-  edit(input: unknown): Promise<FeedbackItem>;
+  edit(input: unknown): Promise<Post>;
   withdraw(input: unknown): Promise<void>;
 } {
   return {
@@ -68,11 +67,11 @@ export function createPortalDraftManagement({
           value.description,
           limits.maxDescriptionLength,
         ) ||
-        !isFeedbackType(value.type)
+        !isPostType(value.type)
       ) {
         throw invalidSubmission();
       }
-      return feedback.editDraft({
+      return feedback.editDraftPost({
         ...draft,
         title: value.title,
         description: value.description,
@@ -80,7 +79,7 @@ export function createPortalDraftManagement({
       });
     },
     withdraw(input) {
-      return feedback.withdrawDraft(validateDraftIdentity(input));
+      return feedback.withdrawDraftPost(validateDraftIdentity(input));
     },
   };
 }
@@ -93,7 +92,7 @@ export function createPortalFeedbackSubmission({
   turnstileVerifier,
 }: PortalFeedbackSubmissionOptions): (
   input: unknown,
-) => Promise<SubmittedFeedbackItem> {
+) => Promise<SubmittedPost> {
   return async (input) => {
     const { success } = await rateLimiter.limit({ key: rateLimitKey });
     if (!success) {
@@ -104,7 +103,7 @@ export function createPortalFeedbackSubmission({
     if (turnstileVerifier) {
       await verifyTurnstile(input, rateLimitKey, turnstileVerifier);
     }
-    return feedback.submit(validateInput(input, limits));
+    return feedback.submitPost(validateInput(input, limits));
   };
 }
 
@@ -134,7 +133,7 @@ function turnstileFailure(): Error {
 function validateInput(
   input: unknown,
   limits: PortalFeedbackSubmissionOptions["limits"],
-): SubmitFeedbackInput {
+): SubmitPostInput {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw invalidSubmission();
   }
@@ -142,7 +141,7 @@ function validateInput(
   if (
     !isBoundedRequiredText(value.title, limits.maxTitleLength) ||
     !isBoundedRequiredText(value.description, limits.maxDescriptionLength) ||
-    !isFeedbackType(value.type)
+    !isPostType(value.type)
   ) {
     throw invalidSubmission();
   }
@@ -189,7 +188,7 @@ function isBoundedRequiredText(
   );
 }
 
-function isFeedbackType(value: unknown): value is SubmitFeedbackInput["type"] {
+function isPostType(value: unknown): value is SubmitPostInput["type"] {
   return (
     value === "Feature Request" ||
     value === "Bug Report" ||
@@ -199,7 +198,7 @@ function isFeedbackType(value: unknown): value is SubmitFeedbackInput["type"] {
 
 function isValidSubmitter(
   value: unknown,
-): value is SubmitFeedbackInput["submitter"] {
+): value is SubmitPostInput["submitter"] {
   if (value === undefined) return true;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const submitter = value as Record<string, unknown>;

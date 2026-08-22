@@ -33,7 +33,7 @@ export function PostResults({
         {drafts.map((post) => (
           <li key={post.id}>
             <PostLink
-              className="feedback-item-link draft-post-link"
+              className="post-link draft-post-link"
               slug={post.slug}
               contextual={maskPostLinks}
             >
@@ -54,7 +54,7 @@ export function PostResults({
         {items.map((post) => (
           <li key={post.slug}>
             <PostLink
-              className="feedback-item-link"
+              className="post-link"
               slug={post.slug}
               contextual={maskPostLinks}
             >

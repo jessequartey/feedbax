@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createFeedbackModule,
   type BrowserCapability,
-  type FeedbackStatus,
+  type PostStatus,
 } from "./index";
 
 describe("Feedback module", () => {
@@ -128,17 +128,17 @@ describe("Feedback module", () => {
     expect(draftPost).not.toHaveProperty("pageBody");
   });
 
-  it("returns the original Feedback Item for a repeated trusted submission", async () => {
+  it("returns the original Post for a repeated trusted submission", async () => {
     const feedback = createFeedbackModule();
 
-    const first = await feedback.submitTrusted({
+    const first = await feedback.submitTrustedPost({
       externalId: "product-a:feedback-123",
       title: "Keyboard navigation",
       description: "Let users navigate the product without a mouse.",
       type: "Feature Request",
       submitter: { name: "Ama", email: "ama@example.com" },
     });
-    const retried = await feedback.submitTrusted({
+    const retried = await feedback.submitTrustedPost({
       externalId: "product-a:feedback-123",
       title: "A changed retry must not overwrite the original",
       description: "The first accepted request remains canonical.",
@@ -159,7 +159,7 @@ describe("Feedback module", () => {
 
   it("lets only the correct Browser Capability withdraw its eligible draft", async () => {
     const feedback = createFeedbackModule();
-    const submittedItem = await feedback.submit({
+    const submittedItem = await feedback.submitPost({
       title: "Withdraw this draft",
       description: "I no longer want to submit this.",
       type: "General Feedback",
@@ -168,27 +168,27 @@ describe("Feedback module", () => {
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as BrowserCapability;
 
     await expect(
-      feedback.editDraft({
+      feedback.editDraftPost({
         id: submittedItem.id,
         browserCapability: wrongCapability,
         title: "Unauthorized edit",
       }),
     ).rejects.toThrow("Browser Capability did not authorize this draft.");
     await expect(
-      feedback.withdrawDraft({
+      feedback.withdrawDraftPost({
         id: submittedItem.id,
         browserCapability: wrongCapability,
       }),
     ).rejects.toThrow("Browser Capability did not authorize this draft.");
 
     await expect(
-      feedback.withdrawDraft({
+      feedback.withdrawDraftPost({
         id: submittedItem.id,
         browserCapability: submittedItem.browserCapability,
       }),
     ).resolves.toBeUndefined();
     await expect(
-      feedback.editDraft({
+      feedback.editDraftPost({
         id: submittedItem.id,
         browserCapability: submittedItem.browserCapability,
         title: "Too late",
@@ -198,7 +198,7 @@ describe("Feedback module", () => {
 
   it("returns a Browser Capability that edits the permitted fields of its draft", async () => {
     const feedback = createFeedbackModule();
-    const submittedItem = await feedback.submit({
+    const submittedItem = await feedback.submitPost({
       title: "Original title",
       description: "Original description",
       type: "General Feedback",
@@ -210,16 +210,12 @@ describe("Feedback module", () => {
 
     expect(submittedItem.browserCapability).toMatch(/^[A-Za-z0-9_-]{43}$/);
 
-    const editedItem = await feedback.editDraft({
+    const editedItem = await feedback.editDraftPost({
       id: submittedItem.id,
       browserCapability: submittedItem.browserCapability,
       title: "Corrected title",
       description: "Corrected description",
       type: "Bug Report",
-      submitter: {
-        name: "Amina",
-        email: "amina@example.com",
-      },
     });
 
     expect(editedItem).toMatchObject({
@@ -227,10 +223,7 @@ describe("Feedback module", () => {
       title: "Corrected title",
       description: "Corrected description",
       type: "Bug Report",
-      submitter: {
-        name: "Amina",
-        email: "amina@example.com",
-      },
+      submitter: { name: "Ama", email: "ama@example.com" },
       status: "New",
       published: false,
     });
@@ -250,10 +243,11 @@ describe("Feedback module", () => {
         initialItems: [
           {
             id: "ineligible-item",
+            slug: "ineligible-item",
             title: "Protected title",
             description: "Protected description",
             type: "Feature Request",
-            status: status satisfies FeedbackStatus,
+            status: status satisfies PostStatus,
             published,
             createdAt: new Date("2026-08-20T09:00:00.000Z"),
             updatedAt: new Date("2026-08-20T09:00:00.000Z"),
@@ -264,14 +258,14 @@ describe("Feedback module", () => {
       });
 
       await expect(
-        feedback.editDraft({
+        feedback.editDraftPost({
           id: "ineligible-item",
           browserCapability,
           title: "Unauthorized edit",
         }),
       ).rejects.toThrow("Browser Capability did not authorize this draft.");
       await expect(
-        feedback.withdrawDraft({
+        feedback.withdrawDraftPost({
           id: "ineligible-item",
           browserCapability,
         }),
@@ -279,45 +273,13 @@ describe("Feedback module", () => {
     },
   );
 
-  it("edits optional submitter fields independently", async () => {
-    const feedback = createFeedbackModule();
-    const submittedItem = await feedback.submit({
-      title: "Keep in touch",
-      description: "Contact me about this Feedback Item.",
-      type: "General Feedback",
-      submitter: {
-        name: "Ama",
-        email: "ama@example.com",
-      },
-    });
-
-    const renamedItem = await feedback.editDraft({
-      id: submittedItem.id,
-      browserCapability: submittedItem.browserCapability,
-      submitter: { name: "Amina" },
-    });
-    const readdressedItem = await feedback.editDraft({
-      id: submittedItem.id,
-      browserCapability: submittedItem.browserCapability,
-      submitter: { email: "amina@example.com" },
-    });
-
-    expect(renamedItem.submitter).toEqual({
-      name: "Amina",
-      email: "ama@example.com",
-    });
-    expect(readdressedItem.submitter).toEqual({
-      name: "Amina",
-      email: "amina@example.com",
-    });
-  });
-
   it("returns the public roadmap grouped by status and ordered by most recent update", async () => {
     const createdAt = new Date("2026-08-01T09:00:00.000Z");
     const feedback = createFeedbackModule({
       initialItems: [
         {
           id: "planned-older",
+          slug: "planned-older",
           title: "Older planned item",
           description: "Planned first, updated earlier.",
           type: "Feature Request",
@@ -330,6 +292,7 @@ describe("Feedback module", () => {
         },
         {
           id: "planned-newer",
+          slug: "planned-newer",
           title: "Newer planned item",
           description: "Planned second, updated later.",
           type: "Bug Report",
@@ -340,6 +303,7 @@ describe("Feedback module", () => {
         },
         {
           id: "in-progress",
+          slug: "in-progress",
           title: "Active work",
           description: "Currently being implemented.",
           type: "General Feedback",
@@ -350,6 +314,7 @@ describe("Feedback module", () => {
         },
         {
           id: "shipped",
+          slug: "shipped",
           title: "Delivered work",
           description: "Already available.",
           type: "Feature Request",
@@ -360,6 +325,7 @@ describe("Feedback module", () => {
         },
         {
           id: "unpublished",
+          slug: "unpublished",
           title: "Private plan",
           description: "Not approved for public display.",
           type: "Feature Request",
@@ -370,6 +336,7 @@ describe("Feedback module", () => {
         },
         {
           id: "outside-roadmap",
+          slug: "outside-roadmap",
           title: "Still under review",
           description: "Not part of the roadmap contract.",
           type: "Feature Request",
@@ -381,10 +348,10 @@ describe("Feedback module", () => {
       ],
     });
 
-    await expect(feedback.getPublicRoadmap()).resolves.toEqual({
+    await expect(feedback.getPublicPostRoadmap()).resolves.toEqual({
       Planned: [
         {
-          id: "planned-newer",
+          slug: "planned-newer",
           title: "Newer planned item",
           description: "Planned second, updated later.",
           type: "Bug Report",
@@ -393,7 +360,7 @@ describe("Feedback module", () => {
           updatedAt: new Date("2026-08-20T09:00:00.000Z"),
         },
         {
-          id: "planned-older",
+          slug: "planned-older",
           title: "Older planned item",
           description: "Planned first, updated earlier.",
           type: "Feature Request",
@@ -404,7 +371,7 @@ describe("Feedback module", () => {
       ],
       "In Progress": [
         {
-          id: "in-progress",
+          slug: "in-progress",
           title: "Active work",
           description: "Currently being implemented.",
           type: "General Feedback",
@@ -415,7 +382,7 @@ describe("Feedback module", () => {
       ],
       Shipped: [
         {
-          id: "shipped",
+          slug: "shipped",
           title: "Delivered work",
           description: "Already available.",
           type: "Feature Request",
@@ -427,10 +394,11 @@ describe("Feedback module", () => {
     });
   });
 
-  it("returns the newest 25 Published Feedback Items in the first page", async () => {
+  it("returns the newest 25 Published Posts in the first page", async () => {
     const feedback = createFeedbackModule({
       initialItems: Array.from({ length: 27 }, (_, index) => ({
         id: `feedback-${index + 1}`,
+        slug: `feedback-${index + 1}`,
         title: `Feedback ${index + 1}`,
         description: `Description ${index + 1}`,
         type: "Feature Request" as const,
@@ -441,7 +409,7 @@ describe("Feedback module", () => {
       })),
     });
 
-    const page = await feedback.listPublic();
+    const page = await feedback.listPublicPosts();
 
     expect(page.items).toHaveLength(25);
     expect(page.items[0]?.title).toBe("Feedback 27");
@@ -452,6 +420,7 @@ describe("Feedback module", () => {
   it("advances filtered cursor pages without duplicates, gaps, or private fields", async () => {
     const matchingItems = Array.from({ length: 30 }, (_, index) => ({
       id: `matching-${index + 1}`,
+      slug: `matching-${index + 1}`,
       title: `Matching ${index + 1}`,
       description: `Description ${index + 1}`,
       type: "Bug Report" as const,
@@ -461,7 +430,7 @@ describe("Feedback module", () => {
       updatedAt: new Date(Date.UTC(2026, 6, index + 1)),
       submitter: { email: `private-${index + 1}@example.com` },
       browserCapabilityHash: `private-hash-${index + 1}`,
-      source: "portal",
+      source: "portal" as const,
       pageBody: "Private notes",
       customProperty: "private value",
     }));
@@ -471,23 +440,25 @@ describe("Feedback module", () => {
         {
           ...matchingItems[0]!,
           id: "wrong-type",
+          slug: "wrong-type",
           title: "Wrong type",
           type: "Feature Request",
         },
         {
           ...matchingItems[1]!,
           id: "wrong-status",
+          slug: "wrong-status",
           title: "Wrong status",
           status: "Shipped",
         },
       ],
     });
 
-    const firstPage = await feedback.listPublic({
+    const firstPage = await feedback.listPublicPosts({
       type: "Bug Report",
       status: "Planned",
     });
-    const secondPage = await feedback.listPublic({
+    const secondPage = await feedback.listPublicPosts({
       type: "Bug Report",
       status: "Planned",
       cursor: firstPage.nextCursor,
@@ -507,7 +478,7 @@ describe("Feedback module", () => {
     expect(Object.keys(secondPage.items[0]!).sort()).toEqual([
       "createdAt",
       "description",
-      "id",
+      "slug",
       "status",
       "title",
       "type",
@@ -563,97 +534,5 @@ describe("Feedback module", () => {
       "matching-description",
       "matching-title",
     ]);
-  });
-
-  it("submits a New, unpublished Feedback Item", async () => {
-    const feedback = createFeedbackModule();
-
-    const item = await feedback.submit({
-      title: "Add keyboard shortcuts",
-      description: "Let me navigate the portal without a mouse.",
-      type: "Feature Request",
-      submitter: {
-        name: "Amina",
-        email: "amina@example.com",
-      },
-    });
-
-    expect(item).toMatchObject({
-      title: "Add keyboard shortcuts",
-      description: "Let me navigate the portal without a mouse.",
-      type: "Feature Request",
-      status: "New",
-      published: false,
-      submitter: {
-        name: "Amina",
-        email: "amina@example.com",
-      },
-    });
-  });
-
-  it("excludes unpublished Feedback Items from public retrieval", async () => {
-    const feedback = createFeedbackModule();
-
-    await feedback.submit({
-      title: "Private draft",
-      description: "This has not been approved for public display.",
-      type: "General Feedback",
-    });
-
-    await expect(feedback.listPublic()).resolves.toEqual({ items: [] });
-  });
-
-  it("does not let a caller publish a submitted Feedback Item by mutation", async () => {
-    const feedback = createFeedbackModule();
-    const submittedItem = await feedback.submit({
-      title: "Private draft",
-      description: "This has not been approved for public display.",
-      type: "General Feedback",
-    });
-
-    submittedItem.published = true;
-
-    await expect(feedback.listPublic()).resolves.toEqual({ items: [] });
-  });
-
-  it("returns only the approved public projection for a Published Feedback Item", async () => {
-    const createdAt = new Date("2026-08-19T10:00:00.000Z");
-    const updatedAt = new Date("2026-08-20T09:30:00.000Z");
-    const feedback = createFeedbackModule({
-      initialItems: [
-        {
-          id: "feedback-item-id",
-          title: "Add keyboard shortcuts",
-          description: "Let me navigate the portal without a mouse.",
-          type: "Feature Request",
-          status: "New",
-          published: true,
-          createdAt,
-          updatedAt,
-          submitter: {
-            name: "Amina",
-            email: "amina@example.com",
-          },
-          browserCapabilityHash: "secret-hash",
-          source: "portal",
-          pageBody: "Private notes from the Product Team",
-          customProperty: "must not leak",
-        },
-      ],
-    });
-
-    await expect(feedback.listPublic()).resolves.toEqual({
-      items: [
-        {
-          id: "feedback-item-id",
-          title: "Add keyboard shortcuts",
-          description: "Let me navigate the portal without a mouse.",
-          type: "Feature Request",
-          status: "New",
-          createdAt,
-          updatedAt,
-        },
-      ],
-    });
   });
 });

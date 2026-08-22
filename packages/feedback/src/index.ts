@@ -11,9 +11,7 @@ import {
 } from "./notion-feedback";
 import type {
   FeedbackStorage,
-  NewStoredFeedbackItem,
   NewStoredPost,
-  StoredFeedbackItem,
   StoredPost,
 } from "./feedback-storage";
 
@@ -24,14 +22,10 @@ export {
   type FeedbackPropertyIds,
 } from "./notion-data-source";
 
-export type FeedbackType =
-  "Feature Request" | "Bug Report" | "General Feedback";
+export type PostType = "Feature Request" | "Bug Report" | "General Feedback";
 
-export type FeedbackStatus =
+export type PostStatus =
   "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
-
-export type PostType = FeedbackType;
-export type PostStatus = FeedbackStatus;
 
 export interface SubmitPostInput {
   title: string;
@@ -43,26 +37,8 @@ export interface SubmitPostInput {
   };
 }
 
-export interface SubmitFeedbackInput {
-  title: string;
-  description: string;
-  type: FeedbackType;
-  submitter?: {
-    name?: string;
-    email?: string;
-  };
-}
-
-export interface SubmitTrustedFeedbackInput extends SubmitFeedbackInput {
+export interface SubmitTrustedPostInput extends SubmitPostInput {
   externalId: string;
-}
-
-export interface FeedbackItem extends SubmitFeedbackInput {
-  id: string;
-  status: FeedbackStatus;
-  published: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface Post extends SubmitPostInput {
@@ -86,10 +62,6 @@ export class BrowserCapabilityAuthorizationError extends Error {
     this.name = "BrowserCapabilityAuthorizationError";
   }
 }
-
-export type SubmittedFeedbackItem = FeedbackItem & {
-  browserCapability: BrowserCapability;
-};
 
 export type SubmittedPost = Post & {
   browserCapability: BrowserCapability;
@@ -119,42 +91,29 @@ export type DraftPost = Pick<
   | "submitter"
 >;
 
-export type TrustedSubmittedFeedbackItem = Omit<
-  FeedbackItem,
-  "published" | "submitter"
->;
+export type TrustedSubmittedPost = Omit<Post, "published" | "submitter">;
 
-export interface EditDraftInput {
+export interface EditDraftPostInput {
   id: string;
   browserCapability: BrowserCapability;
   title?: string;
   description?: string;
-  type?: FeedbackType;
-  submitter?: {
-    name?: string;
-    email?: string;
-  };
+  type?: PostType;
 }
 
-export interface WithdrawDraftInput {
+export interface WithdrawDraftPostInput {
   id: string;
   browserCapability: BrowserCapability;
 }
 
-export type EditDraftPostInput = Omit<EditDraftInput, "submitter">;
-export type GetDraftPostInput = WithdrawDraftInput;
+export type GetDraftPostInput = WithdrawDraftPostInput;
 
-export type PublicFeedbackItem = Pick<
-  FeedbackItem,
-  "id" | "title" | "description" | "type" | "status" | "createdAt" | "updatedAt"
->;
-
-export interface PublicFeedbackQuery {
+export interface PublicPostQuery {
   cursor?: string;
-  type?: FeedbackType;
-  status?: FeedbackStatus;
-  types?: FeedbackType[];
-  statuses?: FeedbackStatus[];
+  type?: PostType;
+  status?: PostStatus;
+  types?: PostType[];
+  statuses?: PostStatus[];
   search?: string;
   sort?: "trending" | "top" | "new";
 }
@@ -164,80 +123,62 @@ export interface PublicPostPage {
   nextCursor?: string;
 }
 
-export interface PublicFeedbackPage {
-  items: PublicFeedbackItem[];
-  nextCursor?: string;
-}
-
 export type RoadmapStatus = Extract<
-  FeedbackStatus,
+  PostStatus,
   "Planned" | "In Progress" | "Shipped"
 >;
 
-export type PublicRoadmap = Record<RoadmapStatus, PublicFeedbackItem[]>;
 export type PublicPostRoadmap = Record<RoadmapStatus, PublicPost[]>;
 
 let postCreationQueue: Promise<void> = Promise.resolve();
 
 class InMemoryFeedbackStorage implements FeedbackStorage {
-  readonly #items: Map<string, StoredFeedbackItem>;
+  readonly #items: Map<string, StoredPost>;
 
-  constructor(initialItems: StoredFeedbackItem[] = []) {
+  constructor(initialItems: StoredPost[] = []) {
     this.#items = new Map(
       initialItems.map((item) => [item.id, structuredClone(item)]),
     );
   }
 
-  async create(item: NewStoredFeedbackItem): Promise<StoredFeedbackItem> {
+  async create(item: NewStoredPost): Promise<StoredPost> {
     return this.save({ ...item, id: randomUUID() });
   }
 
-  async createPost(item: NewStoredPost): Promise<StoredPost> {
-    return this.save({ ...item, id: randomUUID() }) as Promise<StoredPost>;
-  }
-
-  async save(item: StoredFeedbackItem): Promise<StoredFeedbackItem> {
+  async save(item: StoredPost): Promise<StoredPost> {
     this.#items.set(item.id, structuredClone(item));
     return structuredClone(item);
   }
 
-  async find(id: string): Promise<StoredFeedbackItem | undefined> {
+  async find(id: string): Promise<StoredPost | undefined> {
     const item = this.#items.get(id);
     return item ? structuredClone(item) : undefined;
   }
 
-  async findBySlug(slug: string): Promise<StoredFeedbackItem | undefined> {
+  async findBySlug(slug: string): Promise<StoredPost | undefined> {
     const item = [...this.#items.values()].find(
       (candidate) => candidate.slug === slug,
     );
     return item ? structuredClone(item) : undefined;
   }
 
-  async findPublicBySlug(
-    slug: string,
-  ): Promise<StoredFeedbackItem | undefined> {
+  async findPublicBySlug(slug: string): Promise<StoredPost | undefined> {
     return this.findBySlug(slug);
   }
 
-  async findPublic(id: string): Promise<StoredFeedbackItem | undefined> {
-    return this.find(id);
-  }
-
-  async findByExternalId(
-    externalId: string,
-  ): Promise<StoredFeedbackItem | undefined> {
+  async findByExternalId(externalId: string): Promise<StoredPost | undefined> {
     const item = [...this.#items.values()].find(
       (candidate) => candidate.externalId === externalId,
     );
     return item ? structuredClone(item) : undefined;
   }
 
-  async list(): Promise<StoredFeedbackItem[]> {
+  async list(): Promise<StoredPost[]> {
     return [...this.#items.values()].map((item) => structuredClone(item));
   }
 
-  async listPublic(query: PublicFeedbackQuery): Promise<{
-    items: StoredFeedbackItem[];
+  async listPublic(query: PublicPostQuery): Promise<{
+    items: StoredPost[];
     nextCursor?: string;
   }> {
     const items = (await this.list())
@@ -274,9 +215,9 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     };
   }
 
-  async listPublicRoadmap(): Promise<StoredFeedbackItem[]> {
+  async listPublicRoadmap(): Promise<StoredPost[]> {
     return (await this.list())
-      .filter(isPublicRoadmapItem)
+      .filter(isPublicPostRoadmapItem)
       .sort(
         (left, right) =>
           right.updatedAt.getTime() - left.updatedAt.getTime() ||
@@ -294,26 +235,21 @@ export interface FeedbackModule {
   editDraftPost(input: EditDraftPostInput): Promise<Post>;
   getPublicPost(slug: string): Promise<PublicPost | undefined>;
   getDraftPost(input: GetDraftPostInput): Promise<DraftPost>;
-  listPublicPosts(query?: PublicFeedbackQuery): Promise<PublicPostPage>;
-  submit(input: SubmitFeedbackInput): Promise<SubmittedFeedbackItem>;
-  submitTrusted(
-    input: SubmitTrustedFeedbackInput,
-  ): Promise<TrustedSubmittedFeedbackItem>;
-  editDraft(input: EditDraftInput): Promise<FeedbackItem>;
-  withdrawDraft(input: WithdrawDraftInput): Promise<void>;
-  getPublic(id: string): Promise<PublicFeedbackItem | undefined>;
-  listPublic(query?: PublicFeedbackQuery): Promise<PublicFeedbackPage>;
-  getPublicRoadmap(): Promise<PublicRoadmap>;
+  listPublicPosts(query?: PublicPostQuery): Promise<PublicPostPage>;
+  submitTrustedPost(
+    input: SubmitTrustedPostInput,
+  ): Promise<TrustedSubmittedPost>;
+  withdrawDraftPost(input: WithdrawDraftPostInput): Promise<void>;
   getPublicPostRoadmap(): Promise<PublicPostRoadmap>;
 }
 
 export type FeedbackMutationModule = Pick<
   FeedbackModule,
-  "submit" | "editDraft" | "withdrawDraft"
+  "submitPost" | "editDraftPost" | "withdrawDraftPost"
 >;
 
 interface CreateFeedbackModuleOptions {
-  initialItems?: StoredFeedbackItem[];
+  initialItems?: StoredPost[];
   storage?: FeedbackStorage;
 }
 
@@ -322,7 +258,7 @@ export function createFeedbackModule(
 ): FeedbackModule {
   const storage =
     options.storage ?? new InMemoryFeedbackStorage(options.initialItems);
-  const editStoredDraft = async (input: EditDraftInput) => {
+  const editStoredDraft = async (input: EditDraftPostInput) => {
     const item = await storage.find(input.id);
 
     if (!authorizesDraft(item, input.browserCapability)) {
@@ -336,9 +272,6 @@ export function createFeedbackModule(
         ? {}
         : { description: input.description }),
       ...(input.type === undefined ? {} : { type: input.type }),
-      ...(input.submitter === undefined
-        ? {}
-        : { submitter: { ...item.submitter, ...input.submitter } }),
       updatedAt: new Date(),
     });
   };
@@ -349,7 +282,7 @@ export function createFeedbackModule(
         const now = new Date();
         const browserCapability = createBrowserCapability();
         const slug = await createUniqueSlug(input.title, storage);
-        const item = await storage.createPost({
+        const item = await storage.create({
           ...input,
           slug,
           status: "New",
@@ -391,30 +324,15 @@ export function createFeedbackModule(
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       };
     },
-    async submit(input) {
-      const now = new Date();
-      const browserCapability = createBrowserCapability();
-      const item = await storage.create({
-        ...input,
-        status: "New",
-        published: false,
-        createdAt: now,
-        updatedAt: now,
-        browserCapabilityHash: hashBrowserCapability(browserCapability),
-      });
-
-      return {
-        ...toFeedbackItem(item),
-        browserCapability,
-      };
-    },
-    async submitTrusted(input) {
+    async submitTrustedPost(input) {
       const existingItem = await storage.findByExternalId(input.externalId);
-      if (existingItem) return toTrustedSubmittedFeedbackItem(existingItem);
+      if (existingItem) return toTrustedSubmittedPost(existingItem);
 
       const now = new Date();
+      const slug = await createUniqueSlug(input.title, storage);
       const item = await storage.create({
         title: input.title,
+        slug,
         description: input.description,
         type: input.type,
         ...(input.submitter ? { submitter: input.submitter } : {}),
@@ -425,12 +343,9 @@ export function createFeedbackModule(
         source: "API",
         externalId: input.externalId,
       });
-      return toTrustedSubmittedFeedbackItem(item);
+      return toTrustedSubmittedPost(item);
     },
-    async editDraft(input) {
-      return toFeedbackItem(await editStoredDraft(input));
-    },
-    async withdrawDraft(input) {
+    async withdrawDraftPost(input) {
       const item = await storage.find(input.id);
 
       if (!authorizesDraft(item, input.browserCapability)) {
@@ -439,34 +354,6 @@ export function createFeedbackModule(
 
       await storage.remove(item.id);
     },
-    async getPublic(id) {
-      const item = await storage.findPublic(id);
-      return item?.published ? toPublicFeedbackItem(item) : undefined;
-    },
-    async listPublic(query = {}) {
-      const page = await storage.listPublic(query);
-
-      return {
-        items: page.items.map(toPublicFeedbackItem),
-        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
-      };
-    },
-    async getPublicRoadmap() {
-      const roadmap: PublicRoadmap = {
-        Planned: [],
-        "In Progress": [],
-        Shipped: [],
-      };
-      const items = await storage.listPublicRoadmap();
-
-      for (const item of items) {
-        if (isPublicRoadmapItem(item)) {
-          roadmap[item.status].push(toPublicFeedbackItem(item));
-        }
-      }
-
-      return roadmap;
-    },
     async getPublicPostRoadmap() {
       const roadmap: PublicPostRoadmap = {
         Planned: [],
@@ -474,7 +361,7 @@ export function createFeedbackModule(
         Shipped: [],
       };
       for (const item of await storage.listPublicRoadmap())
-        if (isPublicRoadmapItem(item))
+        if (isPublicPostRoadmapItem(item))
           roadmap[item.status].push(toPublicPost(toPost(item)));
       return roadmap;
     },
@@ -497,21 +384,10 @@ function decodeCursor(cursor: string): string {
   return Buffer.from(cursor, "base64url").toString("utf8");
 }
 
-function toPublicFeedbackItem(item: FeedbackItem): PublicFeedbackItem {
+function toPost(item: StoredPost): Post {
   return {
     id: item.id,
-    title: item.title,
-    description: item.description,
-    type: item.type,
-    status: item.status,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
-  };
-}
-
-function toFeedbackItem(item: FeedbackItem): FeedbackItem {
-  return {
-    id: item.id,
+    slug: item.slug,
     title: item.title,
     description: item.description,
     type: item.type,
@@ -521,11 +397,6 @@ function toFeedbackItem(item: FeedbackItem): FeedbackItem {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
-}
-
-function toPost(item: StoredFeedbackItem): Post {
-  if (!item.slug) throw new Error("Stored Post is missing its slug.");
-  return { ...toFeedbackItem(item), slug: item.slug };
 }
 
 function toPublicPost(post: Post): PublicPost {
@@ -575,11 +446,10 @@ async function createUniqueSlug(
   return slug;
 }
 
-function toTrustedSubmittedFeedbackItem(
-  item: FeedbackItem,
-): TrustedSubmittedFeedbackItem {
+function toTrustedSubmittedPost(item: Post): TrustedSubmittedPost {
   return {
     id: item.id,
+    slug: item.slug,
     title: item.title,
     description: item.description,
     type: item.type,
@@ -598,9 +468,9 @@ function hashBrowserCapability(browserCapability: BrowserCapability): string {
 }
 
 function authorizesDraft(
-  item: StoredFeedbackItem | undefined,
+  item: StoredPost | undefined,
   browserCapability: BrowserCapability,
-): item is StoredFeedbackItem & { browserCapabilityHash: string } {
+): item is StoredPost & { browserCapabilityHash: string } {
   if (!item?.browserCapabilityHash || item.status !== "New" || item.published) {
     return false;
   }
@@ -614,7 +484,7 @@ function authorizesDraft(
   );
 }
 
-function isPublicRoadmapItem<Item extends FeedbackItem>(
+function isPublicPostRoadmapItem<Item extends Post>(
   item: Item,
 ): item is Item & { status: RoadmapStatus } {
   return (

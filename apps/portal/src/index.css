@@ -607,7 +607,7 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--portal-rule);
 }
 
-.feedback-item-link {
+.post-link {
   display: block;
   color: inherit;
   text-decoration: none;

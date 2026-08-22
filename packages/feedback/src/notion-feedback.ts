@@ -1,13 +1,8 @@
-import type {
-  FeedbackStatus,
-  FeedbackType,
-  PublicFeedbackQuery,
-} from "./index";
+import type { PostStatus, PostType, PublicPostQuery } from "./index";
 import type {
   FeedbackStorage,
-  NewStoredFeedbackItem,
+  NewStoredPost,
   StoredPost,
-  StoredFeedbackItem,
 } from "./feedback-storage";
 import type { FeedbackPropertyIds } from "./notion-data-source";
 import { requestNotion, type NotionRetryOptions } from "./notion-request";
@@ -40,7 +35,7 @@ export function createNotionFeedbackStorage({
     init: RequestInit = {},
   ) => requestNotion(input, init, { request, retry, operation: "idempotent" });
 
-  const createStoredItem = async (item: NewStoredFeedbackItem) => {
+  const createStoredPost = async (item: NewStoredPost) => {
     const response = await requestNotion(
       `${NOTION_API_URL}/pages`,
       {
@@ -53,15 +48,12 @@ export function createNotionFeedbackStorage({
       },
       { request, retry, operation: "create" },
     );
-    return feedbackItemFromPage(await readNotionPage(response), propertyIds);
+    return postFromPage(await readNotionPage(response), propertyIds);
   };
 
   return {
     async create(item) {
-      return createStoredItem(item);
-    },
-    async createPost(item) {
-      return createStoredItem(item) as Promise<StoredPost>;
+      return createStoredPost(item);
     },
     async save(item) {
       const response = await notionRequest(
@@ -74,7 +66,7 @@ export function createNotionFeedbackStorage({
           }),
         },
       );
-      return feedbackItemFromPage(await readNotionPage(response), propertyIds);
+      return postFromPage(await readNotionPage(response), propertyIds);
     },
     async find(id) {
       const response = await notionRequest(`${NOTION_API_URL}/pages/${id}`, {
@@ -82,7 +74,7 @@ export function createNotionFeedbackStorage({
         headers,
       });
       if (response.status === 404) return undefined;
-      return feedbackItemFromPage(await readNotionPage(response), propertyIds);
+      return postFromPage(await readNotionPage(response), propertyIds);
     },
     async findBySlug(slug) {
       const response = await notionRequest(
@@ -94,7 +86,7 @@ export function createNotionFeedbackStorage({
         },
       );
       const page = firstQueryResult(await readNotionPage(response));
-      return page ? feedbackItemFromPage(page, propertyIds) : undefined;
+      return page ? postFromPage(page, propertyIds) : undefined;
     },
     async findPublicBySlug(slug) {
       const query = new URLSearchParams();
@@ -121,9 +113,7 @@ export function createNotionFeedbackStorage({
         },
       );
       const page = firstQueryResult(await readNotionPage(response));
-      return page
-        ? feedbackItemFromPublicPage(page, propertyIds, true)
-        : undefined;
+      return page ? postFromPublicPage(page, propertyIds, true) : undefined;
     },
     async findByExternalId(externalId) {
       const response = await notionRequest(
@@ -145,30 +135,15 @@ export function createNotionFeedbackStorage({
       if (!Array.isArray(results) || results.length === 0) return undefined;
       const page = results[0];
       if (!page || typeof page !== "object" || Array.isArray(page)) {
-        throw new Error("Notion returned an invalid Feedback Item list.");
+        throw new Error("Notion returned an invalid Post list.");
       }
-      return feedbackItemFromPage(page as Record<string, unknown>, propertyIds);
-    },
-    async findPublic(id) {
-      const query = new URLSearchParams();
-      for (const propertyId of publicReadPropertyIds(propertyIds)) {
-        query.append("filter_properties", propertyId);
-      }
-      const response = await notionRequest(
-        `${NOTION_API_URL}/pages/${id}?${query.toString()}`,
-        { method: "GET", headers },
-      );
-      if (response.status === 404) return undefined;
-      return feedbackItemFromPublicPage(
-        await readNotionPage(response),
-        propertyIds,
-      );
+      return postFromPage(page as Record<string, unknown>, propertyIds);
     },
     async list() {
       throw new Error("Notion public retrieval is not implemented yet.");
     },
     async listPublic(query) {
-      const response = await queryPublicFeedback({
+      const response = await queryPublicPosts({
         request: notionRequest,
         headers,
         dataSourceId,
@@ -177,13 +152,13 @@ export function createNotionFeedbackStorage({
       });
       return {
         items: response.results.map((page) =>
-          feedbackItemFromPublicPage(page, propertyIds, true),
+          postFromPublicPage(page, propertyIds, true),
         ),
         ...(response.nextCursor ? { nextCursor: response.nextCursor } : {}),
       };
     },
     async listPublicRoadmap() {
-      const response = await queryPublicFeedback({
+      const response = await queryPublicPosts({
         request: notionRequest,
         headers,
         dataSourceId,
@@ -196,7 +171,7 @@ export function createNotionFeedbackStorage({
         );
       }
       return response.results.map((page) =>
-        feedbackItemFromPublicPage(page, propertyIds, true),
+        postFromPublicPage(page, propertyIds, true),
       );
     },
     async remove(id) {
@@ -211,7 +186,7 @@ export function createNotionFeedbackStorage({
 }
 
 function publicListQuery(
-  query: PublicFeedbackQuery,
+  query: PublicPostQuery,
   ids: FeedbackPropertyIds,
 ): Record<string, unknown> {
   return {
@@ -293,7 +268,7 @@ function publicRoadmapQuery(ids: FeedbackPropertyIds): Record<string, unknown> {
   };
 }
 
-async function queryPublicFeedback({
+async function queryPublicPosts({
   request,
   headers,
   dataSourceId,
@@ -321,12 +296,12 @@ async function queryPublicFeedback({
   const value = await readNotionPage(response);
   const results = value.results;
   if (!Array.isArray(results)) {
-    throw new Error("Notion returned an invalid Feedback Item list.");
+    throw new Error("Notion returned an invalid Post list.");
   }
   return {
     results: results.map((result) => {
       if (!result || typeof result !== "object" || Array.isArray(result)) {
-        throw new Error("Notion returned an invalid Feedback Item list.");
+        throw new Error("Notion returned an invalid Post list.");
       }
       return result as Record<string, unknown>;
     }),
@@ -335,10 +310,6 @@ async function queryPublicFeedback({
       : {}),
     hasMore: value.has_more === true,
   };
-}
-
-function publicReadPropertyIds(ids: FeedbackPropertyIds): string[] {
-  return [...publicProjectionPropertyIds(ids), ids.published];
 }
 
 function publicProjectionPropertyIds(ids: FeedbackPropertyIds): string[] {
@@ -353,28 +324,24 @@ function publicProjectionPropertyIds(ids: FeedbackPropertyIds): string[] {
   ];
 }
 
-function feedbackItemFromPublicPage(
+function postFromPublicPage(
   page: Record<string, unknown>,
   ids: FeedbackPropertyIds,
   published?: boolean,
-): StoredFeedbackItem {
+): StoredPost {
   const properties = recordField(page, "properties");
   const property = (propertyId: string) => propertyById(properties, propertyId);
-  const slugProperty = optionalPropertyById(properties, ids.slug);
-  const slug = slugProperty
-    ? optionalText(slugProperty, "rich_text")
-    : undefined;
   return {
     id: stringField(page, "id"),
-    ...(slug ? { slug } : {}),
+    slug: requiredText(property(ids.slug), "rich_text", "Slug"),
     title: requiredText(property(ids.title), "title", "Title"),
     description: requiredText(
       property(ids.description),
       "rich_text",
       "Description",
     ),
-    type: feedbackTypeFromNotion(requiredSelect(property(ids.type), "Type")),
-    status: feedbackStatusFromNotion(
+    type: postTypeFromNotion(requiredSelect(property(ids.type), "Type")),
+    status: postStatusFromNotion(
       requiredSelect(property(ids.status), "Status"),
     ),
     published: published ?? booleanField(property(ids.published), "checkbox"),
@@ -384,25 +351,23 @@ function feedbackItemFromPublicPage(
 }
 
 function propertiesForDraftEdit(
-  item: StoredFeedbackItem,
+  item: StoredPost,
   ids: FeedbackPropertyIds,
 ): Record<string, unknown> {
   return {
     [ids.title]: richTitle(item.title),
     [ids.description]: richText(item.description),
     [ids.type]: { select: { name: item.type } },
-    [ids.submitterName]: richText(item.submitter?.name),
-    [ids.submitterEmail]: { email: item.submitter?.email ?? null },
   };
 }
 
 function propertiesForCreate(
-  item: NewStoredFeedbackItem,
+  item: NewStoredPost,
   ids: FeedbackPropertyIds,
 ): Record<string, unknown> {
   return {
     [ids.title]: richTitle(item.title),
-    ...(item.slug ? { [ids.slug]: richText(item.slug) } : {}),
+    [ids.slug]: richText(item.slug),
     [ids.description]: richText(item.description),
     [ids.type]: { select: { name: item.type } },
     [ids.status]: { select: { name: item.status } },
@@ -432,21 +397,19 @@ async function readNotionPage(
 ): Promise<Record<string, unknown>> {
   const body: unknown = await response.json();
   if (!response.ok) {
-    throw new Error(
-      `Notion rejected the Feedback Item request (${response.status}).`,
-    );
+    throw new Error(`Notion rejected the Post request (${response.status}).`);
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new Error("Notion returned an invalid Feedback Item response.");
+    throw new Error("Notion returned an invalid Post response.");
   }
   return body as Record<string, unknown>;
 }
 
-function feedbackItemFromPage(
+function postFromPage(
   page: Record<string, unknown>,
   ids: FeedbackPropertyIds,
-): StoredFeedbackItem {
-  const publicItem = feedbackItemFromPublicPage(page, ids);
+): StoredPost {
+  const publicItem = postFromPublicPage(page, ids);
   const properties = recordField(page, "properties");
   const property = (propertyId: string) => propertyById(properties, propertyId);
   const name = optionalText(property(ids.submitterName), "rich_text");
@@ -463,7 +426,7 @@ function feedbackItemFromPage(
       property(ids.editTokenHash),
       "rich_text",
     ),
-  } satisfies StoredFeedbackItem;
+  } satisfies StoredPost;
 }
 
 function firstQueryResult(
@@ -481,7 +444,7 @@ function firstQueryResult(
   return first as Record<string, unknown>;
 }
 
-function feedbackTypeFromNotion(value: string): FeedbackType {
+function postTypeFromNotion(value: string): PostType {
   if (
     value === "Feature Request" ||
     value === "Bug Report" ||
@@ -492,7 +455,7 @@ function feedbackTypeFromNotion(value: string): FeedbackType {
   throw new Error(`Notion returned unsupported Feedback Type "${value}".`);
 }
 
-function feedbackStatusFromNotion(value: string): FeedbackStatus {
+function postStatusFromNotion(value: string): PostStatus {
   if (
     value === "New" ||
     value === "Reviewing" ||

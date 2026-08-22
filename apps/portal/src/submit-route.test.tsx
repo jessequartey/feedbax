@@ -17,8 +17,8 @@ import { CreatePostOverlay } from "./create-post-overlay";
 
 const mutations = {
   submitPost: vi.fn(),
-  editDraft: vi.fn(),
-  withdrawDraft: vi.fn(),
+  editDraftPost: vi.fn(),
+  withdrawDraftPost: vi.fn(),
 };
 
 afterEach(() => {

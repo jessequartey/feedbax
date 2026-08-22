@@ -1,15 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { createConfiguredFeedbackModule } from "./feedback-runtime";
-import {
-  loadPublicFeedbackPage,
-  publicFeedbackSearch,
-} from "./public-feedback-page";
+import { loadPublicPostPage, publicPostSearch } from "./public-feedback-page";
 import { runSafePublicRead } from "./safe-public-failure";
 
-export const getPublicFeedbackPage = createServerFn({ method: "GET" })
+export const getPublicPostPage = createServerFn({ method: "GET" })
   .validator((input: unknown) =>
-    publicFeedbackSearch(
+    publicPostSearch(
       typeof input === "object" && input !== null
         ? (input as Record<string, unknown>)
         : {},
@@ -17,7 +14,7 @@ export const getPublicFeedbackPage = createServerFn({ method: "GET" })
   )
   .handler(({ data }) =>
     runSafePublicRead(() =>
-      loadPublicFeedbackPage({
+      loadPublicPostPage({
         feedback: createConfiguredFeedbackModule(),
         search: data,
       }),

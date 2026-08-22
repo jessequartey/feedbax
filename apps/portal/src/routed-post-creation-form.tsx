@@ -7,8 +7,8 @@ import { PostCreationFlow } from "./post-creation-flow";
 
 export const portalFeedbackMutations = {
   submitPost: submitPortalPost,
-  editDraft: editPortalFeedbackDraft,
-  withdrawDraft: withdrawPortalFeedbackDraft,
+  editDraftPost: editPortalFeedbackDraft,
+  withdrawDraftPost: withdrawPortalFeedbackDraft,
 };
 
 export function RoutedPostCreationForm({

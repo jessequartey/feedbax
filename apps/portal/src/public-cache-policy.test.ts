@@ -79,9 +79,8 @@ describe("public portal cache policy", () => {
       "https://feedback.example.com/roadmap?sort=updated-at-desc&schema=1",
     );
     expect(
-      canonicalPublicRequest(
-        new Request("https://feedback.example.com/feedback/item/slug"),
-      )?.url,
-    ).toBe("https://feedback.example.com/feedback/item/slug?schema=1");
+      canonicalPublicRequest(new Request("https://feedback.example.com/p/slug"))
+        ?.url,
+    ).toBe("https://feedback.example.com/p/slug?schema=1");
   });
 });

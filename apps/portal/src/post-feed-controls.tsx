@@ -1,8 +1,4 @@
-import type {
-  PostStatus,
-  PostType,
-  PublicFeedbackQuery,
-} from "@feedbax/feedback";
+import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -12,8 +8,8 @@ export function PostFeedControls({
   search,
   onSearchChange,
 }: {
-  search: PublicFeedbackQuery;
-  onSearchChange?: (search: PublicFeedbackQuery) => void;
+  search: PublicPostQuery;
+  onSearchChange?: (search: PublicPostQuery) => void;
 }) {
   const [query, setQuery] = useState(search.search ?? "");
   const [searchExpanded, setSearchExpanded] = useState(Boolean(search.search));
@@ -86,7 +82,7 @@ export function PostFeedControls({
             onSearchChange?.({
               ...search,
               cursor: undefined,
-              sort: event.currentTarget.value as PublicFeedbackQuery["sort"],
+              sort: event.currentTarget.value as PublicPostQuery["sort"],
             })
           }
         >

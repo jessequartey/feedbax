@@ -1,8 +1,4 @@
-import type {
-  FeedbackItem,
-  FeedbackType,
-  SubmittedPost,
-} from "@feedbax/feedback";
+import type { Post, PostType, SubmittedPost } from "@feedbax/feedback";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AlertDialog,
@@ -31,16 +27,16 @@ export interface StoredDraft {
   browserCapability: string;
   title: string;
   description: string;
-  type: FeedbackType;
+  type: PostType;
 }
 
 export interface PortalFeedbackMutations {
   submitPost(input: { data: unknown }): Promise<SubmittedPost>;
-  editDraft(input: { data: unknown }): Promise<FeedbackItem>;
-  withdrawDraft(input: { data: unknown }): Promise<void>;
+  editDraftPost(input: { data: unknown }): Promise<Post>;
+  withdrawDraftPost(input: { data: unknown }): Promise<void>;
 }
 
-const feedbackTypes: FeedbackType[] = [
+const postTypes: PostType[] = [
   "Feature Request",
   "Bug Report",
   "General Feedback",
@@ -60,7 +56,7 @@ export function PortalFeedbackForm({
   display?: "page" | "overlay";
   onCancel?: () => void;
   onCreated?: (post: SubmittedPost) => void | Promise<void>;
-  onEdited?: (post: FeedbackItem) => void | Promise<void>;
+  onEdited?: (post: Post) => void | Promise<void>;
   onAuthorizationLost?: () => void;
   mutations: PortalFeedbackMutations;
   showWithdrawal?: boolean;
@@ -154,7 +150,7 @@ export function PortalFeedbackForm({
     setPending(true);
     setMessage(undefined);
     try {
-      const edited = await mutations.editDraft({
+      const edited = await mutations.editDraftPost({
         data: {
           id: draft.id,
           browserCapability: draft.browserCapability,
@@ -179,7 +175,7 @@ export function PortalFeedbackForm({
     setPending(true);
     setMessage(undefined);
     try {
-      await mutations.withdrawDraft({
+      await mutations.withdrawDraftPost({
         data: {
           id: draft.id,
           browserCapability: draft.browserCapability,
@@ -282,7 +278,7 @@ export function PortalFeedbackForm({
             defaultValue={draft?.type ?? "Feature Request"}
             key={`type-${draft?.id ?? "new"}`}
           >
-            {feedbackTypes.map((type) => (
+            {postTypes.map((type) => (
               <option key={type}>{type}</option>
             ))}
           </select>
@@ -357,7 +353,7 @@ function readFeedbackForm(form: HTMLFormElement) {
   return {
     title: String(data.get("title") ?? ""),
     description: String(data.get("description") ?? ""),
-    type: String(data.get("type") ?? "") as FeedbackType,
+    type: String(data.get("type") ?? "") as PostType,
     ...(data.get("cf-turnstile-response")
       ? { turnstileToken: String(data.get("cf-turnstile-response")) }
       : {}),
