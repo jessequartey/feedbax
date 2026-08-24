@@ -31,6 +31,9 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+  --status-planned: oklch(0.606 0.25 292.7);
+  --status-in-progress: oklch(0.623 0.214 259.8);
+  --status-shipped: oklch(0.723 0.219 149.6);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -43,19 +46,19 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.16 0.009 258);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.205 0.011 258);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.205 0.011 258);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --primary: oklch(0.97 0 0);
+  --primary-foreground: oklch(0.205 0.011 258);
+  --secondary: oklch(0.269 0.011 258);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --muted: oklch(0.269 0.011 258);
+  --muted-foreground: oklch(0.708 0.008 258);
+  --accent: oklch(0.269 0.011 258);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
@@ -66,11 +69,14 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
+  --status-planned: oklch(0.606 0.25 292.7);
+  --status-in-progress: oklch(0.623 0.214 259.8);
+  --status-shipped: oklch(0.723 0.219 149.6);
+  --sidebar: oklch(0.205 0.011 258);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent: oklch(0.269 0.011 258);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
@@ -87,6 +93,9 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
+  --color-status-planned: var(--status-planned);
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-shipped: var(--status-shipped);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);

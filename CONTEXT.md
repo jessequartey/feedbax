@@ -78,6 +78,20 @@ _Avoid_: Account, sign-in, user profile
 The Notion data source that holds a Product Team's Posts using the Feedbax schema.
 _Avoid_: Arbitrary database, CRM
 
+**Board**:
+A public, named view that filters Posts by Post Type. "All posts" is the Board that applies no Post Type filter. A Board is a filter view, not an independent entity, and holds no settings of its own.
+_Avoid_: Category, section, forum, group
+
+## Changelog
+
+**Changelog Entry**:
+A published record of a product update shown on the Changelog page: date, title, summary, body, optional image, and Changelog Labels.
+_Avoid_: Post (reserved for feedback), announcement, blog post
+
+**Changelog Label**:
+A category tag a Product Team assigns to a Changelog Entry, such as "New feature", "Improved", or "Fix". The label set is open and independent of Post Status.
+_Avoid_: Status, tag, category
+
 ## Editions
 
 **Core**:
