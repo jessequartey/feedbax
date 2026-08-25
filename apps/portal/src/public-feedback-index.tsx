@@ -1,6 +1,5 @@
 import type { PublicPostQuery, PublicPostPage } from "@feedbax/feedback";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
-import { Button } from "@feedbax/ui/components/button";
 import { useAuthorizedDraftPosts } from "./draft-post-list";
 import {
   BoardNavigation,
@@ -50,13 +49,6 @@ export function PublicPostIndex({
               onSearchChange={onSearchChange}
               pending={pending}
             />
-            <Button
-              className="h-10 px-5 text-sm"
-              render={<a href="/submit" />}
-              nativeButton={false}
-            >
-              New post
-            </Button>
           </div>
           <section className="mt-8" aria-live="polite">
             <div className="mb-4">

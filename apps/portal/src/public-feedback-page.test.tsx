@@ -129,7 +129,6 @@ describe("public feedback home page", () => {
     expect(within(post).getByLabelText("Score unavailable")).toBeTruthy();
     expect(within(post).getByLabelText("Comments unavailable")).toBeTruthy();
     expect(within(post).getAllByText("—")).toHaveLength(2);
-    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
   });
 
   it("links each Published Post by immutable slug", () => {

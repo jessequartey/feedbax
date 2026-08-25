@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   BoardNavigation,
+  MobilePostFilters,
   PostFeedControls,
   StatusNavigation,
 } from "./post-feed-controls";
@@ -31,6 +38,56 @@ afterEach(() => {
 });
 
 describe("Post feed controls", () => {
+  it("opens the mobile filters sheet with every Board and Post Status", async () => {
+    render(<MobileFiltersHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+
+    const sheet = await screen.findByRole("dialog", {
+      name: "Filter Posts",
+    });
+    expect(
+      screen.getByRole("navigation", { name: "Mobile Boards" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Mobile Status filters" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "All posts" })).toBeTruthy();
+    for (const status of [
+      "New",
+      "Reviewing",
+      "Planned",
+      "In progress",
+      "Shipped",
+      "Closed",
+    ]) {
+      expect(screen.getByRole("button", { name: status })).toBeTruthy();
+    }
+    expect(sheet).toBeTruthy();
+  });
+
+  it("applies mobile Board and Post Status selections to route query state", async () => {
+    render(<MobileFiltersHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    await screen.findByRole("dialog", { name: "Filter Posts" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Feature requests" }));
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("button", { name: "Closed" }));
+
+    expect(screen.getByTestId("route-state").textContent).toContain(
+      '"types":["Feature Request"]',
+    );
+    expect(screen.getByTestId("route-state").textContent).toContain(
+      '"statuses":["New","Closed"]',
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    expect(screen.getByTestId("route-state").textContent).toContain(
+      '"statuses":["Closed"]',
+    );
+  });
+
   it("switches sort from visible tabs immediately", () => {
     render(<Harness />);
 
@@ -38,6 +95,19 @@ describe("Post feed controls", () => {
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"sort":"new"',
     );
+  });
+
+  it("exposes the mobile sort, create, search, and filter controls in tap order", () => {
+    render(<Harness />);
+
+    const controls = screen.getByRole("group", {
+      name: "Post feed controls",
+    });
+    expect(
+      within(controls)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Trending", "Top", "New", "New post", "Search", "Filters"]);
   });
 
   it("opens the command palette from the Search button", async () => {
@@ -103,6 +173,16 @@ describe("Post feed controls", () => {
     expect(screen.getByText("Updating Posts…").className).toBe("sr-only");
   });
 });
+
+function MobileFiltersHarness() {
+  const [search, setSearch] = useState<PublicPostQuery>({ sort: "trending" });
+  return (
+    <>
+      <MobilePostFilters search={search} onSearchChange={setSearch} />
+      <output data-testid="route-state">{JSON.stringify(search)}</output>
+    </>
+  );
+}
 
 function Harness({
   pending = false,

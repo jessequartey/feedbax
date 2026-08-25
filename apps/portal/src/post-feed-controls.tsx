@@ -2,11 +2,19 @@ import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Button } from "@feedbax/ui/components/button";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
 import { Card } from "@feedbax/ui/components/card";
-import { List } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@feedbax/ui/components/sheet";
+import { List, ListFilter } from "lucide-react";
 import type { ComponentType } from "react";
 
 import { CommandPaletteTrigger } from "./components/command-palette";
-import { postTypes } from "./public-feedback-page";
+import { postStatuses, postTypes } from "./public-feedback-page";
 import {
   postStatusPresentation,
   postTypePresentation,
@@ -61,7 +69,7 @@ export function PostFeedControls({
       {pending ? <span className="sr-only">Updating Posts…</span> : null}
       <ButtonGroup
         aria-label="Sort Posts"
-        className="grid h-10 w-full grid-cols-3 lg:w-72"
+        className="order-1 grid h-10 w-full grid-cols-3 lg:w-72"
       >
         {sortOptions.map(({ label, value }) => (
           <Button
@@ -82,7 +90,17 @@ export function PostFeedControls({
           </Button>
         ))}
       </ButtonGroup>
-      <CommandPaletteTrigger className="justify-start lg:justify-center" />
+      <Button
+        className="order-2 h-10 w-full px-5 text-sm lg:order-3 lg:w-auto"
+        render={<a href="/submit" />}
+        nativeButton={false}
+      >
+        New post
+      </Button>
+      <div className="order-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 lg:order-2 lg:ml-auto lg:flex">
+        <CommandPaletteTrigger className="w-full justify-start lg:w-auto lg:justify-center" />
+        <MobilePostFilters search={search} onSearchChange={onSearchChange} />
+      </div>
     </div>
   );
 }
@@ -90,16 +108,20 @@ export function PostFeedControls({
 export function BoardNavigation({
   search,
   onSearchChange,
+  headingId = "boards-heading",
+  label,
 }: {
   search: PublicPostQuery;
   onSearchChange?: SearchChange;
+  headingId?: string;
+  label?: string;
 }) {
   const activeType = search.types?.length === 1 ? search.types[0] : undefined;
   const hasNoType = !search.types?.length;
 
   return (
-    <nav aria-labelledby="boards-heading">
-      <h2 id="boards-heading" className="mb-3 text-sm font-medium">
+    <nav aria-labelledby={label ? undefined : headingId} aria-label={label}>
+      <h2 id={headingId} className="mb-3 text-sm font-medium">
         Boards
       </h2>
       <Card className="gap-0 overflow-hidden py-0">
@@ -133,23 +155,29 @@ export function BoardNavigation({
 export function StatusNavigation({
   search,
   onSearchChange,
+  headingId = "status-filters-heading",
+  label = "Status filters",
+  statuses = roadmapStatuses,
 }: {
   search: PublicPostQuery;
   onSearchChange?: SearchChange;
+  headingId?: string;
+  label?: string;
+  statuses?: readonly PostStatus[];
 }) {
   const selected = search.statuses ?? [];
 
   return (
-    <section aria-labelledby="status-filters-heading">
-      <h2 id="status-filters-heading" className="mb-3 text-sm font-medium">
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId} className="mb-3 text-sm font-medium">
         Status
       </h2>
       <Card
         className="gap-0 overflow-hidden py-0"
         role="group"
-        aria-label="Status filters"
+        aria-label={label}
       >
-        {roadmapStatuses.map((status) => {
+        {statuses.map((status) => {
           const { Icon, label } = postStatusPresentation[status];
           const active = selected.includes(status);
           const nextStatuses = active
@@ -177,5 +205,56 @@ export function StatusNavigation({
         })}
       </Card>
     </section>
+  );
+}
+
+export function MobilePostFilters({
+  search,
+  onSearchChange,
+}: {
+  search: PublicPostQuery;
+  onSearchChange?: SearchChange;
+}) {
+  return (
+    <Sheet>
+      <SheetTrigger
+        render={
+          <Button
+            className="h-10 gap-2 px-4 text-sm lg:hidden"
+            type="button"
+            variant="outline"
+          />
+        }
+      >
+        <ListFilter aria-hidden="true" />
+        Filters
+      </SheetTrigger>
+      <SheetContent
+        className="w-[min(100%,24rem)] overflow-y-auto lg:hidden"
+        side="right"
+      >
+        <SheetHeader className="border-b p-6 pr-14">
+          <SheetTitle className="text-lg">Filter Posts</SheetTitle>
+          <SheetDescription>
+            Choose a Board and combine any Post Statuses.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="space-y-8 p-6">
+          <BoardNavigation
+            search={search}
+            onSearchChange={onSearchChange}
+            headingId="mobile-boards-heading"
+            label="Mobile Boards"
+          />
+          <StatusNavigation
+            search={search}
+            onSearchChange={onSearchChange}
+            headingId="mobile-status-filters-heading"
+            label="Mobile Status filters"
+            statuses={postStatuses}
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
