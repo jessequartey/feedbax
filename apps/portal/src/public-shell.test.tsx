@@ -26,8 +26,8 @@ import {
   CommandPalette,
   CommandPaletteProvider,
 } from "./components/command-palette";
+import { ChangelogPage } from "./changelog-page";
 import { deviceProfileKey, readDeviceProfile } from "./browser-post-state";
-import { Changelog } from "./routes/changelog";
 import { PublicRoadmapView } from "./public-roadmap-view";
 
 beforeEach(() => {
@@ -74,15 +74,19 @@ describe("public portal shell", () => {
     ).toBe("/changelog");
   });
 
-  it("renders Changelog as a complete coming-soon destination", async () => {
+  it("renders Changelog as a complete timeline destination", async () => {
     renderShell("/changelog");
 
     expect(
-      await screen.findByRole("heading", { name: "Changelog is coming soon" }),
+      await screen.findByRole("heading", { level: 1, name: "Changelog" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("link", { name: "View roadmap" }).getAttribute("href"),
-    ).toBe("/roadmap");
+      (
+        screen.getByRole("button", {
+          name: "Follow updates",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
 });
 
@@ -350,7 +354,7 @@ function renderShell(
   const changelog = createRoute({
     getParentRoute: () => root,
     path: "/changelog",
-    component: Changelog,
+    component: ChangelogPage,
   });
   const submit = createRoute({
     getParentRoute: () => root,
