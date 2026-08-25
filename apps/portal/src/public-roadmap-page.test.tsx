@@ -76,7 +76,7 @@ describe("public roadmap page", () => {
 
     expect(html).toContain("What we’re planning, building, and shipping.");
     expect(html).toContain("Search");
-    expect(html).toContain("Filters");
+    expect(html).not.toContain("Filters");
     expect(html).toContain("New post");
   });
 

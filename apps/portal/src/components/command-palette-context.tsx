@@ -48,7 +48,13 @@ export function useCommandPalette() {
   return { open: context?.open ?? false, setOpen, openPalette };
 }
 
-export function CommandPaletteTrigger({ className }: { className?: string }) {
+export function CommandPaletteTrigger({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { openPalette } = useCommandPalette();
   return (
     <Button
@@ -59,7 +65,7 @@ export function CommandPaletteTrigger({ className }: { className?: string }) {
       onClick={openPalette}
     >
       <Search aria-hidden="true" />
-      Search
+      <span className={compact ? "sr-only" : undefined}>Search</span>
     </Button>
   );
 }

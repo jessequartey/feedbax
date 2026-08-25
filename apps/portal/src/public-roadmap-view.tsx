@@ -18,10 +18,11 @@ import {
 import { Skeleton } from "@feedbax/ui/components/skeleton";
 import { Spinner } from "@feedbax/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@feedbax/ui/components/tabs";
-import { ArrowUp, CircleDashed, Filter, MessageCircle } from "lucide-react";
+import { ArrowUp, CircleDashed, MessageCircle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { CommandPaletteTrigger } from "./components/command-palette";
+import { CreatePostTrigger } from "./components/create-post-trigger";
 import { PostLink } from "./masked-post-link";
 import { PostTypeBadge } from "./post-badges";
 import type { FetchPublicRoadmapStatusPage } from "./roadmap-query";
@@ -32,19 +33,19 @@ const roadmapGroups = [
     status: "Planned",
     heading: "Planned",
     headingId: "roadmap-planned",
-    dot: "bg-violet-500",
+    dot: "bg-status-planned",
   },
   {
     status: "In Progress",
     heading: "In progress",
     headingId: "roadmap-in-progress",
-    dot: "bg-blue-500",
+    dot: "bg-status-in-progress",
   },
   {
     status: "Shipped",
     heading: "Shipped",
     headingId: "roadmap-shipped",
-    dot: "bg-green-500",
+    dot: "bg-status-shipped",
   },
 ] as const;
 
@@ -105,22 +106,11 @@ export function PublicRoadmapView({
       <RoadmapIntro />
 
       <ButtonGroup className="mt-8 grid w-full grid-cols-[1fr_auto] sm:ml-auto sm:flex sm:w-fit lg:-mt-12">
-        <CommandPaletteTrigger className="justify-start" />
-        <Button
-          className="h-10 gap-2 px-4 text-sm"
-          variant="outline"
-          type="button"
-        >
-          <Filter aria-hidden="true" />
-          Filters
-        </Button>
-        <Button
-          className="col-span-2 h-10 px-5 text-sm"
-          render={<a href="/submit" />}
-          nativeButton={false}
-        >
-          New post
-        </Button>
+        <CommandPaletteTrigger className="h-11 justify-start lg:h-10" />
+        <CreatePostTrigger
+          className="h-11 px-5 text-sm lg:h-10"
+          contextual={maskPostLinks}
+        />
       </ButtonGroup>
 
       {mobile ? (

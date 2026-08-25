@@ -61,9 +61,7 @@ export function ProfileMenu() {
     setProfile(readDeviceProfile(localStorage));
   }, []);
 
-  const initials = profile
-    ? deriveDeviceProfileInitials(profile)
-    : undefined;
+  const initials = profile ? deriveDeviceProfileInitials(profile) : undefined;
 
   function saveProfile(next: DeviceProfile) {
     saveDeviceProfile(localStorage, next);
@@ -84,7 +82,7 @@ export function ProfileMenu() {
             render={
               <Button
                 aria-label="Profile"
-                className="gap-2 px-3"
+                className="h-11 gap-2 px-3 md:h-10"
                 variant="outline"
                 type="button"
               >
@@ -117,7 +115,7 @@ export function ProfileMenu() {
         <>
           <Button
             aria-label="Profile"
-            className="gap-2 px-3"
+            className="h-11 gap-2 px-3 md:h-10"
             variant="outline"
             type="button"
             onClick={() => setSetupOpen(true)}

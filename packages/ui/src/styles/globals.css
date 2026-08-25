@@ -34,6 +34,8 @@
   --status-planned: oklch(0.606 0.25 292.7);
   --status-in-progress: oklch(0.623 0.214 259.8);
   --status-shipped: oklch(0.723 0.219 149.6);
+  --changelog-new: oklch(0.55 0.17 255);
+  --changelog-improved: oklch(0.58 0.16 80);
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -72,6 +74,8 @@
   --status-planned: oklch(0.606 0.25 292.7);
   --status-in-progress: oklch(0.623 0.214 259.8);
   --status-shipped: oklch(0.723 0.219 149.6);
+  --changelog-new: oklch(0.72 0.15 255);
+  --changelog-improved: oklch(0.8 0.16 80);
   --sidebar: oklch(0.205 0.011 258);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -96,6 +100,8 @@
   --color-status-planned: var(--status-planned);
   --color-status-in-progress: var(--status-in-progress);
   --color-status-shipped: var(--status-shipped);
+  --color-changelog-new: var(--changelog-new);
+  --color-changelog-improved: var(--changelog-improved);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
@@ -137,5 +143,9 @@
   }
   html {
     @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
 }

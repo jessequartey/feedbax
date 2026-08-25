@@ -1,5 +1,6 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 
+import { CommandPaletteTrigger } from "./command-palette";
 import { ProfileMenu } from "./profile-menu";
 
 function Navigation() {
@@ -16,42 +17,54 @@ function Navigation() {
       <Link className={linkClassName} to="/changelog">
         Changelog
       </Link>
-      <Link
-        to="."
-        state={{ createPostOverlay: true }}
-        mask={{ to: "/submit", unmaskOnReload: true }}
-        className="hidden"
-        activeProps={{ "aria-current": false }}
-      >
-        Create Post
-      </Link>
     </>
   );
 }
 
 export default function Header() {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+  const needsPageSearch = pathname === "/submit" || pathname.startsWith("/p/");
+
   return (
-    <header className="relative flex h-20 items-center justify-between border-b px-4 md:px-8">
+    <>
       <a
-        className="inline-flex items-center gap-3 text-lg font-semibold"
-        href="/"
-        aria-label="Feedbax home"
+        className="fixed top-3 left-3 z-[100] -translate-y-20 border bg-background px-4 py-3 text-sm font-medium shadow-sm transition-transform focus-visible:translate-y-0"
+        href="#main-content"
       >
-        <span
-          className="grid size-10 place-items-center border bg-muted/40 text-xl font-medium"
-          aria-hidden="true"
-        >
-          F
-        </span>
-        Feedbax
+        Skip to content
       </a>
-      <nav
-        className="absolute left-0 top-full z-10 flex w-full border-b bg-background md:static md:w-auto md:gap-1 md:border-0"
-        aria-label="Public portal"
-      >
-        <Navigation />
-      </nav>
-      <ProfileMenu />
-    </header>
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center border-b px-4 md:h-20 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-8">
+        <a
+          className="inline-flex items-center gap-3 py-3 text-lg font-semibold md:py-0"
+          href="/"
+          aria-label="Feedbax home"
+        >
+          <span
+            className="grid size-10 place-items-center border bg-muted/40 text-xl font-medium"
+            aria-hidden="true"
+          >
+            F
+          </span>
+          Feedbax
+        </a>
+        <nav
+          className="order-3 col-span-2 -mx-4 flex border-t bg-background md:order-none md:col-span-1 md:col-start-2 md:row-start-1 md:mx-0 md:gap-1 md:border-0"
+          aria-label="Public portal"
+        >
+          <Navigation />
+        </nav>
+        <div className="flex items-center justify-self-end gap-2 md:col-start-3 md:row-start-1">
+          {needsPageSearch ? (
+            <CommandPaletteTrigger
+              className="size-11 px-0 md:size-10"
+              compact
+            />
+          ) : null}
+          <ProfileMenu />
+        </div>
+      </header>
+    </>
   );
 }

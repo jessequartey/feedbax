@@ -64,7 +64,9 @@ function RootDocument() {
             <CommandPaletteProvider>
               <div className="portal-shell">
                 <Header />
-                <Outlet />
+                <div id="main-content" tabIndex={-1}>
+                  <Outlet />
+                </div>
                 <CreatePostOverlay mutations={portalFeedbackMutations} />
                 <PostDetailOverlay
                   renderDetail={(slug) => <OverlayPostDetail slug={slug} />}

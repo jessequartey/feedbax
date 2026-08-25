@@ -14,6 +14,7 @@ import { List, ListFilter } from "lucide-react";
 import { type ComponentType } from "react";
 
 import { CommandPaletteTrigger } from "./components/command-palette";
+import { CreatePostTrigger } from "./components/create-post-trigger";
 import { postStatuses, postTypes } from "./public-feedback-page";
 import {
   postStatusPresentation,
@@ -57,24 +58,23 @@ export function PostFeedControls({
   search,
   onSearchChange,
   pending = false,
+  contextualCreatePost = false,
 }: {
   search: PublicPostQuery;
   onSearchChange?: SearchChange;
   pending?: boolean;
+  contextualCreatePost?: boolean;
 }) {
   const mobile = useMediaQuery(mobileMediaQuery);
   const newPost = (
-    <Button
+    <CreatePostTrigger
       className={
         mobile
           ? "order-2 h-12 w-full px-5 text-sm"
           : "order-3 h-10 w-auto px-5 text-sm"
       }
-      render={<a href="/submit" />}
-      nativeButton={false}
-    >
-      New post
-    </Button>
+      contextual={contextualCreatePost}
+    />
   );
 
   return (

@@ -29,6 +29,19 @@ import {
 import { ChangelogPage } from "./changelog-page";
 import { deviceProfileKey, readDeviceProfile } from "./browser-post-state";
 import { PublicRoadmapView } from "./public-roadmap-view";
+import { CreatePostOverlay } from "./create-post-overlay";
+
+const portalFeedbackMutations = {
+  submitPost: async () => {
+    throw new Error("Not used in this test.");
+  },
+  editDraftPost: async () => {
+    throw new Error("Not used in this test.");
+  },
+  withdrawDraftPost: async () => {
+    throw new Error("Not used in this test.");
+  },
+};
 
 beforeEach(() => {
   localStorage.clear();
@@ -57,6 +70,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("public portal shell", () => {
+  it("offers skip navigation and global search on every destination", async () => {
+    renderShell("/p/keyboard-first-search");
+
+    expect(
+      (
+        await screen.findByRole("link", { name: "Skip to content" })
+      ).getAttribute("href"),
+    ).toBe("#main-content");
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Search feedback" }),
+    ).toBeTruthy();
+  });
+
   it("offers direct destinations and identifies the current destination", async () => {
     renderShell("/roadmap");
 
@@ -72,6 +100,18 @@ describe("public portal shell", () => {
     expect(
       screen.getByRole("link", { name: "Changelog" }).getAttribute("href"),
     ).toBe("/changelog");
+  });
+
+  it("opens visible New post actions contextually", async () => {
+    const { history } = renderShell("/roadmap");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New post" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Create a Post" }),
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain("Roadmap");
+    expect(history.location.pathname).toBe("/submit");
   });
 
   it("renders Changelog as a complete timeline destination", async () => {
@@ -180,6 +220,23 @@ describe("profile menu", () => {
 });
 
 describe("command palette", () => {
+  it("labels search input and announces pending results", async () => {
+    renderShell("/", {
+      searchPosts: () => new Promise<PublicPostPage>(() => undefined),
+    });
+
+    await screen.findByRole("link", { name: "Feedback" });
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const input = await screen.findByPlaceholderText("Search feedback…");
+    expect(input.getAttribute("aria-label")).toBe("Search feedback");
+    fireEvent.change(input, { target: { value: "keyboard" } });
+
+    const status = await screen.findByRole("status", {
+      name: "Search status",
+    });
+    await waitFor(() => expect(status.textContent).toBe("Searching Posts…"));
+  });
+
   it("opens with Cmd/Ctrl+K, closes on Escape, and restores focus", async () => {
     const { history } = renderShell("/");
 
@@ -242,7 +299,9 @@ describe("command palette", () => {
       target: { value: "zzz-nothing" },
     });
 
-    expect(await screen.findByText("No Posts match this search.")).toBeTruthy();
+    expect(
+      (await screen.findAllByText("No Posts match this search.")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("offers navigation actions including New post", async () => {
@@ -328,6 +387,7 @@ function renderShell(
                 (async () => ({ items: [], nextCursor: undefined }))
               }
             />
+            <CreatePostOverlay mutations={portalFeedbackMutations} />
           </CommandPaletteProvider>
         </ThemeProvider>
       </QueryClientProvider>
@@ -348,6 +408,7 @@ function renderShell(
           "In Progress": { items: [], totalCount: 0 },
           Shipped: { items: [], totalCount: 0 },
         }}
+        maskPostLinks
       />
     ),
   });

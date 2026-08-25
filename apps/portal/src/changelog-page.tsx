@@ -64,7 +64,7 @@ export function ChangelogPage() {
           <p>Product updates, fixes, and improvements.</p>
         </div>
         <Button
-          className="h-10 gap-2 px-4 text-sm"
+          className="h-11 gap-2 px-4 text-sm md:h-10"
           variant="outline"
           type="button"
           disabled
@@ -78,6 +78,7 @@ export function ChangelogPage() {
         <ButtonGroup className="changelog-filters" aria-label="Filter updates">
           {changelogFilters.map((filter) => (
             <Button
+              className="h-11 md:h-8"
               key={filter.label}
               type="button"
               variant="outline"
@@ -91,7 +92,7 @@ export function ChangelogPage() {
             </Button>
           ))}
         </ButtonGroup>
-        <CommandPaletteTrigger />
+        <CommandPaletteTrigger className="h-11 md:h-10" />
       </div>
 
       <ol className="changelog-timeline" aria-label="Product updates">
@@ -132,7 +133,12 @@ export function ChangelogPage() {
                   </div>
                 </div>
                 {entry.image ? (
-                  <img src={entry.image.src} alt={entry.image.alt} />
+                  <img
+                    src={entry.image.src}
+                    alt={entry.image.alt}
+                    width={760}
+                    height={420}
+                  />
                 ) : null}
               </div>
             </article>
@@ -142,7 +148,7 @@ export function ChangelogPage() {
       {visibleCount < filteredEntries.length ? (
         <div className="changelog-load-more">
           <Button
-            className="h-10 min-w-64 gap-2 text-sm"
+            className="h-11 min-w-64 gap-2 text-sm md:h-10"
             type="button"
             variant="outline"
             onClick={() => setVisibleCount(filteredEntries.length)}

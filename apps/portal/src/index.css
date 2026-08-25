@@ -155,7 +155,10 @@
 body {
   margin: 0;
   background:
-    linear-gradient(rgba(20, 23, 31, 0.035) 1px, transparent 1px),
+    linear-gradient(
+      color-mix(in srgb, var(--foreground) 3.5%, transparent) 1px,
+      transparent 1px
+    ),
     var(--portal-paper);
   background-size: 100% 4rem;
   color: var(--portal-ink);
@@ -261,7 +264,7 @@ textarea:focus-visible {
 }
 
 .feedback-field-error {
-  color: #a52a2a;
+  color: var(--destructive);
 }
 
 .feedback-submit-form input,
@@ -269,7 +272,7 @@ textarea:focus-visible {
 .feedback-submit-form select {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid #aaa69c;
+  border: 1px solid var(--input);
   border-radius: 0;
   background: var(--portal-paper);
   color: var(--portal-ink);
@@ -393,7 +396,7 @@ textarea:focus-visible {
 
 .feedback-submit-actions .feedback-withdraw {
   background: transparent;
-  color: #8b2929;
+  color: var(--destructive);
 }
 
 .feedback-submit-actions .feedback-cancel {
@@ -509,7 +512,7 @@ textarea:focus-visible {
   height: 2rem;
   place-items: center;
   background: var(--portal-accent);
-  color: white;
+  color: var(--primary-foreground);
   font-size: 0.85rem;
 }
 
@@ -743,13 +746,13 @@ textarea:focus-visible {
 }
 
 .changelog-label.is-new {
-  background: color-mix(in srgb, oklch(0.65 0.17 255) 12%, transparent);
-  color: oklch(0.72 0.15 255);
+  background: color-mix(in srgb, var(--changelog-new) 12%, transparent);
+  color: var(--changelog-new);
 }
 
 .changelog-label.is-improved {
-  background: color-mix(in srgb, oklch(0.78 0.16 80) 12%, transparent);
-  color: oklch(0.8 0.16 80);
+  background: color-mix(in srgb, var(--changelog-improved) 12%, transparent);
+  color: var(--changelog-improved);
 }
 
 .changelog-label.is-fixed {
@@ -859,6 +862,7 @@ textarea:focus-visible {
   }
 
   .changelog-filters button {
+    height: 2.75rem;
     min-width: 0;
     padding-inline: 0.45rem;
     font-size: 0.72rem;
@@ -950,7 +954,7 @@ textarea:focus-visible {
 .feedback-filters select,
 .feedback-filters button {
   min-height: 2.8rem;
-  border: 1px solid #aaa69c;
+  border: 1px solid var(--input);
   border-radius: 0;
   background: transparent;
   color: var(--portal-ink);
@@ -966,7 +970,7 @@ textarea:focus-visible {
   padding: 0 1.35rem;
   border-color: var(--portal-ink);
   background: var(--portal-ink);
-  color: white;
+  color: var(--primary-foreground);
   cursor: pointer;
   font-size: 0.82rem;
   font-weight: 700;
@@ -1420,7 +1424,7 @@ textarea:focus-visible {
 .feedback-detail-description {
   max-width: 48rem;
   margin: clamp(2rem, 5vw, 4rem) 0 0;
-  color: #41454f;
+  color: var(--muted-foreground);
   font-size: clamp(1.15rem, 2vw, 1.5rem);
   line-height: 1.75;
   white-space: pre-wrap;
@@ -1683,7 +1687,7 @@ textarea:focus-visible {
   border: 1px solid var(--portal-ink);
   border-radius: 0;
   background: var(--portal-ink);
-  color: white;
+  color: var(--primary-foreground);
   cursor: pointer;
   font: inherit;
   font-size: 0.82rem;
@@ -1729,6 +1733,16 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
     gap: 1.5rem;
     padding: 1.25rem;
+  }
+
+  .feedback-submit[data-display="overlay"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .feedback-submit-form input,
+  .feedback-submit-form textarea,
+  .feedback-submit-form select {
+    font-size: 1rem;
   }
 
   .feedback-post-type-picker {

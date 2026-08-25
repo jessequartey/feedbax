@@ -57,6 +57,14 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
     deferredTerm.trim().length > 0 &&
     !query.isPending &&
     posts.length === 0;
+  const searching = open && deferredTerm.trim().length > 0 && query.isFetching;
+  const searchStatus = searching
+    ? "Searching Posts…"
+    : showEmpty
+      ? "No Posts match this search."
+      : deferredTerm.trim().length > 0 && posts.length > 0
+        ? `${posts.length} ${posts.length === 1 ? "Post" : "Posts"} found.`
+        : "";
 
   useEffect(() => {
     const firstPost = posts[0];
@@ -113,16 +121,17 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
           onValueChange={setSelection}
         >
           <CommandInput
+            aria-label="Search feedback"
             value={term}
             onValueChange={setTerm}
             placeholder="Search feedback…"
           />
-          <CommandList className="max-h-96">
+          <CommandList aria-busy={searching || undefined} className="max-h-96">
+            <div aria-label="Search status" className="sr-only" role="status">
+              {searchStatus}
+            </div>
             {showEmpty ? (
-              <div
-                className="py-6 text-center text-sm text-muted-foreground"
-                role="status"
-              >
+              <div className="py-6 text-center text-sm text-muted-foreground">
                 No Posts match this search.
               </div>
             ) : null}
@@ -133,7 +142,7 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
                     key={post.slug}
                     value={`post-${post.slug}`}
                     onSelect={() => openPost(post.slug)}
-                    className="gap-3 py-2.5"
+                    className="min-h-11 gap-3 py-2.5"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">
@@ -153,22 +162,29 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
             ) : null}
             <CommandSeparator />
             <CommandGroup heading="Navigate">
-              <CommandItem value="go-feedback" onSelect={() => navigate("/")}>
+              <CommandItem
+                className="min-h-11"
+                value="go-feedback"
+                onSelect={() => navigate("/")}
+              >
                 Feedback
               </CommandItem>
               <CommandItem
+                className="min-h-11"
                 value="go-roadmap"
                 onSelect={() => navigate("/roadmap")}
               >
                 Roadmap
               </CommandItem>
               <CommandItem
+                className="min-h-11"
                 value="go-changelog"
                 onSelect={() => navigate("/changelog")}
               >
                 Changelog
               </CommandItem>
               <CommandItem
+                className="min-h-11"
                 value="new-post"
                 onSelect={() => {
                   const currentRouteOptions = getCurrentRouteOptions();
