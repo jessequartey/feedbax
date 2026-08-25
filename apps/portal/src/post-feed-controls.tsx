@@ -11,7 +11,11 @@ import {
   SheetTrigger,
 } from "@feedbax/ui/components/sheet";
 import { List, ListFilter } from "lucide-react";
-import type { ComponentType } from "react";
+import {
+  useCallback,
+  useSyncExternalStore,
+  type ComponentType,
+} from "react";
 
 import { CommandPaletteTrigger } from "./components/command-palette";
 import { postStatuses, postTypes } from "./public-feedback-page";
@@ -50,6 +54,8 @@ const sortOptions = [
   value: NonNullable<PublicPostQuery["sort"]>;
 }[];
 
+const mobileMediaQuery = "(max-width: 1023px)";
+
 export function PostFeedControls({
   search,
   onSearchChange,
@@ -59,6 +65,21 @@ export function PostFeedControls({
   onSearchChange?: SearchChange;
   pending?: boolean;
 }) {
+  const mobile = useMediaQuery(mobileMediaQuery);
+  const newPost = (
+    <Button
+      className={
+        mobile
+          ? "order-2 h-12 w-full px-5 text-sm"
+          : "order-3 h-10 w-auto px-5 text-sm"
+      }
+      render={<a href="/submit" />}
+      nativeButton={false}
+    >
+      New post
+    </Button>
+  );
+
   return (
     <div
       className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
@@ -69,7 +90,11 @@ export function PostFeedControls({
       {pending ? <span className="sr-only">Updating Posts…</span> : null}
       <ButtonGroup
         aria-label="Sort Posts"
-        className="order-1 grid h-10 w-full grid-cols-3 lg:w-72"
+        className={
+          mobile
+            ? "order-1 grid h-12 w-full grid-cols-3"
+            : "order-1 grid h-10 w-72 grid-cols-3"
+        }
       >
         {sortOptions.map(({ label, value }) => (
           <Button
@@ -77,7 +102,7 @@ export function PostFeedControls({
             type="button"
             variant="outline"
             aria-pressed={(search.sort ?? "trending") === value}
-            className="h-10 px-5 text-sm aria-pressed:bg-muted aria-pressed:text-foreground"
+            className={`${mobile ? "h-12" : "h-10"} px-5 text-sm aria-pressed:bg-muted aria-pressed:text-foreground`}
             onClick={() =>
               onSearchChange?.({
                 ...search,
@@ -90,17 +115,23 @@ export function PostFeedControls({
           </Button>
         ))}
       </ButtonGroup>
-      <Button
-        className="order-2 h-10 w-full px-5 text-sm lg:order-3 lg:w-auto"
-        render={<a href="/submit" />}
-        nativeButton={false}
-      >
-        New post
-      </Button>
-      <div className="order-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 lg:order-2 lg:ml-auto lg:flex">
-        <CommandPaletteTrigger className="w-full justify-start lg:w-auto lg:justify-center" />
-        <MobilePostFilters search={search} onSearchChange={onSearchChange} />
-      </div>
+      {mobile ? (
+        <>
+          {newPost}
+          <div className="order-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+            <CommandPaletteTrigger className="h-12 w-full justify-start" />
+            <MobilePostFilters
+              search={search}
+              onSearchChange={onSearchChange}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <CommandPaletteTrigger className="order-2 ml-auto justify-center" />
+          {newPost}
+        </>
+      )}
     </div>
   );
 }
@@ -109,18 +140,21 @@ export function BoardNavigation({
   search,
   onSearchChange,
   headingId = "boards-heading",
-  label,
+  ariaLabel,
 }: {
   search: PublicPostQuery;
   onSearchChange?: SearchChange;
   headingId?: string;
-  label?: string;
+  ariaLabel?: string;
 }) {
   const activeType = search.types?.length === 1 ? search.types[0] : undefined;
   const hasNoType = !search.types?.length;
 
   return (
-    <nav aria-labelledby={label ? undefined : headingId} aria-label={label}>
+    <nav
+      aria-labelledby={ariaLabel ? undefined : headingId}
+      aria-label={ariaLabel}
+    >
       <h2 id={headingId} className="mb-3 text-sm font-medium">
         Boards
       </h2>
@@ -156,13 +190,13 @@ export function StatusNavigation({
   search,
   onSearchChange,
   headingId = "status-filters-heading",
-  label = "Status filters",
+  ariaLabel = "Status filters",
   statuses = roadmapStatuses,
 }: {
   search: PublicPostQuery;
   onSearchChange?: SearchChange;
   headingId?: string;
-  label?: string;
+  ariaLabel?: string;
   statuses?: readonly PostStatus[];
 }) {
   const selected = search.statuses ?? [];
@@ -175,7 +209,7 @@ export function StatusNavigation({
       <Card
         className="gap-0 overflow-hidden py-0"
         role="group"
-        aria-label={label}
+        aria-label={ariaLabel}
       >
         {statuses.map((status) => {
           const { Icon, label } = postStatusPresentation[status];
@@ -220,7 +254,7 @@ export function MobilePostFilters({
       <SheetTrigger
         render={
           <Button
-            className="h-10 gap-2 px-4 text-sm lg:hidden"
+            className="h-12 gap-2 px-4 text-sm lg:hidden"
             type="button"
             variant="outline"
           />
@@ -244,17 +278,33 @@ export function MobilePostFilters({
             search={search}
             onSearchChange={onSearchChange}
             headingId="mobile-boards-heading"
-            label="Mobile Boards"
+            ariaLabel="Mobile Boards"
           />
           <StatusNavigation
             search={search}
             onSearchChange={onSearchChange}
             headingId="mobile-status-filters-heading"
-            label="Mobile Status filters"
+            ariaLabel="Mobile Status filters"
             statuses={postStatuses}
           />
         </div>
       </SheetContent>
     </Sheet>
   );
+}
+
+function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (typeof window.matchMedia !== "function") return () => {};
+      const media = window.matchMedia(query);
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  const getSnapshot = () =>
+    typeof window.matchMedia === "function" && window.matchMedia(query).matches;
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }

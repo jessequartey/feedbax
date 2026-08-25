@@ -35,6 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("Post feed controls", () => {
@@ -97,17 +98,26 @@ describe("Post feed controls", () => {
     );
   });
 
-  it("exposes the mobile sort, create, search, and filter controls in tap order", () => {
+  it("exposes the mobile sort, create, search, and filter controls in tap order", async () => {
+    stubViewport(true);
     render(<Harness />);
 
     const controls = screen.getByRole("group", {
       name: "Post feed controls",
     });
+    await screen.findByRole("button", { name: "Filters" });
     expect(
       within(controls)
         .getAllByRole("button")
         .map((button) => button.textContent),
     ).toEqual(["Trending", "Top", "New", "New post", "Search", "Filters"]);
+  });
+
+  it("keeps the mobile Filters control out of the desktop breakpoint", () => {
+    stubViewport(false);
+    render(<Harness />);
+
+    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
   });
 
   it("opens the command palette from the Search button", async () => {
@@ -182,6 +192,15 @@ function MobileFiltersHarness() {
       <output data-testid="route-state">{JSON.stringify(search)}</output>
     </>
   );
+}
+
+function stubViewport(mobile: boolean) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: mobile && query === "(max-width: 1023px)",
+    media: query,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
 }
 
 function Harness({

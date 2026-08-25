@@ -124,10 +124,15 @@ describe("public feedback home page", () => {
     );
 
     const post = screen.getByRole("link", { name: /Keyboard-first search!/ });
-    expect(within(post).getByText("Feature Request")).toBeTruthy();
-    expect(within(post).getByText("Planned")).toBeTruthy();
+    const metadata = within(post).getByRole("group", {
+      name: "Post metadata",
+    });
+    expect(within(metadata).getByText("Feature Request")).toBeTruthy();
+    expect(within(metadata).getByText("Planned")).toBeTruthy();
     expect(within(post).getByLabelText("Score unavailable")).toBeTruthy();
-    expect(within(post).getByLabelText("Comments unavailable")).toBeTruthy();
+    expect(
+      within(metadata).getByLabelText("Comments unavailable"),
+    ).toBeTruthy();
     expect(within(post).getAllByText("—")).toHaveLength(2);
   });
 

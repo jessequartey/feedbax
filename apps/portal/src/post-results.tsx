@@ -113,7 +113,7 @@ function PostResultRow({
         slug={post.slug}
         contextual={maskPostLinks}
       >
-        <article className="grid grid-cols-[4rem_minmax(0,1fr)] items-start gap-4 p-5 transition-colors duration-150 hover:bg-muted/30 sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:items-center">
+        <article className="relative grid grid-cols-[4rem_minmax(0,1fr)] items-start gap-4 p-5 transition-colors duration-150 hover:bg-muted/30 sm:grid-cols-[4.75rem_minmax(0,1fr)] sm:items-center">
           <span
             className="flex h-[4.75rem] w-full flex-col items-center justify-center gap-1 border text-sm font-medium text-muted-foreground"
             aria-label="Score unavailable"
@@ -121,28 +121,32 @@ function PostResultRow({
             <ArrowUp className="size-5" aria-hidden="true" />
             <span aria-hidden="true">—</span>
           </span>
-          <span className="min-w-0">
+          <span className="min-w-0 sm:pr-16">
             <span className="block text-base font-medium text-foreground sm:text-lg">
               {post.title}
             </span>
             <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
               {post.description}
             </span>
-            <span className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span
+              className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+              role="group"
+              aria-label="Post metadata"
+            >
               <PostTypeBadge type={post.type} />
               {draft ? (
                 <Badge variant="outline">Draft</Badge>
               ) : (
                 <PostStatusBadge status={post.status} />
               )}
+              <span
+                className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground sm:absolute sm:top-1/2 sm:right-5 sm:-translate-y-1/2"
+                aria-label="Comments unavailable"
+              >
+                <MessageCircle className="size-4" aria-hidden="true" />
+                <span aria-hidden="true">—</span>
+              </span>
             </span>
-          </span>
-          <span
-            className="col-start-2 inline-flex items-center gap-2 self-end justify-self-end text-sm text-muted-foreground sm:col-start-auto sm:self-center"
-            aria-label="Comments unavailable"
-          >
-            <MessageCircle className="size-4" aria-hidden="true" />
-            <span aria-hidden="true">—</span>
           </span>
         </article>
       </PostLink>
