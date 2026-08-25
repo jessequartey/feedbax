@@ -17,6 +17,17 @@ export interface StoredComment {
 }
 
 export interface CommentStorage {
+  createPageComment(input: {
+    postId: string;
+    body: string;
+    displayName: string;
+  }): Promise<StoredComment>;
+  createDiscussionReply(input: {
+    postId: string;
+    discussionId: string;
+    body: string;
+    displayName: string;
+  }): Promise<StoredComment>;
   listPageComments(
     postId: string,
     cursor?: string,
@@ -32,6 +43,20 @@ export function createNotionCommentStorage({
   retry,
 }: NotionFeedbackStorageOptions): CommentStorage {
   return {
+    createPageComment: (input) =>
+      createComment({
+        parent: { page_id: input.postId },
+        body: input.body,
+        displayName: input.displayName,
+        postId: input.postId,
+      }),
+    createDiscussionReply: (input) =>
+      createComment({
+        discussion_id: input.discussionId,
+        body: input.body,
+        displayName: input.displayName,
+        postId: input.postId,
+      }),
     async listPageComments(postId, cursor) {
       const url = new URL(`${NOTION_API_URL}/comments`);
       url.searchParams.set("block_id", postId);
@@ -66,6 +91,45 @@ export function createNotionCommentStorage({
       return { items, ...(nextCursor ? { nextCursor } : {}) };
     },
   };
+
+  async function createComment(input: {
+    parent?: { page_id: string };
+    discussion_id?: string;
+    body: string;
+    displayName: string;
+    postId: string;
+  }): Promise<StoredComment> {
+    const response = await requestNotion(
+      `${NOTION_API_URL}/comments`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Notion-Version": NOTION_API_VERSION,
+        },
+        body: JSON.stringify({
+          ...(input.parent ? { parent: input.parent } : {}),
+          ...(input.discussion_id
+            ? { discussion_id: input.discussion_id }
+            : {}),
+          rich_text: [{ type: "text", text: { content: input.body } }],
+          display_name: {
+            type: "custom",
+            custom: { name: input.displayName },
+          },
+        }),
+      },
+      { request, retry, operation: "create" },
+    );
+    if (!response.ok)
+      throw new Error(
+        response.status === 403
+          ? "Notion cannot create Comments. Enable insert comment capability for the connection, then retry."
+          : `Notion rejected the Comment creation (${response.status}).`,
+      );
+    return commentFromNotion(await response.json(), input.postId);
+  }
 }
 
 function commentFromNotion(value: unknown, postId: string): StoredComment {

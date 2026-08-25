@@ -38,7 +38,9 @@ export function createPortalVoteHandler(options: {
 
     let participationPass: string | undefined;
     if (options.turnstileVerifier) {
-      const secret = requiredSigningSecret(options.participationSigningSecret);
+      const secret = requiredParticipationSigningSecret(
+        options.participationSigningSecret,
+      );
       const now = options.now?.() ?? Date.now();
       if (
         !value.participationPass ||
@@ -100,20 +102,20 @@ function validateVoteInput(input: unknown): {
   };
 }
 
-function requiredSigningSecret(secret?: string): string {
+export function requiredParticipationSigningSecret(secret?: string): string {
   if (!secret || secret.length < 32)
     throw new Error("Participation signing secret is missing or too short.");
   return secret;
 }
 
-function issueParticipationPass(secret: string, now: number): string {
+export function issueParticipationPass(secret: string, now: number): string {
   const payload = Buffer.from(
     JSON.stringify({ expiresAt: now + participationPassLifetime }),
   ).toString("base64url");
   return `${payload}.${sign(payload, secret)}`;
 }
 
-function verifyParticipationPass(
+export function verifyParticipationPass(
   pass: string,
   secret: string,
   now: number,

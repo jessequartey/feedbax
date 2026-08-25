@@ -7,6 +7,88 @@ import {
 } from "./index";
 
 describe("Feedback module", () => {
+  it("creates a participant Comment and reply only on a Published Post", async () => {
+    const now = new Date("2026-08-25T10:00:00.000Z");
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "published-post",
+          slug: "roadmap-search",
+          title: "Roadmap search",
+          description: "Search the roadmap.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "draft-post",
+          slug: "private-draft",
+          title: "Private draft",
+          description: "Not published.",
+          type: "General Feedback",
+          status: "New",
+          published: false,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    const comment = await feedback.createComment({
+      slug: "roadmap-search",
+      body: "Please include keyboard shortcuts.",
+      displayName: "  Ari  ",
+    });
+    const reply = await feedback.replyToCommentThread({
+      slug: "roadmap-search",
+      discussionId: comment.discussionId,
+      body: "That would be useful.",
+      displayName: "Mina",
+    });
+
+    expect(comment).toMatchObject({
+      body: "Please include keyboard shortcuts.",
+      author: { kind: "participant", displayName: "Ari" },
+    });
+    expect(reply).toMatchObject({ discussionId: comment.discussionId });
+    await expect(
+      feedback.listCommentThreads({ slug: "roadmap-search" }),
+    ).resolves.toMatchObject({
+      items: [
+        {
+          id: comment.discussionId,
+          comments: [
+            { id: comment.id, body: comment.body },
+            { id: reply.id, body: reply.body },
+          ],
+        },
+      ],
+    });
+    await expect(
+      feedback.createComment({
+        slug: "private-draft",
+        body: "This must not be stored.",
+        displayName: "Ari",
+      }),
+    ).rejects.toThrow("Published Posts");
+    await expect(
+      feedback.createComment({
+        slug: "roadmap-search",
+        body: "Missing name.",
+        displayName: " ",
+      }),
+    ).rejects.toThrow("display name is required");
+    await expect(
+      feedback.replyToCommentThread({
+        slug: "roadmap-search",
+        discussionId: "another-post-or-resolved-thread",
+        body: "Must not be accepted.",
+        displayName: "Ari",
+      }),
+    ).rejects.toThrow("existing open Comment Thread on this Post");
+  });
   it("lists only open page-level Comment Threads for a Published Post in stable pages", async () => {
     const feedback = createFeedbackModule({
       initialItems: [

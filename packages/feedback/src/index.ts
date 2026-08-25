@@ -179,6 +179,34 @@ export interface ListCommentThreadsInput {
   cursor?: string;
 }
 
+export interface CreateCommentInput {
+  slug: string;
+  body: string;
+  displayName: string;
+}
+
+export interface ReplyToCommentThreadInput extends CreateCommentInput {
+  discussionId: string;
+}
+
+export interface CreatedComment extends Comment {
+  discussionId: string;
+}
+
+export class CommentEligibilityError extends Error {
+  constructor() {
+    super("Comments are available only for Published Posts.");
+    this.name = "CommentEligibilityError";
+  }
+}
+
+export class CommentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CommentValidationError";
+  }
+}
+
 export type RoadmapStatus = Extract<
   PostStatus,
   "Planned" | "In Progress" | "Shipped"
@@ -310,6 +338,10 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 }
 
 export interface FeedbackModule {
+  createComment(input: CreateCommentInput): Promise<CreatedComment>;
+  replyToCommentThread(
+    input: ReplyToCommentThreadInput,
+  ): Promise<CreatedComment>;
   changeVote(input: ChangeVoteInput): Promise<VoteResult>;
   submitPost(input: SubmitPostInput): Promise<SubmittedPost>;
   editDraftPost(input: EditDraftPostInput): Promise<Post>;
@@ -381,6 +413,51 @@ export function createFeedbackModule(
   };
 
   return {
+    async createComment(input) {
+      const { post, body, displayName } = await validateCommentCreation(
+        input,
+        storage,
+      );
+      return toCreatedComment(
+        await commentStorage.createPageComment({
+          postId: post.id,
+          body,
+          displayName,
+        }),
+      );
+    },
+    async replyToCommentThread(input) {
+      const { post, body, displayName } = await validateCommentCreation(
+        input,
+        storage,
+      );
+      if (!input.discussionId.trim())
+        throw new CommentValidationError("Comment Thread is required.");
+      let cursor: string | undefined;
+      let eligible: boolean;
+      do {
+        const page = await commentStorage.listPageComments(post.id, cursor);
+        eligible = page.items.some(
+          (comment) =>
+            comment.discussionId === input.discussionId &&
+            !comment.resolved &&
+            (comment.scope ?? "page") === "page",
+        );
+        cursor = page.nextCursor;
+      } while (!eligible && cursor);
+      if (!eligible)
+        throw new CommentValidationError(
+          "Replies require an existing open Comment Thread on this Post.",
+        );
+      return toCreatedComment(
+        await commentStorage.createDiscussionReply({
+          postId: post.id,
+          discussionId: input.discussionId,
+          body,
+          displayName,
+        }),
+      );
+    },
     async listCommentThreads({ slug, cursor }) {
       if (!commentsEnabled) return { items: [] };
       const post = await storage.findPublicBySlug(slug);
@@ -547,11 +624,39 @@ export function createNotionFeedbackModule(
 function createInMemoryCommentStorage(
   initialComments: StoredComment[] = [],
 ): CommentStorage {
+  const comments = initialComments.map((comment) => structuredClone(comment));
   return {
+    async createPageComment(input) {
+      const id = randomUUID();
+      const comment: StoredComment = {
+        id,
+        postId: input.postId,
+        discussionId: id,
+        body: input.body,
+        author: { kind: "participant", displayName: input.displayName },
+        createdAt: new Date(),
+        resolved: false,
+        scope: "page",
+      };
+      comments.push(comment);
+      return structuredClone(comment);
+    },
+    async createDiscussionReply(input) {
+      const comment: StoredComment = {
+        id: randomUUID(),
+        postId: input.postId,
+        discussionId: input.discussionId,
+        body: input.body,
+        author: { kind: "participant", displayName: input.displayName },
+        createdAt: new Date(),
+        resolved: false,
+        scope: "page",
+      };
+      comments.push(comment);
+      return structuredClone(comment);
+    },
     async listPageComments(postId, cursor) {
-      const matching = initialComments.filter(
-        (comment) => comment.postId === postId,
-      );
+      const matching = comments.filter((comment) => comment.postId === postId);
       const start = cursor
         ? Math.max(
             0,
@@ -569,6 +674,32 @@ function createInMemoryCommentStorage(
           : {}),
       };
     },
+  };
+}
+
+async function validateCommentCreation(
+  input: CreateCommentInput,
+  storage: FeedbackStorage,
+) {
+  const post = await storage.findPublicBySlug(input.slug);
+  if (!post?.published) throw new CommentEligibilityError();
+  const displayName = input.displayName.trim();
+  if (!displayName)
+    throw new CommentValidationError(
+      "Device Profile display name is required.",
+    );
+  const body = input.body.trim();
+  if (!body) throw new CommentValidationError("Comment text is required.");
+  return { post, displayName, body };
+}
+
+function toCreatedComment(comment: StoredComment): CreatedComment {
+  return {
+    id: comment.id,
+    discussionId: comment.discussionId,
+    body: comment.body,
+    author: comment.author,
+    createdAt: comment.createdAt,
   };
 }
 

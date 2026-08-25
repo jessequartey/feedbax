@@ -47,6 +47,16 @@ export function createInvalidatingFeedbackModule({
   invalidator: PublicCacheInvalidator;
 }): FeedbackModule {
   return {
+    async createComment(input) {
+      const comment = await feedback.createComment(input);
+      await invalidator.invalidatePost(input.slug).catch(() => undefined);
+      return comment;
+    },
+    async replyToCommentThread(input) {
+      const comment = await feedback.replyToCommentThread(input);
+      await invalidator.invalidatePost(input.slug).catch(() => undefined);
+      return comment;
+    },
     async changeVote(input) {
       const result = await feedback.changeVote(input);
       await invalidator.invalidateVote(result.slug).catch(() => undefined);

@@ -3,6 +3,59 @@ import { describe, expect, it, vi } from "vitest";
 import { createNotionCommentStorage } from "./notion-comments";
 
 describe("Notion Comment HTTP boundary", () => {
+  it("creates native page Comments and discussion replies with a custom display name", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          notionComment({
+            id: "created-comment",
+            display_name: { type: "custom", resolved_name: "Ari" },
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          notionComment({
+            id: "created-reply",
+            display_name: { type: "custom", resolved_name: "Ari" },
+          }),
+        ),
+      );
+    const comments = createNotionCommentStorage({
+      token: "notion-token",
+      dataSourceId: "feedback",
+      propertyIds: {} as never,
+      request,
+    });
+
+    await comments.createPageComment({
+      postId: "page-1",
+      body: "A public message",
+      displayName: "Ari",
+    });
+    await comments.createDiscussionReply({
+      postId: "page-1",
+      discussionId: "discussion-1",
+      body: "A reply",
+      displayName: "Ari",
+    });
+
+    expect(
+      request.mock.calls.map((call) => JSON.parse(String(call[1]?.body))),
+    ).toEqual([
+      {
+        parent: { page_id: "page-1" },
+        rich_text: [{ type: "text", text: { content: "A public message" } }],
+        display_name: { type: "custom", custom: { name: "Ari" } },
+      },
+      {
+        discussion_id: "discussion-1",
+        rich_text: [{ type: "text", text: { content: "A reply" } }],
+        display_name: { type: "custom", custom: { name: "Ari" } },
+      },
+    ]);
+  });
   it("requests 50 page Comments, preserves the cursor, and classifies public authors", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
