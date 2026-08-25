@@ -141,7 +141,7 @@ export interface PublicRoadmapQuery {
 
 export type PublicPostRoadmap = Record<RoadmapStatus, PublicRoadmapPage>;
 
-const roadmapStatuses = [
+export const roadmapStatuses = [
   "Planned",
   "In Progress",
   "Shipped",
@@ -216,20 +216,7 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
           right.createdAt.getTime() - left.createdAt.getTime() ||
           right.id.localeCompare(left.id),
       );
-    const cursorId = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const cursorIndex = cursorId
-      ? items.findIndex((item) => item.id === cursorId)
-      : -1;
-    const startIndex = cursorIndex + 1;
-    const pageItems = items.slice(startIndex, startIndex + 25);
-    const hasNextPage = startIndex + pageItems.length < items.length;
-    const lastItem = pageItems.at(-1);
-    return {
-      items: pageItems,
-      ...(hasNextPage && lastItem
-        ? { nextCursor: encodeCursor(lastItem.id) }
-        : {}),
-    };
+    return paginateStoredPosts(items, query.cursor);
   }
 
   async listPublicRoadmap(query: PublicRoadmapQuery): Promise<{
@@ -245,19 +232,8 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
           right.updatedAt.getTime() - left.updatedAt.getTime() ||
           right.id.localeCompare(left.id),
       );
-    const cursorId = query.cursor ? decodeCursor(query.cursor) : undefined;
-    const cursorIndex = cursorId
-      ? items.findIndex((item) => item.id === cursorId)
-      : -1;
-    const startIndex = cursorIndex + 1;
-    const pageItems = items.slice(startIndex, startIndex + 25);
-    const hasNextPage = startIndex + pageItems.length < items.length;
-    const lastItem = pageItems.at(-1);
     return {
-      items: pageItems,
-      ...(hasNextPage && lastItem
-        ? { nextCursor: encodeCursor(lastItem.id) }
-        : {}),
+      ...paginateStoredPosts(items, query.cursor),
       totalCount: items.length,
     };
   }
@@ -428,6 +404,26 @@ function encodeCursor(id: string): string {
 
 function decodeCursor(cursor: string): string {
   return Buffer.from(cursor, "base64url").toString("utf8");
+}
+
+function paginateStoredPosts(
+  items: StoredPost[],
+  cursor?: string,
+): { items: StoredPost[]; nextCursor?: string } {
+  const cursorId = cursor ? decodeCursor(cursor) : undefined;
+  const cursorIndex = cursorId
+    ? items.findIndex((item) => item.id === cursorId)
+    : -1;
+  const startIndex = cursorIndex + 1;
+  const pageItems = items.slice(startIndex, startIndex + 25);
+  const hasNextPage = startIndex + pageItems.length < items.length;
+  const lastItem = pageItems.at(-1);
+  return {
+    items: pageItems,
+    ...(hasNextPage && lastItem
+      ? { nextCursor: encodeCursor(lastItem.id) }
+      : {}),
+  };
 }
 
 function toPost(item: StoredPost): Post {

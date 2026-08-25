@@ -1,3 +1,4 @@
+import { roadmapStatuses, type RoadmapStatus } from "@feedbax/feedback";
 import { createServerFn } from "@tanstack/react-start";
 
 import { createConfiguredFeedbackModule } from "./feedback-runtime";
@@ -7,7 +8,7 @@ import {
 } from "./public-roadmap-page";
 import { runSafePublicRead } from "./safe-public-failure";
 
-const roadmapStatuses = new Set(["Planned", "In Progress", "Shipped"]);
+const roadmapStatusSet = new Set<string>(roadmapStatuses);
 
 export const getPublicRoadmapPage = createServerFn({ method: "GET" }).handler(
   () =>
@@ -24,12 +25,12 @@ export const getPublicRoadmapStatusPage = createServerFn({ method: "GET" })
       throw new Error("Roadmap request is invalid.");
     const status = Reflect.get(input, "status");
     const cursor = Reflect.get(input, "cursor");
-    if (typeof status !== "string" || !roadmapStatuses.has(status))
+    if (typeof status !== "string" || !roadmapStatusSet.has(status))
       throw new Error("Roadmap request is invalid.");
     if (cursor !== undefined && typeof cursor !== "string")
       throw new Error("Roadmap request is invalid.");
     return {
-      status: status as import("@feedbax/feedback").RoadmapStatus,
+      status: status as RoadmapStatus,
       ...(cursor ? { cursor } : {}),
     };
   })
