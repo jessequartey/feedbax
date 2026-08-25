@@ -102,6 +102,19 @@ export function createNotionFeedbackStorage({
       );
       return postFromPage(await readNotionPage(response), propertyIds);
     },
+    async updateVoteCount(item, voteCount) {
+      const response = await notionRequest(
+        `${NOTION_API_URL}/pages/${item.id}`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            properties: { [propertyIds.voteCount]: { number: voteCount } },
+          }),
+        },
+      );
+      return postFromPage(await readNotionPage(response), propertyIds);
+    },
     async find(id) {
       const response = await notionRequest(`${NOTION_API_URL}/pages/${id}`, {
         method: "GET",
@@ -269,7 +282,13 @@ function publicListQuery(
           : []),
       ],
     },
-    sorts: [{ property: ids.createdAt, direction: "descending" }],
+    sorts:
+      query.sort === "new"
+        ? [{ property: ids.createdAt, direction: "descending" }]
+        : [
+            { property: ids.voteCount, direction: "descending" },
+            { property: ids.createdAt, direction: "descending" },
+          ],
   };
 }
 
@@ -354,6 +373,7 @@ function publicProjectionPropertyIds(ids: FeedbackPropertyIds): string[] {
     ids.status,
     ids.createdAt,
     ids.updatedAt,
+    ids.voteCount,
   ];
 }
 
@@ -380,6 +400,7 @@ function postFromPublicPage(
     published: published ?? booleanField(property(ids.published), "checkbox"),
     createdAt: new Date(stringField(page, "created_time")),
     updatedAt: new Date(stringField(page, "last_edited_time")),
+    voteCount: numberField(property(ids.voteCount), "number"),
   };
 }
 
@@ -405,6 +426,7 @@ function propertiesForCreate(
     [ids.type]: { select: { name: item.type } },
     [ids.status]: { select: { name: item.status } },
     [ids.published]: { checkbox: item.published },
+    [ids.voteCount]: { number: item.voteCount ?? 0 },
     [ids.submitterName]: richText(item.submitter?.name),
     [ids.submitterEmail]: { email: item.submitter?.email ?? null },
     [ids.source]: { select: { name: item.source ?? "Portal" } },
@@ -548,6 +570,11 @@ function optionalText(
     .filter((value): value is string => typeof value === "string")
     .join("");
   return text || undefined;
+}
+
+function numberField(property: Record<string, unknown>, key: string): number {
+  const value = property[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function requiredSelect(

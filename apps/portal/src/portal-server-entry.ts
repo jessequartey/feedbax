@@ -9,9 +9,11 @@ import {
 
 export function createPortalServerEntry({
   trustedFeedbackHandler,
+  voteHandler,
   applicationHandler = startHandler.fetch,
 }: {
   trustedFeedbackHandler: (request: Request) => Promise<Response>;
+  voteHandler?: (request: Request) => Promise<Response>;
   applicationHandler?: typeof startHandler.fetch;
 }) {
   return createServerEntry({
@@ -25,6 +27,13 @@ export function createPortalServerEntry({
       }
       if (request.method === "POST" && url.pathname === "/api/v1/posts") {
         return trustedFeedbackHandler(request);
+      }
+      if (
+        request.method === "POST" &&
+        url.pathname === "/internal/votes" &&
+        voteHandler
+      ) {
+        return voteHandler(request);
       }
       const canonicalRequest = canonicalPublicRequest(request);
       if (canonicalRequest) {

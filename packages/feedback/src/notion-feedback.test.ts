@@ -15,6 +15,7 @@ const propertyIds: FeedbackPropertyIds = {
   type: "type-id",
   status: "status-id",
   published: "published-id",
+  voteCount: "vote-count-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",
@@ -25,6 +26,46 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion-backed Feedback module", () => {
+  it("reads the current Vote Count and retries the absolute Number-property write", async () => {
+    const page = (voteCount: number) =>
+      notionPage({
+        title: "Keyboard-first search",
+        description: "Navigate without a mouse.",
+        type: "Feature Request",
+        editTokenHash: "private-hash",
+        published: true,
+        voteCount,
+      });
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ results: [page(4)] }))
+      .mockResolvedValueOnce(
+        Response.json(
+          { object: "error" },
+          { status: 429, headers: { "Retry-After": "0" } },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json(page(5)));
+    const feedback = createNotionFeedbackModule({
+      token: "notion-token",
+      dataSourceId: "feedback-data-source",
+      propertyIds,
+      request,
+      retry: { sleep: async () => undefined, random: () => 0 },
+    });
+
+    await expect(
+      feedback.changeVote({ slug: "keyboard-first-search", intention: "add" }),
+    ).resolves.toEqual({
+      slug: "keyboard-first-search",
+      voteCount: 5,
+    });
+    expect(JSON.parse(String(request.mock.calls[1]?.[1]?.body))).toEqual({
+      properties: { "vote-count-id": { number: 5 } },
+    });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+
   it("retries a 429 response according to Retry-After", async () => {
     const delays: number[] = [];
     const request = vi
@@ -179,6 +220,7 @@ describe("Notion-backed Feedback module", () => {
       status: "Planned",
       createdAt: new Date("2026-08-20T13:00:00.000Z"),
       updatedAt: new Date("2026-08-20T13:00:00.000Z"),
+      voteCount: 0,
     });
     expect(request).toHaveBeenCalledWith(
       expect.stringContaining(
@@ -235,6 +277,7 @@ describe("Notion-backed Feedback module", () => {
           status: "In Progress",
           createdAt: new Date("2026-08-20T13:00:00.000Z"),
           updatedAt: new Date("2026-08-20T13:00:00.000Z"),
+          voteCount: 0,
         },
       ],
       nextCursor: "notion-next-cursor",
@@ -255,7 +298,10 @@ describe("Notion-backed Feedback module", () => {
           { property: "status-id", select: { equals: "In Progress" } },
         ],
       },
-      sorts: [{ property: "created-at-id", direction: "descending" }],
+      sorts: [
+        { property: "vote-count-id", direction: "descending" },
+        { property: "created-at-id", direction: "descending" },
+      ],
     });
   });
 
@@ -435,6 +481,7 @@ describe("Notion-backed Feedback module", () => {
       "title",
       "type",
       "updatedAt",
+      "voteCount",
     ]);
     expect(submitted).not.toHaveProperty("children");
     expect(submitted).not.toHaveProperty("Product Team Priority");
@@ -809,6 +856,7 @@ function notionPage({
   editTokenHash,
   status = "New",
   published = false,
+  voteCount = 0,
 }: {
   id?: string;
   slug?: string;
@@ -821,6 +869,7 @@ function notionPage({
   status?:
     "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
   published?: boolean;
+  voteCount?: number;
 }) {
   const canonicalSlug =
     slug ??
@@ -855,6 +904,11 @@ function notionPage({
         id: "published-id",
         type: "checkbox",
         checkbox: published,
+      },
+      "Vote Count": {
+        id: "vote-count-id",
+        type: "number",
+        number: voteCount,
       },
       "Submitter Name": {
         id: "submitter-name-id",

@@ -15,6 +15,7 @@ const propertyIds: FeedbackPropertyIds = {
   type: "type-id",
   status: "status-id",
   published: "published-id",
+  voteCount: "vote-count-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",
@@ -399,6 +400,7 @@ function notionPage({
       Type: { id: "type-id", select: { name: type } },
       Status: { id: "status-id", select: { name: "New" } },
       Published: { id: "published-id", checkbox: false },
+      "Vote Count": { id: "vote-count-id", number: 0 },
       "Submitter Name": {
         id: "submitter-name-id",
         rich_text: [{ plain_text: "Ama" }],

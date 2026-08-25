@@ -21,6 +21,7 @@ export type NewStoredPost = Omit<Post, "id"> &
 export interface FeedbackStorage {
   create(item: NewStoredPost): Promise<StoredPost>;
   save(item: StoredPost): Promise<StoredPost>;
+  updateVoteCount(item: StoredPost, voteCount: number): Promise<StoredPost>;
   find(id: string): Promise<StoredPost | undefined>;
   findBySlug(slug: string): Promise<StoredPost | undefined>;
   findPublicBySlug(slug: string): Promise<StoredPost | undefined>;

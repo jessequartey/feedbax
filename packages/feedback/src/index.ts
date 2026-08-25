@@ -48,6 +48,7 @@ export interface Post extends SubmitPostInput {
   published: boolean;
   createdAt: Date;
   updatedAt: Date;
+  voteCount?: number;
 }
 
 declare const browserCapabilityBrand: unique symbol;
@@ -76,7 +77,24 @@ export type PublicPost = Pick<
   | "status"
   | "createdAt"
   | "updatedAt"
->;
+> & { voteCount?: number };
+
+export interface ChangeVoteInput {
+  slug: string;
+  intention: "add" | "remove";
+}
+
+export interface VoteResult {
+  slug: string;
+  voteCount: number;
+}
+
+export class VoteEligibilityError extends Error {
+  constructor() {
+    super("Votes are available only for Published Posts.");
+    this.name = "VoteEligibilityError";
+  }
+}
 
 export type DraftPost = Pick<
   Post,
@@ -167,6 +185,13 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     return structuredClone(item);
   }
 
+  async updateVoteCount(
+    item: StoredPost,
+    voteCount: number,
+  ): Promise<StoredPost> {
+    return this.save({ ...item, voteCount });
+  }
+
   async find(id: string): Promise<StoredPost | undefined> {
     const item = this.#items.get(id);
     return item ? structuredClone(item) : undefined;
@@ -211,10 +236,13 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
               .toLocaleLowerCase()
               .includes(query.search.toLocaleLowerCase())),
       )
-      .sort(
-        (left, right) =>
-          right.createdAt.getTime() - left.createdAt.getTime() ||
-          right.id.localeCompare(left.id),
+      .sort((left, right) =>
+        query.sort === "new"
+          ? right.createdAt.getTime() - left.createdAt.getTime() ||
+            right.id.localeCompare(left.id)
+          : (right.voteCount ?? 0) - (left.voteCount ?? 0) ||
+            right.createdAt.getTime() - left.createdAt.getTime() ||
+            right.id.localeCompare(left.id),
       );
     return paginateStoredPosts(items, query.cursor);
   }
@@ -244,6 +272,7 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 }
 
 export interface FeedbackModule {
+  changeVote(input: ChangeVoteInput): Promise<VoteResult>;
   submitPost(input: SubmitPostInput): Promise<SubmittedPost>;
   editDraftPost(input: EditDraftPostInput): Promise<Post>;
   getPublicPost(slug: string): Promise<PublicPost | undefined>;
@@ -265,6 +294,7 @@ export type FeedbackMutationModule = Pick<
 interface CreateFeedbackModuleOptions {
   initialItems?: StoredPost[];
   storage?: FeedbackStorage;
+  votingEnabled?: boolean;
 }
 
 export function createFeedbackModule(
@@ -272,6 +302,8 @@ export function createFeedbackModule(
 ): FeedbackModule {
   const storage =
     options.storage ?? new InMemoryFeedbackStorage(options.initialItems);
+  const votingEnabled = options.votingEnabled ?? true;
+  const voteQueues = new Map<string, Promise<void>>();
   const editStoredDraft = async (input: EditDraftPostInput) => {
     const item = await storage.find(input.id);
 
@@ -301,6 +333,27 @@ export function createFeedbackModule(
   };
 
   return {
+    changeVote(input) {
+      const previous = voteQueues.get(input.slug) ?? Promise.resolve();
+      const mutation = previous.then(async () => {
+        const item = await storage.findBySlug(input.slug);
+        if (!item?.published) throw new VoteEligibilityError();
+        const voteCount = Math.max(
+          0,
+          (item.voteCount ?? 0) + (input.intention === "add" ? 1 : -1),
+        );
+        const saved = await storage.updateVoteCount(item, voteCount);
+        return { slug: saved.slug, voteCount: saved.voteCount ?? voteCount };
+      });
+      voteQueues.set(
+        input.slug,
+        mutation.then(
+          () => undefined,
+          () => undefined,
+        ),
+      );
+      return mutation;
+    },
     submitPost(input) {
       const submission = postCreationQueue.then(async () => {
         const now = new Date();
@@ -314,6 +367,7 @@ export function createFeedbackModule(
           createdAt: now,
           updatedAt: now,
           browserCapabilityHash: hashBrowserCapability(browserCapability),
+          voteCount: 0,
         });
 
         return {
@@ -332,7 +386,9 @@ export function createFeedbackModule(
     },
     async getPublicPost(slug) {
       const item = await storage.findPublicBySlug(slug);
-      return item?.published ? toPublicPost(toPost(item)) : undefined;
+      return item?.published
+        ? toPublicPost(toPost(item), votingEnabled)
+        : undefined;
     },
     async getDraftPost(input) {
       const item = await storage.find(input.id);
@@ -344,7 +400,9 @@ export function createFeedbackModule(
     async listPublicPosts(query = {}) {
       const page = await storage.listPublic(query);
       return {
-        items: page.items.map((item) => toPublicPost(toPost(item))),
+        items: page.items.map((item) =>
+          toPublicPost(toPost(item), votingEnabled),
+        ),
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       };
     },
@@ -367,6 +425,7 @@ export function createFeedbackModule(
         updatedAt: now,
         source: "API",
         externalId: input.externalId,
+        voteCount: 0,
       });
       return toTrustedSubmittedPost(item);
     },
@@ -391,10 +450,11 @@ export function createFeedbackModule(
 }
 
 export function createNotionFeedbackModule(
-  options: NotionFeedbackStorageOptions,
+  options: NotionFeedbackStorageOptions & { votingEnabled?: boolean },
 ): FeedbackModule {
   return createFeedbackModule({
     storage: createNotionFeedbackStorage(options),
+    votingEnabled: options.votingEnabled,
   });
 }
 
@@ -438,10 +498,11 @@ function toPost(item: StoredPost): Post {
     published: item.published,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    voteCount: item.voteCount ?? 0,
   };
 }
 
-function toPublicPost(post: Post): PublicPost {
+function toPublicPost(post: Post, votingEnabled = true): PublicPost {
   return {
     slug: post.slug,
     title: post.title,
@@ -450,6 +511,7 @@ function toPublicPost(post: Post): PublicPost {
     status: post.status,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
+    ...(votingEnabled ? { voteCount: post.voteCount ?? 0 } : {}),
   };
 }
 

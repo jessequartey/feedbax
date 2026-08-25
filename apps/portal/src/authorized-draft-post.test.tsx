@@ -59,7 +59,7 @@ it("shows an authorized Draft Post in the shared detail layout", async () => {
     await screen.findByRole("article", { name: "Original title" }),
   );
   expect(article.getByText("Draft")).toBeTruthy();
-  expect(article.getByLabelText("Score unavailable")).toBeTruthy();
+  expect(article.queryByRole("button", { name: /vote/i })).toBeNull();
   expect(article.getByLabelText("Comments unavailable")).toBeTruthy();
   expect(
     within(article.getByRole("region", { name: "Comments" })).getByText(

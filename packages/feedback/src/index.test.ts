@@ -7,6 +7,102 @@ import {
 } from "./index";
 
 describe("Feedback module", () => {
+  it("adds and removes a Vote from the server-authoritative count on a Published Post", async () => {
+    const now = new Date("2026-08-21T10:00:00.000Z");
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "published-post",
+          slug: "keyboard-navigation",
+          title: "Keyboard navigation",
+          description: "Navigate without a mouse.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          voteCount: 2,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    await expect(
+      feedback.changeVote({ slug: "keyboard-navigation", intention: "add" }),
+    ).resolves.toEqual({ slug: "keyboard-navigation", voteCount: 3 });
+    await expect(
+      feedback.changeVote({ slug: "keyboard-navigation", intention: "remove" }),
+    ).resolves.toEqual({ slug: "keyboard-navigation", voteCount: 2 });
+  });
+
+  it("serializes concurrent Vote mutations for one Post within the module instance", async () => {
+    const now = new Date("2026-08-21T10:00:00.000Z");
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "post",
+          slug: "post",
+          title: "Post",
+          description: "Visible.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          voteCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    await expect(
+      Promise.all([
+        feedback.changeVote({ slug: "post", intention: "add" }),
+        feedback.changeVote({ slug: "post", intention: "add" }),
+      ]),
+    ).resolves.toEqual([
+      { slug: "post", voteCount: 1 },
+      { slug: "post", voteCount: 2 },
+    ]);
+  });
+
+  it("rejects Votes for unpublished Posts and clamps removals at zero", async () => {
+    const now = new Date("2026-08-21T10:00:00.000Z");
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "published-post",
+          slug: "published-post",
+          title: "Published Post",
+          description: "Visible.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          voteCount: 0,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "draft-post",
+          slug: "draft-post",
+          title: "Draft Post",
+          description: "Private.",
+          type: "Feature Request",
+          status: "New",
+          published: false,
+          voteCount: 4,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+
+    await expect(
+      feedback.changeVote({ slug: "published-post", intention: "remove" }),
+    ).resolves.toEqual({ slug: "published-post", voteCount: 0 });
+    await expect(
+      feedback.changeVote({ slug: "draft-post", intention: "add" }),
+    ).rejects.toThrow("Votes are available only for Published Posts.");
+  });
+
   it("submits a Post with persisted public identity and private edit authority", async () => {
     const feedback = createFeedbackModule();
 
@@ -116,6 +212,7 @@ describe("Feedback module", () => {
       status: "Planned",
       createdAt,
       updatedAt: createdAt,
+      voteCount: 0,
     });
     expect(draftPost).toMatchObject({
       id: draft.id,
@@ -251,6 +348,7 @@ describe("Feedback module", () => {
             published,
             createdAt: new Date("2026-08-20T09:00:00.000Z"),
             updatedAt: new Date("2026-08-20T09:00:00.000Z"),
+            voteCount: 0,
             browserCapabilityHash:
               "ZtNPunH49FD35FWYhT5Tv8I7vRKQJ8uxMaL0_9eHjNA",
           },
@@ -359,6 +457,7 @@ describe("Feedback module", () => {
             status: "Planned",
             createdAt,
             updatedAt: new Date("2026-08-20T09:00:00.000Z"),
+            voteCount: 0,
           },
           {
             slug: "planned-older",
@@ -368,6 +467,7 @@ describe("Feedback module", () => {
             status: "Planned",
             createdAt,
             updatedAt: new Date("2026-08-18T09:00:00.000Z"),
+            voteCount: 0,
           },
         ],
         totalCount: 2,
@@ -382,6 +482,7 @@ describe("Feedback module", () => {
             status: "In Progress",
             createdAt,
             updatedAt: new Date("2026-08-19T09:00:00.000Z"),
+            voteCount: 0,
           },
         ],
         totalCount: 1,
@@ -396,6 +497,7 @@ describe("Feedback module", () => {
             status: "Shipped",
             createdAt,
             updatedAt: new Date("2026-08-17T09:00:00.000Z"),
+            voteCount: 0,
           },
         ],
         totalCount: 1,
@@ -547,6 +649,7 @@ describe("Feedback module", () => {
       "title",
       "type",
       "updatedAt",
+      "voteCount",
     ]);
   });
 

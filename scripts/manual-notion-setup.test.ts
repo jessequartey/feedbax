@@ -19,6 +19,7 @@ describe("manual Notion setup", () => {
         ["Type", "type-id", "select"],
         ["Status", "status-id", "select"],
         ["Published", "published-id", "checkbox"],
+        ["Vote Count", "vote-count-id", "number"],
         ["Submitter Name", "submitter-name-id", "rich_text"],
         ["Submitter Email", "submitter-email-id", "email"],
         ["Source", "source-id", "select"],
@@ -61,6 +62,7 @@ describe("manual Notion setup", () => {
       type: "type-id",
       status: "status-id",
       published: "published-id",
+      voteCount: "vote-count-id",
       submitterName: "submitter-name-id",
       submitterEmail: "submitter-email-id",
       source: "source-id",
@@ -96,6 +98,7 @@ describe("manual Notion setup", () => {
       NOTION_FEEDBACK_TYPE_PROPERTY_ID: expectedPropertyIds.type,
       NOTION_FEEDBACK_STATUS_PROPERTY_ID: expectedPropertyIds.status,
       NOTION_FEEDBACK_PUBLISHED_PROPERTY_ID: expectedPropertyIds.published,
+      NOTION_FEEDBACK_VOTE_COUNT_PROPERTY_ID: expectedPropertyIds.voteCount,
       NOTION_FEEDBACK_SUBMITTER_NAME_PROPERTY_ID:
         expectedPropertyIds.submitterName,
       NOTION_FEEDBACK_SUBMITTER_EMAIL_PROPERTY_ID:
@@ -113,6 +116,9 @@ describe("manual Notion setup", () => {
       `FEEDBAX_API_KEY_HASH=${createHash("sha256")
         .update(smokeApiKey ?? "")
         .digest("base64url")}`,
+    );
+    expect(contents.match(/PARTICIPATION_SIGNING_SECRET=(.+)/)?.[1]).toMatch(
+      /^[A-Za-z0-9_-]{43}$/,
     );
 
     const transcript = output.mock.calls.flat().join("\n");

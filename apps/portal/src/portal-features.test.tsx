@@ -67,13 +67,16 @@ describe("disabled portal capabilities", () => {
           description: "No unavailable capabilities are advertised.",
           type: "General Feedback",
           status: "New",
+          voteCount: 0,
           createdAt: new Date("2026-08-25T00:00:00Z"),
           updatedAt: new Date("2026-08-25T00:00:00Z"),
         }}
       />,
     );
     expect(screen.queryByText(/comment/i)).toBeNull();
-    expect(screen.getByLabelText(/score/i)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Add Vote, 0 Votes" }),
+    ).toBeTruthy();
   });
 
   it("removes score treatment independently", () => {

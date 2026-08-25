@@ -18,6 +18,7 @@ const propertyIds: FeedbackPropertyIds = {
   type: "type-id",
   status: "status-id",
   published: "published-id",
+  voteCount: "vote-count-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",

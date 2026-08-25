@@ -7,11 +7,12 @@ import {
   EmptyTitle,
 } from "@feedbax/ui/components/empty";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
-import { ArrowLeft, ArrowUp, MessageCircle } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 import { type ReactNode, useId } from "react";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
 import { formatPublicDate } from "./public-date";
 import feedbax from "./feedbax";
+import { VoteToggle } from "./vote-toggle";
 
 export function PublicPostDetail({
   post,
@@ -50,13 +51,11 @@ export function PublicPostDetail({
           {summaryActions ? (
             <div className="post-detail-summary-actions">{summaryActions}</div>
           ) : null}
-          {features.voting || features.comments ? (
+          {(features.voting && post.voteCount !== undefined) ||
+          features.comments ? (
             <div className="post-detail-engagement">
-              {features.voting ? (
-                <span aria-label="Score unavailable">
-                  <ArrowUp aria-hidden="true" />
-                  <span aria-hidden="true">—</span>
-                </span>
+              {features.voting && post.voteCount !== undefined ? (
+                <VoteToggle post={post} />
               ) : null}
               {features.comments ? (
                 <span aria-label="Comments unavailable">

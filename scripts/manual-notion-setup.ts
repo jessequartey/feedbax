@@ -21,6 +21,7 @@ const propertyEnvironmentNames = {
   type: "NOTION_FEEDBACK_TYPE_PROPERTY_ID",
   status: "NOTION_FEEDBACK_STATUS_PROPERTY_ID",
   published: "NOTION_FEEDBACK_PUBLISHED_PROPERTY_ID",
+  voteCount: "NOTION_FEEDBACK_VOTE_COUNT_PROPERTY_ID",
   submitterName: "NOTION_FEEDBACK_SUBMITTER_NAME_PROPERTY_ID",
   submitterEmail: "NOTION_FEEDBACK_SUBMITTER_EMAIL_PROPERTY_ID",
   source: "NOTION_FEEDBACK_SOURCE_PROPERTY_ID",
@@ -46,11 +47,13 @@ export async function provisionManualInstallation({
   });
   const apiKey = randomBytes(32).toString("base64url");
   const apiKeyHash = createHash("sha256").update(apiKey).digest("base64url");
+  const participationSigningSecret = randomBytes(32).toString("base64url");
   const values: Record<string, string> = {
     NOTION_TOKEN: token,
     NOTION_FEEDBACK_DATA_SOURCE_ID: configuration.dataSourceId,
     FEEDBAX_API_KEY_HASH: apiKeyHash,
     FEEDBAX_SMOKE_API_KEY: apiKey,
+    PARTICIPATION_SIGNING_SECRET: participationSigningSecret,
   };
 
   for (const [property, environmentName] of Object.entries(

@@ -13,5 +13,6 @@ declare module "cloudflare:workers" {
       limit(options: { key: string }): Promise<{ success: boolean }>;
     };
     TURNSTILE_SECRET_KEY?: string;
+    PARTICIPATION_SIGNING_SECRET?: string;
   };
 }

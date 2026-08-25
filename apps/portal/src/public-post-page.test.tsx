@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 
 import { createFeedbackModule } from "@feedbax/feedback";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadPublicPost, postPath } from "./public-post-page";
 import {
   PublicPostDetail,
@@ -69,7 +76,7 @@ describe("canonical Post page", () => {
     expect(html).toContain("Loading Post details…");
   });
 
-  it("shows the Post summary with unavailable engagement placeholders", () => {
+  it("shows the Post summary with a Vote toggle", () => {
     render(<PublicPostDetail post={publicPost} />);
 
     expect(
@@ -77,8 +84,51 @@ describe("canonical Post page", () => {
     ).toBeTruthy();
     expect(screen.getAllByText("Feature Request").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Planned").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("Score unavailable")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Add Vote, 0 Votes" }),
+    ).toBeTruthy();
     expect(screen.getByLabelText("Comments unavailable")).toBeTruthy();
+  });
+
+  it("persists voted state only after confirmation and rolls back a failed optimistic Vote", async () => {
+    localStorage.clear();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ voteCount: 1 }))
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: "Vote verification is required.",
+            code: "verification_required",
+          },
+          { status: 400 },
+        ),
+      );
+    render(<PublicPostDetail post={publicPost} />);
+    const button = screen.getByRole("button", { name: "Add Vote, 0 Votes" });
+
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(button.textContent).toContain("1"));
+    expect(localStorage.getItem("feedbax:voted-posts")).toContain(
+      publicPost.slug,
+    );
+
+    sessionStorage.setItem("feedbax:participation-pass", "expired-pass");
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain(
+        "verification is required",
+      ),
+    );
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(button.textContent).toContain("1");
+    expect(localStorage.getItem("feedbax:voted-posts")).toContain(
+      publicPost.slug,
+    );
+    expect(sessionStorage.getItem("feedbax:participation-pass")).toBeNull();
+    fetchMock.mockRestore();
   });
 
   it("shows only public metadata in the Details sidebar", () => {
@@ -117,6 +167,7 @@ const publicPost = {
   description: "Open search without reaching for the mouse.",
   type: "Feature Request" as const,
   status: "Planned" as const,
+  voteCount: 0,
   createdAt: new Date("2026-08-20T10:00:00.000Z"),
   updatedAt: new Date("2026-08-22T10:00:00.000Z"),
 };

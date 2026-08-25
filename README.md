@@ -2,6 +2,12 @@
 
 Feedbax Core is the open-source, self-hostable Feedbax application. Its initial workspace was generated once from the pinned Better-T-Stack foundation recorded in `bts.jsonc`; Better-T-Stack is not a runtime dependency.
 
+## Best-effort voting
+
+In the Notion-only Profile, Votes are browser-remembered convenience state backed by an absolute `Vote Count` Number property in Notion. They are not verified one-person-one-vote records: clearing browser storage, retries, and concurrent writes from separate Worker instances can cause duplicate or drifting counts. One Worker instance serializes changes per Post, but Notion provides no atomic increment across instances.
+
+When Turnstile is configured, the first participation action issues a signed Participation Pass valid for 30 minutes. Setup stores its generated `PARTICIPATION_SIGNING_SECRET` outside typed public configuration; rotating that secret invalidates outstanding passes.
+
 ## Features
 
 - **TypeScript** - For type safety and improved developer experience

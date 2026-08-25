@@ -45,6 +45,11 @@ const canonicalProperties = {
     type: "checkbox",
     schema: { checkbox: {} },
   },
+  voteCount: {
+    name: "Vote Count",
+    type: "number",
+    schema: { number: { format: "number" } },
+  },
   submitterName: {
     name: "Submitter Name",
     type: "rich_text",
