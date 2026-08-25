@@ -184,19 +184,25 @@ textarea:focus-visible {
   gap: clamp(2rem, 7vw, 7rem);
   margin-top: clamp(3.5rem, 8vw, 7rem);
   padding: clamp(2rem, 5vw, 4rem);
-  border: 1px solid var(--portal-ink);
-  background: color-mix(in srgb, white 36%, transparent);
+  border: 1px solid var(--portal-rule);
+  background: var(--card);
 }
 
 .create-post-dialog {
   max-height: min(90dvh, 52rem);
-  max-width: min(56rem, calc(100vw - 2rem));
+  width: min(62rem, calc(100vw - 2rem));
+  max-width: min(62rem, calc(100vw - 2rem));
   overflow-y: auto;
   padding: 0;
 }
 
+.create-post-drawer {
+  max-height: calc(100svh - 1rem);
+}
+
 .create-post-drawer .feedback-submit {
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .feedback-submit[data-display="overlay"] {
@@ -282,6 +288,88 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.feedback-post-type-picker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+.feedback-post-type-card {
+  position: relative;
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 8rem;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto 1fr;
+  gap: 1.25rem 0.75rem;
+  align-content: space-between;
+  padding: 1rem;
+  border: 1px solid var(--portal-rule);
+  background: var(--background);
+  color: var(--foreground);
+  cursor: pointer;
+  text-transform: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.feedback-post-type-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--portal-accent) 55%,
+    var(--portal-rule)
+  );
+  background: color-mix(in srgb, var(--portal-accent) 5%, var(--background));
+  transform: translateY(-2px);
+}
+
+.feedback-post-type-card:has([data-checked]) {
+  border-color: var(--portal-accent);
+  background: color-mix(in srgb, var(--portal-accent) 10%, var(--background));
+}
+
+.feedback-post-type-card:has(:focus-visible) {
+  border-color: var(--ring);
+  outline: 2px solid color-mix(in srgb, var(--ring) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.feedback-post-type-card > [data-slot="radio-group-item"] {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.feedback-post-type-card > svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  grid-column: 1;
+  grid-row: 1;
+  color: var(--portal-accent);
+  stroke-width: 1.75;
+}
+
+.feedback-post-type-copy {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  gap: 0.3rem;
+  align-self: end;
+}
+
+.feedback-post-type-copy strong {
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.feedback-post-type-copy small {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .feedback-submit-actions {
   display: flex;
   flex-wrap: wrap;
@@ -291,10 +379,7 @@ textarea:focus-visible {
 .feedback-submit-actions button {
   min-height: 3rem;
   padding: 0 1.25rem;
-  border: 1px solid var(--portal-ink);
   border-radius: 0;
-  background: var(--portal-ink);
-  color: white;
   cursor: pointer;
   font: inherit;
   font-size: 0.82rem;
@@ -1150,6 +1235,45 @@ textarea:focus-visible {
   }
 }
 
+@media (max-width: 720px) {
+  .feedback-submit {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 1.25rem;
+  }
+
+  .feedback-post-type-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-post-type-card {
+    min-height: auto;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: 1fr;
+    gap: 0.875rem;
+    align-items: center;
+  }
+
+  .feedback-post-type-card > svg {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .feedback-post-type-copy {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .feedback-post-type-card > [data-slot="radio-group-item"] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .feedback-submit-actions {
+    display: grid;
+  }
+}
+
 @media (max-width: 640px) {
   .portal-header {
     padding-inline: 1rem;
@@ -1166,15 +1290,6 @@ textarea:focus-visible {
   .feedback-index {
     width: auto;
     padding: 3.5rem 1rem 4rem;
-  }
-
-  .feedback-submit {
-    grid-template-columns: 1fr;
-    padding: 1.25rem;
-  }
-
-  .feedback-submit-actions {
-    display: grid;
   }
 
   .feedback-detail {

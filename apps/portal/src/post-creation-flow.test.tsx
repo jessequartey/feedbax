@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import {
   Outlet,
   RouterProvider,
@@ -23,6 +30,61 @@ afterEach(() => {
 });
 
 describe("routed Post creation", () => {
+  it("submits the Post Type selected from the three-card picker", async () => {
+    const created = {
+      id: "post-1",
+      slug: "keyboard-navigation",
+      title: "Keyboard navigation",
+      description: "Let Participants navigate without a pointer.",
+      type: "Bug Report" as const,
+      status: "New" as const,
+      published: false,
+      createdAt: new Date("2026-08-22T10:00:00.000Z"),
+      updatedAt: new Date("2026-08-22T10:00:00.000Z"),
+      browserCapability: "browser-capability" as never,
+    };
+    const mutations = {
+      submitPost: vi.fn().mockResolvedValue(created),
+      editDraftPost: vi.fn(),
+      withdrawDraftPost: vi.fn(),
+    };
+    const history = createMemoryHistory({ initialEntries: ["/submit"] });
+    const router = createCreationRouter(history, mutations);
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    const picker = await screen.findByRole("radiogroup", {
+      name: "Post Type",
+    });
+    expect(within(picker).getAllByRole("radio")).toHaveLength(3);
+    expect(
+      within(picker)
+        .getByRole("radio", { name: /Feature Request/ })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+
+    fireEvent.click(within(picker).getByRole("radio", { name: /Bug Report/ }));
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: created.title },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: created.description },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: "Create Post" }).closest("form")!,
+    );
+
+    await waitFor(() =>
+      expect(mutations.submitPost).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: "Bug Report" }),
+      }),
+    );
+  });
+
   it("retains authority, reconciles caches, and opens the authorized detail route", async () => {
     const created = {
       id: "post-1",
@@ -59,6 +121,12 @@ describe("routed Post creation", () => {
     );
     expect(await screen.findByText("Enter a title.")).toBeTruthy();
     expect(await screen.findByText("Enter a description.")).toBeTruthy();
+    expect(screen.getByLabelText("Title").getAttribute("aria-invalid")).toBe(
+      "true",
+    );
+    expect(
+      screen.getByLabelText("Description").getAttribute("aria-invalid"),
+    ).toBe("true");
     fireEvent.change(await screen.findByLabelText("Title"), {
       target: { value: created.title },
     });
@@ -66,6 +134,9 @@ describe("routed Post creation", () => {
       target: { value: created.description },
     });
     expect(screen.getByText("44 / 5,000 characters")).toBeTruthy();
+    expect(
+      screen.getByText(/Draft access is stored only in this browser/),
+    ).toBeTruthy();
     fireEvent.submit(
       screen.getByRole("button", { name: "Create Post" }).closest("form")!,
     );

@@ -21,11 +21,14 @@ import {
   FieldLabel,
 } from "@feedbax/ui/components/field";
 import { Input } from "@feedbax/ui/components/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@feedbax/ui/components/native-select";
+import { RadioGroup, RadioGroupItem } from "@feedbax/ui/components/radio-group";
 import { Textarea } from "@feedbax/ui/components/textarea";
+import {
+  Bug,
+  Lightbulb,
+  MessageSquareText,
+  type LucideIcon,
+} from "lucide-react";
 
 import {
   readDeviceProfile,
@@ -52,11 +55,27 @@ export interface PortalFeedbackMutations {
   withdrawDraftPost(input: { data: unknown }): Promise<void>;
 }
 
-const postTypes = [
-  "Feature Request",
-  "Bug Report",
-  "General Feedback",
-] as const satisfies readonly PostType[];
+const postTypeOptions = [
+  {
+    type: "Feature Request",
+    description: "Suggest an improvement",
+    icon: Lightbulb,
+  },
+  {
+    type: "Bug Report",
+    description: "Report unexpected behavior",
+    icon: Bug,
+  },
+  {
+    type: "General Feedback",
+    description: "Share an observation",
+    icon: MessageSquareText,
+  },
+] as const satisfies readonly {
+  type: PostType;
+  description: string;
+  icon: LucideIcon;
+}[];
 
 const feedbackFormSchema = z.object({
   title: z
@@ -67,7 +86,7 @@ const feedbackFormSchema = z.object({
     .string()
     .max(5_000, "Description must be at most 5,000 characters.")
     .refine((value) => value.trim().length > 0, "Enter a description."),
-  type: z.enum(postTypes),
+  type: z.enum(postTypeOptions.map(({ type }) => type)),
 });
 
 type FeedbackFormValues = z.infer<typeof feedbackFormSchema>;
@@ -338,24 +357,35 @@ export function PortalFeedbackForm({
                   className="feedback-submit-field"
                   data-invalid={isInvalid}
                 >
-                  <FieldLabel htmlFor={field.name}>Post Type</FieldLabel>
-                  <NativeSelect
-                    className="w-full"
-                    id={field.name}
+                  <FieldLabel id={`${field.name}-label`}>Post Type</FieldLabel>
+                  <RadioGroup
+                    aria-labelledby={`${field.name}-label`}
+                    aria-invalid={isInvalid}
+                    className="feedback-post-type-picker"
                     name={field.name}
                     value={field.state.value}
                     onBlur={field.handleBlur}
-                    onChange={(event) =>
-                      field.handleChange(event.currentTarget.value as PostType)
-                    }
-                    aria-invalid={isInvalid}
+                    onValueChange={(value) => field.handleChange(value)}
                   >
-                    {postTypes.map((type) => (
-                      <NativeSelectOption key={type} value={type}>
-                        {type}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
+                    {postTypeOptions.map(
+                      ({ description, icon: Icon, type }) => (
+                        <FieldLabel
+                          className="feedback-post-type-card"
+                          key={type}
+                        >
+                          <RadioGroupItem
+                            aria-invalid={isInvalid}
+                            value={type}
+                          />
+                          <Icon aria-hidden="true" />
+                          <span className="feedback-post-type-copy">
+                            <strong>{type}</strong>
+                            <small>{description}</small>
+                          </span>
+                        </FieldLabel>
+                      ),
+                    )}
+                  </RadioGroup>
                   {isInvalid ? (
                     <FieldError errors={field.state.meta.errors} />
                   ) : null}

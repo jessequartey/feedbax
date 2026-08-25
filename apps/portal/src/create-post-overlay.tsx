@@ -46,7 +46,7 @@ export function CreatePostOverlay({
     return (
       <Drawer open onOpenChange={close}>
         <DrawerContent className="create-post-drawer">
-          <DrawerHeader>
+          <DrawerHeader className="sr-only">
             <DrawerTitle>Create a Post</DrawerTitle>
             <DrawerDescription>
               Share a feature request, bug report, or product observation.
