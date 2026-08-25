@@ -50,7 +50,11 @@ export function PublicPostIndex({
               onSearchChange={onSearchChange}
               pending={pending}
             />
-            <Button className="h-10 px-5 text-sm" render={<a href="/submit" />}>
+            <Button
+              className="h-10 px-5 text-sm"
+              render={<a href="/submit" />}
+              nativeButton={false}
+            >
               New post
             </Button>
           </div>

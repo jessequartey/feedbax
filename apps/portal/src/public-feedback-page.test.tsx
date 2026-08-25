@@ -1,7 +1,10 @@
+// @vitest-environment jsdom
+
 import { createFeedbackModule } from "@feedbax/feedback";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   PublicPostFeedSkeleton,
@@ -9,6 +12,8 @@ import {
 } from "./public-feedback-index";
 import { loadPublicPostPage } from "./public-feedback-page";
 import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
+
+afterEach(cleanup);
 
 describe("public feedback home page", () => {
   it("loads 25 Published Posts and an opaque next-page cursor", async () => {
@@ -111,20 +116,20 @@ describe("public feedback home page", () => {
     expect(html).toContain("Trending");
     expect(html).toContain("Top");
     expect(html).toContain("New post");
-    expect(html).not.toContain(">Filters<");
   });
 
   it("renders scan-friendly Post cards with honest placeholder counts", () => {
-    const html = renderIndex(
+    renderIndexIntoDocument(
       <PublicPostIndex page={{ items: [publishedPost] }} search={{}} />,
     );
 
-    expect(html).toContain("Keyboard-first search!");
-    expect(html).toContain("Feature Request");
-    expect(html).toContain("Planned");
-    expect(html).toContain('aria-label="Score unavailable"');
-    expect(html).toContain('aria-label="Comments unavailable"');
-    expect(html.match(/>—<\/span>/g)).toHaveLength(2);
+    const post = screen.getByRole("link", { name: /Keyboard-first search!/ });
+    expect(within(post).getByText("Feature Request")).toBeTruthy();
+    expect(within(post).getByText("Planned")).toBeTruthy();
+    expect(within(post).getByLabelText("Score unavailable")).toBeTruthy();
+    expect(within(post).getByLabelText("Comments unavailable")).toBeTruthy();
+    expect(within(post).getAllByText("—")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Filters" })).toBeNull();
   });
 
   it("links each Published Post by immutable slug", () => {
@@ -210,6 +215,13 @@ function renderIndex(
   const queryClient = new QueryClient();
   queryClient.setQueryData(authorizedDraftPostsQueryKey({}), drafts);
   return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>,
+  );
+}
+
+function renderIndexIntoDocument(element: React.ReactElement) {
+  const queryClient = new QueryClient();
+  render(
     <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>,
   );
 }

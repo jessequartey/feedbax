@@ -44,7 +44,11 @@ export function PostResults({
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button render={<a href="/" />} variant="outline">
+          <Button
+            render={<a href="/" />}
+            nativeButton={false}
+            variant="outline"
+          >
             Clear filters
           </Button>
         </EmptyContent>
