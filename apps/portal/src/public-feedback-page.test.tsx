@@ -212,17 +212,21 @@ function renderIndex(
   element: React.ReactElement,
   drafts: unknown[] = [],
 ): string {
-  const queryClient = new QueryClient();
-  queryClient.setQueryData(authorizedDraftPostsQueryKey({}), drafts);
-  return renderToStaticMarkup(
-    <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>,
-  );
+  return renderToStaticMarkup(withIndexQueryClient(element, drafts));
 }
 
 function renderIndexIntoDocument(element: React.ReactElement) {
+  render(withIndexQueryClient(element));
+}
+
+function withIndexQueryClient(
+  element: React.ReactElement,
+  drafts: unknown[] = [],
+) {
   const queryClient = new QueryClient();
-  render(
-    <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>,
+  queryClient.setQueryData(authorizedDraftPostsQueryKey({}), drafts);
+  return (
+    <QueryClientProvider client={queryClient}>{element}</QueryClientProvider>
   );
 }
 
