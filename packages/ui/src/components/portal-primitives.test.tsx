@@ -2,12 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { Avatar, AvatarFallback } from "@feedbax/ui/components/avatar";
-import { Command, CommandInput, CommandItem } from "@feedbax/ui/components/command";
 import {
-  Field,
-  FieldError,
-  FieldLabel,
-} from "@feedbax/ui/components/field";
+  Command,
+  CommandInput,
+  CommandItem,
+} from "@feedbax/ui/components/command";
+import { Field, FieldError, FieldLabel } from "@feedbax/ui/components/field";
 import { Kbd } from "@feedbax/ui/components/kbd";
 import { RadioGroup, RadioGroupItem } from "@feedbax/ui/components/radio-group";
 import { ScrollArea } from "@feedbax/ui/components/scroll-area";

@@ -57,8 +57,8 @@ describe("routed Post creation", () => {
     fireEvent.submit(
       screen.getByRole("button", { name: "Create Post" }).closest("form")!,
     );
-    expect(screen.getByText("Enter a title.")).toBeTruthy();
-    expect(screen.getByText("Enter a description.")).toBeTruthy();
+    expect(await screen.findByText("Enter a title.")).toBeTruthy();
+    expect(await screen.findByText("Enter a description.")).toBeTruthy();
     fireEvent.change(await screen.findByLabelText("Title"), {
       target: { value: created.title },
     });

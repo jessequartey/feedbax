@@ -115,9 +115,9 @@ export function PostResults({
       {loadMoreError ? (
         <div role="alert" className="feedback-pagination-error">
           <p>Couldn’t load more Posts.</p>
-          <button type="button" onClick={loadMore}>
+          <Button type="button" onClick={loadMore}>
             Try again
-          </button>
+          </Button>
         </div>
       ) : null}
       {nextCursor ? (

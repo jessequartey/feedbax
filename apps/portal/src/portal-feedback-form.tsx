@@ -1,5 +1,7 @@
 import type { Post, PostType, SubmittedPost } from "@feedbax/feedback";
-import { useEffect, useState, type FormEvent } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useEffect, useRef, useState } from "react";
+import * as z from "zod";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,6 +12,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@feedbax/ui/components/alert-dialog";
+import { Button } from "@feedbax/ui/components/button";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@feedbax/ui/components/field";
+import { Input } from "@feedbax/ui/components/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@feedbax/ui/components/native-select";
+import { Textarea } from "@feedbax/ui/components/textarea";
 
 import {
   readDeviceProfile,
@@ -36,11 +52,25 @@ export interface PortalFeedbackMutations {
   withdrawDraftPost(input: { data: unknown }): Promise<void>;
 }
 
-const postTypes: PostType[] = [
+const postTypes = [
   "Feature Request",
   "Bug Report",
   "General Feedback",
-];
+] as const satisfies readonly PostType[];
+
+const feedbackFormSchema = z.object({
+  title: z
+    .string()
+    .max(160, "Title must be at most 160 characters.")
+    .refine((value) => value.trim().length > 0, "Enter a title."),
+  description: z
+    .string()
+    .max(5_000, "Description must be at most 5,000 characters.")
+    .refine((value) => value.trim().length > 0, "Enter a description."),
+  type: z.enum(postTypes),
+});
+
+type FeedbackFormValues = z.infer<typeof feedbackFormSchema>;
 
 export function PortalFeedbackForm({
   initialDraft,
@@ -65,13 +95,19 @@ export function PortalFeedbackForm({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
   const [confirmingWithdrawal, setConfirmingWithdrawal] = useState(false);
-  const [descriptionLength, setDescriptionLength] = useState(
-    initialDraft?.description.length ?? 0,
-  );
-  const [fieldErrors, setFieldErrors] = useState<{
-    title?: string;
-    description?: string;
-  }>({});
+  const turnstileToken = useRef<string | undefined>(undefined);
+  const form = useForm({
+    defaultValues: {
+      title: initialDraft?.title ?? "",
+      description: initialDraft?.description ?? "",
+      type: initialDraft?.type ?? ("Feature Request" as PostType),
+    },
+    validators: { onSubmit: feedbackFormSchema },
+    onSubmit: async ({ value }) => {
+      if (draft) await edit(value);
+      else await submit(value);
+    },
+  });
 
   useEffect(() => {
     if (!turnstileSiteKey || document.querySelector("script[data-turnstile]")) {
@@ -85,13 +121,7 @@ export function PortalFeedbackForm({
     document.head.append(script);
   }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = readFeedbackForm(form);
-    const errors = validateFeedbackForm(values);
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+  async function submit(values: FeedbackFormValues) {
     if (!browserCanStoreDraft()) {
       setMessage(
         "Enable browser storage before submitting so this browser can retain draft access.",
@@ -102,7 +132,13 @@ export function PortalFeedbackForm({
     setMessage(undefined);
     try {
       const result = await mutations.submitPost({
-        data: { ...values, submitter: readDeviceProfile(window.localStorage) },
+        data: {
+          ...values,
+          ...(turnstileToken.current
+            ? { turnstileToken: turnstileToken.current }
+            : {}),
+          submitter: readDeviceProfile(window.localStorage),
+        },
       });
       const storedDraft: StoredDraft = {
         id: result.id,
@@ -140,13 +176,8 @@ export function PortalFeedbackForm({
     }
   }
 
-  async function edit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function edit(values: FeedbackFormValues) {
     if (!draft) return;
-    const values = readFeedbackForm(event.currentTarget);
-    const errors = validateFeedbackForm(values);
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
     setPending(true);
     setMessage(undefined);
     try {
@@ -212,100 +243,152 @@ export function PortalFeedbackForm({
       </div>
 
       <form
-        onSubmit={draft ? edit : submit}
         className="feedback-submit-form"
         noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          const token = new FormData(event.currentTarget).get(
+            "cf-turnstile-response",
+          );
+          turnstileToken.current = token ? String(token) : undefined;
+          form.handleSubmit();
+        }}
       >
-        <div className="feedback-submit-field">
-          <label htmlFor="post-title">Title</label>
-          <input
-            id="post-title"
+        <FieldGroup>
+          <form.Field
             name="title"
-            required
-            maxLength={160}
-            defaultValue={draft?.title}
-            key={`title-${draft?.id ?? "new"}`}
-            aria-invalid={fieldErrors.title ? true : undefined}
-            aria-describedby={fieldErrors.title ? "title-error" : undefined}
+            children={(field) => {
+              const isInvalid = field.state.meta.errors.length > 0;
+              return (
+                <Field
+                  className="feedback-submit-field"
+                  data-invalid={isInvalid}
+                >
+                  <FieldLabel htmlFor={field.name}>Title</FieldLabel>
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    required
+                    maxLength={160}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(event.currentTarget.value)
+                    }
+                    aria-invalid={isInvalid}
+                  />
+                  {isInvalid ? (
+                    <FieldError errors={field.state.meta.errors} />
+                  ) : null}
+                </Field>
+              );
+            }}
           />
-          {fieldErrors.title ? (
-            <small id="title-error" className="feedback-field-error">
-              {fieldErrors.title}
-            </small>
+          {turnstileSiteKey && !draft ? (
+            <div
+              className="cf-turnstile"
+              data-sitekey={turnstileSiteKey}
+              data-theme="light"
+            />
           ) : null}
-        </div>
-        {turnstileSiteKey && !draft ? (
-          <div
-            className="cf-turnstile"
-            data-sitekey={turnstileSiteKey}
-            data-theme="light"
-          />
-        ) : null}
-        <div className="feedback-submit-field">
-          <label htmlFor="post-description">Description</label>
-          <textarea
-            id="post-description"
+          <form.Field
             name="description"
-            required
-            maxLength={5_000}
-            rows={6}
-            defaultValue={draft?.description}
-            key={`description-${draft?.id ?? "new"}`}
-            onChange={(event) =>
-              setDescriptionLength(event.currentTarget.value.length)
-            }
-            aria-invalid={fieldErrors.description ? true : undefined}
-            aria-describedby={
-              fieldErrors.description
-                ? "description-error description-count"
-                : "description-count"
-            }
+            children={(field) => {
+              const isInvalid = field.state.meta.errors.length > 0;
+              return (
+                <Field
+                  className="feedback-submit-field"
+                  data-invalid={isInvalid}
+                >
+                  <FieldLabel htmlFor={field.name}>Description</FieldLabel>
+                  <Textarea
+                    id={field.name}
+                    name={field.name}
+                    required
+                    maxLength={5_000}
+                    rows={6}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(event.currentTarget.value)
+                    }
+                    aria-invalid={isInvalid}
+                    aria-describedby="description-count"
+                  />
+                  <FieldDescription
+                    id="description-count"
+                    className="feedback-character-count"
+                  >
+                    {field.state.value.length.toLocaleString("en-US")} / 5,000
+                    characters
+                  </FieldDescription>
+                  {isInvalid ? (
+                    <FieldError errors={field.state.meta.errors} />
+                  ) : null}
+                </Field>
+              );
+            }}
           />
-          <small id="description-count" className="feedback-character-count">
-            {descriptionLength.toLocaleString("en-US")} / 5,000 characters
-          </small>
-          {fieldErrors.description ? (
-            <small id="description-error" className="feedback-field-error">
-              {fieldErrors.description}
-            </small>
-          ) : null}
-        </div>
-        <div className="feedback-submit-field">
-          <label htmlFor="post-type">Post Type</label>
-          <select
-            id="post-type"
+          <form.Field
             name="type"
-            defaultValue={draft?.type ?? "Feature Request"}
-            key={`type-${draft?.id ?? "new"}`}
-          >
-            {postTypes.map((type) => (
-              <option key={type}>{type}</option>
-            ))}
-          </select>
-        </div>
+            children={(field) => {
+              const isInvalid = field.state.meta.errors.length > 0;
+              return (
+                <Field
+                  className="feedback-submit-field"
+                  data-invalid={isInvalid}
+                >
+                  <FieldLabel htmlFor={field.name}>Post Type</FieldLabel>
+                  <NativeSelect
+                    className="w-full"
+                    id={field.name}
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(event.currentTarget.value as PostType)
+                    }
+                    aria-invalid={isInvalid}
+                  >
+                    {postTypes.map((type) => (
+                      <NativeSelectOption key={type} value={type}>
+                        {type}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                  {isInvalid ? (
+                    <FieldError errors={field.state.meta.errors} />
+                  ) : null}
+                </Field>
+              );
+            }}
+          />
+        </FieldGroup>
         <div className="feedback-submit-actions">
-          <button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending}>
             {pending ? "Working…" : draft ? "Save changes" : "Create Post"}
-          </button>
+          </Button>
           {display === "overlay" ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               className="feedback-cancel"
               onClick={onCancel}
               disabled={pending}
             >
               Cancel
-            </button>
+            </Button>
           ) : null}
           {draft && showWithdrawal ? (
-            <button
+            <Button
               type="button"
+              variant="destructive"
               className="feedback-withdraw"
               onClick={() => setConfirmingWithdrawal(true)}
               disabled={pending}
             >
               Withdraw draft
-            </button>
+            </Button>
           ) : null}
         </div>
         {message ? (
@@ -337,27 +420,6 @@ export function PortalFeedbackForm({
       </AlertDialog>
     </section>
   );
-}
-
-function validateFeedbackForm(values: ReturnType<typeof readFeedbackForm>) {
-  return {
-    ...(!values.title.trim() ? { title: "Enter a title." } : {}),
-    ...(!values.description.trim()
-      ? { description: "Enter a description." }
-      : {}),
-  };
-}
-
-function readFeedbackForm(form: HTMLFormElement) {
-  const data = new FormData(form);
-  return {
-    title: String(data.get("title") ?? ""),
-    description: String(data.get("description") ?? ""),
-    type: String(data.get("type") ?? "") as PostType,
-    ...(data.get("cf-turnstile-response")
-      ? { turnstileToken: String(data.get("cf-turnstile-response")) }
-      : {}),
-  };
 }
 
 function submissionFailureMessage(error: unknown): string {

@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0017
+---
+
 # Bound shadcn preset customization
 
 Feedbax applies shadcn `4.18.0` preset `buFyyzw` only while generating a new installation, before its component source is customized. This establishes the Base UI Lyra style, neutral tokens and charts, Geist typography, Lucide icons, and Lyra's native square geometry.

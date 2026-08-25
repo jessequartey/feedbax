@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@feedbax/ui/components/dropdown-menu";
+import { Button } from "@feedbax/ui/components/button";
 import { toast } from "sonner";
 
 import {
@@ -141,11 +142,14 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
       ) : (
         <>
           <div className="draft-detail-actions">
-            <button type="button" onClick={() => setEditing(true)}>
+            <Button type="button" onClick={() => setEditing(true)}>
               Edit
-            </button>
+            </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger aria-label="Draft actions">
+              <DropdownMenuTrigger
+                aria-label="Draft actions"
+                render={<Button type="button" variant="ghost" size="icon" />}
+              >
                 <MoreHorizontal aria-hidden="true" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

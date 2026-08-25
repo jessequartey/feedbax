@@ -1,3 +1,5 @@
+import { Button } from "@feedbax/ui/components/button";
+
 export function PublicPortalError({
   reset,
 }: {
@@ -13,10 +15,12 @@ export function PublicPortalError({
         information has not been displayed.
       </p>
       <div className="public-error-actions">
-        <button type="button" onClick={reset}>
+        <Button type="button" onClick={reset}>
           Try again
-        </button>
-        <a href="/">Return to the portal</a>
+        </Button>
+        <Button render={<a href="/" />} variant="outline">
+          Return to the portal
+        </Button>
       </div>
     </main>
   );

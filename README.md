@@ -36,11 +36,13 @@ React web apps in this stack share shadcn/ui primitives through `packages/ui`.
 
 ### Add more shared components
 
-Run the pinned generator from the project root through the portal workspace. It detects TanStack Start there and follows the configured aliases into the shared UI package:
+Run the current generator from the project root through the portal workspace. Add or refresh components individually so each generated-source diff can be reviewed. The CLI detects TanStack Start there and follows the configured aliases into the shared UI package:
 
 ```bash
-pnpm dlx shadcn@4.18.0 add accordion dialog popover sheet table -c apps/portal
+pnpm dlx shadcn@latest add <component> -c apps/portal
 ```
+
+Do not pin the shadcn CLI or its package version. The shared UI package follows the `latest` distribution tag because its global styles import `shadcn/tailwind.css`. If shadcn provides a component, use its current registry source instead of creating a parallel generic primitive.
 
 Import shared components like this:
 
@@ -50,7 +52,7 @@ import { Button } from "@feedbax/ui/components/button";
 
 ### Add app-specific blocks
 
-Keep app-specific blocks and product compositions in `apps/portal`; move only reusable registry primitives into `packages/ui`.
+Keep app-specific blocks and Feedbax-specific compositions with no shadcn equivalent in `apps/portal`; keep reusable shadcn components in `packages/ui`.
 
 ## Project Structure
 

@@ -34,14 +34,12 @@ function Attachment({
   VariantProps<typeof attachmentVariants> & {
     state?: "idle" | "uploading" | "processing" | "error" | "done";
   }) {
-  const resolvedOrientation = orientation ?? "horizontal";
-
   return (
     <div
       data-slot="attachment"
       data-state={state}
       data-size={size}
-      data-orientation={resolvedOrientation}
+      data-orientation={orientation}
       className={cn(attachmentVariants({ size, orientation }), className)}
       {...props}
     />
@@ -148,13 +146,11 @@ function AttachmentAction({
   className,
   variant,
   size = "icon-xs",
-  type = "button",
   ...props
 }: React.ComponentProps<typeof Button>) {
   return (
     <Button
       data-slot="attachment-action"
-      type={type}
       variant={variant ?? "ghost"}
       size={size}
       className={cn(className)}
