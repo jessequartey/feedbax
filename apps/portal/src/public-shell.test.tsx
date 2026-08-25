@@ -19,7 +19,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ThemeProvider } from "next-themes";
 
 import Header from "./components/header";
-import { deviceProfileKey } from "./browser-post-state";
+import { deviceProfileKey, readDeviceProfile } from "./browser-post-state";
 import { Changelog } from "./routes/changelog";
 
 beforeEach(() => {
@@ -60,29 +60,6 @@ describe("public portal shell", () => {
     ).toBe("/changelog");
   });
 
-  it("keeps theme selection in mobile navigation until a Device Profile exists", async () => {
-    const { unmount } = renderShell("/");
-
-    expect(screen.queryByRole("combobox", { name: "Theme" })).toBeNull();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Open navigation" }),
-    );
-    expect(screen.getByRole("combobox", { name: "Theme" })).toBeTruthy();
-    fireEvent.change(screen.getByRole("combobox", { name: "Theme" }), {
-      target: { value: "dark" },
-    });
-    await waitFor(() =>
-      expect(document.documentElement.classList.contains("dark")).toBe(true),
-    );
-
-    unmount();
-    localStorage.setItem(deviceProfileKey, JSON.stringify({ name: "Ama" }));
-    renderShell("/");
-    await waitFor(() => expect(screen.getByText("A")).toBeTruthy());
-    fireEvent.click(screen.getByText("A"));
-    expect(screen.getByRole("combobox", { name: "Theme" })).toBeTruthy();
-  });
-
   it("renders Changelog as a complete coming-soon destination", async () => {
     renderShell("/changelog");
 
@@ -92,6 +69,99 @@ describe("public portal shell", () => {
     expect(
       screen.getByRole("link", { name: "View roadmap" }).getAttribute("href"),
     ).toBe("/roadmap");
+  });
+});
+
+describe("profile menu", () => {
+  it("opens profile setup directly when no Device Profile exists", async () => {
+    renderShell("/");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Profile" }));
+
+    expect(await screen.findByLabelText("Display name")).toBeTruthy();
+    expect(
+      screen.getByText(
+        /Saved only on this device.*not sign-in.*cannot be recovered/i,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("rejects an empty display name inline without saving", async () => {
+    renderShell("/");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Profile" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save profile" }),
+    );
+
+    expect(
+      await screen.findByText("Display name is required."),
+    ).toBeTruthy();
+    expect(readDeviceProfile(localStorage)).toBeUndefined();
+  });
+
+  it("rejects an invalid email inline without saving", async () => {
+    renderShell("/");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Profile" }));
+    fireEvent.change(await screen.findByLabelText("Display name"), {
+      target: { value: "Ama Mensah" },
+    });
+    fireEvent.change(screen.getByLabelText("Email (optional)"), {
+      target: { value: "not-an-email" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(
+      await screen.findByText("Enter a valid email address."),
+    ).toBeTruthy();
+    expect(readDeviceProfile(localStorage)).toBeUndefined();
+  });
+
+  it("saves a Device Profile and manages it from the profile menu", async () => {
+    renderShell("/");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Profile" }));
+    fireEvent.change(await screen.findByLabelText("Display name"), {
+      target: { value: "Ama Mensah" },
+    });
+    fireEvent.change(screen.getByLabelText("Email (optional)"), {
+      target: { value: "ama@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() =>
+      expect(readDeviceProfile(localStorage)).toEqual({
+        name: "Ama Mensah",
+        email: "ama@example.com",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Profile" }));
+
+    expect(
+      await screen.findByRole("menuitem", { name: "Clear profile" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Clear profile" }));
+
+    await waitFor(() =>
+      expect(readDeviceProfile(localStorage)).toBeUndefined(),
+    );
+    expect(await screen.findByRole("button", { name: "Profile" })).toBeTruthy();
+  });
+
+  it("keeps theme selection inside the configured profile menu", async () => {
+    localStorage.setItem(deviceProfileKey, JSON.stringify({ name: "Ama" }));
+    renderShell("/");
+
+    await screen.findByText("Ama");
+    fireEvent.click(screen.getByRole("button", { name: "Profile" }));
+    fireEvent.click(
+      await screen.findByRole("menuitemradio", { name: "Dark" }),
+    );
+
+    await waitFor(() =>
+      expect(document.documentElement.classList.contains("dark")).toBe(true),
+    );
   });
 });
 
