@@ -57,6 +57,7 @@ export function createInvalidatingFeedbackModule({
     editDraftPost: (input) =>
       runInvalidatingWrite(() => feedback.editDraftPost(input), invalidator),
     getPublicPost: (slug) => feedback.getPublicPost(slug),
+    listCommentThreads: (input) => feedback.listCommentThreads(input),
     getDraftPost: (input) => feedback.getDraftPost(input),
     listPublicPosts: (query) => feedback.listPublicPosts(query),
     listPublicRoadmapPosts: (query) => feedback.listPublicRoadmapPosts(query),

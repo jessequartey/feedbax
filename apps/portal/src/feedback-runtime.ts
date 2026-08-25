@@ -20,6 +20,7 @@ export function createConfiguredFeedbackModule() {
   configuredFeedback ??= createInvalidatingFeedbackModule({
     feedback: createNotionFeedbackModule({
       votingEnabled: feedbax.features.voting,
+      commentsEnabled: feedbax.features.comments,
       token: requiredEnvironmentValue("NOTION_TOKEN"),
       dataSourceId: requiredEnvironmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
       propertyIds: {
@@ -71,6 +72,26 @@ let demoFeedback: ReturnType<typeof createFeedbackModule> | undefined;
 
 function demoFeedbackModule() {
   demoFeedback ??= createFeedbackModule({
+    initialComments: [
+      {
+        id: "demo-comment-1",
+        postId: "demo-keyboard-first-search",
+        discussionId: "demo-discussion-1",
+        body: "Could this include a shortcut to focus the search field?",
+        author: { kind: "participant", displayName: "Mina" },
+        createdAt: new Date("2026-07-24T09:30:00.000Z"),
+        resolved: false,
+      },
+      {
+        id: "demo-comment-2",
+        postId: "demo-keyboard-first-search",
+        discussionId: "demo-discussion-1",
+        body: "Yes — the first release will include that shortcut.",
+        author: { kind: "product-team", displayName: "Product Team" },
+        createdAt: new Date("2026-07-24T11:00:00.000Z"),
+        resolved: false,
+      },
+    ],
     initialItems: [
       demoPost(
         "keyboard-first-search",

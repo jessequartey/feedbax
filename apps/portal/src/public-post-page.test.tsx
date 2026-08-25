@@ -87,7 +87,7 @@ describe("canonical Post page", () => {
     expect(
       screen.getByRole("button", { name: "Add Vote, 0 Votes" }),
     ).toBeTruthy();
-    expect(screen.getByLabelText("Comments unavailable")).toBeTruthy();
+    expect(screen.queryByLabelText("Comments unavailable")).toBeNull();
   });
 
   it("persists voted state only after confirmation and rolls back a failed optimistic Vote", async () => {

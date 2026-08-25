@@ -1,10 +1,61 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  assertEnabledCommentCapabilities,
   collectFeatureSelection,
+  verifySelectedCommentCapabilities,
   featureChoices,
   renderFeatureConfiguration,
 } from "./index";
+
+describe("Comment capability verification", () => {
+  it("runs both capability checks in the setup flow", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ results: [] }))
+      .mockResolvedValueOnce(new Response(null, { status: 400 }));
+    await expect(
+      verifySelectedCommentCapabilities(
+        { voting: true, comments: true, changelog: true },
+        { token: "notion-token", pageId: "post-page", request },
+      ),
+    ).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1]?.[1]).toMatchObject({
+      method: "POST",
+      body: "{}",
+    });
+  });
+
+  it("requires both native Comment capabilities when Comments are enabled", () => {
+    expect(() =>
+      assertEnabledCommentCapabilities({
+        commentsEnabled: true,
+        capabilities: { readComments: true, insertComments: false },
+      }),
+    ).toThrow(
+      "Enable Insert comments in the Notion connection settings, then retry setup.",
+    );
+    expect(() =>
+      assertEnabledCommentCapabilities({
+        commentsEnabled: true,
+        capabilities: { readComments: false, insertComments: true },
+        command: "doctor",
+      }),
+    ).toThrow(
+      "Enable Read comments in the Notion connection settings, then rerun doctor. No changes were made.",
+    );
+  });
+
+  it("does not require Comment capabilities after an explicit opt-out", () => {
+    expect(() =>
+      assertEnabledCommentCapabilities({
+        commentsEnabled: false,
+        capabilities: { readComments: false, insertComments: false },
+      }),
+    ).not.toThrow();
+  });
+});
 
 describe("creator capability choices", () => {
   it("presents every capability as enabled by default", async () => {

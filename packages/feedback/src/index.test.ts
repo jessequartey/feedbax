@@ -7,6 +7,73 @@ import {
 } from "./index";
 
 describe("Feedback module", () => {
+  it("lists only open page-level Comment Threads for a Published Post in stable pages", async () => {
+    const feedback = createFeedbackModule({
+      initialItems: [
+        {
+          id: "post-1",
+          slug: "roadmap-search",
+          title: "Roadmap search",
+          description: "Search the roadmap.",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt: new Date("2026-08-01T09:00:00.000Z"),
+          updatedAt: new Date("2026-08-01T09:00:00.000Z"),
+        },
+      ],
+      initialComments: [
+        {
+          id: "comment-1",
+          postId: "post-1",
+          discussionId: "discussion-1",
+          body: "Could this support shortcuts?",
+          author: { kind: "participant", displayName: "Ari" },
+          createdAt: new Date("2026-08-01T10:00:00.000Z"),
+          resolved: false,
+        },
+        {
+          id: "reply-1",
+          postId: "post-1",
+          discussionId: "discussion-1",
+          body: "That is on our roadmap.",
+          author: { kind: "product-team", displayName: "Product Team" },
+          createdAt: new Date("2026-08-01T11:00:00.000Z"),
+          resolved: false,
+        },
+        {
+          id: "inline-comment",
+          postId: "post-1",
+          discussionId: "inline-discussion",
+          body: "private inline note",
+          author: { kind: "product-team", displayName: "Product Team" },
+          createdAt: new Date("2026-08-01T12:00:00.000Z"),
+          resolved: false,
+          scope: "block",
+        },
+      ],
+    });
+
+    await expect(
+      feedback.listCommentThreads({ slug: "roadmap-search" }),
+    ).resolves.toEqual({
+      items: [
+        {
+          id: "discussion-1",
+          comments: [
+            expect.objectContaining({
+              id: "comment-1",
+              author: { kind: "participant", displayName: "Ari" },
+            }),
+            expect.objectContaining({
+              id: "reply-1",
+              author: { kind: "product-team", displayName: "Product Team" },
+            }),
+          ],
+        },
+      ],
+    });
+  });
   it("adds and removes a Vote from the server-authoritative count on a Published Post", async () => {
     const now = new Date("2026-08-21T10:00:00.000Z");
     const feedback = createFeedbackModule({

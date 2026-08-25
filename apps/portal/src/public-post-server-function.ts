@@ -22,3 +22,27 @@ export const getPublicPost = createServerFn({ method: "GET" })
       }),
     ),
   );
+
+export const getPublicPostComments = createServerFn({ method: "GET" })
+  .validator((input: unknown) => {
+    const slug =
+      input && typeof input === "object"
+        ? Reflect.get(input, "slug")
+        : undefined;
+    const cursor =
+      input && typeof input === "object"
+        ? Reflect.get(input, "cursor")
+        : undefined;
+    if (
+      typeof slug !== "string" ||
+      !slug ||
+      (cursor !== undefined && typeof cursor !== "string")
+    )
+      throw new Error("Comment request is invalid.");
+    return { slug, ...(cursor ? { cursor } : {}) };
+  })
+  .handler(({ data }) =>
+    runSafePublicRead(() =>
+      createConfiguredFeedbackModule().listCommentThreads(data),
+    ),
+  );

@@ -60,12 +60,8 @@ it("shows an authorized Draft Post in the shared detail layout", async () => {
   );
   expect(article.getByText("Draft")).toBeTruthy();
   expect(article.queryByRole("button", { name: /vote/i })).toBeNull();
-  expect(article.getByLabelText("Comments unavailable")).toBeTruthy();
-  expect(
-    within(article.getByRole("region", { name: "Comments" })).getByText(
-      "No comments yet",
-    ),
-  ).toBeTruthy();
+  expect(article.queryByLabelText("Comments unavailable")).toBeNull();
+  expect(article.queryByRole("region", { name: "Comments" })).toBeNull();
   const details = within(
     article.getByRole("complementary", { name: "Details" }),
   );

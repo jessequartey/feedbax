@@ -1,4 +1,4 @@
-import type { PublicPost } from "@feedbax/feedback";
+import type { CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
 import {
   Empty,
@@ -20,12 +20,16 @@ export function PublicPostDetail({
   summaryActions,
   summaryMarker,
   features = feedbax.features,
+  comments = { items: [] },
+  loadMore,
 }: {
   post: PublicPost;
   display?: "overlay" | "page";
   summaryActions?: ReactNode;
   summaryMarker?: ReactNode;
   features?: PortalFeatures;
+  comments?: CommentThreadPage;
+  loadMore?: () => Promise<void>;
 }) {
   const id = useId();
   const headingId = `${id}-post-heading`;
@@ -51,18 +55,9 @@ export function PublicPostDetail({
           {summaryActions ? (
             <div className="post-detail-summary-actions">{summaryActions}</div>
           ) : null}
-          {(features.voting && post.voteCount !== undefined) ||
-          features.comments ? (
+          {features.voting && post.voteCount !== undefined ? (
             <div className="post-detail-engagement">
-              {features.voting && post.voteCount !== undefined ? (
-                <VoteToggle post={post} />
-              ) : null}
-              {features.comments ? (
-                <span aria-label="Comments unavailable">
-                  <MessageCircle aria-hidden="true" />
-                  <span aria-hidden="true">— comments</span>
-                </span>
-              ) : null}
+              <VoteToggle post={post} />
             </div>
           ) : null}
           {features.comments ? (
@@ -71,14 +66,46 @@ export function PublicPostDetail({
               aria-labelledby={commentsHeadingId}
             >
               <h2 id={commentsHeadingId}>Comments</h2>
-              <Empty className="post-detail-comments-empty">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <MessageCircle aria-hidden="true" />
-                  </EmptyMedia>
-                  <EmptyTitle>No comments yet</EmptyTitle>
-                </EmptyHeader>
-              </Empty>
+              {comments.items.length === 0 ? (
+                <Empty className="post-detail-comments-empty">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageCircle aria-hidden="true" />
+                    </EmptyMedia>
+                    <EmptyTitle>No comments yet</EmptyTitle>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <div className="comment-threads">
+                  {comments.items.map((thread) => (
+                    <article className="comment-thread" key={thread.id}>
+                      {thread.comments.map((comment) => (
+                        <div className="comment" key={comment.id}>
+                          <header>
+                            <strong>{comment.author.displayName}</strong>
+                            {comment.author.kind === "participant" ? (
+                              <span>Unverified</span>
+                            ) : null}
+                            <time dateTime={comment.createdAt.toISOString()}>
+                              {formatPublicDate(comment.createdAt, "long")}
+                            </time>
+                          </header>
+                          <p>{comment.body}</p>
+                        </div>
+                      ))}
+                    </article>
+                  ))}
+                </div>
+              )}
+              {loadMore ? (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => void loadMore()}
+                >
+                  Load more
+                </button>
+              ) : null}
             </section>
           ) : null}
         </div>

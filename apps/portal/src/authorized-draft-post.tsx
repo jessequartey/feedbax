@@ -147,6 +147,7 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
         <PublicPostDetail
           post={post}
           display={overlaid ? "overlay" : "page"}
+          features={{ voting: false, comments: false, changelog: true }}
           summaryMarker={<Badge variant="outline">Draft</Badge>}
           summaryActions={
             <>

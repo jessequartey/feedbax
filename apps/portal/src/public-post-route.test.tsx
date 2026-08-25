@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 
-import { createFeedbackModule } from "@feedbax/feedback";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  createFeedbackModule,
+  type CommentThreadPage,
+} from "@feedbax/feedback";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -35,7 +44,20 @@ afterEach(cleanup);
 
 describe("/p/$slug", () => {
   it("retrieves and renders a complete Post from its clean canonical URL", async () => {
-    const feedback = createFeedbackModule({ initialItems: [publishedPost] });
+    const feedback = createFeedbackModule({
+      initialItems: [publishedPost],
+      initialComments: [
+        {
+          id: "comment-1",
+          postId: "secret-id",
+          discussionId: "discussion-1",
+          body: "Please add Vim bindings.",
+          author: { kind: "participant", displayName: "Ari" },
+          createdAt: new Date("2026-08-20T13:00:00.000Z"),
+          resolved: false,
+        },
+      ],
+    });
     const history = createMemoryHistory({
       initialEntries: ["/p/keyboard-first-search"],
     });
@@ -54,6 +76,8 @@ describe("/p/$slug", () => {
     expect(details.getByText("Submitted")).toBeTruthy();
     expect(details.getByText("Updated")).toBeTruthy();
     expect(history.location.pathname).toBe("/p/keyboard-first-search");
+    expect(screen.getByText("Please add Vim bindings.")).toBeTruthy();
+    expect(screen.getByText("Ari")).toBeTruthy();
     expect(document.body.textContent).not.toContain("secret-id");
   });
 
@@ -85,18 +109,75 @@ describe("/p/$slug", () => {
       );
     },
   );
+
+  it("loads and merges the next stable Comment page only after Load more", async () => {
+    const feedback = createFeedbackModule({ initialItems: [publishedPost] });
+    const loadComments = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "discussion-1",
+            comments: [
+              {
+                id: "comment-1",
+                body: "First page",
+                author: { kind: "participant", displayName: "Ari" },
+                createdAt: new Date("2026-08-20T13:00:00.000Z"),
+              },
+            ],
+          },
+        ],
+        nextCursor: "native-cursor",
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "discussion-1",
+            comments: [
+              {
+                id: "comment-2",
+                body: "Second page",
+                author: { kind: "product-team", displayName: "Product Team" },
+                createdAt: new Date("2026-08-20T14:00:00.000Z"),
+              },
+            ],
+          },
+        ],
+      });
+    const history = createMemoryHistory({
+      initialEntries: ["/p/keyboard-first-search"],
+    });
+    const router = createPostRouter({ feedback, history, loadComments });
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByText("First page")).toBeTruthy();
+    expect(loadComments).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(await screen.findByText("Second page")).toBeTruthy();
+    expect(screen.getByText("First page")).toBeTruthy();
+    expect(loadComments).toHaveBeenLastCalledWith(
+      "keyboard-first-search",
+      "native-cursor",
+    );
+  });
 });
 
 function createPostRouter({
   feedback,
   history,
+  loadComments,
 }: {
   feedback: ReturnType<typeof createFeedbackModule>;
   history: ReturnType<typeof createMemoryHistory>;
+  loadComments?: (slug: string, cursor?: string) => Promise<CommentThreadPage>;
 }) {
   const rootRoute = createRootRoute({ component: () => <Outlet /> });
   const postRoute = createPublicPostRoute({
     loadPost: (slug) => loadPublicPost({ feedback, slug }),
+    loadComments:
+      loadComments ??
+      ((slug, cursor) => feedback.listCommentThreads({ slug, cursor })),
     renderUnavailable: () => <PublicPostUnavailable />,
   }).update({
     id: "/p/$slug",

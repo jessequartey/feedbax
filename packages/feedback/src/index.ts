@@ -14,6 +14,11 @@ import type {
   NewStoredPost,
   StoredPost,
 } from "./feedback-storage";
+import {
+  createNotionCommentStorage,
+  type CommentStorage,
+  type StoredComment,
+} from "./notion-comments";
 
 export {
   createNotionFeedbackDataSource,
@@ -146,6 +151,32 @@ export interface PublicPostQuery {
 export interface PublicPostPage {
   items: PublicPost[];
   nextCursor?: string;
+}
+
+export type CommentAuthor =
+  | { kind: "participant"; displayName: string }
+  | { kind: "product-team"; displayName: "Product Team" };
+
+export interface Comment {
+  id: string;
+  body: string;
+  author: CommentAuthor;
+  createdAt: Date;
+}
+
+export interface CommentThread {
+  id: string;
+  comments: Comment[];
+}
+
+export interface CommentThreadPage {
+  items: CommentThread[];
+  nextCursor?: string;
+}
+
+export interface ListCommentThreadsInput {
+  slug: string;
+  cursor?: string;
 }
 
 export type RoadmapStatus = Extract<
@@ -291,6 +322,9 @@ export interface FeedbackModule {
   ): Promise<TrustedSubmittedPost>;
   withdrawDraftPost(input: WithdrawDraftPostInput): Promise<void>;
   getPublicPostRoadmap(): Promise<PublicPostRoadmap>;
+  listCommentThreads(
+    input: ListCommentThreadsInput,
+  ): Promise<CommentThreadPage>;
 }
 
 export type FeedbackMutationModule = Pick<
@@ -302,6 +336,9 @@ interface CreateFeedbackModuleOptions {
   initialItems?: StoredPost[];
   storage?: FeedbackStorage;
   votingEnabled?: boolean;
+  commentsEnabled?: boolean;
+  initialComments?: StoredComment[];
+  commentStorage?: CommentStorage;
 }
 
 export function createFeedbackModule(
@@ -310,6 +347,10 @@ export function createFeedbackModule(
   const storage =
     options.storage ?? new InMemoryFeedbackStorage(options.initialItems);
   const votingEnabled = options.votingEnabled ?? true;
+  const commentsEnabled = options.commentsEnabled ?? true;
+  const commentStorage =
+    options.commentStorage ??
+    createInMemoryCommentStorage(options.initialComments);
   const voteQueues = new Map<string, Promise<void>>();
   const editStoredDraft = async (input: EditDraftPostInput) => {
     const item = await storage.find(input.id);
@@ -340,6 +381,31 @@ export function createFeedbackModule(
   };
 
   return {
+    async listCommentThreads({ slug, cursor }) {
+      if (!commentsEnabled) return { items: [] };
+      const post = await storage.findPublicBySlug(slug);
+      if (!post?.published) return { items: [] };
+      const page = await commentStorage.listPageComments(post.id, cursor);
+      const threads = new Map<string, CommentThread>();
+      for (const comment of page.items) {
+        if (comment.resolved || (comment.scope ?? "page") !== "page") continue;
+        const thread = threads.get(comment.discussionId) ?? {
+          id: comment.discussionId,
+          comments: [],
+        };
+        thread.comments.push({
+          id: comment.id,
+          body: comment.body,
+          author: comment.author,
+          createdAt: comment.createdAt,
+        });
+        threads.set(comment.discussionId, thread);
+      }
+      return {
+        items: [...threads.values()],
+        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      };
+    },
     changeVote(input) {
       const previous = voteQueues.get(input.slug) ?? Promise.resolve();
       const mutation = previous.then(async () => {
@@ -465,12 +531,45 @@ export function createFeedbackModule(
 }
 
 export function createNotionFeedbackModule(
-  options: NotionFeedbackStorageOptions & { votingEnabled?: boolean },
+  options: NotionFeedbackStorageOptions & {
+    votingEnabled?: boolean;
+    commentsEnabled?: boolean;
+  },
 ): FeedbackModule {
   return createFeedbackModule({
     storage: createNotionFeedbackStorage(options),
+    commentStorage: createNotionCommentStorage(options),
     votingEnabled: options.votingEnabled,
+    commentsEnabled: options.commentsEnabled,
   });
+}
+
+function createInMemoryCommentStorage(
+  initialComments: StoredComment[] = [],
+): CommentStorage {
+  return {
+    async listPageComments(postId, cursor) {
+      const matching = initialComments.filter(
+        (comment) => comment.postId === postId,
+      );
+      const start = cursor
+        ? Math.max(
+            0,
+            matching.findIndex((comment) => comment.id === cursor) + 1,
+          )
+        : 0;
+      const items = matching
+        .slice(start, start + 50)
+        .map((comment) => structuredClone(comment));
+      const last = items.at(-1);
+      return {
+        items,
+        ...(last && start + items.length < matching.length
+          ? { nextCursor: last.id }
+          : {}),
+      };
+    },
+  };
 }
 
 function encodePublicPostCursor(
