@@ -1,27 +1,26 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Button } from "@feedbax/ui/components/button";
+import { ButtonGroup } from "@feedbax/ui/components/button-group";
 import { Card } from "@feedbax/ui/components/card";
-import { Tabs, TabsList, TabsTrigger } from "@feedbax/ui/components/tabs";
-import {
-  Bug,
-  CalendarDays,
-  CheckCircle2,
-  CircleDot,
-  Lightbulb,
-  List,
-  MessageCircle,
-} from "lucide-react";
+import { List } from "lucide-react";
 import type { ComponentType } from "react";
 
 import { CommandPaletteTrigger } from "./components/command-palette";
+import { postTypes } from "./public-feedback-page";
+import {
+  postStatusPresentation,
+  postTypePresentation,
+} from "./post-presentation";
 
 type SearchChange = (search: PublicPostQuery) => void;
 
 const boards = [
   { label: "All posts", type: undefined, icon: List },
-  { label: "Feature requests", type: "Feature Request", icon: Lightbulb },
-  { label: "Bug reports", type: "Bug Report", icon: Bug },
-  { label: "General feedback", type: "General Feedback", icon: MessageCircle },
+  ...postTypes.map((type) => ({
+    label: postTypePresentation[type].boardLabel,
+    type,
+    icon: postTypePresentation[type].Icon,
+  })),
 ] as const satisfies readonly {
   label: string;
   type: PostType | undefined;
@@ -29,13 +28,18 @@ const boards = [
 }[];
 
 const roadmapStatuses = [
-  { label: "Planned", status: "Planned", icon: CalendarDays },
-  { label: "In progress", status: "In Progress", icon: CircleDot },
-  { label: "Shipped", status: "Shipped", icon: CheckCircle2 },
+  "Planned",
+  "In Progress",
+  "Shipped",
+] as const satisfies readonly PostStatus[];
+
+const sortOptions = [
+  { label: "Trending", value: "trending" },
+  { label: "Top", value: "top" },
+  { label: "New", value: "new" },
 ] as const satisfies readonly {
   label: string;
-  status: PostStatus;
-  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  value: NonNullable<PublicPostQuery["sort"]>;
 }[];
 
 export function PostFeedControls({
@@ -55,31 +59,29 @@ export function PostFeedControls({
       aria-busy={pending || undefined}
     >
       {pending ? <span className="sr-only">Updating Posts…</span> : null}
-      <Tabs
-        value={search.sort ?? "trending"}
-        onValueChange={(sort) =>
-          onSearchChange?.({
-            ...search,
-            cursor: undefined,
-            sort: sort as PublicPostQuery["sort"],
-          })
-        }
+      <ButtonGroup
+        aria-label="Sort Posts"
+        className="grid h-10 w-full grid-cols-3 lg:w-72"
       >
-        <TabsList
-          aria-label="Sort Posts"
-          className="grid h-10 w-full grid-cols-3 p-0 lg:w-72"
-        >
-          <TabsTrigger className="px-5 text-sm" value="trending">
-            Trending
-          </TabsTrigger>
-          <TabsTrigger className="px-5 text-sm" value="top">
-            Top
-          </TabsTrigger>
-          <TabsTrigger className="px-5 text-sm" value="new">
-            New
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+        {sortOptions.map(({ label, value }) => (
+          <Button
+            key={value}
+            type="button"
+            variant="outline"
+            aria-pressed={(search.sort ?? "trending") === value}
+            className="h-10 px-5 text-sm aria-pressed:bg-muted aria-pressed:text-foreground"
+            onClick={() =>
+              onSearchChange?.({
+                ...search,
+                cursor: undefined,
+                sort: value,
+              })
+            }
+          >
+            {label}
+          </Button>
+        ))}
+      </ButtonGroup>
       <CommandPaletteTrigger className="justify-start lg:justify-center" />
     </div>
   );
@@ -114,7 +116,7 @@ export function BoardNavigation({
                 onSearchChange?.({
                   ...search,
                   cursor: undefined,
-                  types: !type || active ? [] : [type],
+                  types: !type || active ? undefined : [type],
                 })
               }
             >
@@ -147,8 +149,12 @@ export function StatusNavigation({
         role="group"
         aria-label="Status filters"
       >
-        {roadmapStatuses.map(({ label, status, icon: Icon }) => {
+        {roadmapStatuses.map((status) => {
+          const { Icon, label } = postStatusPresentation[status];
           const active = selected.includes(status);
+          const nextStatuses = active
+            ? selected.filter((candidate) => candidate !== status)
+            : [...selected, status];
           return (
             <Button
               key={status}
@@ -160,9 +166,7 @@ export function StatusNavigation({
                 onSearchChange?.({
                   ...search,
                   cursor: undefined,
-                  statuses: active
-                    ? selected.filter((candidate) => candidate !== status)
-                    : [...selected, status],
+                  statuses: nextStatuses.length ? nextStatuses : undefined,
                 })
               }
             >

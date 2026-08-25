@@ -34,7 +34,7 @@ describe("Post feed controls", () => {
   it("switches sort from visible tabs immediately", () => {
     render(<Harness />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "New" }));
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"sort":"new"',
     );
@@ -62,8 +62,8 @@ describe("Post feed controls", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Bug reports" }));
-    expect(screen.getByTestId("route-state").textContent).toContain(
-      '"types":[]',
+    expect(screen.getByTestId("route-state").textContent).not.toContain(
+      '"types"',
     );
     expect(
       screen
@@ -84,6 +84,11 @@ describe("Post feed controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Planned" }));
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"statuses":["Shipped"]',
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Shipped" }));
+    expect(screen.getByTestId("route-state").textContent).not.toContain(
+      '"statuses"',
     );
   });
 
@@ -108,8 +113,6 @@ function Harness({
 } = {}) {
   const [search, setSearch] = useState<PublicPostQuery>({
     sort: "trending",
-    types: [],
-    statuses: [],
   });
   return (
     <QueryClientProvider

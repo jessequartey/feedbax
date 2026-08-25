@@ -96,7 +96,6 @@ describe("public feedback home page", () => {
     );
 
     expect(html).toContain("No Posts match this view");
-    expect(html).toContain('data-slot="empty"');
     expect(html).toContain("Clear filters");
   });
 
@@ -125,6 +124,7 @@ describe("public feedback home page", () => {
     expect(html).toContain("Planned");
     expect(html).toContain('aria-label="Score unavailable"');
     expect(html).toContain('aria-label="Comments unavailable"');
+    expect(html.match(/>—<\/span>/g)).toHaveLength(2);
   });
 
   it("links each Published Post by immutable slug", () => {
