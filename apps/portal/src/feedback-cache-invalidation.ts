@@ -3,10 +3,12 @@ import type { FeedbackModule } from "@feedbax/feedback";
 import {
   publicFeedbackCacheTag,
   publicPostCacheTag,
+  publicRoadmapCacheTag,
 } from "./public-cache-tags";
 
 interface PublicCacheInvalidator {
   invalidatePost(slug: string): Promise<void>;
+  invalidateVote(slug: string): Promise<void>;
 }
 
 interface CachePurgeResult {
@@ -23,15 +25,17 @@ export function createPublicCacheInvalidator({
 }: {
   purge: PurgePublicCache;
 }): PublicCacheInvalidator {
+  async function purgePost(slug: string, tags: string[]) {
+    const result = await purge({
+      tags: [publicFeedbackCacheTag, publicPostCacheTag(slug), ...tags],
+    });
+    if (!result.success) {
+      throw new Error("Public feedback cache invalidation failed.");
+    }
+  }
   return {
-    async invalidatePost(slug) {
-      const result = await purge({
-        tags: [publicFeedbackCacheTag, publicPostCacheTag(slug)],
-      });
-      if (!result.success) {
-        throw new Error("Public feedback cache invalidation failed.");
-      }
-    },
+    invalidatePost: (slug) => purgePost(slug, []),
+    invalidateVote: (slug) => purgePost(slug, [publicRoadmapCacheTag]),
   };
 }
 
@@ -43,8 +47,11 @@ export function createInvalidatingFeedbackModule({
   invalidator: PublicCacheInvalidator;
 }): FeedbackModule {
   return {
-    changeVote: (input) =>
-      runInvalidatingWrite(() => feedback.changeVote(input), invalidator),
+    async changeVote(input) {
+      const result = await feedback.changeVote(input);
+      await invalidator.invalidateVote(result.slug).catch(() => undefined);
+      return result;
+    },
     submitPost: (input) =>
       runInvalidatingWrite(() => feedback.submitPost(input), invalidator),
     editDraftPost: (input) =>

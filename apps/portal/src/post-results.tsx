@@ -10,11 +10,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@feedbax/ui/components/empty";
-import { ArrowUp, MessageCircle, SearchX } from "lucide-react";
+import { MessageCircle, SearchX } from "lucide-react";
 
 import { PostLink } from "./masked-post-link";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
 import feedbax from "./feedbax";
+import { VoteToggle } from "./vote-toggle";
 
 export function PostResults({
   drafts = [],
@@ -114,8 +115,18 @@ function PostResultRow({
   maskPostLinks: boolean;
   features: PortalFeatures;
 }) {
+  const votingEligible =
+    features.voting &&
+    !draft &&
+    "voteCount" in post &&
+    post.voteCount !== undefined;
   return (
-    <li>
+    <li className="relative">
+      {votingEligible ? (
+        <div className="absolute top-5 left-5 z-10 flex h-[4.75rem] w-16 items-center justify-center sm:w-[4.75rem]">
+          <VoteToggle post={post} />
+        </div>
+      ) : null}
       <PostLink
         className={draft ? "post-link draft-post-link" : "post-link"}
         slug={post.slug}
@@ -125,13 +136,7 @@ function PostResultRow({
           className={`relative grid ${features.voting ? "grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[4.75rem_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-4 p-5 transition-colors duration-150 hover:bg-muted/30 sm:items-center`}
         >
           {features.voting ? (
-            <span
-              className="flex h-[4.75rem] w-full flex-col items-center justify-center gap-1 border text-sm font-medium text-muted-foreground"
-              aria-label="Score unavailable"
-            >
-              <ArrowUp className="size-5" aria-hidden="true" />
-              <span aria-hidden="true">—</span>
-            </span>
+            <span className="h-[4.75rem]" aria-hidden="true" />
           ) : null}
           <span className="min-w-0 sm:pr-16">
             <span className="block text-base font-medium text-foreground sm:text-lg">

@@ -45,6 +45,50 @@ describe("public feedback home page", () => {
     expect(page.nextCursor).not.toContain("feedback-");
   });
 
+  it("keeps each public feed ordering deterministic across route pages", async () => {
+    const feedback = createFeedbackModule({
+      initialItems: Array.from({ length: 27 }, (_, index) => ({
+        id: `post-${index}`,
+        slug: `post-${index}`,
+        title: `Post ${index}`,
+        description: "Visible.",
+        type: "Feature Request" as const,
+        status: "Planned" as const,
+        published: true,
+        voteCount: index < 2 ? 100 : index,
+        createdAt: new Date(Date.UTC(2026, 7, index + 1)),
+        updatedAt: new Date(Date.UTC(2026, 7, index + 1)),
+      })),
+    });
+
+    const top = await loadPublicPostPage({
+      feedback,
+      search: { sort: "top" },
+    });
+    const trending = await loadPublicPostPage({
+      feedback,
+      search: { sort: "trending" },
+    });
+    const newest = await loadPublicPostPage({
+      feedback,
+      search: { sort: "new" },
+    });
+    const topNext = await loadPublicPostPage({
+      feedback,
+      search: { sort: "top", cursor: top.nextCursor },
+    });
+
+    expect(top.items.map(({ slug }) => slug)).toEqual(
+      trending.items.map(({ slug }) => slug),
+    );
+    expect(top.items.slice(0, 2).map(({ slug }) => slug)).toEqual([
+      "post-1",
+      "post-0",
+    ]);
+    expect(newest.items[0]?.slug).toBe("post-26");
+    expect([...top.items, ...topNext.items]).toHaveLength(27);
+  });
+
   it("applies Feedback Type and Feedback Status filters from the page URL", async () => {
     const feedback = createFeedbackModule({
       initialItems: [
@@ -118,7 +162,7 @@ describe("public feedback home page", () => {
     expect(html).toContain("New post");
   });
 
-  it("renders scan-friendly Post cards with honest placeholder counts", () => {
+  it("renders the working Vote toggle on eligible public feed cards", () => {
     renderIndexIntoDocument(
       <PublicPostIndex page={{ items: [publishedPost] }} search={{}} />,
     );
@@ -129,11 +173,13 @@ describe("public feedback home page", () => {
     });
     expect(within(metadata).getByText("Feature Request")).toBeTruthy();
     expect(within(metadata).getByText("Planned")).toBeTruthy();
-    expect(within(post).getByLabelText("Score unavailable")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Add Vote, 7 Votes" }),
+    ).toBeTruthy();
     expect(
       within(metadata).getByLabelText("Comments unavailable"),
     ).toBeTruthy();
-    expect(within(post).getAllByText("—")).toHaveLength(2);
+    expect(within(post).getAllByText("—")).toHaveLength(1);
   });
 
   it("links each Published Post by immutable slug", () => {
@@ -240,6 +286,7 @@ const publishedPost = {
   description: "Open search without reaching for the mouse.",
   type: "Feature Request" as const,
   status: "Planned" as const,
+  voteCount: 7,
   createdAt: new Date("2026-08-20T10:00:00.000Z"),
   updatedAt: new Date("2026-08-20T12:00:00.000Z"),
 };

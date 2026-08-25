@@ -30,7 +30,7 @@ describe("feedback cache invalidation", () => {
     const invalidatePost = vi.fn().mockResolvedValue(undefined);
     const feedback = createInvalidatingFeedbackModule({
       feedback: createFeedbackModule(),
-      invalidator: { invalidatePost },
+      invalidator: { invalidatePost, invalidateVote: invalidatePost },
     });
 
     const submitted = await feedback.submitTrustedPost({
@@ -43,11 +43,81 @@ describe("feedback cache invalidation", () => {
     expect(invalidatePost).toHaveBeenCalledExactlyOnceWith(submitted.slug);
   });
 
+  it("invalidates feed, Post detail, and roadmap projections after a confirmed Vote", async () => {
+    const purge = vi.fn().mockResolvedValue({ success: true, errors: [] });
+    const now = new Date("2026-08-25T10:00:00.000Z");
+    const feedback = createInvalidatingFeedbackModule({
+      feedback: createFeedbackModule({
+        initialItems: [
+          {
+            id: "post-id",
+            slug: "keyboard-navigation",
+            title: "Keyboard navigation",
+            description: "Navigate without a mouse.",
+            type: "Feature Request",
+            status: "Planned",
+            published: true,
+            voteCount: 2,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      }),
+      invalidator: createPublicCacheInvalidator({ purge }),
+    });
+
+    await feedback.changeVote({
+      slug: "keyboard-navigation",
+      intention: "add",
+    });
+
+    expect(purge).toHaveBeenCalledWith({
+      tags: [
+        "feedbax-feedback",
+        "feedbax-post-keyboard-navigation",
+        "feedbax-roadmap",
+      ],
+    });
+  });
+
+  it("keeps a confirmed Vote successful when cache invalidation fails", async () => {
+    const now = new Date("2026-08-25T10:00:00.000Z");
+    const feedback = createInvalidatingFeedbackModule({
+      feedback: createFeedbackModule({
+        initialItems: [
+          {
+            id: "post-id",
+            slug: "keyboard-navigation",
+            title: "Keyboard navigation",
+            description: "Navigate without a mouse.",
+            type: "Feature Request",
+            status: "Planned",
+            published: true,
+            voteCount: 2,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      }),
+      invalidator: {
+        invalidatePost: vi.fn(),
+        invalidateVote: vi.fn().mockRejectedValue(new Error("purge failed")),
+      },
+    });
+
+    await expect(
+      feedback.changeVote({
+        slug: "keyboard-navigation",
+        intention: "add",
+      }),
+    ).resolves.toEqual({ slug: "keyboard-navigation", voteCount: 3 });
+  });
+
   it("invalidates after edits and withdrawals without passing private write data", async () => {
     const invalidatePost = vi.fn().mockResolvedValue(undefined);
     const feedback = createInvalidatingFeedbackModule({
       feedback: createFeedbackModule(),
-      invalidator: { invalidatePost },
+      invalidator: { invalidatePost, invalidateVote: invalidatePost },
     });
     const submitted = await feedback.submitPost({
       title: "Original title",
@@ -82,7 +152,7 @@ describe("feedback cache invalidation", () => {
         ...createFeedbackModule(),
         submitPost: vi.fn().mockRejectedValue(new Error("write failed")),
       },
-      invalidator: { invalidatePost },
+      invalidator: { invalidatePost, invalidateVote: invalidatePost },
     });
 
     await expect(

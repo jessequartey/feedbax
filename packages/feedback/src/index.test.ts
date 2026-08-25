@@ -103,6 +103,52 @@ describe("Feedback module", () => {
     ).rejects.toThrow("Votes are available only for Published Posts.");
   });
 
+  it("orders and paginates Top, Trending, and New deterministically", async () => {
+    const feedback = createFeedbackModule({
+      initialItems: Array.from({ length: 27 }, (_, index) => ({
+        id: `post-${String(index).padStart(2, "0")}`,
+        slug: `post-${index}`,
+        title: `Post ${index}`,
+        description: "Visible.",
+        type: "Feature Request" as const,
+        status: "Planned" as const,
+        published: true,
+        voteCount: index < 2 ? 100 : index,
+        createdAt: new Date(Date.UTC(2026, 7, index + 1)),
+        updatedAt: new Date(Date.UTC(2026, 7, index + 1)),
+      })),
+    });
+
+    const top = await feedback.listPublicPosts({ sort: "top" });
+    const trending = await feedback.listPublicPosts({ sort: "trending" });
+    const newest = await feedback.listPublicPosts({ sort: "new" });
+    const topNext = await feedback.listPublicPosts({
+      sort: "top",
+      cursor: top.nextCursor,
+    });
+
+    expect(top.items.map(({ slug }) => slug)).toEqual(
+      trending.items.map(({ slug }) => slug),
+    );
+    expect(top.items.slice(0, 2).map(({ slug }) => slug)).toEqual([
+      "post-1",
+      "post-0",
+    ]);
+    expect(newest.items.slice(0, 2).map(({ slug }) => slug)).toEqual([
+      "post-26",
+      "post-25",
+    ]);
+    expect(
+      [...top.items, ...topNext.items].map(({ slug }) => slug),
+    ).toHaveLength(27);
+    expect(
+      new Set([...top.items, ...topNext.items].map(({ slug }) => slug)).size,
+    ).toBe(27);
+    await expect(
+      feedback.listPublicPosts({ sort: "new", cursor: top.nextCursor }),
+    ).rejects.toThrow("cursor does not match this feed view");
+  });
+
   it("submits a Post with persisted public identity and private edit authority", async () => {
     const feedback = createFeedbackModule();
 

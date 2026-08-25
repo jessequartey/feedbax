@@ -8,6 +8,8 @@ In the Notion-only Profile, Votes are browser-remembered convenience state backe
 
 When Turnstile is configured, the first participation action issues a signed Participation Pass valid for 30 minutes. Setup stores its generated `PARTICIPATION_SIGNING_SECRET` outside typed public configuration; rotating that secret invalidates outstanding passes.
 
+Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, Trending temporarily aliases that exact ordering, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
+
 ## Features
 
 - **TypeScript** - For type safety and improved developer experience

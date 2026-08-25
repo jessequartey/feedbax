@@ -5,13 +5,15 @@ export type FetchPublicPostsPage = (
   search: PublicPostQuery,
 ) => Promise<PublicPostPage>;
 
+export const publicPostsQueryKey = ["public-posts"] as const;
+
 export function publicPostsQuery(
   search: PublicPostQuery,
   fetchPage: FetchPublicPostsPage,
 ) {
   const querySearch = { ...search, cursor: undefined };
   return infiniteQueryOptions({
-    queryKey: ["public-posts", querySearch] as const,
+    queryKey: [...publicPostsQueryKey, querySearch] as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       fetchPage({

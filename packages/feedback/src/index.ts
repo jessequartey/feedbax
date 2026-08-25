@@ -96,6 +96,13 @@ export class VoteEligibilityError extends Error {
   }
 }
 
+export class PublicPostCursorError extends Error {
+  constructor() {
+    super("Public Post cursor does not match this feed view.");
+    this.name = "PublicPostCursorError";
+  }
+}
+
 export type DraftPost = Pick<
   Post,
   | "id"
@@ -398,12 +405,20 @@ export function createFeedbackModule(
       return toDraftPost(toPost(item));
     },
     async listPublicPosts(query = {}) {
-      const page = await storage.listPublic(query);
+      const storageCursor = query.cursor
+        ? decodePublicPostCursor(query.cursor, query)
+        : undefined;
+      const page = await storage.listPublic({
+        ...query,
+        cursor: storageCursor,
+      });
       return {
         items: page.items.map((item) =>
           toPublicPost(toPost(item), votingEnabled),
         ),
-        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+        ...(page.nextCursor
+          ? { nextCursor: encodePublicPostCursor(page.nextCursor, query) }
+          : {}),
       };
     },
     listPublicRoadmapPosts,
@@ -455,6 +470,50 @@ export function createNotionFeedbackModule(
   return createFeedbackModule({
     storage: createNotionFeedbackStorage(options),
     votingEnabled: options.votingEnabled,
+  });
+}
+
+function encodePublicPostCursor(
+  storageCursor: string,
+  query: PublicPostQuery,
+): string {
+  return Buffer.from(
+    JSON.stringify({ storageCursor, scope: publicPostCursorScope(query) }),
+    "utf8",
+  ).toString("base64url");
+}
+
+function decodePublicPostCursor(
+  cursor: string,
+  query: PublicPostQuery,
+): string {
+  try {
+    const value: unknown = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    );
+    if (
+      !value ||
+      typeof value !== "object" ||
+      typeof Reflect.get(value, "storageCursor") !== "string" ||
+      Reflect.get(value, "scope") !== publicPostCursorScope(query)
+    ) {
+      throw new PublicPostCursorError();
+    }
+    return Reflect.get(value, "storageCursor") as string;
+  } catch (error) {
+    if (error instanceof PublicPostCursorError) throw error;
+    throw new PublicPostCursorError();
+  }
+}
+
+function publicPostCursorScope(query: PublicPostQuery): string {
+  return JSON.stringify({
+    sort: query.sort ?? "trending",
+    type: query.type,
+    status: query.status,
+    types: query.types,
+    statuses: query.statuses,
+    search: query.search,
   });
 }
 

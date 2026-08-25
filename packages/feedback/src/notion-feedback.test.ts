@@ -236,24 +236,34 @@ describe("Notion-backed Feedback module", () => {
   });
 
   it("lists a filtered cursor page with one publication-gated Notion query", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        object: "list",
-        results: [
-          notionPage({
-            id: "published-page",
-            title: "Faster exports",
-            description: "Export large reports without timing out.",
-            type: "Feature Request",
-            status: "In Progress",
-            published: true,
-            editTokenHash: "private-hash",
-          }),
-        ],
-        has_more: true,
-        next_cursor: "notion-next-cursor",
-      }),
-    );
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          object: "list",
+          results: [],
+          has_more: true,
+          next_cursor: "notion-start-cursor",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          object: "list",
+          results: [
+            notionPage({
+              id: "published-page",
+              title: "Faster exports",
+              description: "Export large reports without timing out.",
+              type: "Feature Request",
+              status: "In Progress",
+              published: true,
+              editTokenHash: "private-hash",
+            }),
+          ],
+          has_more: true,
+          next_cursor: "notion-next-cursor",
+        }),
+      );
     const feedback = createNotionFeedbackModule({
       token: "notion-token",
       dataSourceId: "feedback-data-source",
@@ -261,13 +271,14 @@ describe("Notion-backed Feedback module", () => {
       request,
     });
 
+    const query = {
+      type: "Feature Request" as const,
+      status: "In Progress" as const,
+    };
+    const firstPage = await feedback.listPublicPosts(query);
     await expect(
-      feedback.listPublicPosts({
-        cursor: "notion-start-cursor",
-        type: "Feature Request",
-        status: "In Progress",
-      }),
-    ).resolves.toEqual({
+      feedback.listPublicPosts({ ...query, cursor: firstPage.nextCursor }),
+    ).resolves.toMatchObject({
       items: [
         {
           slug: "faster-exports",
@@ -280,10 +291,10 @@ describe("Notion-backed Feedback module", () => {
           voteCount: 0,
         },
       ],
-      nextCursor: "notion-next-cursor",
+      nextCursor: expect.any(String),
     });
-    expect(request).toHaveBeenCalledOnce();
-    const [url, init] = request.mock.calls[0]!;
+    expect(request).toHaveBeenCalledTimes(2);
+    const [url, init] = request.mock.calls[1]!;
     expect(String(url)).toContain("/data_sources/feedback-data-source/query?");
     expect(String(url)).not.toContain("published-id");
     expect(String(url)).not.toContain("submitter-name-id");

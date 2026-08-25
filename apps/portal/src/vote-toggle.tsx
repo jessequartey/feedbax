@@ -1,7 +1,12 @@
 import type { PublicPost } from "@feedbax/feedback";
 import { ArrowUp } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { readVotedPostSlugs, persistVotedPost } from "./browser-vote-state";
+import { publicPostsQueryKey } from "./post-queries";
+import { publicRoadmapQueryKey } from "./roadmap-query";
+
+const voteConfirmedEvent = "feedbax:vote-confirmed";
 
 declare global {
   interface Window {
@@ -22,6 +27,7 @@ export function VoteToggle({
   turnstileSiteKey?: string;
   requestTimeoutMs?: number;
 }) {
+  const queryClient = useContext(QueryClientContext);
   const [voted, setVoted] = useState(false);
   const [count, setCount] = useState(post.voteCount ?? 0);
   const [pending, setPending] = useState(false);
@@ -33,9 +39,26 @@ export function VoteToggle({
 
   useEffect(() => {
     setVoted(readVotedPostSlugs(localStorage).has(post.slug));
+    setCount(post.voteCount ?? 0);
     setParticipationPass(
       sessionStorage.getItem("feedbax:participation-pass") ?? undefined,
     );
+  }, [post.slug, post.voteCount]);
+  useEffect(() => {
+    const reconcile = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          slug: string;
+          voteCount: number;
+          voted: boolean;
+        }>
+      ).detail;
+      if (detail.slug !== post.slug) return;
+      setCount(detail.voteCount);
+      setVoted(detail.voted);
+    };
+    window.addEventListener(voteConfirmedEvent, reconcile);
+    return () => window.removeEventListener(voteConfirmedEvent, reconcile);
   }, [post.slug]);
   useEffect(() => {
     if (!turnstileSiteKey || participationPass || !turnstileContainer.current)
@@ -116,6 +139,21 @@ export function VoteToggle({
       }
       setCount(result.voteCount);
       persistVotedPost(localStorage, post.slug, nextVoted);
+      window.dispatchEvent(
+        new CustomEvent(voteConfirmedEvent, {
+          detail: {
+            slug: post.slug,
+            voteCount: result.voteCount,
+            voted: nextVoted,
+          },
+        }),
+      );
+      if (queryClient) {
+        void Promise.all([
+          queryClient.invalidateQueries({ queryKey: publicPostsQueryKey }),
+          queryClient.invalidateQueries({ queryKey: publicRoadmapQueryKey }),
+        ]);
+      }
       if (result.participationPass) {
         sessionStorage.setItem(
           "feedbax:participation-pass",

@@ -10,9 +10,11 @@ export type FetchPublicRoadmapStatusPage = (
   query: PublicRoadmapQuery,
 ) => Promise<PublicRoadmapPage>;
 
+export const publicRoadmapQueryKey = ["public-post-roadmap"] as const;
+
 export function publicRoadmapQuery(fetchRoadmap: FetchPublicRoadmap) {
   return queryOptions({
-    queryKey: ["public-post-roadmap"] as const,
+    queryKey: publicRoadmapQueryKey,
     queryFn: fetchRoadmap,
     staleTime: 30_000,
   });

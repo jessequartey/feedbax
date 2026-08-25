@@ -9,6 +9,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { VoteToggle } from "./vote-toggle";
 
 const post = {
@@ -23,6 +28,7 @@ const post = {
 };
 
 beforeEach(() => {
+  localStorage.clear();
   sessionStorage.clear();
 });
 
@@ -35,6 +41,72 @@ afterEach(() => {
 });
 
 describe("Vote toggle", () => {
+  it("reconciles every affected browser projection only after confirmation", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ voteCount: 3 }),
+    );
+    const queryClient = new QueryClient();
+    const fetchPosts = vi.fn().mockResolvedValue({ items: [post] });
+    const fetchRoadmap = vi
+      .fn()
+      .mockResolvedValue({ Planned: { items: [post] } });
+    function VisibleProjections() {
+      useQuery({
+        queryKey: ["public-posts", { sort: "top" }],
+        queryFn: fetchPosts,
+        staleTime: Infinity,
+      });
+      useQuery({
+        queryKey: ["public-post-roadmap"],
+        queryFn: fetchRoadmap,
+        staleTime: Infinity,
+      });
+      return null;
+    }
+    render(
+      <QueryClientProvider client={queryClient}>
+        <VisibleProjections />
+        <VoteToggle post={post} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(fetchPosts).toHaveBeenCalledOnce();
+      expect(fetchRoadmap).toHaveBeenCalledOnce();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Vote, 2 Votes" }));
+
+    await waitFor(() =>
+      expect(localStorage.getItem("feedbax:voted-posts")).toContain(post.slug),
+    );
+    await waitFor(() => {
+      expect(fetchPosts).toHaveBeenCalledTimes(2);
+      expect(fetchRoadmap).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("keeps mounted feed and Post detail toggles consistent after confirmation", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ voteCount: 3 }),
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <VoteToggle post={post} />
+        <VoteToggle post={post} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Add Vote, 2 Votes" })[0]!,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "Remove Vote, 3 Votes" }),
+      ).toHaveLength(2),
+    );
+  });
+
   it("renders and resets an explicit Turnstile challenge after verification failure", async () => {
     const reset = vi.fn();
     window.turnstile = { render: vi.fn().mockReturnValue("widget-1"), reset };
@@ -44,7 +116,7 @@ describe("Vote toggle", () => {
         { status: 400 },
       ),
     );
-    render(<VoteToggle post={post} turnstileSiteKey="public-site-key" />);
+    renderVoteToggle({ turnstileSiteKey: "public-site-key" });
     await waitFor(() => expect(window.turnstile?.render).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: "Add Vote, 2 Votes" }));
@@ -65,7 +137,7 @@ describe("Vote toggle", () => {
           );
         }),
     );
-    render(<VoteToggle post={post} requestTimeoutMs={25} />);
+    renderVoteToggle({ requestTimeoutMs: 25 });
     const button = screen.getByRole("button", { name: "Add Vote, 2 Votes" });
     fireEvent.click(button);
     expect(button.textContent).toContain("3");
@@ -78,3 +150,13 @@ describe("Vote toggle", () => {
     );
   });
 });
+
+function renderVoteToggle(
+  props: Partial<React.ComponentProps<typeof VoteToggle>> = {},
+) {
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <VoteToggle post={post} {...props} />
+    </QueryClientProvider>,
+  );
+}
