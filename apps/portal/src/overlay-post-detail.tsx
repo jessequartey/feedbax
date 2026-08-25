@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PublicPost } from "@feedbax/feedback";
+import { ExternalLink } from "lucide-react";
 
 import { getPublicPost } from "./public-post-server-function";
 import {
@@ -28,10 +29,10 @@ export function OverlayPostDetail({ slug }: { slug: string }) {
         className="post-full-page-link"
         href={`/p/${encodeURIComponent(slug)}`}
       >
-        Open full page
+        Open full page <ExternalLink aria-hidden="true" />
       </a>
       {post ? (
-        <PublicPostDetail post={post} />
+        <PublicPostDetail post={post} display="overlay" />
       ) : (
         <AuthorizedDraftPost slug={slug} />
       )}

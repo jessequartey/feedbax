@@ -409,28 +409,54 @@ textarea:focus-visible {
 }
 
 .post-detail-dialog {
-  width: min(46rem, calc(100vw - 2rem));
-  max-width: 46rem;
+  display: block;
+  width: min(70rem, calc(100vw - 2rem));
+  max-width: 70rem;
   max-height: calc(100svh - 2rem);
   overflow-y: auto;
+  padding: 0;
 }
 
 .post-detail-drawer {
-  max-height: 92svh;
-  overflow-y: auto;
+  max-height: calc(100svh - 0.5rem);
+  overflow: hidden;
 }
 
 .overlay-post-detail {
-  padding: clamp(1rem, 3vw, 2rem);
+  display: grid;
+  min-height: 0;
 }
 
 .post-full-page-link {
-  display: block;
-  margin-bottom: 1rem;
-  color: var(--portal-accent);
+  display: flex;
+  min-height: 4.5rem;
+  padding: 0 4.25rem 0 1.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  border-bottom: 1px solid var(--portal-rule);
+  color: var(--muted-foreground);
   font-size: 0.8rem;
-  font-weight: 700;
-  text-align: right;
+  font-weight: 600;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.25rem;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+}
+
+.post-full-page-link:hover {
+  color: var(--portal-ink);
+  text-decoration-color: currentColor;
+}
+
+.post-full-page-link svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-left: 0.5rem;
+}
+
+.post-detail-drawer .overlay-post-detail {
+  overflow-y: auto;
 }
 
 .draft-detail-actions {
@@ -1131,6 +1157,169 @@ textarea:focus-visible {
   font-weight: 650;
 }
 
+.public-post-detail {
+  width: min(90vw, 70rem);
+  padding: clamp(2rem, 5vw, 4rem) 0 5rem;
+}
+
+.public-post-detail[data-display="overlay"] {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  animation: none;
+}
+
+.public-post-detail .post-detail-layout {
+  display: grid;
+  max-width: none;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.42fr);
+  margin-top: 1.5rem;
+  border: 1px solid var(--portal-rule);
+  background: color-mix(in srgb, var(--card) 55%, var(--background));
+}
+
+.public-post-detail[data-display="overlay"] .post-detail-layout {
+  margin-top: 0;
+  border: 0;
+}
+
+.post-detail-primary,
+.post-detail-sidebar {
+  min-width: 0;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.post-detail-sidebar {
+  border-left: 1px solid var(--portal-rule);
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+}
+
+.public-post-detail .feedback-detail-meta {
+  display: flex;
+  gap: 0.5rem;
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.public-post-detail .feedback-detail-meta [data-status="Planned"],
+.public-post-detail .post-detail-details [data-status="Planned"] {
+  border-color: color-mix(in srgb, var(--status-planned) 40%, transparent);
+  background: color-mix(in srgb, var(--status-planned) 14%, transparent);
+  color: var(--status-planned);
+}
+
+.public-post-detail .feedback-detail-meta [data-status="In Progress"],
+.public-post-detail .post-detail-details [data-status="In Progress"] {
+  border-color: color-mix(in srgb, var(--status-in-progress) 40%, transparent);
+  background: color-mix(in srgb, var(--status-in-progress) 14%, transparent);
+  color: var(--status-in-progress);
+}
+
+.public-post-detail .feedback-detail-meta [data-status="Shipped"],
+.public-post-detail .post-detail-details [data-status="Shipped"] {
+  border-color: color-mix(in srgb, var(--status-shipped) 40%, transparent);
+  background: color-mix(in srgb, var(--status-shipped) 14%, transparent);
+  color: var(--status-shipped);
+}
+
+.public-post-detail h1 {
+  max-width: 22ch;
+  margin: 1.5rem 0 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+}
+
+.public-post-detail .feedback-detail-description {
+  max-width: 45rem;
+  margin: 0.75rem 0 0;
+  color: var(--muted-foreground);
+  font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+  line-height: 1.65;
+}
+
+.post-detail-engagement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+
+.post-detail-engagement > span {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+}
+
+.post-detail-engagement > span:first-child {
+  min-width: 5rem;
+  justify-content: center;
+  border: 1px solid var(--portal-rule);
+  color: var(--portal-ink);
+}
+
+.post-detail-engagement svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.post-detail-comments {
+  margin-top: 1.75rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--portal-rule);
+}
+
+.post-detail-comments > h2,
+.post-detail-sidebar > h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.post-detail-comments-empty {
+  min-height: 13rem;
+  margin-top: 1.25rem;
+  border: 1px dashed var(--portal-rule);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.post-detail-details {
+  display: grid;
+  gap: 1.25rem;
+  margin: 1.5rem 0 0;
+}
+
+.post-detail-details > div {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.75fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.post-detail-details dt {
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+}
+
+.post-detail-details dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 550;
+}
+
+.post-detail-details time {
+  white-space: nowrap;
+}
+
 .feedback-detail-missing {
   display: flex;
   min-height: calc(100svh - 4.5rem);
@@ -1373,6 +1562,61 @@ textarea:focus-visible {
     overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
+  }
+}
+
+@media (max-width: 880px) {
+  .public-post-detail .post-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .post-detail-sidebar {
+    border-top: 1px solid var(--portal-rule);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-post-detail {
+    width: auto;
+  }
+
+  .public-post-detail .post-detail-layout {
+    margin-top: 1rem;
+  }
+
+  .public-post-detail[data-display="overlay"] .post-detail-layout {
+    margin-top: 0;
+  }
+
+  .public-post-detail h1 {
+    font-size: clamp(1.85rem, 8vw, 2.5rem);
+  }
+
+  .post-detail-primary,
+  .post-detail-sidebar {
+    padding: 1.25rem;
+  }
+
+  .post-detail-engagement {
+    align-items: stretch;
+  }
+
+  .post-detail-engagement > span:last-child {
+    justify-content: flex-end;
+  }
+
+  .post-detail-comments-empty {
+    min-height: 10rem;
+  }
+
+  .post-detail-details > div {
+    grid-template-columns: minmax(5rem, 0.65fr) minmax(0, 1fr);
+  }
+
+  .post-full-page-link {
+    min-height: 3.75rem;
+    padding-right: 1.25rem;
   }
 }
 

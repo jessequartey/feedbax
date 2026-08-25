@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { OverlayPostDetail } from "./overlay-post-detail";
@@ -45,6 +45,26 @@ it("shows loading instead of stale content when the requested slug changes", asy
   expect(
     await screen.findByRole("heading", { name: "Second Post" }),
   ).toBeTruthy();
+});
+
+it("shows the designed Post detail with a canonical full-page link", async () => {
+  vi.mocked(getPublicPost).mockResolvedValue(firstPost);
+
+  render(<OverlayPostDetail slug="first-post" />);
+
+  expect(
+    await screen.findByRole("heading", { name: "First Post" }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole("link", { name: "Open full page" }).getAttribute("href"),
+  ).toBe("/p/first-post");
+  expect(screen.getByRole("complementary", { name: "Details" })).toBeTruthy();
+  expect(
+    within(screen.getByRole("region", { name: "Comments" })).getByText(
+      "No comments yet",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByRole("link", { name: "Back to Feedback" })).toBeNull();
 });
 
 const firstPost = {

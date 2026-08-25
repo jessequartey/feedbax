@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { createFeedbackModule } from "@feedbax/feedback";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -46,10 +46,13 @@ describe("/p/$slug", () => {
     expect(
       await screen.findByRole("heading", { name: "Keyboard-first search" }),
     ).toBeTruthy();
-    expect(screen.getByText("Feature Request")).toBeTruthy();
-    expect(screen.getByText("Planned")).toBeTruthy();
-    expect(screen.getByText("Submitted")).toBeTruthy();
-    expect(screen.getByText("Last updated")).toBeTruthy();
+    const details = within(
+      screen.getByRole("complementary", { name: "Details" }),
+    );
+    expect(details.getByText("Feature Request")).toBeTruthy();
+    expect(details.getByText("Planned")).toBeTruthy();
+    expect(details.getByText("Submitted")).toBeTruthy();
+    expect(details.getByText("Updated")).toBeTruthy();
     expect(history.location.pathname).toBe("/p/keyboard-first-search");
     expect(document.body.textContent).not.toContain("secret-id");
   });
