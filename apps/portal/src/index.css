@@ -1249,6 +1249,10 @@ textarea:focus-visible {
   margin-top: 1.75rem;
 }
 
+.post-detail-summary-actions {
+  margin-top: 1.25rem;
+}
+
 .post-detail-engagement > span {
   display: inline-flex;
   min-height: 2.75rem;

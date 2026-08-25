@@ -8,16 +8,26 @@ import {
 } from "@feedbax/ui/components/empty";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
 import { ArrowLeft, ArrowUp, MessageCircle } from "lucide-react";
+import { type ReactNode, useId } from "react";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
 import { formatPublicDate } from "./public-date";
 
 export function PublicPostDetail({
   post,
   display = "page",
+  summaryActions,
+  summaryMarker,
 }: {
   post: PublicPost;
   display?: "overlay" | "page";
+  summaryActions?: ReactNode;
+  summaryMarker?: ReactNode;
 }) {
+  const id = useId();
+  const headingId = `${id}-post-heading`;
+  const commentsHeadingId = `${id}-post-comments-heading`;
+  const detailsHeadingId = `${id}-post-details-heading`;
+
   return (
     <main className="feedback-detail public-post-detail" data-display={display}>
       {display === "page" ? (
@@ -25,14 +35,18 @@ export function PublicPostDetail({
           <ArrowLeft aria-hidden="true" /> Back to Feedback
         </a>
       ) : null}
-      <article className="post-detail-layout" aria-labelledby="post-heading">
+      <article className="post-detail-layout" aria-labelledby={headingId}>
         <div className="post-detail-primary">
           <div className="feedback-detail-meta">
             <PostTypeBadge type={post.type} />
             <PostStatusBadge status={post.status} />
+            {summaryMarker}
           </div>
-          <h1 id="post-heading">{post.title}</h1>
+          <h1 id={headingId}>{post.title}</h1>
           <p className="feedback-detail-description">{post.description}</p>
+          {summaryActions ? (
+            <div className="post-detail-summary-actions">{summaryActions}</div>
+          ) : null}
           <div className="post-detail-engagement">
             <span aria-label="Score unavailable">
               <ArrowUp aria-hidden="true" />
@@ -45,9 +59,9 @@ export function PublicPostDetail({
           </div>
           <section
             className="post-detail-comments"
-            aria-labelledby="post-comments-heading"
+            aria-labelledby={commentsHeadingId}
           >
-            <h2 id="post-comments-heading">Comments</h2>
+            <h2 id={commentsHeadingId}>Comments</h2>
             <Empty className="post-detail-comments-empty">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -63,9 +77,9 @@ export function PublicPostDetail({
         </div>
         <aside
           className="post-detail-sidebar"
-          aria-labelledby="post-details-heading"
+          aria-labelledby={detailsHeadingId}
         >
-          <h2 id="post-details-heading">Details</h2>
+          <h2 id={detailsHeadingId}>Details</h2>
           <dl className="post-detail-details">
             <div>
               <dt>Status</dt>

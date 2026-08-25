@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@feedbax/ui/components/dropdown-menu";
+import { Badge } from "@feedbax/ui/components/badge";
 import { Button } from "@feedbax/ui/components/button";
 import { toast } from "sonner";
 
@@ -35,6 +36,7 @@ import {
 } from "./portal-feedback-server-function";
 import { PublicPostUnavailable } from "./public-post-unavailable";
 import { isCapabilityAuthorizationFailure } from "./capability-authorization-error";
+import { PublicPostDetail } from "./public-post-detail";
 
 export function AuthorizedDraftPost({ slug }: { slug: string }) {
   const [post, setPost] = useState<DraftPost | null>();
@@ -115,60 +117,65 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
   };
 
   return (
-    <main className="feedback-detail">
+    <>
       {editing ? (
-        <PortalFeedbackForm
-          display="overlay"
-          onCancel={() => setEditing(false)}
-          onEdited={updateVisibleDraft}
-          onAuthorizationLost={() => {
-            removeCapability(localStorage, post.id);
-            setPost(null);
-          }}
-          showWithdrawal={false}
-          mutations={{
-            submitPost: submitPortalPost,
-            editDraftPost: editPortalFeedbackDraft,
-            withdrawDraftPost: withdrawPortalFeedbackDraft,
-          }}
-          initialDraft={{
-            id: post.id,
-            browserCapability: capability.browserCapability,
-            title: post.title,
-            description: post.description,
-            type: post.type,
-          }}
-        />
+        <main className="feedback-detail">
+          <PortalFeedbackForm
+            display="overlay"
+            onCancel={() => setEditing(false)}
+            onEdited={updateVisibleDraft}
+            onAuthorizationLost={() => {
+              removeCapability(localStorage, post.id);
+              setPost(null);
+            }}
+            showWithdrawal={false}
+            mutations={{
+              submitPost: submitPortalPost,
+              editDraftPost: editPortalFeedbackDraft,
+              withdrawDraftPost: withdrawPortalFeedbackDraft,
+            }}
+            initialDraft={{
+              id: post.id,
+              browserCapability: capability.browserCapability,
+              title: post.title,
+              description: post.description,
+              type: post.type,
+            }}
+          />
+        </main>
       ) : (
-        <>
-          <div className="draft-detail-actions">
-            <Button type="button" onClick={() => setEditing(true)}>
-              Edit
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label="Draft actions"
-                render={<Button type="button" variant="ghost" size="icon" />}
-              >
-                <MoreHorizontal aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setConfirmingWithdrawal(true)}>
-                  Withdraw draft
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <article>
-            <div className="feedback-detail-meta">
-              <span>Draft</span>
-              <span>{post.type}</span>
-            </div>
-            <h1>{post.title}</h1>
-            <p className="feedback-detail-description">{post.description}</p>
-          </article>
-          {withdrawalError ? <p role="alert">{withdrawalError}</p> : null}
-        </>
+        <PublicPostDetail
+          post={post}
+          display={overlaid ? "overlay" : "page"}
+          summaryMarker={<Badge variant="outline">Draft</Badge>}
+          summaryActions={
+            <>
+              <div className="draft-detail-actions">
+                <Button type="button" onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    aria-label="Draft actions"
+                    render={
+                      <Button type="button" variant="ghost" size="icon" />
+                    }
+                  >
+                    <MoreHorizontal aria-hidden="true" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => setConfirmingWithdrawal(true)}
+                    >
+                      Withdraw draft
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {withdrawalError ? <p role="alert">{withdrawalError}</p> : null}
+            </>
+          }
+        />
       )}
       <AlertDialog
         open={confirmingWithdrawal}
@@ -191,6 +198,6 @@ export function AuthorizedDraftPost({ slug }: { slug: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </main>
+    </>
   );
 }

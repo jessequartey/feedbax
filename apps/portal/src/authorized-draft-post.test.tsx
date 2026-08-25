@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RouterProvider,
@@ -44,6 +50,30 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+});
+
+it("shows an authorized Draft Post in the shared detail layout", async () => {
+  renderDraft();
+
+  const article = within(
+    await screen.findByRole("article", { name: "Original title" }),
+  );
+  expect(article.getByText("Draft")).toBeTruthy();
+  expect(article.getByLabelText("Score unavailable")).toBeTruthy();
+  expect(article.getByLabelText("Comments unavailable")).toBeTruthy();
+  expect(
+    within(article.getByRole("region", { name: "Comments" })).getByText(
+      "No comments yet",
+    ),
+  ).toBeTruthy();
+  const details = within(
+    article.getByRole("complementary", { name: "Details" }),
+  );
+  expect(details.getByText("New")).toBeTruthy();
+  expect(details.getByText("Feature Request")).toBeTruthy();
+  expect(details.queryByText("Author")).toBeNull();
+  expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Draft actions" })).toBeTruthy();
 });
 
 it("edits in place, keeps Cancel unchanged, and reconciles the visible draft", async () => {
