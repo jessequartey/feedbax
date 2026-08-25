@@ -29,13 +29,13 @@ Each Installation serves one Product Team and one product.
 
 ### Notion-only Profile
 
-The quick-start profile provides public feedback browsing, submission, and status visibility without a separate operational datastore. A Participant may supply an optional name and contact email, but that identity is unverified. Browser-local data may remember form details for convenience but is not authentication.
+The quick-start profile provides public feedback browsing, submission, status visibility, and explicitly best-effort Notion-native Participation without a separate operational datastore. A Participant may supply an optional name and contact email, but that identity is unverified. Browser-local data may remember form details, Votes, and short-lived capabilities for convenience but is not authentication.
 
-This profile does not claim reliable identity, unique voting, comments, following, or notifications.
+Participants may add or remove browser-remembered Votes on Published Posts and take part in native Notion Comment Threads. These capabilities do not claim reliable identity, one-person-one-vote integrity, durable attribution, or cross-device state.
 
 ### Connected Profile
 
-The Connected Profile keeps feedback content and product planning in Notion while adding the operational state required for verified Participant identity, voting, comments, following, notifications, signed identity handoff, abuse prevention, synchronization, and media storage.
+The Connected Profile keeps feedback content and product planning in Notion while adding the operational state required for verified Participant identity, reliable unique voting, verified Comment attribution, following, notifications, signed identity handoff, abuse prevention, synchronization, and Participant media storage.
 
 The Connected Profile is a capability distinction, not a paid or enterprise tier.
 
@@ -51,6 +51,9 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 - Public feedback list and detail pages
 - Anonymous feedback submission with optional unverified name and email
 - Public statuses and a simple roadmap
+- Best-effort Votes on Published Posts
+- Native Notion Comment Threads on Post detail pages
+- A Notion-backed Changelog
 - A REST endpoint for submissions from another SaaS product
 - Product name, logo, colors, and basic copy configuration
 - Cloudflare deployment
@@ -59,10 +62,12 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 
 ### Excluded
 
-- Connected Profile capabilities
 - Verified accounts or Better Auth
-- Voting, comments, following, and notifications
-- Images and video
+- Reliable unique voting, verified Comment attribution, following, and notifications
+- Participant-uploaded media, Comment attachments, and video
+- Participation audit history
+- A velocity-based Trending algorithm
+- Follow updates controls or notification delivery
 - A separate management dashboard
 - An embeddable React widget
 - Vercel and Docker deployment
@@ -104,7 +109,7 @@ A Browser Capability never permits changes to status, publication, prioritizatio
 
 ## Notion data contract
 
-The setup flow creates a dedicated **Feedback Data Source** inside a Notion page selected by the Deployer. A Deployer may skip automatic creation by supplying an existing Feedbax-compatible data source; `doctor` validates compatibility before the application starts. Version 0.2.0 does not map arbitrary schemas.
+The setup flow creates a **Feedbax Database** inside a Notion page selected by the Deployer. It contains separate sibling Feedback and Changelog Data Sources by default, giving each workflow a focused schema and views while sharing one obvious location and database-level permission boundary. A Deployer may supply an existing compatible Feedback Data Source and may place a compatible Changelog Data Source in another database when separate Product and Marketing access is required. `doctor` validates compatibility before the application starts. Version 0.2.0 does not map arbitrary schemas.
 
 The Feedback Data Source has this canonical schema:
 
@@ -116,6 +121,7 @@ The Feedback Data Source has this canonical schema:
 | `Type`            | Select           |           Yes | Feature Request, Bug Report, or General Feedback |
 | `Status`          | Select           |           Yes | Post Status                                      |
 | `Published`       | Checkbox         |            No | Controls public visibility                       |
+| `Vote Count`      | Number           |           Yes | Best-effort visible support                      |
 | `Submitter Name`  | Rich text        |            No | Optional unverified follow-up information        |
 | `Submitter Email` | Email            |            No | Optional unverified follow-up information        |
 | `Source`          | Select           |            No | Portal, API, or Team                             |
@@ -124,7 +130,7 @@ The Feedback Data Source has this canonical schema:
 | `Created At`      | Created time     |           Yes | Submission time                                  |
 | `Updated At`      | Last edited time |           Yes | Most recent change                               |
 
-Public pages and APIs use an explicit allowlist containing only Slug, Title, Description, Type, Status, Created At, and Updated At. The public description lives in its dedicated property; Feedbax never renders the page body, so Team Members may use it for private notes without accidentally publishing them.
+Public pages and APIs use an explicit allowlist containing only Slug, Title, Description, Type, Status, Created At, and Updated At, plus Vote Count when voting is enabled. The public description lives in its dedicated property; Feedbax never renders the page body, so Team Members may use it for private notes without accidentally publishing them. Vote Count remains part of every canonical Feedback schema even when voting is disabled, so later enablement requires only a typed configuration change.
 
 Slugs are derived at creation, receive deterministic numeric suffixes when titles collide, and never change when a title is edited. Storage IDs remain internal and never appear in canonical public URLs.
 
@@ -132,13 +138,33 @@ Product Teams may add custom properties and page-body content. Feedbax ignores u
 
 API submissions require an `Idempotency-Key` header, stored as External ID. Retrying the same key returns the original Post. This is best-effort in the Notion-only Profile because Notion does not provide a transactional uniqueness constraint.
 
+### Changelog data contract
+
+Posts and Changelog Entries never share a data source. A mixed schema would require a discriminator, irrelevant empty properties, cross-content filters, and unnecessary leakage risk between workflows. Always placing them in different databases would add setup and access-management overhead, so sibling data sources in one Feedbax Database are the default.
+
+The Changelog Data Source contains Title, immutable Slug, Date, Summary, Body, open-ended Labels, zero or one Image file, Published, Created At, and Updated At. Only Published entries appear publicly, ordered by Date descending with a deterministic tie-breaker and loaded 20 at a time. The timeline retains Changelog Label filtering and hash-based entry navigation; version 0.2.0 has no separate Changelog detail route.
+
+Team Members manage Changelog Entries and their optional image directly in Notion. Feedbax does not upload, transform, or separately store Changelog media. Because Notion-hosted download URLs expire, cached public projections refresh or discard image references before expiry and never serve a known-expired URL. New Changelog Data Sources start empty.
+
+### Notion-native Participation
+
+Voting is available only on Published Posts. A Vote is a reversible add-or-remove intention remembered by the current browser after the server confirms the mutation. The server reads the authoritative Vote Count from Notion, applies the delta, clamps at zero, and serializes changes per Post within one Worker instance. Separate instances can race, so browser memory is convenience rather than verified uniqueness. Top sorts by Vote Count then Created At, both descending; Trending remains the default and temporarily aliases Top; New sorts by Created At descending.
+
+Comments use Notion's native page comment and discussion APIs. A Participant supplies the unverified display name from their Device Profile, while email is omitted from Comment content and public responses. Comments authored in the Product Team's Notion Workspace appear as Product Team Comments regardless of the individual Team Member. Only open Comments are shown, on Post detail pages, 50 at a time; feed and roadmap cards do not fetch Comment counts.
+
+After Notion confirms a Participant Comment or reply, Feedbax returns a signed Comment Capability scoped to that Comment. It permits edit or deletion from the originating browser for fifteen minutes and provides no identity, recovery, or cross-device access. Product Team Comments cannot be changed with Participant capabilities. Resolving or deleting a Comment in Notion removes it from the portal.
+
+Vote and Comment mutations are rate-limited. When Turnstile is enabled, successful verification issues a signed Participation Pass valid for thirty minutes so the browser can make subsequent rate-limited participation requests without another challenge. Comment Capabilities, Participation Passes, and their signing secret never represent Participant identity; the secret stays outside typed public configuration, and rotation invalidates outstanding capabilities and passes.
+
+Voting, Comments, and Changelog are independent typed feature switches, enabled by default with explicit setup opt-outs. Disabled capabilities are absent from navigation, routes, controls, and sorting choices. With voting disabled, New is the only public ordering. With Changelog disabled, its route returns not found. Enabled Comments require read-comment and insert-comment Notion capabilities; setup fails with repair instructions instead of silently disabling the feature.
+
 ## Technical architecture
 
 Version 0.2.0 is a standalone portal deployed to its own Cloudflare Worker and custom domain. A Product Team's SaaS submits feedback through the portal's HTTP endpoint; installing Feedbax inside an existing application and an embeddable package are deferred.
 
 The Deployer connects an internal Notion integration token with Insert Content access to a selected parent page. Public OAuth and Notion Marketplace distribution are deferred.
 
-Routes and HTTP handlers call a deep **Feedback module** that owns publication rules, status transitions, idempotency, public-field allowlisting, Browser Capability verification, and translation between Notion records and the domain model. Route code does not manipulate Notion properties directly.
+Routes and HTTP handlers call a deep **Feedback module** that owns publication rules, status transitions, idempotency, voting, Comment Threads, public-field allowlisting, capability verification, and translation between Notion records and the domain model. A separate deep **Changelog module** owns published timeline queries, pagination, and safe image projection because Changelog Entries have a distinct schema and lifecycle. Route code does not manipulate Notion properties or comment payloads directly.
 
 The Feedback module uses a storage port with a Notion adapter in production and an in-memory adapter in tests. The interface of the Feedback module is the primary behavioral test surface.
 
@@ -162,7 +188,7 @@ The standalone portal exposes:
 - `/p/:slug` for canonical Post detail pages; internal storage IDs are never part of public URLs
 - `/submit` for Post creation, routed contextually from the feed and complete on direct navigation
 - `/roadmap` for a responsive, read-only Planned/In Progress/Shipped board
-- `/changelog` for the product-update placeholder
+- `/changelog` for the Notion-backed product-update timeline when Changelog is enabled
 
 Public Post search is available from every portal page through one global command palette opened by Cmd/Ctrl+K or a Search button. The palette uses the same public Post query definition and cache family as the feed, opens selected Posts with contextual route masking, and offers Feedback, Roadmap, Changelog, and New post navigation actions. The feed route continues to validate and render a `search` parameter supplied in a URL, but Participant search interactions stay in the palette instead of mutating feed URL state.
 
@@ -178,9 +204,11 @@ The stable external HTTP contract initially contains:
 
 Public form submission and public reads use internal TanStack server functions. Stable public read endpoints are deferred until a widget or real external consumer requires them.
 
+Vote and Comment mutations also use internal portal handlers. They are not added to the stable external versioned API in 0.2.0. Handlers validate publication eligibility, feature configuration, rate limits, Turnstile or Participation Pass requirements, and browser capabilities before calling module behavior.
+
 ## Public read query
 
-Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Trending is the default validated sort state; Top and New are immediate alternatives preserved in the URL. Because the current Post schema has no engagement or ranking signal, all three currently resolve to the same deterministic Created At descending storage order rather than mislabeling age or Post Status as popularity. A later ranking signal may give Trending and Top distinct ordering without changing the route contract. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
+Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Trending is the default validated sort state and temporarily uses Top's Vote Count-descending, Created At-descending ordering. New sorts by Created At descending. A real time- or velocity-based Trending algorithm is excluded from version 0.2.0. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
 
 Each public feedback-list cache miss performs one Notion query with no per-item follow-up requests. A roadmap cache miss fetches one 25-Post cursor page per roadmap Post Status. Because Notion data-source queries do not expose total result counts, each first-page roadmap read follows the remaining per-status cursors with 100-Post count pages to calculate the exact column totals; it never performs per-Post follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable page size is deferred.
 
@@ -207,6 +235,8 @@ A pinned Better-T-Stack release is used once to generate a pnpm workspace with T
 `create-feedbax` provides an interactive experience inspired by Better-T-Stack but does not invoke Better-T-Stack during installation. It generates a versioned Feedbax-owned TanStack Start template with dependency ranges verified for that Feedbax release. Additional application frameworks remain deferred until they satisfy the accepted demand or outside-maintainer threshold.
 
 Version 0.2.0 uses a typed `feedbax.ts` file for product identity, public copy, the shadcn theme preset, Notion connection identifiers, publication/display settings, optional Turnstile configuration, and submission limits. Secrets never appear in this file. A generic plugin interface is deferred until the first real connector exists; runtime connectors will use versioned npm packages, while shadcn registry items are reserved for intentionally copied source and integration recipes.
+
+The typed configuration includes independent `voting`, `comments`, and `changelog` feature switches that default to enabled. Changelog identifiers and stable property mappings are required only while Changelog is enabled. Startup rejects unknown feature keys and incomplete enabled-feature configuration with actionable messages. The private signing secret for Comment Capabilities and Participation Passes remains in ignored or encrypted environment configuration.
 
 Fresh installations apply the configured shadcn preset immediately after scaffolding and before application UI is customized. The preset establishes Base UI Lyra, neutral tokens and charts, Geist typography, Lucide icons, and Lyra's square geometry. Shared components are then installed or refreshed individually with `pnpm dlx shadcn@latest add <component> -c apps/portal`; neither repository commands nor package metadata pin a shadcn version. The shared UI package follows the `latest` distribution tag because its global styles import `shadcn/tailwind.css`. Established Installations may apply supported theme and font changes and reviewed component refreshes, but must not reapply the full preset over locally owned product components. When shadcn provides a component, Feedbax uses it instead of maintaining a parallel generic primitive. Shared shadcn components belong in `packages/ui`; only Feedbax-specific compositions with no registry equivalent remain in `apps/portal`. Forms follow shadcn's current TanStack Form composition with Zod validation and shadcn Field and control components.
 
@@ -274,6 +304,7 @@ export default defineFeedbax({
       type: "...",
       status: "...",
       published: "...",
+      voteCount: "...",
       submitterName: "...",
       submitterEmail: "...",
       source: "...",
@@ -282,6 +313,27 @@ export default defineFeedbax({
       createdAt: "...",
       updatedAt: "...",
     },
+  },
+  changelog: {
+    databaseId: "...",
+    dataSourceId: "...",
+    properties: {
+      title: "...",
+      slug: "...",
+      date: "...",
+      summary: "...",
+      body: "...",
+      labels: "...",
+      image: "...",
+      published: "...",
+      createdAt: "...",
+      updatedAt: "...",
+    },
+  },
+  features: {
+    voting: true,
+    comments: true,
+    changelog: true,
   },
   submissions: {
     moderation: "required",
@@ -303,7 +355,7 @@ The Product Team owns and may customize the generated application source under A
 
 ### Diagnostics and deployment
 
-`doctor` is read-only. It checks supported Node/pnpm versions, Wrangler configuration, presence of secrets without printing values, Notion capabilities and data access, property IDs and types, allowed Post Status and Type options, Cloudflare bindings, Turnstile configuration, build success, and a read-only Notion query. A future `doctor --fix` may offer individually confirmed repairs.
+`doctor` is read-only. It checks supported Node/pnpm versions, Wrangler configuration, presence of secrets without printing values, Notion capabilities and data access, property IDs and types, allowed Post Status and Type options, Cloudflare bindings, Turnstile configuration, build success, and read-only Notion queries. It always validates the canonical Feedback schema including Vote Count, and conditionally validates Comment permissions and Changelog configuration when those capabilities are enabled. Missing permissions, identifiers, properties, types, or access produce precise repair instructions without mutation. A future `doctor --fix` may offer individually confirmed repairs.
 
 `deploy` runs `doctor`, displays the target Cloudflare account, project, and hostname, and requests confirmation before invoking Wrangler.
 

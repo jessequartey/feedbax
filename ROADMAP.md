@@ -10,6 +10,8 @@ This roadmap separates the proof release from the larger platform vision. It rec
 - Anonymous moderated submissions
 - Browser Capability draft editing
 - Public feedback, statuses, and roadmap
+- Best-effort browser-remembered Votes and native Notion Comments
+- Notion-backed Changelog in a sibling Changelog Data Source
 - Trusted HTTP submission endpoint
 - Typed `feedbax.ts` configuration
 - Manual deployment proven before CLI automation
@@ -27,8 +29,9 @@ This roadmap separates the proof release from the larger platform vision. It rec
 
 - Verified Participant identity and signed identity handoff
 - D1 operational state managed through Drizzle
-- Voting, comments, following, and notifications
-- Media storage in R2
+- Reliable unique voting and verified Comment attribution
+- Following and notifications
+- Participant media storage in R2
 - Abuse controls and synchronization hardening
 - Reconsider Effect only for workflows whose complexity justifies it
 
@@ -50,3 +53,7 @@ This roadmap separates the proof release from the larger platform vision. It rec
 - Vercel or Docker deployment
 - Path-based microfrontends
 - Hosted billing or enterprise features
+- Follow updates and notification delivery
+- Participant-uploaded media and Comment attachments
+- Participation audit history
+- A velocity-based Trending algorithm
