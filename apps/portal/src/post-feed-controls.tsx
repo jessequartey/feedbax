@@ -1,12 +1,17 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Search } from "lucide-react";
 import { Button } from "@feedbax/ui/components/button";
+import { Checkbox } from "@feedbax/ui/components/checkbox";
 import { Input } from "@feedbax/ui/components/input";
-import { Card } from "@feedbax/ui/components/card";
 import {
   NativeSelect,
   NativeSelectOption,
 } from "@feedbax/ui/components/native-select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@feedbax/ui/components/popover";
 import { useEffect, useRef, useState } from "react";
 
 import { postStatuses, postTypes } from "./public-feedback-page";
@@ -123,21 +128,20 @@ export function PostFeedControls({
           <NativeSelectOption value="new">New</NativeSelectOption>
         </NativeSelect>
       </label>
-      <details className="relative">
-        <summary className="flex h-10 cursor-pointer list-none items-center border border-input px-4 text-sm text-muted-foreground hover:bg-muted">
+      <Popover>
+        <PopoverTrigger render={<Button type="button" variant="outline" />}>
           Filters{activeCount ? ` (${activeCount})` : ""}
-        </summary>
-        <Card className="absolute right-0 z-20 mt-2 w-72 gap-4 p-4">
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-72 gap-4 p-4">
           <fieldset className="grid gap-2">
             <legend>Post Types</legend>
             {postTypes.map((type) => (
-              <label key={type}>
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-2" key={type}>
+                <Checkbox
                   name="types"
                   value={type}
                   checked={types.includes(type)}
-                  onChange={() => toggleType(type)}
+                  onCheckedChange={() => toggleType(type)}
                 />
                 {type}
               </label>
@@ -146,13 +150,12 @@ export function PostFeedControls({
           <fieldset className="grid gap-2">
             <legend>Post Statuses</legend>
             {postStatuses.map((status) => (
-              <label key={status}>
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-2" key={status}>
+                <Checkbox
                   name="statuses"
                   value={status}
                   checked={statuses.includes(status)}
-                  onChange={() => toggleStatus(status)}
+                  onCheckedChange={() => toggleStatus(status)}
                 />
                 {status}
               </label>
@@ -189,8 +192,8 @@ export function PostFeedControls({
               Apply
             </Button>
           </div>
-        </Card>
-      </details>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

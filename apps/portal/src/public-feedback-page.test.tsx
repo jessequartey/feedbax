@@ -96,11 +96,7 @@ describe("public feedback home page", () => {
     );
 
     expect(html).toContain("No Posts match this view");
-    expect(html).toContain("Post Types");
-    expect(html).toContain("Post Statuses");
     expect(html).toContain("Filters (2)");
-    expect(html).toContain('checked="" value="Bug Report"');
-    expect(html).toContain('checked="" value="Reviewing"');
   });
 
   it("renders the feedback workspace described by the visual brief", () => {

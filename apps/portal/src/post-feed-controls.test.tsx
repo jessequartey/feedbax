@@ -47,8 +47,11 @@ describe("Post feed controls", () => {
   it("stages multi-select filters until Apply and clears them together", () => {
     render(<Harness />);
 
-    fireEvent.click(screen.getByLabelText("Bug Report"));
-    fireEvent.click(screen.getByLabelText("Planned"));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Bug Report" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Planned" }));
     expect(screen.getByTestId("route-state").textContent).not.toContain(
       "Planned",
     );
