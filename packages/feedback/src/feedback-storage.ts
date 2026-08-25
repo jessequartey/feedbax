@@ -1,4 +1,4 @@
-import type { Post, PublicPostQuery } from "./index";
+import type { Post, PublicPostQuery, RoadmapStatus } from "./index";
 
 export type PostSource = "Portal" | "API";
 
@@ -30,6 +30,13 @@ export interface FeedbackStorage {
     items: StoredPost[];
     nextCursor?: string;
   }>;
-  listPublicRoadmap(): Promise<StoredPost[]>;
+  listPublicRoadmap(query: {
+    status: RoadmapStatus;
+    cursor?: string;
+  }): Promise<{
+    items: StoredPost[];
+    nextCursor?: string;
+    totalCount: number;
+  }>;
   remove(id: string): Promise<void>;
 }

@@ -128,7 +128,24 @@ export type RoadmapStatus = Extract<
   "Planned" | "In Progress" | "Shipped"
 >;
 
-export type PublicPostRoadmap = Record<RoadmapStatus, PublicPost[]>;
+export interface PublicRoadmapPage {
+  items: PublicPost[];
+  nextCursor?: string;
+  totalCount: number;
+}
+
+export interface PublicRoadmapQuery {
+  status: RoadmapStatus;
+  cursor?: string;
+}
+
+export type PublicPostRoadmap = Record<RoadmapStatus, PublicRoadmapPage>;
+
+const roadmapStatuses = [
+  "Planned",
+  "In Progress",
+  "Shipped",
+] as const satisfies readonly RoadmapStatus[];
 
 let postCreationQueue: Promise<void> = Promise.resolve();
 
@@ -215,14 +232,34 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
     };
   }
 
-  async listPublicRoadmap(): Promise<StoredPost[]> {
-    return (await this.list())
+  async listPublicRoadmap(query: PublicRoadmapQuery): Promise<{
+    items: StoredPost[];
+    nextCursor?: string;
+    totalCount: number;
+  }> {
+    const items = (await this.list())
       .filter(isPublicPostRoadmapItem)
+      .filter((item) => item.status === query.status)
       .sort(
         (left, right) =>
           right.updatedAt.getTime() - left.updatedAt.getTime() ||
           right.id.localeCompare(left.id),
       );
+    const cursorId = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const cursorIndex = cursorId
+      ? items.findIndex((item) => item.id === cursorId)
+      : -1;
+    const startIndex = cursorIndex + 1;
+    const pageItems = items.slice(startIndex, startIndex + 25);
+    const hasNextPage = startIndex + pageItems.length < items.length;
+    const lastItem = pageItems.at(-1);
+    return {
+      items: pageItems,
+      ...(hasNextPage && lastItem
+        ? { nextCursor: encodeCursor(lastItem.id) }
+        : {}),
+      totalCount: items.length,
+    };
   }
 
   async remove(id: string): Promise<void> {
@@ -236,6 +273,7 @@ export interface FeedbackModule {
   getPublicPost(slug: string): Promise<PublicPost | undefined>;
   getDraftPost(input: GetDraftPostInput): Promise<DraftPost>;
   listPublicPosts(query?: PublicPostQuery): Promise<PublicPostPage>;
+  listPublicRoadmapPosts(query: PublicRoadmapQuery): Promise<PublicRoadmapPage>;
   submitTrustedPost(
     input: SubmitTrustedPostInput,
   ): Promise<TrustedSubmittedPost>;
@@ -274,6 +312,16 @@ export function createFeedbackModule(
       ...(input.type === undefined ? {} : { type: input.type }),
       updatedAt: new Date(),
     });
+  };
+  const listPublicRoadmapPosts = async (
+    query: PublicRoadmapQuery,
+  ): Promise<PublicRoadmapPage> => {
+    const page = await storage.listPublicRoadmap(query);
+    return {
+      items: page.items.map((item) => toPublicPost(toPost(item))),
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+      totalCount: page.totalCount,
+    };
   };
 
   return {
@@ -324,6 +372,7 @@ export function createFeedbackModule(
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
       };
     },
+    listPublicRoadmapPosts,
     async submitTrustedPost(input) {
       const existingItem = await storage.findByExternalId(input.externalId);
       if (existingItem) return toTrustedSubmittedPost(existingItem);
@@ -355,15 +404,12 @@ export function createFeedbackModule(
       await storage.remove(item.id);
     },
     async getPublicPostRoadmap() {
-      const roadmap: PublicPostRoadmap = {
-        Planned: [],
-        "In Progress": [],
-        Shipped: [],
-      };
-      for (const item of await storage.listPublicRoadmap())
-        if (isPublicPostRoadmapItem(item))
-          roadmap[item.status].push(toPublicPost(toPost(item)));
-      return roadmap;
+      const pages = await Promise.all(
+        roadmapStatuses.map((status) => listPublicRoadmapPosts({ status })),
+      );
+      return Object.fromEntries(
+        roadmapStatuses.map((status, index) => [status, pages[index]]),
+      ) as PublicPostRoadmap;
     },
   };
 }

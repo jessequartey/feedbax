@@ -339,7 +339,11 @@ function renderShell(
     path: "/roadmap",
     component: () => (
       <PublicRoadmapView
-        roadmap={{ Planned: [], "In Progress": [], Shipped: [] }}
+        roadmap={{
+          Planned: { items: [], totalCount: 0 },
+          "In Progress": { items: [], totalCount: 0 },
+          Shipped: { items: [], totalCount: 0 },
+        }}
       />
     ),
   });

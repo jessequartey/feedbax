@@ -6,12 +6,18 @@ import {
   PublicRoadmapSkeleton,
   PublicRoadmapView,
 } from "./public-roadmap-view";
-import { publicRoadmapQuery, type FetchPublicRoadmap } from "./roadmap-query";
+import {
+  publicRoadmapQuery,
+  type FetchPublicRoadmap,
+  type FetchPublicRoadmapStatusPage,
+} from "./roadmap-query";
 
 export function createPublicRoadmapRoute({
   fetchRoadmap,
+  fetchRoadmapStatusPage,
 }: {
   fetchRoadmap: FetchPublicRoadmap;
+  fetchRoadmapStatusPage?: FetchPublicRoadmapStatusPage;
 }) {
   const query = publicRoadmapQuery(fetchRoadmap);
   const route = createFileRoute("/roadmap")({
@@ -23,7 +29,13 @@ export function createPublicRoadmapRoute({
 
   function RoadmapComponent() {
     const roadmap = useSuspenseQuery(query).data;
-    return <PublicRoadmapView roadmap={roadmap} maskPostLinks />;
+    return (
+      <PublicRoadmapView
+        roadmap={roadmap}
+        loadMore={fetchRoadmapStatusPage}
+        maskPostLinks
+      />
+    );
   }
 
   return route;

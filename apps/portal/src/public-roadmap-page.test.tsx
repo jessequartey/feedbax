@@ -46,23 +46,21 @@ describe("public roadmap page", () => {
 
     const roadmap = await loadPublicRoadmapPage({ feedback });
 
-    expect(roadmap.Planned.map((item) => item.title)).toEqual([
+    expect(roadmap.Planned.items.map((item) => item.title)).toEqual([
       "Planned later",
       "Planned earlier",
     ]);
-    expect(roadmap["In Progress"].map((item) => item.title)).toEqual([
+    expect(roadmap["In Progress"].items.map((item) => item.title)).toEqual([
       "Building now",
     ]);
-    expect(roadmap.Shipped.map((item) => item.title)).toEqual([
+    expect(roadmap.Shipped.items.map((item) => item.title)).toEqual([
       "Already shipped",
     ]);
   });
 
   it("renders explicit empty groups", () => {
     const html = renderToStaticMarkup(
-      <PublicRoadmapView
-        roadmap={{ Planned: [], "In Progress": [], Shipped: [] }}
-      />,
+      <PublicRoadmapView roadmap={emptyRoadmap()} />,
     );
 
     expect(html).toContain("Planned");
@@ -73,9 +71,7 @@ describe("public roadmap page", () => {
 
   it("renders the roadmap workspace described by the visual brief", () => {
     const html = renderToStaticMarkup(
-      <PublicRoadmapView
-        roadmap={{ Planned: [], "In Progress": [], Shipped: [] }}
-      />,
+      <PublicRoadmapView roadmap={emptyRoadmap()} />,
     );
 
     expect(html).toContain("What we’re planning, building, and shipping.");
@@ -93,7 +89,10 @@ describe("public roadmap page", () => {
     );
     const html = renderToStaticMarkup(
       <PublicRoadmapView
-        roadmap={{ Planned: [item], "In Progress": [], Shipped: [] }}
+        roadmap={{
+          ...emptyRoadmap(),
+          Planned: { items: [item], totalCount: 1 },
+        }}
       />,
     );
 
@@ -128,5 +127,13 @@ function roadmapItem(
     published: true,
     createdAt: new Date("2026-08-01T09:00:00.000Z"),
     updatedAt,
+  };
+}
+
+function emptyRoadmap() {
+  return {
+    Planned: { items: [], totalCount: 0 },
+    "In Progress": { items: [], totalCount: 0 },
+    Shipped: { items: [], totalCount: 0 },
   };
 }

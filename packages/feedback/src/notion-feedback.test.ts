@@ -259,25 +259,47 @@ describe("Notion-backed Feedback module", () => {
     });
   });
 
-  it("loads the public roadmap with one Notion query ordered by update time", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        object: "list",
-        results: [
-          notionPage({
-            id: "shipped-page",
-            title: "CSV export",
-            description: "Download feedback as CSV.",
-            type: "Feature Request",
-            status: "Shipped",
-            published: true,
-            editTokenHash: "private-hash",
-          }),
-        ],
-        has_more: false,
-        next_cursor: null,
+  it("pages one roadmap status and counts beyond the former 100-Post cap", async () => {
+    const firstPage = Array.from({ length: 25 }, (_, index) =>
+      notionPage({
+        id: `shipped-${index + 77}`,
+        title: `Shipped ${index + 77}`,
+        description: "Already delivered.",
+        type: "Feature Request",
+        status: "Shipped",
+        published: true,
+        editTokenHash: "private-hash",
       }),
     );
+    const remainingItems = Array.from({ length: 76 }, (_, index) =>
+      notionPage({
+        id: `shipped-${index + 1}`,
+        title: `Shipped ${index + 1}`,
+        description: "Already delivered.",
+        type: "Feature Request",
+        status: "Shipped",
+        published: true,
+        editTokenHash: "private-hash",
+      }),
+    );
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          object: "list",
+          results: firstPage,
+          has_more: true,
+          next_cursor: "shipped-page-2",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          object: "list",
+          results: remainingItems,
+          has_more: false,
+          next_cursor: null,
+        }),
+      );
     const feedback = createNotionFeedbackModule({
       token: "notion-token",
       dataSourceId: "feedback-data-source",
@@ -285,54 +307,36 @@ describe("Notion-backed Feedback module", () => {
       request,
     });
 
-    const roadmap = await feedback.getPublicPostRoadmap();
+    const page = await feedback.listPublicRoadmapPosts({ status: "Shipped" });
 
-    expect(roadmap.Planned).toEqual([]);
-    expect(roadmap["In Progress"]).toEqual([]);
-    expect(roadmap.Shipped).toHaveLength(1);
-    expect(request).toHaveBeenCalledOnce();
-    const [, init] = request.mock.calls[0]!;
-    expect(JSON.parse(String(init?.body))).toEqual({
-      page_size: 100,
+    expect(page.items).toHaveLength(25);
+    expect(page.items[0]?.title).toBe("Shipped 77");
+    expect(page.nextCursor).toBe("shipped-page-2");
+    expect(page.totalCount).toBe(101);
+    expect(request).toHaveBeenCalledTimes(2);
+    const [, firstInit] = request.mock.calls[0]!;
+    const [, countInit] = request.mock.calls[1]!;
+    expect(JSON.parse(String(firstInit?.body))).toEqual({
+      page_size: 25,
       filter: {
         and: [
           { property: "published-id", checkbox: { equals: true } },
-          {
-            or: [
-              { property: "status-id", select: { equals: "Planned" } },
-              {
-                property: "status-id",
-                select: { equals: "In Progress" },
-              },
-              { property: "status-id", select: { equals: "Shipped" } },
-            ],
-          },
+          { property: "status-id", select: { equals: "Shipped" } },
         ],
       },
       sorts: [{ property: "updated-at-id", direction: "descending" }],
     });
-  });
-
-  it("refuses to serve a partial roadmap when one Notion query cannot contain it", async () => {
-    const request = vi.fn<typeof fetch>().mockResolvedValue(
-      Response.json({
-        object: "list",
-        results: [],
-        has_more: true,
-        next_cursor: "another-roadmap-page",
-      }),
-    );
-    const feedback = createNotionFeedbackModule({
-      token: "notion-token",
-      dataSourceId: "feedback-data-source",
-      propertyIds,
-      request,
+    expect(JSON.parse(String(countInit?.body))).toEqual({
+      page_size: 100,
+      start_cursor: "shipped-page-2",
+      filter: {
+        and: [
+          { property: "published-id", checkbox: { equals: true } },
+          { property: "status-id", select: { equals: "Shipped" } },
+        ],
+      },
+      sorts: [{ property: "updated-at-id", direction: "descending" }],
     });
-
-    await expect(feedback.getPublicPostRoadmap()).rejects.toThrow(
-      "Notion returned more public roadmap items than one query can serve.",
-    );
-    expect(request).toHaveBeenCalledOnce();
   });
 
   it("submits canonical properties while keeping the raw Browser Capability out of Notion", async () => {

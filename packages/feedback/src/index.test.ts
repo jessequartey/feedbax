@@ -349,48 +349,112 @@ describe("Feedback module", () => {
     });
 
     await expect(feedback.getPublicPostRoadmap()).resolves.toEqual({
-      Planned: [
+      Planned: {
+        items: [
+          {
+            slug: "planned-newer",
+            title: "Newer planned item",
+            description: "Planned second, updated later.",
+            type: "Bug Report",
+            status: "Planned",
+            createdAt,
+            updatedAt: new Date("2026-08-20T09:00:00.000Z"),
+          },
+          {
+            slug: "planned-older",
+            title: "Older planned item",
+            description: "Planned first, updated earlier.",
+            type: "Feature Request",
+            status: "Planned",
+            createdAt,
+            updatedAt: new Date("2026-08-18T09:00:00.000Z"),
+          },
+        ],
+        totalCount: 2,
+      },
+      "In Progress": {
+        items: [
+          {
+            slug: "in-progress",
+            title: "Active work",
+            description: "Currently being implemented.",
+            type: "General Feedback",
+            status: "In Progress",
+            createdAt,
+            updatedAt: new Date("2026-08-19T09:00:00.000Z"),
+          },
+        ],
+        totalCount: 1,
+      },
+      Shipped: {
+        items: [
+          {
+            slug: "shipped",
+            title: "Delivered work",
+            description: "Already available.",
+            type: "Feature Request",
+            status: "Shipped",
+            createdAt,
+            updatedAt: new Date("2026-08-17T09:00:00.000Z"),
+          },
+        ],
+        totalCount: 1,
+      },
+    });
+  });
+
+  it("pages each public roadmap status independently in groups of 25", async () => {
+    const feedback = createFeedbackModule({
+      initialItems: [
+        ...Array.from({ length: 27 }, (_, index) => ({
+          id: `planned-${index + 1}`,
+          slug: `planned-${index + 1}`,
+          title: `Planned ${index + 1}`,
+          description: `Description ${index + 1}`,
+          type: "Feature Request" as const,
+          status: "Planned" as const,
+          published: true,
+          createdAt: new Date(Date.UTC(2026, 6, 1)),
+          updatedAt: new Date(Date.UTC(2026, 6, index + 1)),
+        })),
         {
-          slug: "planned-newer",
-          title: "Newer planned item",
-          description: "Planned second, updated later.",
-          type: "Bug Report",
-          status: "Planned",
-          createdAt,
-          updatedAt: new Date("2026-08-20T09:00:00.000Z"),
-        },
-        {
-          slug: "planned-older",
-          title: "Older planned item",
-          description: "Planned first, updated earlier.",
-          type: "Feature Request",
-          status: "Planned",
-          createdAt,
-          updatedAt: new Date("2026-08-18T09:00:00.000Z"),
+          id: "shipped-1",
+          slug: "shipped-1",
+          title: "Shipped 1",
+          description: "Already delivered.",
+          type: "Bug Report" as const,
+          status: "Shipped" as const,
+          published: true,
+          createdAt: new Date(Date.UTC(2026, 6, 1)),
+          updatedAt: new Date(Date.UTC(2026, 6, 28)),
         },
       ],
-      "In Progress": [
-        {
-          slug: "in-progress",
-          title: "Active work",
-          description: "Currently being implemented.",
-          type: "General Feedback",
-          status: "In Progress",
-          createdAt,
-          updatedAt: new Date("2026-08-19T09:00:00.000Z"),
-        },
-      ],
-      Shipped: [
-        {
-          slug: "shipped",
-          title: "Delivered work",
-          description: "Already available.",
-          type: "Feature Request",
-          status: "Shipped",
-          createdAt,
-          updatedAt: new Date("2026-08-17T09:00:00.000Z"),
-        },
-      ],
+    });
+
+    const firstPage = await feedback.listPublicRoadmapPosts({
+      status: "Planned",
+    });
+    const secondPage = await feedback.listPublicRoadmapPosts({
+      status: "Planned",
+      cursor: firstPage.nextCursor,
+    });
+    const roadmap = await feedback.getPublicPostRoadmap();
+
+    expect(firstPage.items).toHaveLength(25);
+    expect(firstPage.items[0]?.title).toBe("Planned 27");
+    expect(firstPage.items[24]?.title).toBe("Planned 3");
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+    expect(firstPage.totalCount).toBe(27);
+    expect(secondPage.items.map((item) => item.title)).toEqual([
+      "Planned 2",
+      "Planned 1",
+    ]);
+    expect(secondPage.nextCursor).toBeUndefined();
+    expect(secondPage.totalCount).toBe(27);
+    expect(roadmap.Planned).toEqual(firstPage);
+    expect(roadmap.Shipped).toMatchObject({
+      totalCount: 1,
+      items: [{ title: "Shipped 1" }],
     });
   });
 

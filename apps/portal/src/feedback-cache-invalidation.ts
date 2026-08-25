@@ -50,6 +50,7 @@ export function createInvalidatingFeedbackModule({
     getPublicPost: (slug) => feedback.getPublicPost(slug),
     getDraftPost: (input) => feedback.getDraftPost(input),
     listPublicPosts: (query) => feedback.listPublicPosts(query),
+    listPublicRoadmapPosts: (query) => feedback.listPublicRoadmapPosts(query),
     submitTrustedPost: (input) =>
       runInvalidatingWrite(
         () => feedback.submitTrustedPost(input),

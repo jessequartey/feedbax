@@ -1,34 +1,105 @@
-import type { PublicPost, PublicPostRoadmap } from "@feedbax/feedback";
-import { Skeleton } from "@feedbax/ui/components/skeleton";
-import type { ReactNode } from "react";
-import { Filter } from "lucide-react";
+import type {
+  PublicPost,
+  PublicPostRoadmap,
+  PublicRoadmapPage,
+  PublicRoadmapQuery,
+  RoadmapStatus,
+} from "@feedbax/feedback";
 import { Button } from "@feedbax/ui/components/button";
-import { Badge } from "@feedbax/ui/components/badge";
-import { Card } from "@feedbax/ui/components/card";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
+import { Card } from "@feedbax/ui/components/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@feedbax/ui/components/empty";
+import { Skeleton } from "@feedbax/ui/components/skeleton";
+import { Spinner } from "@feedbax/ui/components/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@feedbax/ui/components/tabs";
+import { ArrowUp, CircleDashed, Filter, MessageCircle } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 
-import { formatPublicDate } from "./public-date";
-import { PostLink } from "./masked-post-link";
 import { CommandPaletteTrigger } from "./components/command-palette";
+import { PostLink } from "./masked-post-link";
+import { PostTypeBadge } from "./post-badges";
+import type { FetchPublicRoadmapStatusPage } from "./roadmap-query";
+import { useMediaQuery } from "./use-media-query";
 
 const roadmapGroups = [
-  { status: "Planned", heading: "Planned", headingId: "roadmap-planned" },
+  {
+    status: "Planned",
+    heading: "Planned",
+    headingId: "roadmap-planned",
+    dot: "bg-violet-500",
+  },
   {
     status: "In Progress",
     heading: "In progress",
     headingId: "roadmap-in-progress",
+    dot: "bg-blue-500",
   },
-  { status: "Shipped", heading: "Shipped", headingId: "roadmap-shipped" },
+  {
+    status: "Shipped",
+    heading: "Shipped",
+    headingId: "roadmap-shipped",
+    dot: "bg-green-500",
+  },
 ] as const;
+
+const mobileMediaQuery = "(max-width: 1023px)";
 
 export function PublicRoadmapView({
   roadmap,
+  loadMore,
   maskPostLinks = false,
 }: {
   roadmap: PublicPostRoadmap;
+  loadMore?: FetchPublicRoadmapStatusPage;
   maskPostLinks?: boolean;
 }) {
+  const mobile = useMediaQuery(mobileMediaQuery);
+  const [activeStatus, setActiveStatus] = useState<RoadmapStatus>("Planned");
+  const [columns, setColumns] = useState(roadmap);
+  const [loading, setLoading] = useState<Partial<Record<RoadmapStatus, true>>>(
+    {},
+  );
+  const [errors, setErrors] = useState<Partial<Record<RoadmapStatus, true>>>(
+    {},
+  );
+
+  useEffect(() => setColumns(roadmap), [roadmap]);
+
+  const visibleGroups = mobile
+    ? roadmapGroups.filter(({ status }) => status === activeStatus)
+    : roadmapGroups;
+
+  async function loadNextPage(query: PublicRoadmapQuery) {
+    if (!loadMore || loading[query.status]) return;
+    setLoading((current) => ({ ...current, [query.status]: true }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[query.status];
+      return next;
+    });
+    try {
+      const nextPage = await loadMore(query);
+      setColumns((current) => ({
+        ...current,
+        [query.status]: appendRoadmapPage(current[query.status], nextPage),
+      }));
+    } catch {
+      setErrors((current) => ({ ...current, [query.status]: true }));
+    } finally {
+      setLoading((current) => {
+        const next = { ...current };
+        delete next[query.status];
+        return next;
+      });
+    }
+  }
+
   return (
     <main className="mx-auto w-full max-w-[96rem] px-6 py-10 lg:px-10">
       <RoadmapIntro />
@@ -40,62 +111,119 @@ export function PublicRoadmapView({
           variant="outline"
           type="button"
         >
-          <Filter />
+          <Filter aria-hidden="true" />
           Filters
         </Button>
         <Button
           className="col-span-2 h-10 px-5 text-sm"
           render={<a href="/submit" />}
+          nativeButton={false}
         >
           New post
         </Button>
       </ButtonGroup>
 
-      <Tabs
-        className="mt-6 lg:hidden"
-        defaultValue="Planned"
-        aria-hidden="true"
-      >
-        <TabsList className="grid h-12 w-full grid-cols-3" variant="line">
-          {roadmapGroups.map(({ status, heading }) => (
-            <TabsTrigger key={status} value={status} data-status={status}>
-              {heading}{" "}
-              <strong className="ml-2 font-medium">
-                {roadmap[status].length}
-              </strong>
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      {mobile ? (
+        <Tabs
+          className="mt-6"
+          value={activeStatus}
+          onValueChange={(value) => {
+            if (isRoadmapStatus(value)) setActiveStatus(value);
+          }}
+        >
+          <TabsList className="grid h-12 w-full grid-cols-3" variant="line">
+            {roadmapGroups.map(({ status, heading }) => (
+              <TabsTrigger key={status} value={status} data-status={status}>
+                {heading}{" "}
+                <strong className="ml-2 font-medium">
+                  {columns[status].totalCount}
+                </strong>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      ) : null}
 
       <div
-        className="mt-8 grid gap-5 lg:grid-cols-3"
+        className={`mt-8 grid gap-5 ${mobile ? "grid-cols-1" : "lg:grid-cols-3"}`}
         aria-label="Product roadmap"
       >
-        {roadmapGroups.map(({ status, heading, headingId }) => (
-          <RoadmapColumn
-            count={<span>{roadmap[status].length}</span>}
-            heading={heading}
-            headingId={headingId}
-            key={status}
-          >
-            {roadmap[status].length === 0 ? (
-              <p className="border border-dashed p-8 text-center text-sm text-muted-foreground">
-                No Posts here yet.
-              </p>
-            ) : (
-              <ol className="grid gap-3">
-                {roadmap[status].map((item) => (
-                  <RoadmapItem
-                    item={item}
-                    key={item.slug}
-                    masked={maskPostLinks}
-                  />
-                ))}
-              </ol>
-            )}
-          </RoadmapColumn>
-        ))}
+        {visibleGroups.map(({ status, heading, headingId, dot }) => {
+          const column = columns[status];
+          return (
+            <RoadmapColumn
+              count={
+                <span data-roadmap-count className="text-muted-foreground">
+                  {column.totalCount}
+                </span>
+              }
+              dot={dot}
+              heading={heading}
+              headingId={headingId}
+              key={status}
+            >
+              {column.items.length === 0 ? (
+                <RoadmapEmptyState heading={heading} />
+              ) : (
+                <ol className="grid gap-3">
+                  {column.items.map((item) => (
+                    <RoadmapItem
+                      item={item}
+                      key={item.slug}
+                      masked={maskPostLinks}
+                    />
+                  ))}
+                </ol>
+              )}
+              {errors[status] ? (
+                <div
+                  role="alert"
+                  className="mt-4 flex items-center justify-between gap-3 border p-3"
+                >
+                  <p className="text-xs text-muted-foreground">
+                    Couldn’t load more Posts.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      if (column.nextCursor)
+                        void loadNextPage({
+                          status,
+                          cursor: column.nextCursor,
+                        });
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              ) : null}
+              {column.nextCursor && !errors[status] && loadMore ? (
+                <Button
+                  aria-label={`Load more ${heading} Posts`}
+                  className="mt-4 h-10 w-full gap-2"
+                  disabled={loading[status] === true}
+                  type="button"
+                  variant="ghost"
+                  onClick={() =>
+                    void loadNextPage({
+                      status,
+                      cursor: column.nextCursor,
+                    })
+                  }
+                >
+                  {loading[status] ? (
+                    <>
+                      <Spinner aria-hidden="true" /> Loading…
+                    </>
+                  ) : (
+                    "Load more"
+                  )}
+                </Button>
+              ) : null}
+            </RoadmapColumn>
+          );
+        })}
       </div>
     </main>
   );
@@ -104,25 +232,29 @@ export function PublicRoadmapView({
 export function PublicRoadmapSkeleton() {
   return (
     <main
-      className="roadmap-page"
+      className="mx-auto w-full max-w-[96rem] px-6 py-10 lg:px-10"
       aria-label="Loading roadmap"
       aria-busy="true"
     >
       <RoadmapIntro />
-      <div className="roadmap-groups roadmap-skeleton-groups">
-        {roadmapGroups.map(({ status, heading, headingId }) => (
+      <div className="mt-20 grid gap-5 lg:grid-cols-3">
+        {roadmapGroups.map(({ status, heading, headingId, dot }) => (
           <RoadmapColumn
-            count={<Skeleton className="roadmap-skeleton-count" />}
+            count={<Skeleton className="h-4 w-6" />}
+            dot={dot}
             heading={heading}
             headingId={headingId}
             key={status}
             skeleton
           >
-            <div className="roadmap-skeleton-card">
-              <Skeleton className="roadmap-skeleton-meta" />
-              <Skeleton className="roadmap-skeleton-title" />
-              <Skeleton className="roadmap-skeleton-copy" />
-              <Skeleton className="roadmap-skeleton-copy roadmap-skeleton-copy-short" />
+            <div className="grid gap-3">
+              {Array.from({ length: 2 }, (_, index) => (
+                <div className="border p-5" key={index}>
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="mt-3 h-4 w-full" />
+                  <Skeleton className="mt-5 h-7 w-1/2" />
+                </div>
+              ))}
             </div>
           </RoadmapColumn>
         ))}
@@ -135,19 +267,21 @@ export function PublicRoadmapSkeleton() {
 function RoadmapColumn({
   children,
   count,
+  dot,
   heading,
   headingId,
   skeleton = false,
 }: {
   children: ReactNode;
   count: ReactNode;
+  dot: string;
   heading: string;
   headingId: string;
   skeleton?: boolean;
 }) {
   return (
     <Card
-      className="gap-0 p-4"
+      className="min-w-0 gap-0 self-start p-4"
       aria-labelledby={headingId}
       {...(skeleton ? { "data-roadmap-skeleton-column": "" } : {})}
     >
@@ -156,9 +290,7 @@ function RoadmapColumn({
           className="flex items-center gap-2 text-sm font-medium"
           id={headingId}
         >
-          <span
-            className={`size-2.5 rounded-full ${heading === "Planned" ? "bg-violet-500" : heading === "Shipped" ? "bg-green-500" : "bg-blue-500"}`}
-          />
+          <span className={`size-2.5 rounded-full ${dot}`} aria-hidden="true" />
           {heading}
         </h2>
         {count}
@@ -184,27 +316,75 @@ function RoadmapIntro() {
   );
 }
 
+function RoadmapEmptyState({ heading }: { heading: string }) {
+  return (
+    <Empty className="min-h-56 border">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <CircleDashed aria-hidden="true" />
+        </EmptyMedia>
+        <EmptyTitle>No Posts here yet.</EmptyTitle>
+        <EmptyDescription>
+          {heading} Posts will appear here when they’re available.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
 function RoadmapItem({ item, masked }: { item: PublicPost; masked: boolean }) {
   return (
     <li>
       <PostLink
         slug={item.slug}
         contextual={masked}
-        className="block border p-5 transition-colors hover:bg-muted/30"
+        className="group block border bg-background/30 transition-colors duration-150 hover:bg-muted/30"
       >
-        <article>
-          <h3 className="text-base font-medium">{item.title}</h3>
+        <article className="p-5">
+          <h3 className="text-base font-medium group-hover:text-foreground">
+            {item.title}
+          </h3>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {item.description}
           </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <Badge variant="outline">{item.type}</Badge>
-            <time dateTime={item.updatedAt.toISOString()}>
-              Updated {formatPublicDate(item.updatedAt)}
-            </time>
+          <div
+            className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground"
+            role="group"
+            aria-label="Post metadata"
+          >
+            <PostTypeBadge type={item.type} />
+            <span
+              className="inline-flex items-center gap-1.5"
+              aria-label="Comments unavailable"
+            >
+              <MessageCircle className="size-4" aria-hidden="true" />
+              <span aria-hidden="true">—</span>
+            </span>
+            <span
+              className="ml-auto inline-flex h-8 min-w-12 items-center justify-center gap-1.5 border px-2.5 text-sm text-foreground"
+              aria-label="Score unavailable"
+            >
+              <ArrowUp className="size-4" aria-hidden="true" />
+              <span aria-hidden="true">—</span>
+            </span>
           </div>
         </article>
       </PostLink>
     </li>
   );
+}
+
+function appendRoadmapPage(
+  current: PublicRoadmapPage,
+  next: PublicRoadmapPage,
+): PublicRoadmapPage {
+  return {
+    items: [...current.items, ...next.items],
+    ...(next.nextCursor ? { nextCursor: next.nextCursor } : {}),
+    totalCount: next.totalCount,
+  };
+}
+
+function isRoadmapStatus(value: unknown): value is RoadmapStatus {
+  return roadmapGroups.some(({ status }) => status === value);
 }
