@@ -158,11 +158,13 @@ Anonymous portal submissions always use Cloudflare's native rate-limit binding. 
 
 The standalone portal exposes:
 
-- `/` for a unified Post feed with URL-backed search, multi-select Type and Status filters, Trending/Top/New sorting, pinned browser-editable Draft Posts, and explicit append pagination
+- `/` for a unified Post feed with validated URL-backed Type, Post Status, and sort state, pinned browser-editable Draft Posts, and explicit append pagination
 - `/p/:slug` for canonical Post detail pages; internal storage IDs are never part of public URLs
 - `/submit` for Post creation, routed contextually from the feed and complete on direct navigation
 - `/roadmap` for a responsive, read-only Planned/In Progress/Shipped board
 - `/changelog` for the product-update placeholder
+
+Public Post search is available from every portal page through one global command palette opened by Cmd/Ctrl+K or a Search button. The palette uses the same public Post query definition and cache family as the feed, opens selected Posts with contextual route masking, and offers Feedback, Roadmap, Changelog, and New post navigation actions. The feed route continues to validate and render a `search` parameter supplied in a URL, but Participant search interactions stay in the palette instead of mutating feed URL state.
 
 A Device Profile stores a required display name and optional email on one device. It applies privately to future submissions only, is not authentication or editing authority, and can be cleared without removing Browser Capabilities.
 

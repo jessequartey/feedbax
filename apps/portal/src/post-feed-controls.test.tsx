@@ -1,26 +1,33 @@
 // @vitest-environment jsdom
 
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PostFeedControls } from "./post-feed-controls";
+import {
+  CommandPalette,
+  CommandPaletteProvider,
+} from "./components/command-palette";
 import type { PublicPostQuery } from "@feedbax/feedback";
+
+beforeEach(() => {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  window.HTMLElement.prototype.scrollIntoView = function () {};
+});
 
 afterEach(() => {
   cleanup();
-  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("Post feed controls", () => {
-  it("switches sort immediately and debounces URL-backed search", async () => {
-    vi.useFakeTimers();
+  it("switches sort immediately", () => {
     render(<Harness />);
 
     fireEvent.change(screen.getByLabelText("Sort"), {
@@ -29,28 +36,21 @@ describe("Post feed controls", () => {
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"sort":"new"',
     );
+  });
 
-    expect(screen.queryByPlaceholderText("Search Posts")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Show search" }));
-    fireEvent.change(screen.getByPlaceholderText("Search Posts"), {
-      target: { value: "keyboard" },
-    });
-    expect(screen.getByTestId("route-state").textContent).not.toContain(
-      "keyboard",
-    );
-    await act(() => vi.advanceTimersByTimeAsync(300));
-    expect(screen.getByTestId("route-state").textContent).toContain(
-      '"search":"keyboard"',
-    );
+  it("opens the command palette from the Search button", async () => {
+    render(<Harness withPalette />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
   });
 
   it("stages multi-select filters until Apply and clears them together", () => {
     render(<Harness />);
 
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Bug Report" }),
-    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bug Report" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Planned" }));
     expect(screen.getByTestId("route-state").textContent).not.toContain(
       "Planned",
@@ -73,26 +73,6 @@ describe("Post feed controls", () => {
     );
   });
 
-  it("moves keyboard focus into search when search is revealed", () => {
-    render(<Harness />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Show search" }));
-
-    expect(document.activeElement).toBe(
-      screen.getByRole("searchbox", { name: "Search Posts" }),
-    );
-  });
-
-  it("does not steal restored focus when URL search is already expanded", () => {
-    const origin = document.createElement("button");
-    document.body.append(origin);
-    origin.focus();
-
-    render(<Harness initialSearch="restored" />);
-
-    expect(document.activeElement).toBe(origin);
-  });
-
   it("announces route updates locally from the feed controls", () => {
     render(<Harness pending />);
 
@@ -106,26 +86,36 @@ describe("Post feed controls", () => {
 });
 
 function Harness({
-  initialSearch,
   pending = false,
+  withPalette = false,
 }: {
-  initialSearch?: string;
   pending?: boolean;
+  withPalette?: boolean;
 } = {}) {
   const [search, setSearch] = useState<PublicPostQuery>({
     sort: "trending",
     types: [],
     statuses: [],
-    ...(initialSearch ? { search: initialSearch } : {}),
   });
   return (
-    <>
-      <PostFeedControls
-        search={search}
-        pending={pending}
-        onSearchChange={(next) => setSearch(next)}
-      />
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <CommandPaletteProvider>
+        <PostFeedControls
+          search={search}
+          pending={pending}
+          onSearchChange={(next) => setSearch(next)}
+        />
+        {withPalette ? (
+          <CommandPalette
+            searchPosts={async () => ({ items: [], nextCursor: undefined })}
+          />
+        ) : null}
+      </CommandPaletteProvider>
       <output data-testid="route-state">{JSON.stringify(search)}</output>
-    </>
+    </QueryClientProvider>
   );
 }

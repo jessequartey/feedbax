@@ -1,7 +1,7 @@
 import type { PublicPost, PublicPostRoadmap } from "@feedbax/feedback";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
 import type { ReactNode } from "react";
-import { Filter, Search } from "lucide-react";
+import { Filter } from "lucide-react";
 import { Button } from "@feedbax/ui/components/button";
 import { Badge } from "@feedbax/ui/components/badge";
 import { Card } from "@feedbax/ui/components/card";
@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@feedbax/ui/components/tabs";
 
 import { formatPublicDate } from "./public-date";
 import { PostLink } from "./masked-post-link";
+import { CommandPaletteTrigger } from "./components/command-palette";
 
 const roadmapGroups = [
   { status: "Planned", heading: "Planned", headingId: "roadmap-planned" },
@@ -33,14 +34,7 @@ export function PublicRoadmapView({
       <RoadmapIntro />
 
       <ButtonGroup className="mt-8 grid w-full grid-cols-[1fr_auto] sm:ml-auto sm:flex sm:w-fit lg:-mt-12">
-        <Button
-          className="h-10 justify-start gap-2 px-4 text-sm"
-          variant="outline"
-          type="button"
-        >
-          <Search />
-          Search
-        </Button>
+        <CommandPaletteTrigger className="justify-start" />
         <Button
           className="h-10 gap-2 px-4 text-sm"
           variant="outline"

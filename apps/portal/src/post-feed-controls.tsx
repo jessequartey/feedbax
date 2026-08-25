@@ -1,8 +1,6 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
-import { Search } from "lucide-react";
 import { Button } from "@feedbax/ui/components/button";
 import { Checkbox } from "@feedbax/ui/components/checkbox";
-import { Input } from "@feedbax/ui/components/input";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -12,9 +10,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@feedbax/ui/components/popover";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { postStatuses, postTypes } from "./public-feedback-page";
+import { CommandPaletteTrigger } from "./components/command-palette";
 
 export function PostFeedControls({
   search,
@@ -25,36 +24,13 @@ export function PostFeedControls({
   onSearchChange?: (search: PublicPostQuery) => void;
   pending?: boolean;
 }) {
-  const [query, setQuery] = useState(search.search ?? "");
-  const [searchExpanded, setSearchExpanded] = useState(Boolean(search.search));
   const [types, setTypes] = useState<PostType[]>(search.types ?? []);
   const [statuses, setStatuses] = useState<PostStatus[]>(search.statuses ?? []);
-  const searchInput = useRef<HTMLInputElement>(null);
-  const mounted = useRef(false);
   const activeCount =
     (search.types?.length ?? 0) + (search.statuses?.length ?? 0);
 
-  useEffect(() => setQuery(search.search ?? ""), [search.search]);
   useEffect(() => setTypes(search.types ?? []), [search.types]);
   useEffect(() => setStatuses(search.statuses ?? []), [search.statuses]);
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    if (searchExpanded) searchInput.current?.focus();
-  }, [searchExpanded]);
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      if (query === (search.search ?? "")) return;
-      onSearchChange?.({
-        ...search,
-        cursor: undefined,
-        search: query || undefined,
-      });
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [onSearchChange, query, search]);
 
   function toggleType(type: PostType) {
     setTypes((current) =>
@@ -80,35 +56,7 @@ export function PostFeedControls({
       aria-busy={pending || undefined}
     >
       {pending ? <span className="sr-only">Updating Posts…</span> : null}
-      <div
-        className={`flex ${searchExpanded ? "flex-1" : ""}`}
-        data-expanded={searchExpanded || undefined}
-      >
-        <Button
-          className="h-10 gap-2 px-4 text-sm"
-          variant="outline"
-          type="button"
-          aria-label={searchExpanded ? "Hide search" : "Show search"}
-          aria-expanded={searchExpanded}
-          onClick={() => setSearchExpanded((expanded) => !expanded)}
-        >
-          <Search aria-hidden="true" /> Search
-        </Button>
-        {searchExpanded ? (
-          <label>
-            <span className="sr-only">Search Posts</span>
-            <Input
-              className="h-10 text-sm"
-              ref={searchInput}
-              name="search"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Search Posts"
-            />
-          </label>
-        ) : null}
-      </div>
+      <CommandPaletteTrigger />
       <label className="order-first sm:mr-auto">
         <span className="sr-only">Sort</span>
         <NativeSelect

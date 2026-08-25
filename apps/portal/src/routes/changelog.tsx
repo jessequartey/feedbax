@@ -5,10 +5,16 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@feedbax/ui/components/empty";
+import { CommandPaletteTrigger } from "../components/command-palette";
+
 export const Route = createFileRoute("/changelog")({ component: Changelog });
+
 export function Changelog() {
   return (
     <main className="feedback-index changelog-page">
+      <div className="flex justify-end px-6 pt-6">
+        <CommandPaletteTrigger />
+      </div>
       <Empty>
         <EmptyHeader>
           <EmptyTitle role="heading" aria-level={1}>

@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import {
   Outlet,
@@ -15,16 +16,29 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ThemeProvider } from "next-themes";
+import type { PublicPostPage } from "@feedbax/feedback";
 
 import Header from "./components/header";
+import {
+  CommandPalette,
+  CommandPaletteProvider,
+} from "./components/command-palette";
 import { deviceProfileKey, readDeviceProfile } from "./browser-post-state";
 import { Changelog } from "./routes/changelog";
+import { PublicRoadmapView } from "./public-roadmap-view";
 
 beforeEach(() => {
   localStorage.clear();
   document.documentElement.className = "";
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+  window.HTMLElement.prototype.scrollIntoView = function () {};
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: (query: string): MediaQueryList =>
@@ -94,9 +108,7 @@ describe("profile menu", () => {
       await screen.findByRole("button", { name: "Save profile" }),
     );
 
-    expect(
-      await screen.findByText("Display name is required."),
-    ).toBeTruthy();
+    expect(await screen.findByText("Display name is required.")).toBeTruthy();
     expect(readDeviceProfile(localStorage)).toBeUndefined();
   });
 
@@ -155,9 +167,7 @@ describe("profile menu", () => {
 
     await screen.findByText("Ama");
     fireEvent.click(screen.getByRole("button", { name: "Profile" }));
-    fireEvent.click(
-      await screen.findByRole("menuitemradio", { name: "Dark" }),
-    );
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Dark" }));
 
     await waitFor(() =>
       expect(document.documentElement.classList.contains("dark")).toBe(true),
@@ -165,13 +175,158 @@ describe("profile menu", () => {
   });
 });
 
-function renderShell(initialEntry: string) {
+describe("command palette", () => {
+  it("opens with Cmd/Ctrl+K, closes on Escape, and restores focus", async () => {
+    const { history } = renderShell("/");
+
+    const feedbackLink = await screen.findByRole("link", {
+      name: "Feedback",
+    });
+    feedbackLink.focus();
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.activeElement).toBe(feedbackLink);
+    expect(history.location.pathname).toBe("/");
+  });
+
+  it("searches Posts and opens the selected result", async () => {
+    const { history } = renderShell("/roadmap", {
+      searchPosts: async (term) =>
+        term.toLowerCase().includes("keyboard")
+          ? { items: [palettePost()], nextCursor: undefined }
+          : { items: [], nextCursor: undefined },
+    });
+
+    await screen.findByRole("link", { name: "Feedback" });
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    fireEvent.change(await screen.findByPlaceholderText("Search feedback…"), {
+      target: { value: "keyboard" },
+    });
+
+    const palette = await screen.findByRole("dialog");
+    expect(
+      await within(palette).findByText("Keyboard-first search"),
+    ).toBeTruthy();
+    expect(
+      within(palette).getByText("Open search without reaching for the mouse."),
+    ).toBeTruthy();
+    expect(within(palette).getByText("Feature Request")).toBeTruthy();
+    expect(within(palette).getByText("Planned")).toBeTruthy();
+    fireEvent.keyDown(screen.getByPlaceholderText("Search feedback…"), {
+      key: "Enter",
+    });
+
+    await waitFor(() =>
+      expect(history.location.pathname).toBe("/p/keyboard-first-search"),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    history.back();
+    await waitFor(() => expect(history.location.pathname).toBe("/roadmap"));
+  });
+
+  it("shows an empty state when no Posts match", async () => {
+    renderShell("/");
+
+    await screen.findByRole("link", { name: "Feedback" });
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.change(await screen.findByPlaceholderText("Search feedback…"), {
+      target: { value: "zzz-nothing" },
+    });
+
+    expect(await screen.findByText("No Posts match this search.")).toBeTruthy();
+  });
+
+  it("offers navigation actions including New post", async () => {
+    const { history } = renderShell("/");
+
+    await screen.findByRole("link", { name: "Feedback" });
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    expect(
+      await screen.findByRole("option", { name: "Feedback" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Roadmap" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Changelog" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "New post" })).toBeTruthy();
+
+    const input = screen.getByPlaceholderText("Search feedback…");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(history.location.pathname).toBe("/roadmap"));
+
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const reopenedInput =
+      await screen.findByPlaceholderText("Search feedback…");
+    fireEvent.keyDown(reopenedInput, { key: "ArrowDown" });
+    fireEvent.keyDown(reopenedInput, { key: "ArrowDown" });
+    fireEvent.keyDown(reopenedInput, { key: "ArrowDown" });
+    fireEvent.keyDown(reopenedInput, { key: "Enter" });
+
+    await waitFor(() => expect(history.location.pathname).toBe("/submit"));
+  });
+
+  it("opens from the roadmap Search button", async () => {
+    renderShell("/roadmap");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Search" }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("opens from the Changelog Search button", async () => {
+    renderShell("/changelog");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Search" }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+});
+
+function palettePost() {
+  return {
+    slug: "keyboard-first-search",
+    title: "Keyboard-first search",
+    description: "Open search without reaching for the mouse.",
+    type: "Feature Request" as const,
+    status: "Planned" as const,
+    createdAt: new Date("2026-08-22T10:00:00.000Z"),
+    updatedAt: new Date("2026-08-22T10:00:00.000Z"),
+  };
+}
+
+function renderShell(
+  initialEntry: string,
+  {
+    searchPosts,
+  }: {
+    searchPosts?: (term: string) => Promise<PublicPostPage>;
+  } = {},
+) {
+  const history = createMemoryHistory({ initialEntries: [initialEntry] });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const root = createRootRoute({
     component: () => (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <Header />
-        <Outlet />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <CommandPaletteProvider>
+            <Header />
+            <Outlet />
+            <CommandPalette
+              searchPosts={
+                searchPosts ??
+                (async () => ({ items: [], nextCursor: undefined }))
+              }
+            />
+          </CommandPaletteProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     ),
   });
   const index = createRoute({
@@ -182,7 +337,11 @@ function renderShell(initialEntry: string) {
   const roadmap = createRoute({
     getParentRoute: () => root,
     path: "/roadmap",
-    component: () => <main>Roadmap page</main>,
+    component: () => (
+      <PublicRoadmapView
+        roadmap={{ Planned: [], "In Progress": [], Shipped: [] }}
+      />
+    ),
   });
   const changelog = createRoute({
     getParentRoute: () => root,
@@ -194,9 +353,15 @@ function renderShell(initialEntry: string) {
     path: "/submit",
     component: () => <main>Create Post</main>,
   });
-  const router = createRouter({
-    history: createMemoryHistory({ initialEntries: [initialEntry] }),
-    routeTree: root.addChildren([index, roadmap, changelog, submit]),
+  const post = createRoute({
+    getParentRoute: () => root,
+    path: "/p/$slug",
+    component: () => <main>Post detail</main>,
   });
-  return render(<RouterProvider router={router} />);
+  const router = createRouter({
+    history,
+    routeTree: root.addChildren([index, roadmap, changelog, submit, post]),
+  });
+  render(<RouterProvider router={router} />);
+  return { history };
 }

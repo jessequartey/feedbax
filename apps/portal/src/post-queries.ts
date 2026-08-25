@@ -1,17 +1,13 @@
 import { infiniteQueryOptions } from "@tanstack/react-query";
 import type { PublicPostQuery, PublicPostPage } from "@feedbax/feedback";
-import { getPublicPostPage } from "./public-feedback-server-function";
 
-type FetchPublicPostsPage = (
+export type FetchPublicPostsPage = (
   search: PublicPostQuery,
 ) => Promise<PublicPostPage>;
 
-const fetchPublicPostsPage: FetchPublicPostsPage = (search) =>
-  getPublicPostPage({ data: search });
-
 export function publicPostsQuery(
   search: PublicPostQuery,
-  fetchPage: FetchPublicPostsPage = fetchPublicPostsPage,
+  fetchPage: FetchPublicPostsPage,
 ) {
   const querySearch = { ...search, cursor: undefined };
   return infiniteQueryOptions({

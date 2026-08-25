@@ -10,10 +10,15 @@ import { ThemeProvider } from "next-themes";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/header";
+import {
+  CommandPalette,
+  CommandPaletteProvider,
+} from "../components/command-palette";
 import { CreatePostOverlay } from "../create-post-overlay";
 import { portalFeedbackMutations } from "../routed-post-creation-form";
 import { PostDetailOverlay } from "../post-detail-overlay";
 import { OverlayPostDetail } from "../overlay-post-detail";
+import { getPublicPostPage } from "../public-feedback-server-function";
 
 import appCss from "../index.css?url";
 
@@ -56,14 +61,23 @@ function RootDocument() {
       <body>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <div className="portal-shell">
-              <Header />
-              <Outlet />
-              <CreatePostOverlay mutations={portalFeedbackMutations} />
-              <PostDetailOverlay
-                renderDetail={(slug) => <OverlayPostDetail slug={slug} />}
-              />
-            </div>
+            <CommandPaletteProvider>
+              <div className="portal-shell">
+                <Header />
+                <Outlet />
+                <CreatePostOverlay mutations={portalFeedbackMutations} />
+                <PostDetailOverlay
+                  renderDetail={(slug) => <OverlayPostDetail slug={slug} />}
+                />
+                <CommandPalette
+                  searchPosts={(term) =>
+                    getPublicPostPage({
+                      data: { search: term || undefined },
+                    })
+                  }
+                />
+              </div>
+            </CommandPaletteProvider>
           </ThemeProvider>
         </QueryClientProvider>
         <Toaster richColors />
