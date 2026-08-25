@@ -13,9 +13,9 @@ import {
   DrawerTitle,
 } from "@feedbax/ui/components/drawer";
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import type { PortalFeedbackMutations } from "./portal-feedback-form";
 import { PostCreationFlow } from "./post-creation-flow";
+import { useMediaQuery } from "./use-media-query";
 
 const mobileMediaQuery = "(max-width: 720px)";
 
@@ -79,19 +79,4 @@ export function CreatePostOverlay({
       </DialogContent>
     </Dialog>
   );
-}
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const media = window.matchMedia(query);
-    const update = () => setMatches(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [query]);
-
-  return matches;
 }

@@ -11,11 +11,7 @@ import {
   SheetTrigger,
 } from "@feedbax/ui/components/sheet";
 import { List, ListFilter } from "lucide-react";
-import {
-  useCallback,
-  useSyncExternalStore,
-  type ComponentType,
-} from "react";
+import { type ComponentType } from "react";
 
 import { CommandPaletteTrigger } from "./components/command-palette";
 import { postStatuses, postTypes } from "./public-feedback-page";
@@ -23,6 +19,7 @@ import {
   postStatusPresentation,
   postTypePresentation,
 } from "./post-presentation";
+import { useMediaQuery } from "./use-media-query";
 
 type SearchChange = (search: PublicPostQuery) => void;
 
@@ -291,20 +288,4 @@ export function MobilePostFilters({
       </SheetContent>
     </Sheet>
   );
-}
-
-function useMediaQuery(query: string): boolean {
-  const subscribe = useCallback(
-    (onChange: () => void) => {
-      if (typeof window.matchMedia !== "function") return () => {};
-      const media = window.matchMedia(query);
-      media.addEventListener("change", onChange);
-      return () => media.removeEventListener("change", onChange);
-    },
-    [query],
-  );
-  const getSnapshot = () =>
-    typeof window.matchMedia === "function" && window.matchMedia(query).matches;
-
-  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }

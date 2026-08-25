@@ -13,7 +13,8 @@ import {
   DrawerTitle,
 } from "@feedbax/ui/components/drawer";
 import { useRouter, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { useMediaQuery } from "./use-media-query";
 
 declare module "@tanstack/react-router" {
   interface HistoryState {
@@ -63,17 +64,4 @@ export function PostDetailOverlay({
       </DialogContent>
     </Dialog>
   );
-}
-
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const media = window.matchMedia(query);
-    const update = () => setMatches(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [query]);
-  return matches;
 }
