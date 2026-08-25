@@ -39,6 +39,35 @@ export function createNotionFeedbackStorage({
     input: Parameters<typeof fetch>[0],
     init: RequestInit = {},
   ) => requestNotion(input, init, { request, retry, operation: "idempotent" });
+  const queryPublicPostPages = (body: Record<string, unknown>) =>
+    queryPublicPosts({
+      request: notionRequest,
+      headers,
+      dataSourceId,
+      propertyIds,
+      body,
+    });
+  const countPublicRoadmapPosts = async (
+    firstPage: Awaited<ReturnType<typeof queryPublicPostPages>>,
+    status: PublicRoadmapQuery["status"],
+  ) => {
+    let totalCount = firstPage.results.length;
+    let nextCursor = firstPage.hasMore ? firstPage.nextCursor : undefined;
+    if (firstPage.hasMore && !nextCursor) {
+      throw new Error("Notion returned an invalid Post list cursor.");
+    }
+    while (nextCursor) {
+      const page = await queryPublicPostPages(
+        publicRoadmapQuery({ status, cursor: nextCursor }, propertyIds, 100),
+      );
+      totalCount += page.results.length;
+      nextCursor = page.hasMore ? page.nextCursor : undefined;
+      if (page.hasMore && !nextCursor) {
+        throw new Error("Notion returned an invalid Post list cursor.");
+      }
+    }
+    return totalCount;
+  };
 
   const createStoredPost = async (item: NewStoredPost) => {
     const response = await requestNotion(
@@ -148,13 +177,9 @@ export function createNotionFeedbackStorage({
       throw new Error("Notion public retrieval is not implemented yet.");
     },
     async listPublic(query) {
-      const response = await queryPublicPosts({
-        request: notionRequest,
-        headers,
-        dataSourceId,
-        propertyIds,
-        body: publicListQuery(query, propertyIds),
-      });
+      const response = await queryPublicPostPages(
+        publicListQuery(query, propertyIds),
+      );
       return {
         items: response.results.map((page) =>
           postFromPublicPage(page, propertyIds, true),
@@ -163,33 +188,17 @@ export function createNotionFeedbackStorage({
       };
     },
     async listPublicRoadmap(query) {
-      const response = await queryPublicPosts({
-        request: notionRequest,
-        headers,
-        dataSourceId,
-        propertyIds,
-        body: publicRoadmapQuery(query, propertyIds, 25),
-      });
-      const totalCount = await countPublicRoadmapPosts({
-        firstPage: query.cursor
-          ? await queryPublicPosts({
-              request: notionRequest,
-              headers,
-              dataSourceId,
-              propertyIds,
-              body: publicRoadmapQuery(
-                { status: query.status },
-                propertyIds,
-                100,
-              ),
-            })
+      const response = await queryPublicPostPages(
+        publicRoadmapQuery(query, propertyIds, 25),
+      );
+      const totalCount = await countPublicRoadmapPosts(
+        query.cursor
+          ? await queryPublicPostPages(
+              publicRoadmapQuery({ status: query.status }, propertyIds, 100),
+            )
           : response,
-        query,
-        request: notionRequest,
-        headers,
-        dataSourceId,
-        propertyIds,
-      });
+        query.status,
+      );
       return {
         items: response.results.map((page) =>
           postFromPublicPage(page, propertyIds, true),
@@ -290,47 +299,6 @@ function publicRoadmapQuery(
     },
     sorts: [{ property: ids.updatedAt, direction: "descending" }],
   };
-}
-
-async function countPublicRoadmapPosts({
-  firstPage,
-  query,
-  request,
-  headers,
-  dataSourceId,
-  propertyIds,
-}: {
-  firstPage: Awaited<ReturnType<typeof queryPublicPosts>>;
-  query: PublicRoadmapQuery;
-  request: typeof fetch;
-  headers: Record<string, string>;
-  dataSourceId: string;
-  propertyIds: FeedbackPropertyIds;
-}): Promise<number> {
-  let totalCount = firstPage.results.length;
-  let nextCursor = firstPage.hasMore ? firstPage.nextCursor : undefined;
-  if (firstPage.hasMore && !nextCursor) {
-    throw new Error("Notion returned an invalid Post list cursor.");
-  }
-  while (nextCursor) {
-    const page = await queryPublicPosts({
-      request,
-      headers,
-      dataSourceId,
-      propertyIds,
-      body: publicRoadmapQuery(
-        { status: query.status, cursor: nextCursor },
-        propertyIds,
-        100,
-      ),
-    });
-    totalCount += page.results.length;
-    nextCursor = page.hasMore ? page.nextCursor : undefined;
-    if (page.hasMore && !nextCursor) {
-      throw new Error("Notion returned an invalid Post list cursor.");
-    }
-  }
-  return totalCount;
 }
 
 async function queryPublicPosts({
