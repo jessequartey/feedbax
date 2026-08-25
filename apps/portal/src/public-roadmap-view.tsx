@@ -69,6 +69,7 @@ export function PublicRoadmapView({
   const [errors, setErrors] = useState<Partial<Record<RoadmapStatus, true>>>(
     {},
   );
+  const [loadStatusMessage, setLoadStatusMessage] = useState("");
 
   useEffect(() => setColumns(roadmap), [roadmap]);
 
@@ -78,6 +79,9 @@ export function PublicRoadmapView({
 
   async function loadNextPage(query: PublicRoadmapQuery) {
     if (!loadMore || loading[query.status]) return;
+    const group = roadmapGroups.find(({ status }) => status === query.status);
+    if (!group) return;
+    setLoadStatusMessage(`Loading more ${group.heading} Posts.`);
     setLoading((current) => ({ ...current, [query.status]: true }));
     setErrors((current) => {
       const next = { ...current };
@@ -90,8 +94,12 @@ export function PublicRoadmapView({
         ...current,
         [query.status]: appendRoadmapPage(current[query.status], nextPage),
       }));
+      setLoadStatusMessage(
+        `${nextPage.items.length} more ${group.heading} ${nextPage.items.length === 1 ? "Post" : "Posts"} loaded.`,
+      );
     } catch {
       setErrors((current) => ({ ...current, [query.status]: true }));
+      setLoadStatusMessage(`Couldn’t load more ${group.heading} Posts.`);
     } finally {
       setLoading((current) => {
         const next = { ...current };
@@ -133,6 +141,10 @@ export function PublicRoadmapView({
           </TabsList>
         </Tabs>
       ) : null}
+
+      <p aria-label="Roadmap status" className="sr-only" role="status">
+        {loadStatusMessage}
+      </p>
 
       <div
         className={`mt-8 grid gap-5 ${mobile ? "grid-cols-1" : "lg:grid-cols-3"}`}

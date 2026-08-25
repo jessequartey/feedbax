@@ -127,9 +127,6 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
             placeholder="Search feedback…"
           />
           <CommandList aria-busy={searching || undefined} className="max-h-96">
-            <div aria-label="Search status" className="sr-only" role="status">
-              {searchStatus}
-            </div>
             {showEmpty ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 No Posts match this search.
@@ -201,6 +198,9 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
               </CommandItem>
             </CommandGroup>
           </CommandList>
+          <div aria-label="Search status" className="sr-only" role="status">
+            {searchStatus}
+          </div>
         </Command>
       </DialogContent>
     </Dialog>

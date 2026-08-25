@@ -102,6 +102,20 @@ describe("public portal shell", () => {
     ).toBe("/changelog");
   });
 
+  it.each(["/p/keyboard-first-search", "/submit"])(
+    "keeps Feedback current for the contextual route %s",
+    async (route) => {
+      renderShell(route);
+
+      const navigation = await screen.findByRole("navigation", {
+        name: "Public portal",
+      });
+      expect(
+        navigation.querySelector("[aria-current='page']")?.textContent,
+      ).toBe("Feedback");
+    },
+  );
+
   it("opens visible New post actions contextually", async () => {
     const { history } = renderShell("/roadmap");
 
@@ -234,6 +248,7 @@ describe("command palette", () => {
     const status = await screen.findByRole("status", {
       name: "Search status",
     });
+    expect(status.closest("[role='listbox']")).toBeNull();
     await waitFor(() => expect(status.textContent).toBe("Searching Posts…"));
   });
 

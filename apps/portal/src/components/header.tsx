@@ -1,14 +1,23 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { cn } from "@feedbax/ui/lib/utils";
 
 import { CommandPaletteTrigger } from "./command-palette";
 import { ProfileMenu } from "./profile-menu";
 
-function Navigation() {
+function Navigation({ feedbackContext }: { feedbackContext: boolean }) {
   const linkClassName =
     "grid flex-1 place-items-center border-b-2 border-transparent px-4 py-4 text-sm text-muted-foreground transition-colors hover:text-foreground md:flex-none md:rounded-md md:border md:px-4 md:py-2 data-[status=active]:border-foreground data-[status=active]:text-foreground data-[status=active]:md:bg-muted";
   return (
     <>
-      <Link className={linkClassName} to="/" activeOptions={{ exact: true }}>
+      <Link
+        aria-current={feedbackContext ? "page" : undefined}
+        className={cn(
+          linkClassName,
+          feedbackContext && "border-foreground text-foreground md:bg-muted",
+        )}
+        to="/"
+        activeOptions={{ exact: true }}
+      >
         Feedback
       </Link>
       <Link className={linkClassName} to="/roadmap">
@@ -53,7 +62,7 @@ export default function Header() {
           className="order-3 col-span-2 -mx-4 flex border-t bg-background md:order-none md:col-span-1 md:col-start-2 md:row-start-1 md:mx-0 md:gap-1 md:border-0"
           aria-label="Public portal"
         >
-          <Navigation />
+          <Navigation feedbackContext={needsPageSearch} />
         </nav>
         <div className="flex items-center justify-self-end gap-2 md:col-start-3 md:row-start-1">
           {needsPageSearch ? (

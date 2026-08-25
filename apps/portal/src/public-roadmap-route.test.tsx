@@ -138,6 +138,9 @@ describe("/roadmap route", () => {
     });
     expect(loadMore.textContent).toContain("Loading");
     expect((loadMore as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByRole("status", { name: "Roadmap status" }).textContent,
+    ).toBe("Loading more Planned Posts.");
 
     resolveNextPage({
       items: [post("planned-page-2", "Planned")],
@@ -155,6 +158,9 @@ describe("/roadmap route", () => {
     expect(
       screen.getByText("2", { selector: "[data-roadmap-count]" }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("status", { name: "Roadmap status" }).textContent,
+    ).toBe("1 more Planned Post loaded.");
   });
 
   it("shows one status column at a time behind mobile status tabs", async () => {
