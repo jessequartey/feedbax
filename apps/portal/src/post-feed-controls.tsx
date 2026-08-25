@@ -1,19 +1,42 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
 import { Button } from "@feedbax/ui/components/button";
-import { Checkbox } from "@feedbax/ui/components/checkbox";
+import { Card } from "@feedbax/ui/components/card";
+import { Tabs, TabsList, TabsTrigger } from "@feedbax/ui/components/tabs";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@feedbax/ui/components/native-select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@feedbax/ui/components/popover";
-import { useEffect, useState } from "react";
+  Bug,
+  CalendarDays,
+  CheckCircle2,
+  CircleDot,
+  Lightbulb,
+  List,
+  MessageCircle,
+} from "lucide-react";
+import type { ComponentType } from "react";
 
-import { postStatuses, postTypes } from "./public-feedback-page";
 import { CommandPaletteTrigger } from "./components/command-palette";
+
+type SearchChange = (search: PublicPostQuery) => void;
+
+const boards = [
+  { label: "All posts", type: undefined, icon: List },
+  { label: "Feature requests", type: "Feature Request", icon: Lightbulb },
+  { label: "Bug reports", type: "Bug Report", icon: Bug },
+  { label: "General feedback", type: "General Feedback", icon: MessageCircle },
+] as const satisfies readonly {
+  label: string;
+  type: PostType | undefined;
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+}[];
+
+const roadmapStatuses = [
+  { label: "Planned", status: "Planned", icon: CalendarDays },
+  { label: "In progress", status: "In Progress", icon: CircleDot },
+  { label: "Shipped", status: "Shipped", icon: CheckCircle2 },
+] as const satisfies readonly {
+  label: string;
+  status: PostStatus;
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+}[];
 
 export function PostFeedControls({
   search,
@@ -21,127 +44,134 @@ export function PostFeedControls({
   pending = false,
 }: {
   search: PublicPostQuery;
-  onSearchChange?: (search: PublicPostQuery) => void;
+  onSearchChange?: SearchChange;
   pending?: boolean;
 }) {
-  const [types, setTypes] = useState<PostType[]>(search.types ?? []);
-  const [statuses, setStatuses] = useState<PostStatus[]>(search.statuses ?? []);
-  const activeCount =
-    (search.types?.length ?? 0) + (search.statuses?.length ?? 0);
-
-  useEffect(() => setTypes(search.types ?? []), [search.types]);
-  useEffect(() => setStatuses(search.statuses ?? []), [search.statuses]);
-
-  function toggleType(type: PostType) {
-    setTypes((current) =>
-      current.includes(type)
-        ? current.filter((candidate) => candidate !== type)
-        : [...current, type],
-    );
-  }
-
-  function toggleStatus(status: PostStatus) {
-    setStatuses((current) =>
-      current.includes(status)
-        ? current.filter((candidate) => candidate !== status)
-        : [...current, status],
-    );
-  }
-
   return (
     <div
-      className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end"
+      className="flex min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
       role="group"
       aria-label="Post feed controls"
       aria-busy={pending || undefined}
     >
       {pending ? <span className="sr-only">Updating Posts…</span> : null}
-      <CommandPaletteTrigger />
-      <label className="order-first sm:mr-auto">
-        <span className="sr-only">Sort</span>
-        <NativeSelect
-          className="min-w-48 [&_select]:h-10 [&_select]:text-sm"
-          name="sort"
-          value={search.sort ?? "trending"}
-          onChange={(event) =>
-            onSearchChange?.({
-              ...search,
-              cursor: undefined,
-              sort: event.currentTarget.value as PublicPostQuery["sort"],
-            })
-          }
+      <Tabs
+        value={search.sort ?? "trending"}
+        onValueChange={(sort) =>
+          onSearchChange?.({
+            ...search,
+            cursor: undefined,
+            sort: sort as PublicPostQuery["sort"],
+          })
+        }
+      >
+        <TabsList
+          aria-label="Sort Posts"
+          className="grid h-10 w-full grid-cols-3 p-0 lg:w-72"
         >
-          <NativeSelectOption value="trending">Trending</NativeSelectOption>
-          <NativeSelectOption value="top">Top</NativeSelectOption>
-          <NativeSelectOption value="new">New</NativeSelectOption>
-        </NativeSelect>
-      </label>
-      <Popover>
-        <PopoverTrigger render={<Button type="button" variant="outline" />}>
-          Filters{activeCount ? ` (${activeCount})` : ""}
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-72 gap-4 p-4">
-          <fieldset className="grid gap-2">
-            <legend>Post Types</legend>
-            {postTypes.map((type) => (
-              <label className="flex items-center gap-2" key={type}>
-                <Checkbox
-                  name="types"
-                  value={type}
-                  checked={types.includes(type)}
-                  onCheckedChange={() => toggleType(type)}
-                />
-                {type}
-              </label>
-            ))}
-          </fieldset>
-          <fieldset className="grid gap-2">
-            <legend>Post Statuses</legend>
-            {postStatuses.map((status) => (
-              <label className="flex items-center gap-2" key={status}>
-                <Checkbox
-                  name="statuses"
-                  value={status}
-                  checked={statuses.includes(status)}
-                  onCheckedChange={() => toggleStatus(status)}
-                />
-                {status}
-              </label>
-            ))}
-          </fieldset>
-          <div className="flex justify-end gap-2">
+          <TabsTrigger className="px-5 text-sm" value="trending">
+            Trending
+          </TabsTrigger>
+          <TabsTrigger className="px-5 text-sm" value="top">
+            Top
+          </TabsTrigger>
+          <TabsTrigger className="px-5 text-sm" value="new">
+            New
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <CommandPaletteTrigger className="justify-start lg:justify-center" />
+    </div>
+  );
+}
+
+export function BoardNavigation({
+  search,
+  onSearchChange,
+}: {
+  search: PublicPostQuery;
+  onSearchChange?: SearchChange;
+}) {
+  const activeType = search.types?.length === 1 ? search.types[0] : undefined;
+  const hasNoType = !search.types?.length;
+
+  return (
+    <nav aria-labelledby="boards-heading">
+      <h2 id="boards-heading" className="mb-3 text-sm font-medium">
+        Boards
+      </h2>
+      <Card className="gap-0 overflow-hidden py-0">
+        {boards.map(({ label, type, icon: Icon }) => {
+          const active = type ? activeType === type : hasNoType;
+          return (
             <Button
+              key={label}
+              type="button"
               variant="ghost"
-              type="button"
-              onClick={() => {
-                setTypes([]);
-                setStatuses([]);
-                onSearchChange?.({
-                  ...search,
-                  cursor: undefined,
-                  types: [],
-                  statuses: [],
-                });
-              }}
-            >
-              Clear All
-            </Button>
-            <Button
-              type="button"
+              aria-pressed={active}
+              className="h-12 w-full justify-start gap-3 border-b px-4 text-sm text-muted-foreground last:border-b-0 aria-pressed:bg-muted aria-pressed:text-foreground"
               onClick={() =>
                 onSearchChange?.({
                   ...search,
                   cursor: undefined,
-                  types,
-                  statuses,
+                  types: !type || active ? [] : [type],
                 })
               }
             >
-              Apply
+              <Icon className="size-4" aria-hidden="true" />
+              {label}
             </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
+          );
+        })}
+      </Card>
+    </nav>
+  );
+}
+
+export function StatusNavigation({
+  search,
+  onSearchChange,
+}: {
+  search: PublicPostQuery;
+  onSearchChange?: SearchChange;
+}) {
+  const selected = search.statuses ?? [];
+
+  return (
+    <section aria-labelledby="status-filters-heading">
+      <h2 id="status-filters-heading" className="mb-3 text-sm font-medium">
+        Status
+      </h2>
+      <Card
+        className="gap-0 overflow-hidden py-0"
+        role="group"
+        aria-label="Status filters"
+      >
+        {roadmapStatuses.map(({ label, status, icon: Icon }) => {
+          const active = selected.includes(status);
+          return (
+            <Button
+              key={status}
+              type="button"
+              variant="ghost"
+              aria-pressed={active}
+              className="h-12 w-full justify-start gap-3 border-b px-4 text-sm text-muted-foreground last:border-b-0 aria-pressed:bg-muted aria-pressed:text-foreground"
+              onClick={() =>
+                onSearchChange?.({
+                  ...search,
+                  cursor: undefined,
+                  statuses: active
+                    ? selected.filter((candidate) => candidate !== status)
+                    : [...selected, status],
+                })
+              }
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {label}
+            </Button>
+          );
+        })}
+      </Card>
+    </section>
   );
 }

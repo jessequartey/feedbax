@@ -87,7 +87,7 @@ describe("public feedback home page", () => {
     expect(page.items.map((item) => item.title)).toEqual(["Matching feedback"]);
   });
 
-  it("renders explicit empty state and accessible filters", () => {
+  it("renders the registry empty state with a clear reset action", () => {
     const html = renderIndex(
       <PublicPostIndex
         page={{ items: [], nextCursor: "opaque-next-page" }}
@@ -96,7 +96,8 @@ describe("public feedback home page", () => {
     );
 
     expect(html).toContain("No Posts match this view");
-    expect(html).toContain("Filters (2)");
+    expect(html).toContain('data-slot="empty"');
+    expect(html).toContain("Clear filters");
   });
 
   it("renders the feedback workspace described by the visual brief", () => {
@@ -107,7 +108,23 @@ describe("public feedback home page", () => {
     expect(html).toContain("Share ideas and vote on what matters.");
     expect(html).toContain("Boards");
     expect(html).toContain("All posts");
+    expect(html).toContain("Status");
+    expect(html).toContain("Trending");
+    expect(html).toContain("Top");
     expect(html).toContain("New post");
+    expect(html).not.toContain(">Filters<");
+  });
+
+  it("renders scan-friendly Post cards with honest placeholder counts", () => {
+    const html = renderIndex(
+      <PublicPostIndex page={{ items: [publishedPost] }} search={{}} />,
+    );
+
+    expect(html).toContain("Keyboard-first search!");
+    expect(html).toContain("Feature Request");
+    expect(html).toContain("Planned");
+    expect(html).toContain('aria-label="Score unavailable"');
+    expect(html).toContain('aria-label="Comments unavailable"');
   });
 
   it("links each Published Post by immutable slug", () => {

@@ -5,7 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PostFeedControls } from "./post-feed-controls";
+import {
+  BoardNavigation,
+  PostFeedControls,
+  StatusNavigation,
+} from "./post-feed-controls";
 import {
   CommandPalette,
   CommandPaletteProvider,
@@ -27,12 +31,10 @@ afterEach(() => {
 });
 
 describe("Post feed controls", () => {
-  it("switches sort immediately", () => {
+  it("switches sort from visible tabs immediately", () => {
     render(<Harness />);
 
-    fireEvent.change(screen.getByLabelText("Sort"), {
-      target: { value: "new" },
-    });
+    fireEvent.click(screen.getByRole("tab", { name: "New" }));
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"sort":"new"',
     );
@@ -46,30 +48,42 @@ describe("Post feed controls", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
   });
 
-  it("stages multi-select filters until Apply and clears them together", () => {
+  it("selects one Board at a time and reselecting it returns to All posts", () => {
     render(<Harness />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Bug Report" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Planned" }));
-    expect(screen.getByTestId("route-state").textContent).not.toContain(
-      "Planned",
+    fireEvent.click(screen.getByRole("button", { name: "Feature requests" }));
+    expect(screen.getByTestId("route-state").textContent).toContain(
+      '"types":["Feature Request"]',
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bug reports" }));
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"types":["Bug Report"]',
     );
-    expect(screen.getByTestId("route-state").textContent).toContain(
-      '"statuses":["Planned"]',
-    );
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear All" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bug reports" }));
     expect(screen.getByTestId("route-state").textContent).toContain(
       '"types":[]',
     );
+    expect(
+      screen
+        .getByRole("button", { name: "All posts" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("combines and toggles roadmap Post Status filters", () => {
+    render(<Harness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Planned" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shipped" }));
     expect(screen.getByTestId("route-state").textContent).toContain(
-      '"statuses":[]',
+      '"statuses":["Planned","Shipped"]',
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Planned" }));
+    expect(screen.getByTestId("route-state").textContent).toContain(
+      '"statuses":["Shipped"]',
     );
   });
 
@@ -109,6 +123,8 @@ function Harness({
           pending={pending}
           onSearchChange={(next) => setSearch(next)}
         />
+        <BoardNavigation search={search} onSearchChange={setSearch} />
+        <StatusNavigation search={search} onSearchChange={setSearch} />
         {withPalette ? (
           <CommandPalette
             searchPosts={async () => ({ items: [], nextCursor: undefined })}
