@@ -1,4 +1,5 @@
 import type { PostStatus, PostType, PublicPostQuery } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
 import { Button } from "@feedbax/ui/components/button";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
 import { Card } from "@feedbax/ui/components/card";
@@ -21,6 +22,7 @@ import {
   postTypePresentation,
 } from "./post-presentation";
 import { useMediaQuery } from "./use-media-query";
+import feedbax from "./feedbax";
 
 type SearchChange = (search: PublicPostQuery) => void;
 
@@ -59,11 +61,13 @@ export function PostFeedControls({
   onSearchChange,
   pending = false,
   contextualCreatePost = false,
+  features = feedbax.features,
 }: {
   search: PublicPostQuery;
   onSearchChange?: SearchChange;
   pending?: boolean;
   contextualCreatePost?: boolean;
+  features?: PortalFeatures;
 }) {
   const mobile = useMediaQuery(mobileMediaQuery);
   const newPost = (
@@ -89,28 +93,33 @@ export function PostFeedControls({
         aria-label="Sort Posts"
         className={
           mobile
-            ? "order-1 grid h-12 w-full grid-cols-3"
-            : "order-1 grid h-10 w-72 grid-cols-3"
+            ? `order-1 grid h-12 w-full ${features.voting ? "grid-cols-3" : "grid-cols-1"}`
+            : `order-1 grid h-10 ${features.voting ? "w-72 grid-cols-3" : "w-24 grid-cols-1"}`
         }
       >
-        {sortOptions.map(({ label, value }) => (
-          <Button
-            key={value}
-            type="button"
-            variant="outline"
-            aria-pressed={(search.sort ?? "trending") === value}
-            className={`${mobile ? "h-12" : "h-10"} px-5 text-sm aria-pressed:bg-muted aria-pressed:text-foreground`}
-            onClick={() =>
-              onSearchChange?.({
-                ...search,
-                cursor: undefined,
-                sort: value,
-              })
-            }
-          >
-            {label}
-          </Button>
-        ))}
+        {sortOptions
+          .filter(({ value }) => features.voting || value === "new")
+          .map(({ label, value }) => (
+            <Button
+              key={value}
+              type="button"
+              variant="outline"
+              aria-pressed={
+                (search.sort ?? (features.voting ? "trending" : "new")) ===
+                value
+              }
+              className={`${mobile ? "h-12" : "h-10"} px-5 text-sm aria-pressed:bg-muted aria-pressed:text-foreground`}
+              onClick={() =>
+                onSearchChange?.({
+                  ...search,
+                  cursor: undefined,
+                  sort: value,
+                })
+              }
+            >
+              {label}
+            </Button>
+          ))}
       </ButtonGroup>
       {mobile ? (
         <>

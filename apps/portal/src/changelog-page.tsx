@@ -3,7 +3,7 @@ import { Button } from "@feedbax/ui/components/button";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
 import { cn } from "@feedbax/ui/lib/utils";
 import { useRouterState } from "@tanstack/react-router";
-import { Bell, ChevronDown, Link2 } from "lucide-react";
+import { ChevronDown, Link2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -63,15 +63,6 @@ export function ChangelogPage() {
           <h1>Changelog</h1>
           <p>Product updates, fixes, and improvements.</p>
         </div>
-        <Button
-          className="h-11 gap-2 px-4 text-sm md:h-10"
-          variant="outline"
-          type="button"
-          disabled
-        >
-          <Bell aria-hidden="true" />
-          Follow updates
-        </Button>
       </header>
 
       <div className="changelog-toolbar">

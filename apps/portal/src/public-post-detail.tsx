@@ -1,7 +1,7 @@
 import type { PublicPost } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
 import {
   Empty,
-  EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
@@ -11,17 +11,20 @@ import { ArrowLeft, ArrowUp, MessageCircle } from "lucide-react";
 import { type ReactNode, useId } from "react";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
 import { formatPublicDate } from "./public-date";
+import feedbax from "./feedbax";
 
 export function PublicPostDetail({
   post,
   display = "page",
   summaryActions,
   summaryMarker,
+  features = feedbax.features,
 }: {
   post: PublicPost;
   display?: "overlay" | "page";
   summaryActions?: ReactNode;
   summaryMarker?: ReactNode;
+  features?: PortalFeatures;
 }) {
   const id = useId();
   const headingId = `${id}-post-heading`;
@@ -47,33 +50,38 @@ export function PublicPostDetail({
           {summaryActions ? (
             <div className="post-detail-summary-actions">{summaryActions}</div>
           ) : null}
-          <div className="post-detail-engagement">
-            <span aria-label="Score unavailable">
-              <ArrowUp aria-hidden="true" />
-              <span aria-hidden="true">—</span>
-            </span>
-            <span aria-label="Comments unavailable">
-              <MessageCircle aria-hidden="true" />
-              <span aria-hidden="true">— comments</span>
-            </span>
-          </div>
-          <section
-            className="post-detail-comments"
-            aria-labelledby={commentsHeadingId}
-          >
-            <h2 id={commentsHeadingId}>Comments</h2>
-            <Empty className="post-detail-comments-empty">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
+          {features.voting || features.comments ? (
+            <div className="post-detail-engagement">
+              {features.voting ? (
+                <span aria-label="Score unavailable">
+                  <ArrowUp aria-hidden="true" />
+                  <span aria-hidden="true">—</span>
+                </span>
+              ) : null}
+              {features.comments ? (
+                <span aria-label="Comments unavailable">
                   <MessageCircle aria-hidden="true" />
-                </EmptyMedia>
-                <EmptyTitle>No comments yet</EmptyTitle>
-                <EmptyDescription>
-                  Commenting isn’t available in this installation.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </section>
+                  <span aria-hidden="true">— comments</span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {features.comments ? (
+            <section
+              className="post-detail-comments"
+              aria-labelledby={commentsHeadingId}
+            >
+              <h2 id={commentsHeadingId}>Comments</h2>
+              <Empty className="post-detail-comments-empty">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <MessageCircle aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle>No comments yet</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            </section>
+          ) : null}
         </div>
         <aside
           className="post-detail-sidebar"

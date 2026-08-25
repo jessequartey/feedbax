@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { PublicPostPage } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
 
 import { Badge } from "@feedbax/ui/components/badge";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@feedbax/ui/components/dialog";
 import { publicPostsQuery } from "../post-queries";
 import { useCommandPalette } from "./command-palette-context";
+import feedbax from "../feedbax";
 
 export {
   CommandPaletteProvider,
@@ -31,7 +33,13 @@ export {
 type SearchPosts = (term: string) => Promise<PublicPostPage>;
 type NavigationTarget = "/" | "/roadmap" | "/changelog";
 
-export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
+export function CommandPalette({
+  searchPosts,
+  features = feedbax.features,
+}: {
+  searchPosts: SearchPosts;
+  features?: PortalFeatures;
+}) {
   const router = useRouter();
   const { open, setOpen } = useCommandPalette();
   const [term, setTerm] = useState("");
@@ -46,8 +54,9 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
   }, [open]);
 
   const query = useInfiniteQuery({
-    ...publicPostsQuery({ search: deferredTerm, sort: "trending" }, (search) =>
-      searchPosts(search.search ?? ""),
+    ...publicPostsQuery(
+      { search: deferredTerm, sort: features.voting ? "trending" : "new" },
+      (search) => searchPosts(search.search ?? ""),
     ),
     enabled: open && deferredTerm.trim().length > 0,
   });
@@ -173,13 +182,15 @@ export function CommandPalette({ searchPosts }: { searchPosts: SearchPosts }) {
               >
                 Roadmap
               </CommandItem>
-              <CommandItem
-                className="min-h-11"
-                value="go-changelog"
-                onSelect={() => navigate("/changelog")}
-              >
-                Changelog
-              </CommandItem>
+              {features.changelog ? (
+                <CommandItem
+                  className="min-h-11"
+                  value="go-changelog"
+                  onSelect={() => navigate("/changelog")}
+                >
+                  Changelog
+                </CommandItem>
+              ) : null}
               <CommandItem
                 className="min-h-11"
                 value="new-post"

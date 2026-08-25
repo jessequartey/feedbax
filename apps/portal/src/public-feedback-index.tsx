@@ -1,4 +1,5 @@
 import type { PublicPostQuery, PublicPostPage } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
 import { useAuthorizedDraftPosts } from "./draft-post-list";
 import {
@@ -7,6 +8,7 @@ import {
   StatusNavigation,
 } from "./post-feed-controls";
 import { PostResults } from "./post-results";
+import feedbax from "./feedbax";
 
 export function PublicPostIndex({
   page,
@@ -17,6 +19,7 @@ export function PublicPostIndex({
   onSearchChange,
   pending = false,
   maskPostLinks = false,
+  features = feedbax.features,
 }: {
   page: PublicPostPage;
   search: PublicPostQuery;
@@ -26,6 +29,7 @@ export function PublicPostIndex({
   onSearchChange?: (search: PublicPostQuery) => void;
   pending?: boolean;
   maskPostLinks?: boolean;
+  features?: PortalFeatures;
 }) {
   const drafts = useAuthorizedDraftPosts(search);
   return (
@@ -40,7 +44,9 @@ export function PublicPostIndex({
               Feedback
             </h1>
             <p className="mt-2 text-base text-muted-foreground">
-              Share ideas and vote on what matters.
+              {features.voting
+                ? "Share ideas and vote on what matters."
+                : "Share ideas and follow public progress."}
             </p>
           </section>
           <div className="mt-8 flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -49,6 +55,7 @@ export function PublicPostIndex({
               search={search}
               onSearchChange={onSearchChange}
               pending={pending}
+              features={features}
             />
           </div>
           <section className="mt-8" aria-live="polite">
@@ -63,6 +70,7 @@ export function PublicPostIndex({
               loadingMore={loadingMore}
               loadMoreError={loadMoreError}
               maskPostLinks={maskPostLinks}
+              features={features}
             />
           </section>
         </div>

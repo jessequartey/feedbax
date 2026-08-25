@@ -134,13 +134,7 @@ describe("public portal shell", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Changelog" }),
     ).toBeTruthy();
-    expect(
-      (
-        screen.getByRole("button", {
-          name: "Follow updates",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Follow updates" })).toBeNull();
   });
 });
 

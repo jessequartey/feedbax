@@ -58,13 +58,7 @@ describe("Changelog page", () => {
       "#csv-export",
     ]);
 
-    expect(
-      (
-        screen.getByRole("button", {
-          name: "Follow updates",
-        }) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+    expect(screen.queryByRole("button", { name: "Follow updates" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Load more updates" }));
 

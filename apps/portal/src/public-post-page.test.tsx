@@ -103,9 +103,7 @@ describe("canonical Post page", () => {
 
     const comments = within(screen.getByRole("region", { name: "Comments" }));
     expect(comments.getByText("No comments yet")).toBeTruthy();
-    expect(
-      comments.getByText("Commenting isn’t available in this installation."),
-    ).toBeTruthy();
+    expect(comments.queryByText(/isn’t available/)).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(
       screen.queryByRole("button", { name: /comment|follow/i }),

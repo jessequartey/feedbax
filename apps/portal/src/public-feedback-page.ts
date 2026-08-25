@@ -5,6 +5,8 @@ import type {
   PublicPostQuery,
   PublicPostPage,
 } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
+import feedbax from "./feedbax";
 
 export const postTypes = [
   "Feature Request",
@@ -33,6 +35,7 @@ export async function loadPublicPostPage({
 
 export function publicPostSearch(
   search: Record<string, unknown>,
+  features: PortalFeatures = feedbax.features,
 ): PublicPostQuery & { pageSize?: string; schema?: string } {
   const cursor = text(search.cursor);
   const query = text(search.search);
@@ -41,17 +44,18 @@ export function publicPostSearch(
     postTypes.includes(value as PostType),
   );
   const statuses = values(search.statuses).filter(
-    (value): value is PostStatus =>
-      postStatuses.includes(value as PostStatus),
+    (value): value is PostStatus => postStatuses.includes(value as PostStatus),
   );
   return {
     ...(text(search.pageSize) ? { pageSize: text(search.pageSize) } : {}),
     ...(text(search.schema) ? { schema: text(search.schema) } : {}),
     ...(cursor ? { cursor } : {}),
     ...(query ? { search: query } : {}),
-    sort: postSorts.includes(sortValue as (typeof postSorts)[number])
-      ? (sortValue as PublicPostQuery["sort"])
-      : "trending",
+    sort: !features.voting
+      ? "new"
+      : postSorts.includes(sortValue as (typeof postSorts)[number])
+        ? (sortValue as PublicPostQuery["sort"])
+        : "trending",
     ...(types.length ? { types } : {}),
     ...(statuses.length ? { statuses } : {}),
   };

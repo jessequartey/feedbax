@@ -3,8 +3,16 @@ import { cn } from "@feedbax/ui/lib/utils";
 
 import { CommandPaletteTrigger } from "./command-palette";
 import { ProfileMenu } from "./profile-menu";
+import type { PortalFeatures } from "@feedbax/config";
+import feedbax from "../feedbax";
 
-function Navigation({ feedbackContext }: { feedbackContext: boolean }) {
+function Navigation({
+  feedbackContext,
+  features,
+}: {
+  feedbackContext: boolean;
+  features: PortalFeatures;
+}) {
   const linkClassName =
     "grid flex-1 place-items-center border-b-2 border-transparent px-4 py-4 text-sm text-muted-foreground transition-colors hover:text-foreground md:flex-none md:rounded-md md:border md:px-4 md:py-2 data-[status=active]:border-foreground data-[status=active]:text-foreground data-[status=active]:md:bg-muted";
   return (
@@ -23,14 +31,20 @@ function Navigation({ feedbackContext }: { feedbackContext: boolean }) {
       <Link className={linkClassName} to="/roadmap">
         Roadmap
       </Link>
-      <Link className={linkClassName} to="/changelog">
-        Changelog
-      </Link>
+      {features.changelog ? (
+        <Link className={linkClassName} to="/changelog">
+          Changelog
+        </Link>
+      ) : null}
     </>
   );
 }
 
-export default function Header() {
+export default function Header({
+  features = feedbax.features,
+}: {
+  features?: PortalFeatures;
+}) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -62,7 +76,7 @@ export default function Header() {
           className="order-3 col-span-2 -mx-4 flex border-t bg-background md:order-none md:col-span-1 md:col-start-2 md:row-start-1 md:mx-0 md:gap-1 md:border-0"
           aria-label="Public portal"
         >
-          <Navigation feedbackContext={needsPageSearch} />
+          <Navigation feedbackContext={needsPageSearch} features={features} />
         </nav>
         <div className="flex items-center justify-self-end gap-2 md:col-start-3 md:row-start-1">
           {needsPageSearch ? (

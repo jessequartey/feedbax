@@ -5,6 +5,7 @@ import type {
   PublicRoadmapQuery,
   RoadmapStatus,
 } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
 import { Button } from "@feedbax/ui/components/button";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
 import { Card } from "@feedbax/ui/components/card";
@@ -27,6 +28,7 @@ import { PostLink } from "./masked-post-link";
 import { PostTypeBadge } from "./post-badges";
 import type { FetchPublicRoadmapStatusPage } from "./roadmap-query";
 import { useMediaQuery } from "./use-media-query";
+import feedbax from "./feedbax";
 
 const roadmapGroups = [
   {
@@ -55,10 +57,12 @@ export function PublicRoadmapView({
   roadmap,
   loadMore,
   maskPostLinks = false,
+  features = feedbax.features,
 }: {
   roadmap: PublicPostRoadmap;
   loadMore?: FetchPublicRoadmapStatusPage;
   maskPostLinks?: boolean;
+  features?: PortalFeatures;
 }) {
   const mobile = useMediaQuery(mobileMediaQuery);
   const [activeStatus, setActiveStatus] = useState<RoadmapStatus>("Planned");
@@ -173,6 +177,7 @@ export function PublicRoadmapView({
                       item={item}
                       key={item.slug}
                       masked={maskPostLinks}
+                      features={features}
                     />
                   ))}
                 </ol>
@@ -334,7 +339,15 @@ function RoadmapEmptyState({ heading }: { heading: string }) {
   );
 }
 
-function RoadmapItem({ item, masked }: { item: PublicPost; masked: boolean }) {
+function RoadmapItem({
+  item,
+  masked,
+  features,
+}: {
+  item: PublicPost;
+  masked: boolean;
+  features: PortalFeatures;
+}) {
   return (
     <li>
       <PostLink
@@ -355,20 +368,24 @@ function RoadmapItem({ item, masked }: { item: PublicPost; masked: boolean }) {
             aria-label="Post metadata"
           >
             <PostTypeBadge type={item.type} />
-            <span
-              className="inline-flex items-center gap-1.5"
-              aria-label="Comments unavailable"
-            >
-              <MessageCircle className="size-4" aria-hidden="true" />
-              <span aria-hidden="true">—</span>
-            </span>
-            <span
-              className="ml-auto inline-flex h-8 min-w-12 items-center justify-center gap-1.5 border px-2.5 text-sm text-foreground"
-              aria-label="Score unavailable"
-            >
-              <ArrowUp className="size-4" aria-hidden="true" />
-              <span aria-hidden="true">—</span>
-            </span>
+            {features.comments ? (
+              <span
+                className="inline-flex items-center gap-1.5"
+                aria-label="Comments unavailable"
+              >
+                <MessageCircle className="size-4" aria-hidden="true" />
+                <span aria-hidden="true">—</span>
+              </span>
+            ) : null}
+            {features.voting ? (
+              <span
+                className="ml-auto inline-flex h-8 min-w-12 items-center justify-center gap-1.5 border px-2.5 text-sm text-foreground"
+                aria-label="Score unavailable"
+              >
+                <ArrowUp className="size-4" aria-hidden="true" />
+                <span aria-hidden="true">—</span>
+              </span>
+            ) : null}
           </div>
         </article>
       </PostLink>

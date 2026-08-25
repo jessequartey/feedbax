@@ -1,4 +1,5 @@
 import type { DraftPost, PublicPost } from "@feedbax/feedback";
+import type { PortalFeatures } from "@feedbax/config";
 import { Badge } from "@feedbax/ui/components/badge";
 import { Button } from "@feedbax/ui/components/button";
 import {
@@ -13,6 +14,7 @@ import { ArrowUp, MessageCircle, SearchX } from "lucide-react";
 
 import { PostLink } from "./masked-post-link";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
+import feedbax from "./feedbax";
 
 export function PostResults({
   drafts = [],
@@ -22,6 +24,7 @@ export function PostResults({
   loadingMore = false,
   loadMoreError = false,
   maskPostLinks = false,
+  features = feedbax.features,
 }: {
   drafts?: DraftPost[];
   initialItems: PublicPost[];
@@ -30,6 +33,7 @@ export function PostResults({
   loadingMore?: boolean;
   loadMoreError?: boolean;
   maskPostLinks?: boolean;
+  features?: PortalFeatures;
 }) {
   if (!drafts.length && !initialItems.length) {
     return (
@@ -65,6 +69,7 @@ export function PostResults({
             post={post}
             draft
             maskPostLinks={maskPostLinks}
+            features={features}
           />
         ))}
         {initialItems.map((post) => (
@@ -72,6 +77,7 @@ export function PostResults({
             key={post.slug}
             post={post}
             maskPostLinks={maskPostLinks}
+            features={features}
           />
         ))}
       </ol>
@@ -101,10 +107,12 @@ function PostResultRow({
   post,
   draft = false,
   maskPostLinks,
+  features,
 }: {
   post: DraftPost | PublicPost;
   draft?: boolean;
   maskPostLinks: boolean;
+  features: PortalFeatures;
 }) {
   return (
     <li>
@@ -113,14 +121,18 @@ function PostResultRow({
         slug={post.slug}
         contextual={maskPostLinks}
       >
-        <article className="relative grid grid-cols-[4rem_minmax(0,1fr)] items-start gap-4 p-5 transition-colors duration-150 hover:bg-muted/30 sm:grid-cols-[4.75rem_minmax(0,1fr)] sm:items-center">
-          <span
-            className="flex h-[4.75rem] w-full flex-col items-center justify-center gap-1 border text-sm font-medium text-muted-foreground"
-            aria-label="Score unavailable"
-          >
-            <ArrowUp className="size-5" aria-hidden="true" />
-            <span aria-hidden="true">—</span>
-          </span>
+        <article
+          className={`relative grid ${features.voting ? "grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[4.75rem_minmax(0,1fr)]" : "grid-cols-1"} items-start gap-4 p-5 transition-colors duration-150 hover:bg-muted/30 sm:items-center`}
+        >
+          {features.voting ? (
+            <span
+              className="flex h-[4.75rem] w-full flex-col items-center justify-center gap-1 border text-sm font-medium text-muted-foreground"
+              aria-label="Score unavailable"
+            >
+              <ArrowUp className="size-5" aria-hidden="true" />
+              <span aria-hidden="true">—</span>
+            </span>
+          ) : null}
           <span className="min-w-0 sm:pr-16">
             <span className="block text-base font-medium text-foreground sm:text-lg">
               {post.title}
@@ -139,13 +151,15 @@ function PostResultRow({
               ) : (
                 <PostStatusBadge status={post.status} />
               )}
-              <span
-                className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground sm:absolute sm:top-1/2 sm:right-5 sm:-translate-y-1/2"
-                aria-label="Comments unavailable"
-              >
-                <MessageCircle className="size-4" aria-hidden="true" />
-                <span aria-hidden="true">—</span>
-              </span>
+              {features.comments ? (
+                <span
+                  className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground sm:absolute sm:top-1/2 sm:right-5 sm:-translate-y-1/2"
+                  aria-label="Comments unavailable"
+                >
+                  <MessageCircle className="size-4" aria-hidden="true" />
+                  <span aria-hidden="true">—</span>
+                </span>
+              ) : null}
             </span>
           </span>
         </article>
