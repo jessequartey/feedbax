@@ -184,10 +184,21 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=7
+TOTAL_STAGES=9
 ENV_FILE="apps/portal/.dev.vars"
 
 banner "Feedbax manual production proof"
+
+stage "Notion CLI: install and authenticate"
+say "Use Notion's official CLI for workspace discovery and read-back verification."
+if ! command -v ntn >/dev/null 2>&1; then
+  step "Install the official Notion CLI after reviewing https://developers.notion.com/cli/get-started/overview."
+  confirm "Install ntn from the official ntn.dev installer now?" || { warn "Setup stopped before installation."; exit 1; }
+  curl -fsSL https://ntn.dev | bash
+fi
+ntn --version
+step "Authorize the intended Notion Workspace in the browser window."
+ntn login
 
 stage "Notion: integration and parent page"
 say "Create a dedicated internal integration and grant it access to a test-only parent page."
@@ -199,17 +210,32 @@ ask NOTION_PARENT_PAGE_ID "Paste the parent page ID from its URL:"
 write_env NOTION_TOKEN "$NOTION_TOKEN"
 write_env NOTION_PARENT_PAGE_ID "$NOTION_PARENT_PAGE_ID"
 
-stage "Notion: create the canonical Feedback Data Source"
-say "This is the only remote Notion mutation performed by the setup command."
+stage "Notion: create the canonical Installation"
+say "The setup command creates fresh sibling Feedback and Changelog Data Sources and publishes the Feedbax roadmap."
 EXISTING_DATA_SOURCE_ID=$(_existing NOTION_FEEDBACK_DATA_SOURCE_ID || true)
 if [[ -n "$EXISTING_DATA_SOURCE_ID" ]]; then
-  say "A Feedback Data Source is already recorded; skipping the non-idempotent creation step."
-else
-  confirm "Create a new Feedback Data Source under that parent page?" || { warn "Setup stopped before mutation."; exit 1; }
-  NOTION_TOKEN="$NOTION_TOKEN" pnpm manual:setup:notion "$NOTION_PARENT_PAGE_ID"
+  warn "An older Feedback Data Source is configured. It will remain untouched and its local configuration will be backed up."
 fi
-step "Open the parent page and confirm a Feedback database now exists."
+confirm "Create a fresh Feedbax Database, seed its public roadmap, and switch local configuration after success?" || { warn "Setup stopped before mutation."; exit 1; }
+NOTION_TOKEN="$NOTION_TOKEN" pnpm manual:setup:notion "$NOTION_PARENT_PAGE_ID"
+step "Open the parent page and confirm the Feedback and Changelog data sources now exist."
 pause "Confirmed?"
+
+stage "Notion CLI: read-back verification"
+NOTION_FEEDBACK_DATABASE_ID=$(_existing NOTION_FEEDBACK_DATABASE_ID)
+NOTION_FEEDBACK_DATA_SOURCE_ID=$(_existing NOTION_FEEDBACK_DATA_SOURCE_ID)
+NOTION_CHANGELOG_DATA_SOURCE_ID=$(_existing NOTION_CHANGELOG_DATA_SOURCE_ID)
+ntn api "v1/databases/$NOTION_FEEDBACK_DATABASE_ID" >/dev/null
+ntn api "v1/data_sources/$NOTION_FEEDBACK_DATA_SOURCE_ID" >/dev/null
+ntn api "v1/data_sources/$NOTION_CHANGELOG_DATA_SOURCE_ID" >/dev/null
+ROADMAP_JSON=$(ntn datasources query "$NOTION_FEEDBACK_DATA_SOURCE_ID" --limit 20 --json)
+if command -v jq >/dev/null 2>&1; then
+  ROADMAP_COUNT=$(printf '%s' "$ROADMAP_JSON" | jq '.results | length')
+else
+  ROADMAP_COUNT=$(printf '%s' "$ROADMAP_JSON" | grep -o '"object":"page"' | wc -l | tr -d ' ')
+fi
+[[ "$ROADMAP_COUNT" -eq 12 ]] || { warn "Expected 12 seeded roadmap Posts, found $ROADMAP_COUNT."; exit 1; }
+say "Verified the database, both data sources, and 12 roadmap Posts through ntn."
 
 stage "Local verification"
 say "Verify the repository and Worker bundle before authenticating Cloudflare."
@@ -229,39 +255,40 @@ pnpm --dir apps/portal exec wrangler login
 pnpm --dir apps/portal exec wrangler whoami
 pause "Wrangler shows the intended Cloudflare account?"
 
-stage "Cloudflare: create the Worker"
-say "Create the Worker before attaching secrets; application routes are not smoke-tested until configuration is complete."
-confirm "Deploy the unconfigured Worker to workers.dev now?" || { warn "Deployment skipped."; exit 1; }
-pnpm --filter @feedbax/portal run deploy
-
-stage "Cloudflare: configure secrets and smoke test"
-say "The ignored portal .dev.vars file contains the values Wrangler needs. Values are never printed."
+stage "Cloudflare: configure and deploy the Worker"
+say "Update the existing feedbax Worker with the complete new Installation contract. Values are never printed."
 DEV_VARS="apps/portal/.dev.vars"
-required_secret_count=15
-configured_secret_count=$(grep -Ec '^(NOTION_TOKEN|NOTION_FEEDBACK_[A-Z_]+|FEEDBAX_API_KEY_HASH)=' "$DEV_VARS" || true)
+required_secret_count=32
+configured_secret_count=$(grep -Ec '^(NOTION_TOKEN|NOTION_FEEDBACK_[A-Z_]+|NOTION_CHANGELOG_[A-Z_]+|NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID|FEEDBAX_API_KEY_HASH|PARTICIPATION_SIGNING_SECRET)=' "$DEV_VARS" || true)
 [[ "$configured_secret_count" -eq "$required_secret_count" ]] || {
   warn "Expected $required_secret_count required Worker secrets, found $configured_secret_count. Rerun or recover Notion setup first."
   exit 1
 }
 while IFS='=' read -r key value; do
-  [[ "$key" == "NOTION_TOKEN" || "$key" == NOTION_FEEDBACK_* || "$key" == "FEEDBAX_API_KEY_HASH" ]] || continue
+  [[ "$key" == "NOTION_TOKEN" || "$key" == NOTION_FEEDBACK_* || "$key" == NOTION_CHANGELOG_* || "$key" == "NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID" || "$key" == "FEEDBAX_API_KEY_HASH" || "$key" == "PARTICIPATION_SIGNING_SECRET" ]] || continue
   [[ -n "$value" ]] || { warn "Missing $key in $DEV_VARS"; exit 1; }
   printf '%s' "$value" | pnpm --dir apps/portal exec wrangler secret put "$key"
 done < "$DEV_VARS"
 warn "Turnstile remains disabled for this proof; production must show the weaker-spam-protection warning."
-say "Redeploy after secret configuration so the final version is the one under test."
+say "Deploy after secret configuration so the final version is the one under test."
 pnpm --filter @feedbax/portal run deploy
 ask WORKERS_URL "Paste the deployed https://…workers.dev URL:"
 write_env FEEDBAX_WORKERS_URL "$WORKERS_URL"
 step "Open the health endpoint and confirm it reports healthy."
 open_url "${WORKERS_URL%/}/health"
-step "Complete every enabled and independent opt-out smoke cycle in docs/version-0.2.0-acceptance.md."
+step "Confirm feedback, Post detail, submission, roadmap, voting, Comments, empty Changelog, and health behavior."
 open_url "$WORKERS_URL"
-pause "The full live smoke cycle and Turnstile warning are recorded?"
+pause "The enabled-capability live smoke cycle and Turnstile warning are recorded?"
 
-stage "Evidence and local secret cleanup"
+stage "Production evidence"
 say "Record only non-secret results in the proof document. Never paste dashboard logs or .dev.vars contents."
 step "Complete the evidence checklist in docs/version-0.2.0-acceptance.md."
+step "Confirm private Feedback properties and Notion page bodies do not render publicly."
+step "Edit a roadmap Post in Notion and confirm it appears within the two-minute cache window."
+pause "Production evidence recorded?"
+
+stage "Local secret cleanup"
+say "Retain the configuration backup until the new Worker has passed every smoke check."
 confirm "Remove the temporary plaintext FEEDBAX_SMOKE_API_KEY from apps/portal/.dev.vars?" && {
   tmp=$(mktemp)
   grep -v '^FEEDBAX_SMOKE_API_KEY=' apps/portal/.dev.vars > "$tmp" || true
@@ -269,6 +296,7 @@ confirm "Remove the temporary plaintext FEEDBAX_SMOKE_API_KEY from apps/portal/.
   chmod 600 apps/portal/.dev.vars
   say "Removed the local plaintext smoke key."
 }
-note "Keep the Notion token and deployed secrets only while this dedicated proof Installation is active."
+note "The older Notion data source was not modified or deleted."
+note "Keep the Notion token and deployed secrets only while this Installation is active."
 
 finish
