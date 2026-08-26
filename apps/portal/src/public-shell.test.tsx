@@ -30,6 +30,8 @@ import { ChangelogPage } from "./changelog-page";
 import { deviceProfileKey, readDeviceProfile } from "./browser-post-state";
 import { PublicRoadmapView } from "./public-roadmap-view";
 import { CreatePostOverlay } from "./create-post-overlay";
+import { DeviceProfileProvider } from "./components/device-profile-provider";
+import { saveDeviceProfile } from "./browser-post-state";
 
 const portalFeedbackMutations = {
   submitPost: async () => {
@@ -80,6 +82,18 @@ describe("public portal shell", () => {
     expect(logo.getAttribute("src")).toBe("/feedbax-mark.svg");
   });
 
+  it("keeps the public navigation sticky while the page scrolls", async () => {
+    renderShell("/");
+
+    const header = (
+      await screen.findByRole("navigation", {
+        name: "Public portal",
+      })
+    ).closest("header");
+    expect(header?.classList.contains("sticky")).toBe(true);
+    expect(header?.classList.contains("top-0")).toBe(true);
+  });
+
   it("offers skip navigation and global search on every destination", async () => {
     renderShell("/p/keyboard-first-search");
 
@@ -127,8 +141,13 @@ describe("public portal shell", () => {
   );
 
   it("opens visible New post actions contextually", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ama",
+      email: "ama@example.com",
+    });
     const { history } = renderShell("/roadmap");
 
+    await screen.findByText("Ama");
     fireEvent.click(await screen.findByRole("button", { name: "New post" }));
 
     expect(
@@ -136,6 +155,16 @@ describe("public portal shell", () => {
     ).toBeTruthy();
     expect(document.body.textContent).toContain("Roadmap");
     expect(history.location.pathname).toBe("/submit");
+  });
+
+  it("opens profile setup instead of Post creation when the profile is incomplete", async () => {
+    const { history } = renderShell("/roadmap");
+
+    fireEvent.click(await screen.findByRole("button", { name: "New post" }));
+
+    expect(await screen.findByRole("dialog", { name: "Profile" })).toBeTruthy();
+    expect(history.location.pathname).toBe("/roadmap");
+    expect(screen.queryByRole("dialog", { name: "Create a Post" })).toBeNull();
   });
 
   it("renders Changelog as a complete timeline destination", async () => {
@@ -181,7 +210,7 @@ describe("profile menu", () => {
     fireEvent.change(await screen.findByLabelText("Display name"), {
       target: { value: "Ama Mensah" },
     });
-    fireEvent.change(screen.getByLabelText("Email (optional)"), {
+    fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "not-an-email" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
@@ -199,7 +228,7 @@ describe("profile menu", () => {
     fireEvent.change(await screen.findByLabelText("Display name"), {
       target: { value: "Ama Mensah" },
     });
-    fireEvent.change(screen.getByLabelText("Email (optional)"), {
+    fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "ama@example.com" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
@@ -236,7 +265,7 @@ describe("profile menu", () => {
     expect(
       (await screen.findByLabelText("Display name")).getAttribute("value"),
     ).toBe("Ama");
-    fireEvent.change(screen.getByLabelText("Email (optional)"), {
+    fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "ama@example.com" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
@@ -350,8 +379,13 @@ describe("command palette", () => {
   });
 
   it("offers navigation actions including New post", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ama",
+      email: "ama@example.com",
+    });
     const { history } = renderShell("/");
 
+    await screen.findByText("Ama");
     await screen.findByRole("link", { name: "Feedback" });
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(
@@ -423,17 +457,19 @@ function renderShell(
     component: () => (
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <CommandPaletteProvider>
-            <Header />
-            <Outlet />
-            <CommandPalette
-              searchPosts={
-                searchPosts ??
-                (async () => ({ items: [], nextCursor: undefined }))
-              }
-            />
-            <CreatePostOverlay mutations={portalFeedbackMutations} />
-          </CommandPaletteProvider>
+          <DeviceProfileProvider>
+            <CommandPaletteProvider>
+              <Header />
+              <Outlet />
+              <CommandPalette
+                searchPosts={
+                  searchPosts ??
+                  (async () => ({ items: [], nextCursor: undefined }))
+                }
+              />
+              <CreatePostOverlay mutations={portalFeedbackMutations} />
+            </CommandPaletteProvider>
+          </DeviceProfileProvider>
         </ThemeProvider>
       </QueryClientProvider>
     ),

@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { OverlayPostDetail } from "./overlay-post-detail";
 import {
   getPublicPost,
   getPublicPostComments,
 } from "./public-post-server-function";
+import { saveDeviceProfile } from "./browser-post-state";
 
 vi.mock("./public-post-server-function", () => ({
   getPublicPost: vi.fn(),
@@ -17,8 +18,16 @@ vi.mock("./authorized-draft-post", () => ({
   AuthorizedDraftPost: () => <p>Draft fallback</p>,
 }));
 
+beforeEach(() => {
+  saveDeviceProfile(localStorage, {
+    name: "Ari",
+    email: "ari@example.com",
+  });
+});
+
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.clearAllMocks();
 });
 
@@ -83,7 +92,9 @@ it("shows the designed Post detail with a canonical full-page link", async () =>
       "Visible in the dialog",
     ),
   ).toBeTruthy();
-  expect(screen.getByRole("form", { name: "Comment composer" })).toBeTruthy();
+  expect(
+    await screen.findByRole("form", { name: "Comment composer" }),
+  ).toBeTruthy();
   expect(getPublicPostComments).toHaveBeenCalledWith({
     data: { slug: "first-post" },
   });
@@ -101,7 +112,9 @@ it("keeps the Post and Comment composer available when Comment loading fails", a
   expect(
     await screen.findByRole("heading", { name: "First Post" }),
   ).toBeTruthy();
-  expect(screen.getByRole("form", { name: "Comment composer" })).toBeTruthy();
+  expect(
+    await screen.findByRole("form", { name: "Comment composer" }),
+  ).toBeTruthy();
   expect(screen.getByText("No comments yet")).toBeTruthy();
   expect(screen.queryByText("Draft fallback")).toBeNull();
 });

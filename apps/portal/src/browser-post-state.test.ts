@@ -5,6 +5,7 @@ import {
   clearDeviceProfile,
   deriveDeviceProfileInitials,
   deviceProfileKey,
+  isCompleteDeviceProfile,
   readCapabilities,
   readDeviceProfile,
   retainCapability,
@@ -25,6 +26,27 @@ describe("device-local Participant state", () => {
       email: "ama@example.com",
     });
     expect(deriveDeviceProfileInitials(readDeviceProfile(storage)!)).toBe("AM");
+    expect(isCompleteDeviceProfile(readDeviceProfile(storage))).toBe(true);
+  });
+
+  it("preserves a legacy name-only profile but treats it as incomplete", () => {
+    const storage = memoryStorage({
+      [deviceProfileKey]: JSON.stringify({ name: "Ama" }),
+    });
+
+    expect(readDeviceProfile(storage)).toEqual({ name: "Ama" });
+    expect(isCompleteDeviceProfile(readDeviceProfile(storage))).toBe(false);
+  });
+
+  it("treats malformed email addresses as incomplete", () => {
+    const storage = memoryStorage({
+      [deviceProfileKey]: JSON.stringify({
+        name: "Ama",
+        email: "not-an-email",
+      }),
+    });
+
+    expect(isCompleteDeviceProfile(readDeviceProfile(storage))).toBe(false);
   });
 
   it("rejects malformed saved profiles", () => {

@@ -1,6 +1,7 @@
 import { Button } from "@feedbax/ui/components/button";
 import { cn } from "@feedbax/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
+import { useDeviceProfile } from "./device-profile-provider";
 
 export function CreatePostTrigger({
   className,
@@ -9,6 +10,18 @@ export function CreatePostTrigger({
   className?: string;
   contextual?: boolean;
 }) {
+  const { completeProfile, ready, openProfileSetup } = useDeviceProfile();
+  if (!ready || !completeProfile)
+    return (
+      <Button
+        className={cn("text-sm", className)}
+        type="button"
+        onClick={openProfileSetup}
+      >
+        New post
+      </Button>
+    );
+
   const link = contextual ? (
     <Link
       to="."

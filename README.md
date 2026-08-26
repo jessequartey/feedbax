@@ -10,7 +10,7 @@ When Turnstile is configured, the first participation action issues a signed Par
 
 Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, Trending temporarily aliases that exact ordering, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
 
-Comments use unverified Device Profile names and native Notion threads. A display name and syntactically valid email are required to create a Comment or reply, but this does not verify email ownership and email is never shown publicly. Resolved Comments are hidden. Changelog images are managed directly in Notion and temporary file references are discarded or refreshed before expiry. See [Notion-native participation guarantees](docs/notion-native-participation.md) for later enablement, rotation, recovery, and API boundaries.
+Public portal Posts and Comments use an unverified Device Profile. A display name and syntactically valid email are required to create a Post, Comment, or reply, but this does not verify email ownership; email remains private. Resolved Comments are hidden. Changelog images are managed directly in Notion and temporary file references are discarded or refreshed before expiry. See [Notion-native participation guarantees](docs/notion-native-participation.md) for later enablement, rotation, recovery, and API boundaries.
 
 ## Features
 

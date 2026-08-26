@@ -1648,6 +1648,90 @@ textarea:focus-visible {
   background: color-mix(in srgb, var(--muted) 12%, transparent);
 }
 
+.comment-threads {
+  margin-top: 1.25rem;
+  border-block: 1px solid var(--portal-rule);
+}
+
+.comment-thread + .comment-thread {
+  border-top: 1px solid var(--portal-rule);
+}
+
+.comment {
+  padding: 1.15rem 0;
+}
+
+.comment + .comment {
+  border-top: 1px solid color-mix(in srgb, var(--portal-rule) 70%, transparent);
+}
+
+.comment[data-reply="true"] {
+  margin-left: 2rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--portal-rule);
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.comment-author {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.comment-author strong {
+  overflow: hidden;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-author span {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--portal-rule);
+  color: var(--muted-foreground);
+  font-size: 0.65rem;
+  line-height: 1.25;
+}
+
+.comment-header time {
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.comment-body {
+  margin: 0.6rem 0 0;
+  color: var(--foreground);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  margin-top: 0.65rem;
+}
+
+.profile-gate {
+  min-height: 13rem;
+  margin-top: 1.25rem;
+  border: 1px dashed var(--portal-rule);
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+}
+
 .comment-composer {
   display: grid;
   gap: 0.75rem;
@@ -2019,6 +2103,17 @@ textarea:focus-visible {
 
   .post-detail-comments-empty {
     min-height: 10rem;
+  }
+
+  .comment[data-reply="true"] {
+    margin-left: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
+  .comment-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
   }
 
   .post-detail-details > div {

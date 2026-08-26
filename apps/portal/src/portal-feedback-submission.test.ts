@@ -88,6 +88,7 @@ describe("Notion-only feedback submission", () => {
       title: "Keyboard navigation",
       description: "Let participants navigate without a mouse.",
       type: "Feature Request",
+      submitter: { name: "Ama", email: "ama@example.com" },
     });
 
     expect(result).toMatchObject({
@@ -114,22 +115,57 @@ describe("Notion-only feedback submission", () => {
       ...allowedSubmissionSecurity(),
     });
 
+    const completeSubmitter = { name: "Ama", email: "ama@example.com" };
     const invalidInputs = [
       null,
       {},
-      { title: "", description: "A description", type: "Bug Report" },
+      {
+        title: "A title",
+        description: "A description",
+        type: "Bug Report",
+      },
+      {
+        title: "A title",
+        description: "A description",
+        type: "Bug Report",
+        submitter: { name: "Ama" },
+      },
+      {
+        title: "A title",
+        description: "A description",
+        type: "Bug Report",
+        submitter: { name: "Ama", email: "not-an-email" },
+      },
+      {
+        title: "",
+        description: "A description",
+        type: "Bug Report",
+        submitter: completeSubmitter,
+      },
       {
         title: "t".repeat(161),
         description: "A description",
         type: "Bug Report",
+        submitter: completeSubmitter,
       },
-      { title: "A title", description: "", type: "Bug Report" },
+      {
+        title: "A title",
+        description: "",
+        type: "Bug Report",
+        submitter: completeSubmitter,
+      },
       {
         title: "A title",
         description: "d".repeat(5_001),
         type: "Bug Report",
+        submitter: completeSubmitter,
       },
-      { title: "A title", description: "A description", type: "Other" },
+      {
+        title: "A title",
+        description: "A description",
+        type: "Other",
+        submitter: completeSubmitter,
+      },
     ];
 
     for (const input of invalidInputs) {
@@ -140,7 +176,7 @@ describe("Notion-only feedback submission", () => {
     expect(notionRequest).not.toHaveBeenCalled();
   });
 
-  it("keeps optional unverified contact information inside the private submission", async () => {
+  it("keeps required unverified profile details inside the private submission", async () => {
     const feedback = createFeedbackModule();
     const submit = createPortalFeedbackSubmission({
       feedback,
@@ -215,6 +251,7 @@ describe("Notion-only feedback submission", () => {
       title: "Keyboard navigation",
       description: "Let participants navigate without a mouse.",
       type: "Feature Request",
+      submitter: { name: "Ama", email: "ama@example.com" },
       turnstileToken: "private-participant-token",
     });
 
@@ -245,6 +282,7 @@ describe("Notion-only feedback submission", () => {
       title: "Keyboard navigation",
       description: "Let participants navigate without a mouse.",
       type: "Feature Request",
+      submitter: { name: "Ama", email: "ama@example.com" },
       turnstileToken: "private-participant-token",
     });
 

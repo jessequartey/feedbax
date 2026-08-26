@@ -10,6 +10,7 @@ import { ThemeProvider } from "next-themes";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/header";
+import { DeviceProfileProvider } from "../components/device-profile-provider";
 import {
   CommandPalette,
   CommandPaletteProvider,
@@ -44,25 +45,27 @@ function RootDocument() {
       <body>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <CommandPaletteProvider>
-              <div className="portal-shell">
-                <Header />
-                <div id="main-content" tabIndex={-1}>
-                  <Outlet />
+            <DeviceProfileProvider>
+              <CommandPaletteProvider>
+                <div className="portal-shell">
+                  <Header />
+                  <div id="main-content" tabIndex={-1}>
+                    <Outlet />
+                  </div>
+                  <CreatePostOverlay mutations={portalFeedbackMutations} />
+                  <PostDetailOverlay
+                    renderDetail={(slug) => <OverlayPostDetail slug={slug} />}
+                  />
+                  <CommandPalette
+                    searchPosts={(term) =>
+                      getPublicPostPage({
+                        data: { search: term || undefined },
+                      })
+                    }
+                  />
                 </div>
-                <CreatePostOverlay mutations={portalFeedbackMutations} />
-                <PostDetailOverlay
-                  renderDetail={(slug) => <OverlayPostDetail slug={slug} />}
-                />
-                <CommandPalette
-                  searchPosts={(term) =>
-                    getPublicPostPage({
-                      data: { search: term || undefined },
-                    })
-                  }
-                />
-              </div>
-            </CommandPaletteProvider>
+              </CommandPaletteProvider>
+            </DeviceProfileProvider>
           </ThemeProvider>
         </QueryClientProvider>
         <Toaster richColors />

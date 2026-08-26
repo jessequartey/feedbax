@@ -19,13 +19,16 @@ import {
   useState,
 } from "react";
 import type { CreatedComment } from "@feedbax/feedback";
-import { readDeviceProfile } from "./browser-post-state";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
 import { formatPublicDate } from "./public-date";
 import feedbax from "./feedbax";
 import { VoteToggle } from "./vote-toggle";
 import type { PortalCommentRequest } from "./portal-comments";
 import { isValidCommentEmail } from "./comment-profile";
+import {
+  DeviceProfilePrompt,
+  useDeviceProfile,
+} from "./components/device-profile-provider";
 
 const emptyCommentPage: CommentThreadPage = { items: [] };
 const commentCapabilitiesKey = "feedbax:comment-capabilities";
@@ -78,6 +81,7 @@ export function PublicPostDetail({
   >({});
   const turnstileContainer = useRef<HTMLDivElement>(null);
   const turnstileWidget = useRef<string | undefined>(undefined);
+  const { completeProfile, ready: profileReady } = useDeviceProfile();
 
   useEffect(() => {
     setLocalComments((current) =>
@@ -145,8 +149,8 @@ export function PublicPostDetail({
     if (!submitComment) return;
     const form = new FormData(event.currentTarget);
     const body = String(form.get("body") ?? "").trim();
-    const profile = readDeviceProfile(window.localStorage);
-    if (!isValidCommentEmail(profile?.email)) {
+    const profile = completeProfile;
+    if (!profile || !isValidCommentEmail(profile.email)) {
       setCommentError(
         "Add a display name and valid email to your Device Profile before commenting.",
       );
@@ -288,59 +292,88 @@ export function PublicPostDetail({
                 <div className="comment-threads">
                   {localComments.map((thread) => (
                     <article className="comment-thread" key={thread.id}>
-                      {thread.comments.map((comment) => (
-                        <div className="comment" key={comment.id}>
-                          <header>
-                            <strong>{comment.author.displayName}</strong>
-                            {comment.author.kind === "participant" ? (
-                              <span>Unverified</span>
+                      {thread.comments.map((comment, index) => {
+                        const canChange = Boolean(
+                          mutateComment && commentCapabilities[comment.id],
+                        );
+                        const canReply = Boolean(
+                          index === 0 && submitComment && completeProfile,
+                        );
+                        return (
+                          <div
+                            className="comment"
+                            data-reply={index > 0 || undefined}
+                            key={comment.id}
+                          >
+                            <header className="comment-header">
+                              <div className="comment-author">
+                                <strong>{comment.author.displayName}</strong>
+                                {comment.author.kind === "participant" ? (
+                                  <span>Unverified</span>
+                                ) : null}
+                              </div>
+                              <time dateTime={comment.createdAt.toISOString()}>
+                                {formatPublicDate(comment.createdAt, "long")}
+                              </time>
+                            </header>
+                            <p className="comment-body">{comment.body}</p>
+                            {canChange || canReply ? (
+                              <div
+                                className="comment-actions"
+                                role="group"
+                                aria-label={`Comment actions by ${comment.author.displayName}`}
+                              >
+                                {canReply ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setReplyingTo(thread.id)}
+                                  >
+                                    Reply
+                                  </Button>
+                                ) : null}
+                                {canChange ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        void changeComment("edit", {
+                                          ...comment,
+                                          discussionId: thread.id,
+                                        })
+                                      }
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive"
+                                      onClick={() =>
+                                        void changeComment("delete", {
+                                          ...comment,
+                                          discussionId: thread.id,
+                                        })
+                                      }
+                                    >
+                                      Delete
+                                    </Button>
+                                  </>
+                                ) : null}
+                              </div>
                             ) : null}
-                            <time dateTime={comment.createdAt.toISOString()}>
-                              {formatPublicDate(comment.createdAt, "long")}
-                            </time>
-                          </header>
-                          <p>{comment.body}</p>
-                          {mutateComment && commentCapabilities[comment.id] ? (
-                            <div className="comment-actions">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void changeComment("edit", {
-                                    ...comment,
-                                    discussionId: thread.id,
-                                  })
-                                }
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void changeComment("delete", {
-                                    ...comment,
-                                    discussionId: thread.id,
-                                  })
-                                }
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                      {submitComment ? (
-                        <button
-                          type="button"
-                          onClick={() => setReplyingTo(thread.id)}
-                        >
-                          Reply
-                        </button>
-                      ) : null}
+                          </div>
+                        );
+                      })}
                     </article>
                   ))}
                 </div>
               )}
-              {submitComment ? (
+              {submitComment && profileReady && completeProfile ? (
                 <form
                   className="comment-composer"
                   aria-label="Comment composer"
@@ -398,6 +431,8 @@ export function PublicPostDetail({
                     ) : null}
                   </div>
                 </form>
+              ) : submitComment ? (
+                <DeviceProfilePrompt purpose="comment" />
               ) : null}
               {commentError ? <p role="alert">{commentError}</p> : null}
               {loadMore ? (

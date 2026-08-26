@@ -60,7 +60,7 @@ export default function Header({
       >
         Skip to content
       </a>
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center border-b px-4 md:h-20 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-8">
+      <header className="sticky top-0 z-40 grid grid-cols-[minmax(0,1fr)_auto] items-center border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:h-20 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-8">
         <a
           className="inline-flex items-center gap-3 py-3 text-lg font-semibold md:py-0"
           href="/"

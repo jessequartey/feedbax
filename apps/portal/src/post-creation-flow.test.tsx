@@ -23,6 +23,8 @@ import type { ComponentProps } from "react";
 import { PostCreationFlow } from "./post-creation-flow";
 import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
 import { readCapabilities } from "./browser-post-state";
+import { saveDeviceProfile } from "./browser-post-state";
+import { DeviceProfileProvider } from "./components/device-profile-provider";
 
 afterEach(() => {
   cleanup();
@@ -30,7 +32,38 @@ afterEach(() => {
 });
 
 describe("routed Post creation", () => {
+  it("requests a complete Device Profile instead of exposing the Post form", async () => {
+    saveDeviceProfile(localStorage, { name: "Ama" });
+    const mutations = {
+      submitPost: vi.fn(),
+      editDraftPost: vi.fn(),
+      withdrawDraftPost: vi.fn(),
+    };
+    const history = createMemoryHistory({ initialEntries: ["/submit"] });
+    const router = createCreationRouter(history, mutations);
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Complete your profile")).toBeTruthy();
+    expect(screen.queryByLabelText("Title")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Complete profile" }));
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "ama@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    expect(await screen.findByLabelText("Title")).toBeTruthy();
+  });
+
   it("submits the Post Type selected from the three-card picker", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ama",
+      email: "ama@example.com",
+    });
     const created = {
       id: "post-1",
       slug: "keyboard-navigation",
@@ -86,6 +119,10 @@ describe("routed Post creation", () => {
   });
 
   it("retains authority, reconciles caches, and opens the authorized detail route", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ama",
+      email: "ama@example.com",
+    });
     const created = {
       id: "post-1",
       slug: "keyboard-navigation",
@@ -166,7 +203,13 @@ function createCreationRouter(
   history: ReturnType<typeof createMemoryHistory>,
   mutations: ComponentProps<typeof PostCreationFlow>["mutations"],
 ) {
-  const root = createRootRoute({ component: () => <Outlet /> });
+  const root = createRootRoute({
+    component: () => (
+      <DeviceProfileProvider>
+        <Outlet />
+      </DeviceProfileProvider>
+    ),
+  });
   const submit = createRoute({
     getParentRoute: () => root,
     path: "/submit",

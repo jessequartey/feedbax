@@ -7,6 +7,7 @@ import type {
 } from "@feedbax/feedback";
 
 import type { TurnstileVerifier } from "./cloudflare-turnstile";
+import { isValidCommentEmail } from "./comment-profile";
 import { ActionablePortalFailure } from "./safe-public-failure";
 
 interface PortalFeedbackSubmissionOptions {
@@ -199,12 +200,12 @@ function isPostType(value: unknown): value is SubmitPostInput["type"] {
 function isValidSubmitter(
   value: unknown,
 ): value is SubmitPostInput["submitter"] {
-  if (value === undefined) return true;
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const submitter = value as Record<string, unknown>;
   return (
-    (submitter.name === undefined || typeof submitter.name === "string") &&
-    (submitter.email === undefined || typeof submitter.email === "string")
+    typeof submitter.name === "string" &&
+    submitter.name.trim().length > 0 &&
+    isValidCommentEmail(submitter.email)
   );
 }
 

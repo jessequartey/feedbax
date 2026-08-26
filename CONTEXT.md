@@ -79,7 +79,7 @@ A secret held by the submitting browser that permits limited changes to a New, u
 _Avoid_: Account, session, verified owner
 
 **Device Profile**:
-Optional Participant details stored in one browser and attached privately to new Post submissions. A Device Profile is not verified identity, an account, or editing authority.
+A Participant display name and syntactically valid contact email stored in one browser and required for public portal Post and Comment creation. A Device Profile is not verified identity, an account, or editing authority.
 _Avoid_: Account, sign-in, user profile
 
 **Feedback Data Source**:

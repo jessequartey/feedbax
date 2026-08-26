@@ -2,10 +2,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import type { ComponentProps } from "react";
 
 import { saveDeviceProfile } from "./browser-post-state";
 import { PublicPostDetail } from "./public-post-detail";
 import { submitPublicComment } from "./public-post-route";
+import { DeviceProfileProvider } from "./components/device-profile-provider";
 
 const post = {
   slug: "roadmap-search",
@@ -27,10 +29,16 @@ afterEach(() => {
 });
 
 describe("Comment creation", () => {
-  it("renders a clearly identified Comment composer", () => {
-    render(<PublicPostDetail post={post} submitComment={vi.fn()} />);
+  it("renders a clearly identified Comment composer for a complete Device Profile", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ari",
+      email: "private@example.com",
+    });
+    renderCommentDetail({ submitComment: vi.fn() });
 
-    const composer = screen.getByRole("form", { name: "Comment composer" });
+    const composer = await screen.findByRole("form", {
+      name: "Comment composer",
+    });
     expect(composer.classList.contains("comment-composer")).toBe(true);
     expect(screen.getByLabelText("Add a comment").getAttribute("rows")).toBe(
       "4",
@@ -96,9 +104,9 @@ describe("Comment creation", () => {
     const submitComment = vi.fn(
       () => new Promise<never>((resolve) => (confirm = resolve as never)),
     );
-    render(<PublicPostDetail post={post} submitComment={submitComment} />);
+    renderCommentDetail({ submitComment });
 
-    fireEvent.change(screen.getByLabelText("Add a comment"), {
+    fireEvent.change(await screen.findByLabelText("Add a comment"), {
       target: { value: "Please add shortcuts." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
@@ -122,20 +130,21 @@ describe("Comment creation", () => {
     );
   });
 
-  it("keeps Comment submission locked until the Device Profile has name and email", async () => {
+  it("replaces the Comment composer with profile completion until name and email are present", async () => {
     saveDeviceProfile(localStorage, { name: "Ari" });
     const submitComment = vi.fn();
-    render(<PublicPostDetail post={post} submitComment={submitComment} />);
+    renderCommentDetail({ submitComment });
 
-    fireEvent.change(screen.getByLabelText("Add a comment"), {
-      target: { value: "Please add shortcuts." },
+    expect(await screen.findByText("Complete your profile")).toBeTruthy();
+    expect(screen.queryByLabelText("Add a comment")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Complete profile" }));
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "private@example.com" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
 
     expect(submitComment).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toContain(
-      "display name and valid email",
-    );
+    expect(await screen.findByLabelText("Add a comment")).toBeTruthy();
   });
 
   it("rolls back a rejected Comment and shows an actionable error", async () => {
@@ -143,15 +152,11 @@ describe("Comment creation", () => {
       name: "Ari",
       email: "private@example.com",
     });
-    render(
-      <PublicPostDetail
-        post={post}
-        submitComment={() =>
-          Promise.reject(new Error("Notion timed out. Try again."))
-        }
-      />,
-    );
-    fireEvent.change(screen.getByLabelText("Add a comment"), {
+    renderCommentDetail({
+      submitComment: () =>
+        Promise.reject(new Error("Notion timed out. Try again.")),
+    });
+    fireEvent.change(await screen.findByLabelText("Add a comment"), {
       target: { value: "Temporary message" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
@@ -169,17 +174,14 @@ describe("Comment creation", () => {
     sessionStorage.setItem("feedbax:participation-pass", "expired");
     const renderTurnstile = vi.fn().mockReturnValue("widget-1");
     window.turnstile = { render: renderTurnstile, reset: vi.fn() };
-    render(
-      <PublicPostDetail
-        post={post}
-        turnstileSiteKey="public-site-key"
-        submitComment={() => {
-          sessionStorage.removeItem("feedbax:participation-pass");
-          return Promise.reject(new Error("Comment verification is required."));
-        }}
-      />,
-    );
-    fireEvent.change(screen.getByLabelText("Add a comment"), {
+    renderCommentDetail({
+      turnstileSiteKey: "public-site-key",
+      submitComment: () => {
+        sessionStorage.removeItem("feedbax:participation-pass");
+        return Promise.reject(new Error("Comment verification is required."));
+      },
+    });
+    fireEvent.change(await screen.findByLabelText("Add a comment"), {
       target: { value: "Retry with verification" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
@@ -189,6 +191,10 @@ describe("Comment creation", () => {
   });
 
   it("rolls back an optimistic Comment edit when the server rejects it", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ari",
+      email: "private@example.com",
+    });
     localStorage.setItem(
       "feedbax:comment-capabilities",
       JSON.stringify({
@@ -206,28 +212,34 @@ describe("Comment creation", () => {
           rejectMutation = reject;
         }),
     );
-    render(
-      <PublicPostDetail
-        post={post}
-        comments={{
-          items: [
-            {
-              id: "discussion-1",
-              comments: [
-                {
-                  id: "comment-1",
-                  body: "Original message",
-                  author: { kind: "participant", displayName: "Ari" },
-                  createdAt: new Date("2026-08-25T01:00:00.000Z"),
-                },
-              ],
-            },
-          ],
-        }}
-        mutateComment={mutateComment}
-      />,
-    );
+    renderCommentDetail({
+      comments: {
+        items: [
+          {
+            id: "discussion-1",
+            comments: [
+              {
+                id: "comment-1",
+                body: "Original message",
+                author: { kind: "participant", displayName: "Ari" },
+                createdAt: new Date("2026-08-25T01:00:00.000Z"),
+              },
+            ],
+          },
+        ],
+      },
+      submitComment: vi.fn(),
+      mutateComment,
+    });
 
+    const actions = await screen.findByRole("group", {
+      name: "Comment actions by Ari",
+    });
+    expect(
+      Array.from(actions.querySelectorAll("button"), (button) =>
+        button.textContent?.trim(),
+      ),
+    ).toEqual(["Reply", "Edit", "Delete"]);
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByText("Corrected message")).toBeTruthy();
     expect(mutateComment).toHaveBeenCalledWith({
@@ -242,3 +254,13 @@ describe("Comment creation", () => {
     expect(screen.queryByText("Corrected message")).toBeNull();
   });
 });
+
+function renderCommentDetail(
+  props: Omit<ComponentProps<typeof PublicPostDetail>, "post"> = {},
+) {
+  return render(
+    <DeviceProfileProvider>
+      <PublicPostDetail post={post} {...props} />
+    </DeviceProfileProvider>,
+  );
+}

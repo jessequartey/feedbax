@@ -8,6 +8,10 @@ import {
 } from "./portal-feedback-form";
 import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
 import { readCapabilities } from "./browser-post-state";
+import {
+  DeviceProfilePrompt,
+  useDeviceProfile,
+} from "./components/device-profile-provider";
 
 export function PostCreationFlow({
   display = "page",
@@ -20,6 +24,13 @@ export function PostCreationFlow({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { completeProfile, ready } = useDeviceProfile();
+
+  if (!ready)
+    return (
+      <div className="profile-gate" aria-label="Loading profile" aria-busy />
+    );
+  if (!completeProfile) return <DeviceProfilePrompt purpose="post" />;
 
   return (
     <PortalFeedbackForm

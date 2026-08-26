@@ -7,6 +7,8 @@ import type { PortalFeatures } from "@feedbax/config";
 import { Badge } from "@feedbax/ui/components/badge";
 import {
   Command,
+  CommandDialog,
+  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -14,15 +16,17 @@ import {
   CommandSeparator,
 } from "@feedbax/ui/components/command";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@feedbax/ui/components/dialog";
+  FileText,
+  LayoutList,
+  LoaderCircle,
+  Map,
+  Newspaper,
+  Plus,
+} from "lucide-react";
 import { publicPostsQuery } from "../post-queries";
 import { useCommandPalette } from "./command-palette-context";
 import feedbax from "../feedbax";
+import { useDeviceProfile } from "./device-profile-provider";
 
 export {
   CommandPaletteProvider,
@@ -45,6 +49,7 @@ export function CommandPalette({
   const [term, setTerm] = useState("");
   const [selection, setSelection] = useState("go-feedback");
   const deferredTerm = useDebouncedValue(term, 200);
+  const { completeProfile, openProfileSetup } = useDeviceProfile();
 
   useEffect(() => {
     if (!open) {
@@ -112,67 +117,72 @@ export function CommandPalette({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent
-        className="overflow-hidden p-0 sm:max-w-xl"
-        showCloseButton={false}
+    <CommandDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Search feedback"
+      description="Find Posts and navigate the portal."
+      className="sm:max-w-xl"
+    >
+      <Command
+        shouldFilter={false}
+        className="gap-0"
+        value={selection}
+        onValueChange={setSelection}
       >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Search feedback</DialogTitle>
-          <DialogDescription>
-            Find Posts and navigate the portal.
-          </DialogDescription>
-        </DialogHeader>
-        <Command
-          shouldFilter={false}
-          className="gap-0"
-          value={selection}
-          onValueChange={setSelection}
-        >
-          <CommandInput
-            aria-label="Search feedback"
-            value={term}
-            onValueChange={setTerm}
-            placeholder="Search feedback…"
-          />
-          <CommandList aria-busy={searching || undefined} className="max-h-96">
-            {showEmpty ? (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                No Posts match this search.
-              </div>
-            ) : null}
-            {posts.length > 0 ? (
-              <CommandGroup heading="Posts">
-                {posts.map((post) => (
-                  <CommandItem
-                    key={post.slug}
-                    value={`post-${post.slug}`}
-                    onSelect={() => openPost(post.slug)}
-                    className="min-h-11 gap-3 py-2.5"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">
-                        {post.title}
-                      </div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {post.description}
-                      </div>
+        <CommandInput
+          aria-label="Search feedback"
+          value={term}
+          onValueChange={setTerm}
+          placeholder="Search feedback…"
+        />
+        <CommandList aria-busy={searching || undefined} className="max-h-96">
+          <CommandEmpty>No Posts match this search.</CommandEmpty>
+          {searching && posts.length === 0 ? (
+            <CommandGroup heading="Posts">
+              <CommandItem disabled value="searching-posts">
+                <LoaderCircle className="animate-spin" aria-hidden="true" />
+                Searching Posts…
+              </CommandItem>
+            </CommandGroup>
+          ) : null}
+          {posts.length > 0 ? (
+            <CommandGroup heading="Posts">
+              {posts.map((post) => (
+                <CommandItem
+                  key={post.slug}
+                  value={`post-${post.slug}`}
+                  onSelect={() => openPost(post.slug)}
+                  className="min-h-11 gap-3 py-2.5"
+                >
+                  <FileText aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {post.title}
                     </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Badge variant="outline">{post.type}</Badge>
-                      <Badge variant="outline">{post.status}</Badge>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {post.description}
                     </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ) : null}
-            <CommandSeparator />
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Badge variant="outline">{post.type}</Badge>
+                    <Badge className="hidden sm:inline-flex" variant="outline">
+                      {post.status}
+                    </Badge>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
+          {!term.trim() ? <CommandSeparator /> : null}
+          {!term.trim() ? (
             <CommandGroup heading="Navigate">
               <CommandItem
                 className="min-h-11"
                 value="go-feedback"
                 onSelect={() => navigate("/")}
               >
+                <LayoutList aria-hidden="true" />
                 Feedback
               </CommandItem>
               <CommandItem
@@ -180,6 +190,7 @@ export function CommandPalette({
                 value="go-roadmap"
                 onSelect={() => navigate("/roadmap")}
               >
+                <Map aria-hidden="true" />
                 Roadmap
               </CommandItem>
               {features.changelog ? (
@@ -188,6 +199,7 @@ export function CommandPalette({
                   value="go-changelog"
                   onSelect={() => navigate("/changelog")}
                 >
+                  <Newspaper aria-hidden="true" />
                   Changelog
                 </CommandItem>
               ) : null}
@@ -195,6 +207,11 @@ export function CommandPalette({
                 className="min-h-11"
                 value="new-post"
                 onSelect={() => {
+                  if (!completeProfile) {
+                    setOpen(false);
+                    openProfileSetup();
+                    return;
+                  }
                   const currentRouteOptions = getCurrentRouteOptions();
                   if (!currentRouteOptions) return;
                   setOpen(false);
@@ -205,16 +222,17 @@ export function CommandPalette({
                   });
                 }}
               >
+                <Plus aria-hidden="true" />
                 New post
               </CommandItem>
             </CommandGroup>
-          </CommandList>
-          <div aria-label="Search status" className="sr-only" role="status">
-            {searchStatus}
-          </div>
-        </Command>
-      </DialogContent>
-    </Dialog>
+          ) : null}
+        </CommandList>
+        <div aria-label="Search status" className="sr-only" role="status">
+          {searchStatus}
+        </div>
+      </Command>
+    </CommandDialog>
   );
 }
 

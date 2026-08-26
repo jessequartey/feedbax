@@ -1,8 +1,14 @@
+import { isValidCommentEmail } from "./comment-profile";
+
 export const capabilitiesKey = "feedbax:post-capabilities";
 export const deviceProfileKey = "feedbax:device-profile";
 export interface DeviceProfile {
   name: string;
   email?: string;
+}
+
+export interface CompleteDeviceProfile extends DeviceProfile {
+  email: string;
 }
 
 type DeviceProfileStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -55,6 +61,12 @@ export function saveDeviceProfile(
     deviceProfileKey,
     JSON.stringify({ name, ...(email ? { email } : {}) }),
   );
+}
+
+export function isCompleteDeviceProfile(
+  profile: DeviceProfile | undefined,
+): profile is CompleteDeviceProfile {
+  return Boolean(profile?.name.trim() && isValidCommentEmail(profile.email));
 }
 
 export function clearDeviceProfile(

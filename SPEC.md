@@ -29,7 +29,7 @@ Each Installation serves one Product Team and one product.
 
 ### Notion-only Profile
 
-The quick-start profile provides public feedback browsing, submission, status visibility, and explicitly best-effort Notion-native Participation without a separate operational datastore. A Participant may supply an optional name and contact email, but that identity is unverified. Browser-local data may remember form details, Votes, and short-lived capabilities for convenience but is not authentication.
+The quick-start profile provides public feedback browsing, submission, status visibility, and explicitly best-effort Notion-native Participation without a separate operational datastore. Before creating a Post or Comment in the public portal, a Participant stores a display name and syntactically valid contact email in a Device Profile; both remain unverified. Browser-local data may remember form details, Votes, and short-lived capabilities for convenience but is not authentication.
 
 Participants may add or remove browser-remembered Votes on Published Posts and take part in native Notion Comment Threads. These capabilities do not claim reliable identity, one-person-one-vote integrity, durable attribution, or cross-device state.
 
@@ -49,7 +49,7 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 - Connection to an internal Notion integration
 - Creation or validation of the required Notion schema
 - Public feedback list and detail pages
-- Anonymous feedback submission with optional unverified name and email
+- Public portal feedback submission with a required unverified Device Profile
 - Public statuses and a simple roadmap
 - Best-effort Votes on Published Posts
 - Native Notion Comment Threads on Post detail pages
@@ -192,7 +192,7 @@ The standalone portal exposes:
 
 Public Post search is available from every portal page through one global command palette opened by Cmd/Ctrl+K or a Search button. The palette uses the same public Post query definition and cache family as the feed, opens selected Posts with contextual route masking, and offers Feedback, Roadmap, Changelog, and New post navigation actions. The feed route continues to validate and render a `search` parameter supplied in a URL, but Participant search interactions stay in the palette instead of mutating feed URL state.
 
-A Device Profile stores a required display name and optional email on one device. Both fields are required when creating a Comment or reply, while email remains optional for Post submission. A Device Profile is not authentication, proof of email ownership, or editing authority, and can be cleared without removing Browser Capabilities.
+A Device Profile stores a required display name and syntactically valid email on one device. Both fields are required when creating a Post, Comment, or reply through the public portal. This requirement does not change the trusted versioned submission API, verify email ownership, create Participant identity, or grant editing authority; clearing the Device Profile does not remove Browser Capabilities.
 
 TanStack Router owns validated URL state, route masking, and loader orchestration. Loaders seed the same typed TanStack Query definitions consumed by components, so preload and render share one server-state path. Mutations update or invalidate every affected feed, detail, draft, and roadmap query. Public and capability-authorized Draft Post reads use separate query definitions and cache paths; authorized reads are private and `no-store`, and raw Browser Capabilities never enter Query keys or persisted Query caches.
 
