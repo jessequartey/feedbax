@@ -54,14 +54,80 @@ export {
 
 export function createChangelogModule({
   storage,
+  now = () => new Date(),
 }: {
   storage: ChangelogStorage;
+  now?: () => Date;
 }): ChangelogModule {
+  const textFallbacks = new Map<
+    string,
+    { cachedAt: number; page: ChangelogPage }
+  >();
   return {
-    listPublishedEntries(query = {}) {
-      return storage.listPublished(query);
+    async listPublishedEntries(query = {}) {
+      const key = fallbackKey(query);
+      try {
+        const page = await storage.listPublished(query);
+        const projected = projectSafeImages(page, now());
+        rememberTextFallback(textFallbacks, key, page, now());
+        return projected;
+      } catch (error) {
+        const fallback = textFallbacks.get(key);
+        if (fallback && fallback.cachedAt + 86_400_000 > now().getTime()) {
+          return fallback.page;
+        }
+        throw error;
+      }
     },
   };
+}
+
+function projectSafeImages(page: ChangelogPage, now: Date): ChangelogPage {
+  return {
+    ...page,
+    items: page.items.map((entry) =>
+      entry.image && !isSafeForProjection(entry.image, now)
+        ? withoutImage(entry)
+        : entry,
+    ),
+  };
+}
+
+function rememberTextFallback(
+  fallbacks: Map<string, { cachedAt: number; page: ChangelogPage }>,
+  key: string,
+  page: ChangelogPage,
+  now: Date,
+): void {
+  if (!fallbacks.has(key) && fallbacks.size >= 100) {
+    const oldestKey = fallbacks.keys().next().value as string | undefined;
+    if (oldestKey) fallbacks.delete(oldestKey);
+  }
+  fallbacks.set(key, {
+    cachedAt: now.getTime(),
+    page: {
+      ...page,
+      items: page.items.map(withoutImage),
+    },
+  });
+}
+
+function fallbackKey(query: ChangelogQuery): string {
+  return JSON.stringify({
+    cursor: query.cursor ?? null,
+    label: query.label ?? null,
+  });
+}
+
+function isSafeForProjection(image: ChangelogImage, now: Date): boolean {
+  if (!image.expiresAt) return true;
+  return image.expiresAt.getTime() > now.getTime() + 60_000;
+}
+
+function withoutImage(entry: PublicChangelogEntry): PublicChangelogEntry {
+  const textEntry = { ...entry };
+  delete textEntry.image;
+  return textEntry;
 }
 
 export function createInMemoryChangelogStorage(

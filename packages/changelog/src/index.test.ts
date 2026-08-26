@@ -71,6 +71,69 @@ describe("Changelog module", () => {
       items: [{ image: { src: "https://files.example/first", alt: "First" } }],
     });
   });
+
+  it("preserves Changelog text while discarding an image before cache freshness could outlive it", async () => {
+    const changelog = createChangelogModule({
+      storage: createInMemoryChangelogStorage([
+        entry({
+          title: "Safe release",
+          body: "The release text remains available.",
+          images: [
+            {
+              src: "https://files.example/expiring",
+              alt: "Safe release image",
+              expiresAt: new Date("2026-08-26T12:00:30Z"),
+            },
+          ],
+        }),
+      ]),
+      now: () => new Date("2026-08-26T12:00:00Z"),
+    });
+
+    const page = await changelog.listPublishedEntries();
+    expect(page.items[0]).toMatchObject({
+      title: "Safe release",
+      body: "The release text remains available.",
+    });
+    expect(page.items[0]).not.toHaveProperty("image");
+  });
+
+  it("falls back to a bounded text-only projection when an upstream refresh fails", async () => {
+    let available = true;
+    let currentTime = new Date("2026-08-26T12:00:00Z");
+    const changelog = createChangelogModule({
+      storage: {
+        async listPublished() {
+          if (!available) throw new Error("Notion is unavailable");
+          return {
+            items: [
+              {
+                ...entry({ title: "Release remains readable" }),
+                image: {
+                  src: "https://files.example/temporary",
+                  alt: "Release image",
+                  expiresAt: new Date("2026-08-26T12:02:00Z"),
+                },
+              },
+            ],
+          };
+        },
+      },
+      now: () => currentTime,
+    });
+
+    expect((await changelog.listPublishedEntries()).items[0]).toHaveProperty(
+      "image",
+    );
+    available = false;
+    currentTime = new Date("2026-08-26T12:03:00Z");
+    await expect(changelog.listPublishedEntries()).resolves.toMatchObject({
+      items: [{ title: "Release remains readable" }],
+    });
+    expect(
+      (await changelog.listPublishedEntries()).items[0],
+    ).not.toHaveProperty("image");
+  });
 });
 
 function entry(

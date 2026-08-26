@@ -21,6 +21,24 @@ describe("public portal cache policy", () => {
     );
   });
 
+  it("caches Changelog briefly without stale reuse of expiring image URLs", () => {
+    const response = applyPublicCachePolicy(
+      new Request("https://feedback.example.com/changelog"),
+      new Response("timeline"),
+    );
+
+    expect(response.headers.get("cache-control")).toBe("public, max-age=30");
+    expect(response.headers.get("cloudflare-cdn-cache-control")).toBe(
+      "public, max-age=30",
+    );
+    expect(response.headers.get("cloudflare-cdn-cache-control")).not.toContain(
+      "stale-if-error",
+    );
+    expect(response.headers.get("cache-tag")).toBe(
+      "feedbax-public,feedbax-changelog",
+    );
+  });
+
   it("keeps mutations, private pages, and failed public reads out of the cache", () => {
     const cases = [
       [

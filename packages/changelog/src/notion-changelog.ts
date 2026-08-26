@@ -59,6 +59,7 @@ interface NotionOptions {
 export interface NotionChangelogStorageOptions extends NotionOptions {
   dataSourceId: string;
   propertyIds: ChangelogPropertyIds;
+  onDiagnostic?: (message: string) => void;
 }
 
 export async function createNotionChangelogDataSource({
@@ -133,6 +134,7 @@ export function createNotionChangelogStorage({
   dataSourceId,
   propertyIds,
   request = fetch,
+  onDiagnostic = console.warn,
 }: NotionChangelogStorageOptions): ChangelogStorage {
   return {
     async listPublished(query) {
@@ -176,7 +178,7 @@ export function createNotionChangelogStorage({
         throw new Error("Notion returned an invalid Changelog Entry list.");
       }
       const items = body.results.map((page) =>
-        entryFromPage(record(page), propertyIds),
+        entryFromPage(record(page), propertyIds, { onDiagnostic }),
       );
       const nextCursor =
         body.has_more === true && typeof body.next_cursor === "string"
@@ -203,13 +205,22 @@ function publicPropertyIds(ids: ChangelogPropertyIds): string[] {
 function entryFromPage(
   page: Record<string, unknown>,
   ids: ChangelogPropertyIds,
+  projection: {
+    onDiagnostic: (message: string) => void;
+  },
 ): PublicChangelogEntry {
   const properties = recordAt(page, "properties");
-  const image = firstImage(propertyAt(properties, ids.image));
+  const slug = richText(propertyAt(properties, ids.slug));
+  const title = titleText(propertyAt(properties, ids.title));
+  const image = firstImage(propertyAt(properties, ids.image), {
+    ...projection,
+    slug,
+    alt: `${title} image`,
+  });
   return {
-    slug: richText(propertyAt(properties, ids.slug)),
+    slug,
     date: dateValue(propertyAt(properties, ids.date)),
-    title: titleText(propertyAt(properties, ids.title)),
+    title,
     summary: richText(propertyAt(properties, ids.summary)),
     body: richText(propertyAt(properties, ids.body)),
     labels: multiSelect(propertyAt(properties, ids.labels)),
@@ -275,20 +286,58 @@ function multiSelect(property: Record<string, unknown>): string[] {
 
 function firstImage(
   property: Record<string, unknown>,
+  {
+    slug,
+    alt,
+    onDiagnostic,
+  }: {
+    slug: string;
+    alt: string;
+    onDiagnostic: (message: string) => void;
+  },
 ): ChangelogImage | undefined {
   if (!Array.isArray(property.files) || property.files.length === 0) return;
-  const file = record(property.files[0]);
+  if (property.files.length > 1) {
+    onDiagnostic(
+      `Changelog Entry "${slug}" has ${property.files.length} Image files; only the first file is in the public contract.`,
+    );
+  }
+  if (!isRecord(property.files[0])) {
+    onDiagnostic(`Changelog Entry "${slug}" has an invalid Image reference.`);
+    return;
+  }
+  const file = property.files[0];
   const hosted = isRecord(file.file) ? file.file : undefined;
   const external = isRecord(file.external) ? file.external : undefined;
   const src = hosted?.url ?? external?.url;
-  if (typeof src !== "string") return;
+  if (typeof src !== "string" || !isHttpUrl(src)) {
+    onDiagnostic(`Changelog Entry "${slug}" has an invalid Image reference.`);
+    return;
+  }
+  const expiresAt =
+    hosted && typeof hosted.expiry_time === "string"
+      ? new Date(hosted.expiry_time)
+      : undefined;
+  if (hosted && (!expiresAt || Number.isNaN(expiresAt.getTime()))) {
+    onDiagnostic(
+      `Changelog Entry "${slug}" has a temporary Image reference without a valid expiry.`,
+    );
+    return;
+  }
   return {
     src,
-    alt: typeof file.name === "string" ? file.name : "Changelog image",
-    ...(hosted && typeof hosted.expiry_time === "string"
-      ? { expiresAt: new Date(hosted.expiry_time) }
-      : {}),
+    alt,
+    ...(expiresAt ? { expiresAt } : {}),
   };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol;
+    return protocol === "https:" || protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 function propertyAt(

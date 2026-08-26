@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createChangelogModule,
   createNotionChangelogDataSource,
   createNotionChangelogStorage,
   validateNotionChangelogDataSource,
@@ -151,6 +152,161 @@ describe("Notion Changelog query contract", () => {
       ],
     });
   });
+
+  it("maps one temporary File reference with its expiry and reports additional files", async () => {
+    const page = notionPage();
+    page.properties[propertyIds.image] = {
+      type: "files",
+      files: [
+        {
+          name: "release.png",
+          type: "file",
+          file: {
+            url: "https://files.notion.example/release.png",
+            expiry_time: "2026-08-26T14:00:00.000Z",
+          },
+        },
+        {
+          name: "extra.png",
+          type: "external",
+          external: { url: "https://cdn.example/extra.png" },
+        },
+      ],
+    };
+    const diagnostics: string[] = [];
+    const storage = createNotionChangelogStorage({
+      token: "token",
+      dataSourceId: "changelog-source",
+      propertyIds,
+      request: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({ results: [page], has_more: false }),
+        ),
+      onDiagnostic: (message) => diagnostics.push(message),
+    });
+
+    await expect(storage.listPublished({})).resolves.toMatchObject({
+      items: [
+        {
+          title: "Entry",
+          image: {
+            src: "https://files.notion.example/release.png",
+            alt: "Entry image",
+            expiresAt: new Date("2026-08-26T14:00:00.000Z"),
+          },
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([
+      'Changelog Entry "entry" has 2 Image files; only the first file is in the public contract.',
+    ]);
+  });
+
+  it("maps a temporary File reference's exact expiry while preserving entry text", async () => {
+    const page = notionPage();
+    page.properties[propertyIds.image] = {
+      type: "files",
+      files: [
+        {
+          name: "release.png",
+          type: "file",
+          file: {
+            url: "https://files.notion.example/release.png",
+            expiry_time: "2026-08-26T12:00:30.000Z",
+          },
+        },
+      ],
+    };
+    const storage = createNotionChangelogStorage({
+      token: "token",
+      dataSourceId: "changelog-source",
+      propertyIds,
+      request: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({ results: [page], has_more: false }),
+        ),
+    });
+
+    await expect(storage.listPublished({})).resolves.toMatchObject({
+      items: [
+        {
+          title: "Entry",
+          summary: "Summary text",
+          body: "Body text",
+          image: { expiresAt: new Date("2026-08-26T12:00:30.000Z") },
+        },
+      ],
+    });
+  });
+
+  it("refreshes a discarded temporary reference and contains malformed Image data", async () => {
+    const expiringPage = notionPage();
+    expiringPage.properties[propertyIds.image] = {
+      type: "files",
+      files: [
+        {
+          type: "file",
+          file: {
+            url: "https://files.notion.example/release.png",
+            expiry_time: "2026-08-26T12:00:30.000Z",
+          },
+        },
+      ],
+    };
+    const refreshedPage = notionPage();
+    refreshedPage.properties[propertyIds.image] = {
+      type: "files",
+      files: [
+        {
+          type: "file",
+          file: {
+            url: "https://files.notion.example/release.png",
+            expiry_time: "2026-08-26T14:00:00.000Z",
+          },
+        },
+      ],
+    };
+    const malformedPage = notionPage();
+    malformedPage.properties[propertyIds.image] = {
+      type: "files",
+      files: ["not-a-file"],
+    };
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ results: [expiringPage], has_more: false }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ results: [refreshedPage], has_more: false }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ results: [malformedPage], has_more: false }),
+      );
+    const storage = createNotionChangelogStorage({
+      token: "token",
+      dataSourceId: "changelog-source",
+      propertyIds,
+      request,
+      onDiagnostic: vi.fn(),
+    });
+    const changelog = createChangelogModule({
+      storage,
+      now: () => new Date("2026-08-26T12:00:00.000Z"),
+    });
+
+    expect(
+      (await changelog.listPublishedEntries()).items[0],
+    ).not.toHaveProperty("image");
+    expect((await changelog.listPublishedEntries()).items[0]).toHaveProperty(
+      "image.src",
+      "https://files.notion.example/release.png",
+    );
+    await expect(changelog.listPublishedEntries()).resolves.toMatchObject({
+      items: [{ title: "Entry", summary: "Summary text", body: "Body text" }],
+    });
+  });
 });
 
 function notionDataSource({ databaseId = "feedbax-database" } = {}) {
@@ -193,7 +349,7 @@ function notionPage() {
         type: "multi_select",
         multi_select: [{ name: "Improved" }],
       },
-      [propertyIds.image]: { type: "files", files: [] },
+      [propertyIds.image]: { type: "files", files: [] as unknown[] },
     },
   };
 }

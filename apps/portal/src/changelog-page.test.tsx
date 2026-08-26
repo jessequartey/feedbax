@@ -66,6 +66,29 @@ describe("Changelog page", () => {
     ).toBe("#anchored");
     expect(container.querySelector("article#anchored")).toBeTruthy();
   });
+
+  it("renders an accessible image and preserves text when an image is absent or expired", async () => {
+    const valid = entry("illustrated", "Improved");
+    valid.image = {
+      src: "https://files.notion.example/illustrated.png",
+      alt: "Illustrated image",
+      expiresAt: new Date(Date.now() + 60_000),
+    };
+    const expired = entry("expired", "Fixed");
+    expired.image = {
+      src: "https://files.notion.example/expired.png",
+      alt: "Expired image",
+      expiresAt: new Date(Date.now() - 1),
+    };
+
+    renderChangelog({ initialPage: page([valid, expired]), loadPage: vi.fn() });
+
+    expect(
+      await screen.findByRole("img", { name: "Illustrated image" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("img", { name: "Expired image" })).toBeNull();
+    expect(screen.getByText("Body expired")).toBeTruthy();
+  });
 });
 
 function renderChangelog({

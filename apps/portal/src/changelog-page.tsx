@@ -129,14 +129,13 @@ export function ChangelogPage({
 }
 
 function TimelineEntry({ entry }: { entry: PublicChangelogEntry }) {
+  const image = useUnexpiredImage(entry.image);
   return (
     <li className="changelog-timeline-entry">
       <time dateTime={entry.date}>{formatDate(entry.date)}</time>
       <span className="changelog-timeline-marker" aria-hidden="true" />
       <article id={entry.slug} tabIndex={-1}>
-        <div
-          className={cn("changelog-entry-layout", entry.image && "has-image")}
-        >
+        <div className={cn("changelog-entry-layout", image && "has-image")}>
           <div className="changelog-entry-copy">
             <div className="changelog-labels" aria-label="Labels">
               {entry.labels.map((label) => (
@@ -154,18 +153,41 @@ function TimelineEntry({ entry }: { entry: PublicChangelogEntry }) {
               <p>{entry.body}</p>
             </div>
           </div>
-          {entry.image ? (
-            <img
-              src={entry.image.src}
-              alt={entry.image.alt}
-              width={760}
-              height={420}
-            />
+          {image ? (
+            <img src={image.src} alt={image.alt} width={760} height={420} />
           ) : null}
         </div>
       </article>
     </li>
   );
+}
+
+function useUnexpiredImage(image: PublicChangelogEntry["image"]) {
+  const expiry = image?.expiresAt
+    ? new Date(image.expiresAt).getTime()
+    : undefined;
+  const [available, setAvailable] = useState(
+    () => expiry === undefined || expiry > Date.now(),
+  );
+
+  useEffect(() => {
+    if (!image || expiry === undefined) {
+      setAvailable(Boolean(image));
+      return;
+    }
+    const remaining = expiry - Date.now();
+    if (remaining <= 0) {
+      setAvailable(false);
+      return;
+    }
+    setAvailable(true);
+    const timeout = window.setTimeout(() => setAvailable(false), remaining);
+    return () => window.clearTimeout(timeout);
+  }, [expiry, image]);
+
+  return available && (expiry === undefined || expiry > Date.now())
+    ? image
+    : undefined;
 }
 
 function Label({ label }: { label: string }) {

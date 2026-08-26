@@ -1,5 +1,6 @@
 import { postStatuses, postTypes } from "./public-feedback-page";
 import {
+  publicChangelogCacheTag,
   publicFeedbackCacheTag,
   publicPostCacheTag,
   publicRoadmapCacheTag,
@@ -8,6 +9,7 @@ import {
 const BROWSER_CACHE_CONTROL = "public, max-age=30";
 const EDGE_CACHE_CONTROL =
   "public, max-age=120, stale-while-revalidate=600, stale-if-error=86400";
+const CHANGELOG_EDGE_CACHE_CONTROL = "public, max-age=30";
 const PUBLIC_PROJECTION_SCHEMA_VERSION = "1";
 const PUBLIC_FEEDBACK_PAGE_SIZE = "25";
 const PUBLIC_FEEDBACK_SORT = "trending";
@@ -50,7 +52,12 @@ export function applyPublicCachePolicy(
   }
 
   response.headers.set("Cache-Control", BROWSER_CACHE_CONTROL);
-  response.headers.set("Cloudflare-CDN-Cache-Control", EDGE_CACHE_CONTROL);
+  response.headers.set(
+    "Cloudflare-CDN-Cache-Control",
+    new URL(request.url).pathname === "/changelog"
+      ? CHANGELOG_EDGE_CACHE_CONTROL
+      : EDGE_CACHE_CONTROL,
+  );
   response.headers.set("Cache-Tag", publicCacheTags(new URL(request.url)));
   return response;
 }
@@ -64,11 +71,17 @@ function isSafePublicProjection(request: Request, response: Response): boolean {
 
 function isPublicPath(pathname: string): boolean {
   return (
-    pathname === "/" || pathname === "/roadmap" || /^\/p\/[^/]+$/.test(pathname)
+    pathname === "/" ||
+    pathname === "/roadmap" ||
+    pathname === "/changelog" ||
+    /^\/p\/[^/]+$/.test(pathname)
   );
 }
 
 function publicCacheTags(url: URL): string {
+  if (url.pathname === "/changelog") {
+    return `feedbax-public,${publicChangelogCacheTag}`;
+  }
   if (url.pathname === "/roadmap") {
     return `feedbax-public,${publicRoadmapCacheTag}`;
   }
