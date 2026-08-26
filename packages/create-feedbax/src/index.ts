@@ -1,4 +1,10 @@
 import type { PortalFeatures } from "@feedbax/config";
+import {
+  createNotionChangelogDataSource,
+  validateNotionChangelogDataSource,
+  type ChangelogDataSourceConfiguration,
+  type ChangelogPropertyIds,
+} from "@feedbax/changelog";
 
 export const featureChoices = [
   { key: "voting", label: "Voting", initialValue: true },
@@ -31,6 +37,21 @@ export function renderFeatureConfiguration(features: PortalFeatures): string {
     voting: ${features.voting},
     comments: ${features.comments},
     changelog: ${features.changelog},
+  },`;
+}
+
+export function renderChangelogConfiguration(
+  configuration: ChangelogDataSourceConfiguration,
+): string {
+  const properties = Object.entries(configuration.propertyIds)
+    .map(([key, value]) => `      ${key}: ${JSON.stringify(value)},`)
+    .join("\n");
+  return `changelog: {
+    databaseId: ${JSON.stringify(configuration.databaseId)},
+    dataSourceId: ${JSON.stringify(configuration.dataSourceId)},
+    propertyIds: {
+${properties}
+    },
   },`;
 }
 
@@ -102,4 +123,75 @@ export function assertEnabledCommentCapabilities({
   throw new Error(
     `Enable ${missing.join(" and ")} in the Notion connection settings, then ${retry}`,
   );
+}
+
+export type ChangelogStorageSelection =
+  | { kind: "create"; databaseId: string }
+  | {
+      kind: "existing";
+      dataSourceId: string;
+      propertyIds: ChangelogPropertyIds;
+    };
+
+export async function configureChangelogStorage({
+  features,
+  selection,
+  token,
+  request = fetch,
+  preview,
+}: {
+  features: PortalFeatures;
+  selection?: ChangelogStorageSelection;
+  token: string;
+  request?: typeof fetch;
+  preview(message: string): Promise<boolean>;
+}): Promise<ChangelogDataSourceConfiguration | undefined> {
+  if (!features.changelog) return;
+  if (!selection) {
+    throw new Error(
+      "Choose an existing compatible Changelog Data Source or create one beside Feedback.",
+    );
+  }
+  if (selection.kind === "existing") {
+    return validateNotionChangelogDataSource({
+      token,
+      dataSourceId: selection.dataSourceId,
+      propertyIds: selection.propertyIds,
+      request,
+    });
+  }
+  const approved = await preview(
+    `Create an empty Changelog Data Source beside Feedback in Feedbax Database ${selection.databaseId}. No sample entries will be published.`,
+  );
+  if (!approved) throw new Error("Changelog creation was not approved.");
+  return createNotionChangelogDataSource({
+    token,
+    databaseId: selection.databaseId,
+    request,
+  });
+}
+
+export async function doctorChangelogStorage({
+  enabled,
+  configuration,
+  token,
+  request = fetch,
+}: {
+  enabled: boolean;
+  configuration?: ChangelogDataSourceConfiguration;
+  token: string;
+  request?: typeof fetch;
+}): Promise<void> {
+  if (!enabled) return;
+  if (!configuration) {
+    throw new Error(
+      "Changelog is enabled without identifiers and property mappings. Create or select a compatible Changelog Data Source, configure it, then rerun doctor. No changes were made.",
+    );
+  }
+  await validateNotionChangelogDataSource({
+    token,
+    dataSourceId: configuration.dataSourceId,
+    propertyIds: configuration.propertyIds,
+    request,
+  });
 }

@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@feedbax/changelog": "workspace:*",
     "@feedbax/config": "workspace:*",
     "@feedbax/env": "workspace:*",
     "@feedbax/feedback": "workspace:*",

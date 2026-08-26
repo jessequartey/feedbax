@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
-
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ChangelogPage as PageData } from "@feedbax/changelog";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   Outlet,
   RouterProvider,
@@ -9,102 +15,68 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { afterEach, describe, expect, it } from "vitest";
-
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChangelogPage } from "./changelog-page";
 import { CommandPaletteProvider } from "./components/command-palette";
 
 afterEach(cleanup);
 
 describe("Changelog page", () => {
-  it("renders ordered updates with labels, anchors, media, and disabled following", async () => {
-    const { container } = renderChangelog();
+  it("renders loader data, filters by Label, and loads the next cursor", async () => {
+    const loadPage = vi.fn().mockImplementation(async ({ cursor, label }) => {
+      if (label === "Fixed") return page([entry("fixed", "Fixed")]);
+      if (cursor === "next") return page([entry("older", "Improved")]);
+      return page([]);
+    });
+    renderChangelog({
+      initialPage: page([entry("new", "Improved")], "next"),
+      loadPage,
+    });
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Changelog" }),
+      await screen.findByRole("heading", { level: 2, name: "new" }),
     ).toBeTruthy();
-    expect(
-      screen
-        .getAllByRole("heading", { level: 2 })
-        .map((heading) => heading.textContent),
-    ).toEqual([
-      "Keyboard-first search",
-      "Clearer roadmap filters",
-      "More reliable draft recovery",
-      "CSV export",
-    ]);
-    expect(
-      [...container.querySelectorAll("time")].map((time) =>
-        time.getAttribute("datetime"),
-      ),
-    ).toEqual(["2026-08-22", "2026-08-12", "2026-07-30", "2026-07-18"]);
-
-    expect(screen.getAllByText("New feature")).toHaveLength(2);
-    expect(screen.getByText("Improved")).toBeTruthy();
-    expect(screen.getByText("Fixed")).toBeTruthy();
-    expect(screen.getByText("Search Posts from any page")).toBeTruthy();
-    expect(
-      screen.getByRole("img", { name: /keyboard-first search palette/i }),
-    ).toBeTruthy();
-
-    expect(
-      screen
-        .getAllByRole("link", { name: /^Link to / })
-        .map((link) => link.getAttribute("href")),
-    ).toEqual([
-      "#keyboard-first-search",
-      "#clearer-roadmap-filters",
-      "#reliable-draft-recovery",
-      "#csv-export",
-    ]);
-
-    expect(screen.queryByRole("button", { name: "Follow updates" })).toBeNull();
-
     fireEvent.click(screen.getByRole("button", { name: "Load more updates" }));
-
     expect(
-      screen
-        .getAllByRole("heading", { level: 2 })
-        .map((heading) => heading.textContent),
-    ).toEqual([
-      "Keyboard-first search",
-      "Clearer roadmap filters",
-      "More reliable draft recovery",
-      "CSV export",
-      "Roadmap progress at a glance",
-      "Sharper search results",
-    ]);
+      await screen.findByRole("heading", { level: 2, name: "older" }),
+    ).toBeTruthy();
+    expect(loadPage).toHaveBeenCalledWith({ cursor: "next" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Improvements" }));
-
-    expect(
-      screen
-        .getAllByRole("heading", { level: 2 })
-        .map((heading) => heading.textContent),
-    ).toEqual(["Clearer roadmap filters", "Roadmap progress at a glance"]);
-    expect(
-      screen
-        .getByRole("button", { name: "Improvements" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Improved" }));
+    await waitFor(() =>
+      expect(loadPage).toHaveBeenCalledWith({ label: "Improved" }),
+    );
   });
 
-  it("renders an update addressed by a direct anchor before loading more", async () => {
-    renderChangelog("/changelog#sharper-search-results");
-
+  it("preserves hash links and renders rich-text properties without page-body reads", async () => {
+    const loadPage = vi
+      .fn()
+      .mockResolvedValue(page([entry("anchored", "Fixed")]));
+    const { container } = renderChangelog({
+      initialPage: page([entry("first", "Improved")], "next"),
+      loadPage,
+      initialEntry: "/changelog#anchored",
+    });
+    expect(await screen.findByText("Body anchored")).toBeTruthy();
+    expect(loadPage).toHaveBeenCalledWith({ cursor: "next" });
     expect(
-      await screen.findByRole("heading", {
-        level: 2,
-        name: "Sharper search results",
-      }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Load more updates" }),
-    ).toBeNull();
+      screen
+        .getByRole("link", { name: "Link to anchored" })
+        .getAttribute("href"),
+    ).toBe("#anchored");
+    expect(container.querySelector("article#anchored")).toBeTruthy();
   });
 });
 
-function renderChangelog(initialEntry = "/changelog") {
+function renderChangelog({
+  initialPage,
+  loadPage,
+  initialEntry = "/changelog",
+}: {
+  initialPage: PageData;
+  loadPage: (input: { cursor?: string; label?: string }) => Promise<PageData>;
+  initialEntry?: string;
+}) {
   const history = createMemoryHistory({ initialEntries: [initialEntry] });
   const root = createRootRoute({
     component: () => (
@@ -116,12 +88,29 @@ function renderChangelog(initialEntry = "/changelog") {
   const changelog = createRoute({
     getParentRoute: () => root,
     path: "/changelog",
-    component: ChangelogPage,
+    component: () => (
+      <ChangelogPage initialPage={initialPage} loadPage={loadPage} />
+    ),
   });
   const router = createRouter({
     history,
     routeTree: root.addChildren([changelog]),
   });
-
   return render(<RouterProvider router={router} />);
+}
+
+function page(items: PageData["items"], nextCursor?: string): PageData {
+  return { items, ...(nextCursor ? { nextCursor } : {}) };
+}
+
+function entry(slug: string, label: string): PageData["items"][number] {
+  return {
+    slug,
+    date: "2026-08-01",
+    title: slug,
+    summary: `Summary ${slug}`,
+    body: `Body ${slug}`,
+    labels: [label],
+    updatedAt: new Date("2026-08-01T00:00:00Z"),
+  };
 }

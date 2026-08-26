@@ -1,21 +1,13 @@
 {
-  "name": "create-feedbax",
-  "version": "0.0.0",
+  "name": "@feedbax/changelog",
   "private": true,
   "type": "module",
-  "bin": {
-    "create-feedbax": "./src/cli.ts"
-  },
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "@feedbax/changelog": "workspace:*",
-    "@feedbax/config": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

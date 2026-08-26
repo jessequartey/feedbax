@@ -1,60 +1,83 @@
+import type {
+  ChangelogPage as PageData,
+  PublicChangelogEntry,
+} from "@feedbax/changelog";
 import { Badge } from "@feedbax/ui/components/badge";
 import { Button } from "@feedbax/ui/components/button";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
 import { cn } from "@feedbax/ui/lib/utils";
 import { useRouterState } from "@tanstack/react-router";
 import { ChevronDown, Link2 } from "lucide-react";
-import { useEffect, useState } from "react";
-
-import {
-  changelogEntries,
-  type ChangelogBodyBlock,
-  type ChangelogDate,
-  type ChangelogLabel,
-} from "./changelog-content";
+import { useEffect, useMemo, useState } from "react";
 import { CommandPaletteTrigger } from "./components/command-palette";
 
-const initialVisibleEntries = 4;
+export type LoadChangelogPage = (input: {
+  cursor?: string;
+  label?: string;
+}) => Promise<PageData>;
 
-const changelogFilters = [
-  { label: "All", value: undefined },
-  { label: "New features", value: "New feature" },
-  { label: "Improvements", value: "Improved" },
-  { label: "Fixes", value: "Fixed" },
-] as const satisfies readonly {
-  label: string;
-  value: ChangelogLabel | undefined;
-}[];
+const emptyPage: PageData = { items: [] };
 
-const orderedChangelogEntries = [...changelogEntries].sort((left, right) =>
-  compareChangelogDates(left.date, right.date),
-);
-
-export function ChangelogPage() {
+export function ChangelogPage({
+  initialPage = emptyPage,
+  loadPage = async () => emptyPage,
+}: { initialPage?: PageData; loadPage?: LoadChangelogPage } = {}) {
   const locationHash = useRouterState({
     select: (state) => state.location.hash,
   });
-  const [selectedLabel, setSelectedLabel] = useState<
-    ChangelogLabel | undefined
-  >();
-  const requestedVisibleCount = visibleEntryCountForHash(locationHash);
-  const [visibleCount, setVisibleCount] = useState(requestedVisibleCount);
-  const filteredEntries = selectedLabel
-    ? orderedChangelogEntries.filter((entry) =>
-        entry.labels.includes(selectedLabel),
-      )
-    : orderedChangelogEntries;
-  const visibleEntries = filteredEntries.slice(0, visibleCount);
+  const [selectedLabel, setSelectedLabel] = useState<string>();
+  const [page, setPage] = useState(initialPage);
+  const [loading, setLoading] = useState(false);
+  const labels = useMemo(
+    () => [...new Set(initialPage.items.flatMap((entry) => entry.labels))],
+    [initialPage.items],
+  );
+
+  async function replaceForLabel(label?: string) {
+    setSelectedLabel(label);
+    setLoading(true);
+    try {
+      setPage(await loadPage(label ? { label } : {}));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadMore() {
+    if (!page.nextCursor) return;
+    setLoading(true);
+    try {
+      const next = await loadPage({
+        cursor: page.nextCursor,
+        ...(selectedLabel ? { label: selectedLabel } : {}),
+      });
+      setPage({
+        items: [...page.items, ...next.items],
+        ...(next.nextCursor ? { nextCursor: next.nextCursor } : {}),
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    setVisibleCount((current) => Math.max(current, requestedVisibleCount));
-  }, [requestedVisibleCount]);
-
-  useEffect(() => {
-    const slug = changelogSlugFromHash(locationHash);
+    const slug = locationHash.startsWith("#")
+      ? locationHash.slice(1)
+      : locationHash;
     if (!slug) return;
-    document.getElementById(slug)?.scrollIntoView?.({ block: "start" });
-  }, [locationHash, visibleCount]);
+    const target = document.getElementById(slug);
+    if (target) {
+      target.scrollIntoView?.({ block: "start" });
+    } else if (page.nextCursor && !loading && !selectedLabel) {
+      void loadMore();
+    }
+  }, [
+    locationHash,
+    loading,
+    page.items.length,
+    page.nextCursor,
+    selectedLabel,
+  ]);
 
   return (
     <main className="changelog-page">
@@ -64,85 +87,37 @@ export function ChangelogPage() {
           <p>Product updates, fixes, and improvements.</p>
         </div>
       </header>
-
       <div className="changelog-toolbar">
         <ButtonGroup className="changelog-filters" aria-label="Filter updates">
-          {changelogFilters.map((filter) => (
+          {[undefined, ...labels].map((label) => (
             <Button
               className="h-11 md:h-8"
-              key={filter.label}
+              key={label ?? "all"}
               type="button"
               variant="outline"
-              aria-pressed={selectedLabel === filter.value}
-              onClick={() => {
-                setSelectedLabel(filter.value);
-                setVisibleCount(initialVisibleEntries);
-              }}
+              aria-pressed={selectedLabel === label}
+              disabled={loading}
+              onClick={() => void replaceForLabel(label)}
             >
-              {filter.label}
+              {label ?? "All"}
             </Button>
           ))}
         </ButtonGroup>
         <CommandPaletteTrigger className="h-11 md:h-10" />
       </div>
-
       <ol className="changelog-timeline" aria-label="Product updates">
-        {visibleEntries.map((entry) => (
-          <li className="changelog-timeline-entry" key={entry.slug}>
-            <time dateTime={entry.date}>{formatDate(entry.date)}</time>
-            <span className="changelog-timeline-marker" aria-hidden="true" />
-            <article id={entry.slug} tabIndex={-1}>
-              <div
-                className={cn(
-                  "changelog-entry-layout",
-                  entry.image && "has-image",
-                )}
-              >
-                <div className="changelog-entry-copy">
-                  <div className="changelog-labels" aria-label="Labels">
-                    {entry.labels.map((label) => (
-                      <ChangelogLabel key={label} label={label} />
-                    ))}
-                  </div>
-                  <div className="changelog-entry-title">
-                    <h2>{entry.title}</h2>
-                    <a
-                      href={`#${entry.slug}`}
-                      aria-label={`Link to ${entry.title}`}
-                    >
-                      <Link2 aria-hidden="true" />
-                    </a>
-                  </div>
-                  <p className="changelog-entry-summary">{entry.summary}</p>
-                  <div className="changelog-entry-body">
-                    {entry.body.map((block, index) => (
-                      <ChangelogBody
-                        block={block}
-                        key={`${entry.slug}-${index}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                {entry.image ? (
-                  <img
-                    src={entry.image.src}
-                    alt={entry.image.alt}
-                    width={760}
-                    height={420}
-                  />
-                ) : null}
-              </div>
-            </article>
-          </li>
+        {page.items.map((entry) => (
+          <TimelineEntry entry={entry} key={entry.slug} />
         ))}
       </ol>
-      {visibleCount < filteredEntries.length ? (
+      {page.nextCursor ? (
         <div className="changelog-load-more">
           <Button
             className="h-11 min-w-64 gap-2 text-sm md:h-10"
             type="button"
             variant="outline"
-            onClick={() => setVisibleCount(filteredEntries.length)}
+            disabled={loading}
+            onClick={() => void loadMore()}
           >
             Load more updates
             <ChevronDown aria-hidden="true" />
@@ -153,7 +128,47 @@ export function ChangelogPage() {
   );
 }
 
-function ChangelogLabel({ label }: { label: ChangelogLabel }) {
+function TimelineEntry({ entry }: { entry: PublicChangelogEntry }) {
+  return (
+    <li className="changelog-timeline-entry">
+      <time dateTime={entry.date}>{formatDate(entry.date)}</time>
+      <span className="changelog-timeline-marker" aria-hidden="true" />
+      <article id={entry.slug} tabIndex={-1}>
+        <div
+          className={cn("changelog-entry-layout", entry.image && "has-image")}
+        >
+          <div className="changelog-entry-copy">
+            <div className="changelog-labels" aria-label="Labels">
+              {entry.labels.map((label) => (
+                <Label key={label} label={label} />
+              ))}
+            </div>
+            <div className="changelog-entry-title">
+              <h2>{entry.title}</h2>
+              <a href={`#${entry.slug}`} aria-label={`Link to ${entry.title}`}>
+                <Link2 aria-hidden="true" />
+              </a>
+            </div>
+            <p className="changelog-entry-summary">{entry.summary}</p>
+            <div className="changelog-entry-body">
+              <p>{entry.body}</p>
+            </div>
+          </div>
+          {entry.image ? (
+            <img
+              src={entry.image.src}
+              alt={entry.image.alt}
+              width={760}
+              height={420}
+            />
+          ) : null}
+        </div>
+      </article>
+    </li>
+  );
+}
+
+function Label({ label }: { label: string }) {
   const tone = label.toLowerCase();
   return (
     <Badge
@@ -171,47 +186,12 @@ function ChangelogLabel({ label }: { label: ChangelogLabel }) {
   );
 }
 
-function ChangelogBody({ block }: { block: ChangelogBodyBlock }) {
-  if (block.type === "bullets") {
-    return (
-      <ul>
-        {block.items.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    );
-  }
-  return <p>{block.text}</p>;
-}
-
-function compareChangelogDates(left: ChangelogDate, right: ChangelogDate) {
-  return (
-    changelogDateValue(right).getTime() - changelogDateValue(left).getTime()
-  );
-}
-
-function visibleEntryCountForHash(hash: string) {
-  const slug = changelogSlugFromHash(hash);
-  const requestedIndex = orderedChangelogEntries.findIndex(
-    (entry) => entry.slug === slug,
-  );
-  return Math.max(initialVisibleEntries, requestedIndex + 1);
-}
-
-function changelogSlugFromHash(hash: string) {
-  return hash.startsWith("#") ? hash.slice(1) : hash;
-}
-
-function changelogDateValue(date: ChangelogDate) {
+function formatDate(date: string) {
   const [year, month, day] = date.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function formatDate(date: ChangelogDate) {
   return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
     timeZone: "UTC",
-  }).format(changelogDateValue(date));
+  }).format(new Date(Date.UTC(year, month - 1, day)));
 }
