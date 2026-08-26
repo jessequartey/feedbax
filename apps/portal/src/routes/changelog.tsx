@@ -1,33 +1,32 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ChangelogFeed } from '../components/changelog-feed.js'
-import {
-  ConnectorOutage,
-  PortalLoading,
-  PortalShell,
-} from '../components/portal-shell.js'
-import { portalBranding, publicChangelog } from '../portal.config.js'
-import { getServerStatus } from '../server.functions.js'
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import type { PortalFeatures } from "@feedbax/config";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
-export const Route = createFileRoute('/changelog')({
-  loader: () => getServerStatus(),
-  head: () => ({
-    meta: [
-      { title: `${publicChangelog.title} · ${portalBranding.productName}` },
-      { name: 'description', content: publicChangelog.description },
-    ],
-  }),
-  pendingComponent: () => <PortalLoading activePage="changelog" />,
-  errorComponent: ({ reset }) => (
-    <ConnectorOutage onRetry={reset} activePage="changelog" />
-  ),
-  component: ChangelogPage,
-})
+import { ChangelogPage } from "../changelog-page";
+import { changelogQuery } from "../changelog-query";
+import feedbax from "../feedbax";
+import { getPublicChangelogPage } from "../public-changelog-server-function";
 
-function ChangelogPage() {
-  Route.useLoaderData()
+export function ensureChangelogEnabled(features: PortalFeatures) {
+  if (!features.changelog) throw notFound();
+}
+
+const query = changelogQuery(getPublicChangelogPage);
+
+export const Route = createFileRoute("/changelog")({
+  beforeLoad: () => {
+    ensureChangelogEnabled(feedbax.features);
+  },
+  loader: ({ context }) => context.queryClient.ensureQueryData(query),
+  component: ChangelogRoute,
+});
+
+function ChangelogRoute() {
+  const initialPage = useSuspenseQuery(query).data;
   return (
-    <PortalShell activePage="changelog">
-      <ChangelogFeed />
-    </PortalShell>
-  )
+    <ChangelogPage
+      initialPage={initialPage}
+      loadPage={(data) => getPublicChangelogPage({ data })}
+    />
+  );
 }

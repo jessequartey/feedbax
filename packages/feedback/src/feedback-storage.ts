@@ -1,0 +1,43 @@
+import type { Post, PublicPostQuery, RoadmapStatus } from "./index";
+
+export type PostSource = "Portal" | "API";
+
+export type StoredPost = Post &
+  Partial<{
+    browserCapabilityHash: string;
+    source: PostSource;
+    externalId: string;
+  }> &
+  Record<string, unknown>;
+
+export type NewStoredPost = Omit<Post, "id"> &
+  Partial<{
+    browserCapabilityHash: string;
+    source: PostSource;
+    externalId: string;
+  }> &
+  Record<string, unknown>;
+
+export interface FeedbackStorage {
+  create(item: NewStoredPost): Promise<StoredPost>;
+  save(item: StoredPost): Promise<StoredPost>;
+  updateVoteCount(item: StoredPost, voteCount: number): Promise<StoredPost>;
+  find(id: string): Promise<StoredPost | undefined>;
+  findBySlug(slug: string): Promise<StoredPost | undefined>;
+  findPublicBySlug(slug: string): Promise<StoredPost | undefined>;
+  findByExternalId(externalId: string): Promise<StoredPost | undefined>;
+  list(): Promise<StoredPost[]>;
+  listPublic(query: PublicPostQuery): Promise<{
+    items: StoredPost[];
+    nextCursor?: string;
+  }>;
+  listPublicRoadmap(query: {
+    status: RoadmapStatus;
+    cursor?: string;
+  }): Promise<{
+    items: StoredPost[];
+    nextCursor?: string;
+    totalCount: number;
+  }>;
+  remove(id: string): Promise<void>;
+}

@@ -1,17 +1,25 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "new-york",
+  "style": "base-lyra",
   "rsc": false,
   "tsx": true,
   "tailwind": {
-    "css": "../../apps/portal/src/styles.css",
-    "cssVariables": true
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
   },
+  "iconLibrary": "lucide",
   "aliases": {
     "components": "@feedbax/ui/components",
     "utils": "@feedbax/ui/lib/utils",
-    "ui": "@feedbax/ui/components/ui",
+    "hooks": "@feedbax/ui/hooks",
     "lib": "@feedbax/ui/lib",
-    "hooks": "@feedbax/ui/hooks"
-  }
+    "ui": "@feedbax/ui/components"
+  },
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "registries": {},
+  "rtl": false
 }

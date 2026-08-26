@@ -1,58 +1,26 @@
 # Contributing
 
-Feedbax uses its own public portal as the canonical roadmap and contribution queue: https://feedbax-feedback.jessefquartey.workers.dev. Implementation contributions must start from an accepted Feedbax item.
+Feedbax is early and deliberately narrow. Contributions are welcome, but maintainers protect the product direction and cannot promise to merge or review every proposal.
 
-## Before contributing
+## Where work begins
 
-1. Search the Feedbax portal and vote for an existing item before creating a duplicate.
-2. Submit the user problem to the portal when no item exists, then wait for scope agreement before starting a large change.
-3. Use GitHub issues for implementation discussion only after linking the canonical Feedbax item.
-4. Include the canonical item URL in the pull-request template.
-5. Keep pull requests focused and update relevant documentation and tests.
+- Use issues for reproducible bugs.
+- Start features and architectural proposals in discussions before writing code.
+- Ask before beginning any non-trivial change.
 
-Pull requests without a Feedbax item fail CI. A maintainer may apply the `feedbax-exempt` label only for a security fix, urgent regression, or repository-only maintenance and must record the reason in the pull-request body.
+Small bug fixes, reliability improvements, performance work, documentation, and focused maintenance are the changes most likely to be accepted. Large unsolicited features, broad rewrites, or changes that expand the roadmap may be declined or closed.
 
-## Expectations
+## Pull requests
 
-- Claims must match implemented behavior.
-- Core domain code must not depend on a connector or hosting provider.
-- Connectors must declare capabilities and pass shared contract tests.
-- Deployment targets must be verified in continuous integration.
-- Secrets and personal customer data must never be committed.
+- Keep one focused purpose per pull request.
+- Explain what changed and why it belongs.
+- Add or update an essential behavior test when behavior changes.
+- Include before/after images for visible UI changes.
+- Include a short recording when motion or interaction timing matters.
+- Be prepared to split or reduce the change when requested.
 
-## Development setup
+Trust and pull-request-size labels begin as maintainer-applied labels and may be automated after contribution volume warrants it.
 
-Install Node 22.18 or newer, enable Corepack, and run `pnpm install --frozen-lockfile`.
+## License
 
-Before opening a pull request, run the same quality and compatibility checks used by continuous integration from the repository root:
-
-```sh
-pnpm format:check
-pnpm lint
-pnpm type-check
-pnpm test
-pnpm build
-pnpm --filter @feedbax/deploy-cloudflare build
-pnpm --filter @feedbax/deploy-vercel build
-docker build -f deploy/docker/Dockerfile -t feedbax:local .
-```
-
-Use `pnpm format` to apply the repository's formatting rules.
-
-## Required checks
-
-The `main` branch should require these GitHub Actions status checks before merging:
-
-- `Quality / Dependencies`
-- `Quality / Formatting`
-- `Quality / Linting`
-- `Quality / Type-checking`
-- `Quality / Unit tests`
-- `Quality / Build`
-- `Deployment / Cloudflare`
-- `Deployment / Vercel`
-- `Deployment / Docker`
-
-Configure these exact names as required checks in the GitHub branch protection rules for `main` after the workflow has run at least once.
-
-The deployment checks are credential-free smoke builds: they verify that each target can produce a deployable artifact or image, but they do not deploy it. The live runtime smoke suite requires deployed URLs and provider or Notion secrets, so it is intentionally excluded from pull request workflows. See [`deploy/README.md`](deploy/README.md) for the live verification procedure and current evidence.
+Core is licensed under Apache-2.0. By submitting a contribution, you agree that it is provided under the repository's Apache-2.0 license. No CLA or copyright assignment is required.

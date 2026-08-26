@@ -1,38 +1,59 @@
-# Roadmap
+# Feedbax Roadmap
 
-This roadmap is directional. A feature is not shipped until it appears in a tagged release.
+This roadmap separates the proof release from the larger platform vision. It records direction, not delivery promises or dates.
 
-## v0.1.0 — generator-led Notion preview
+## Version 0.2.0 alpha: prove the Notion-native loop
 
-- [ ] Connector-oriented domain and configuration foundation
-- [ ] Notion schema validation and health check
-- [ ] Submission, search, filters, and inexpensive duplicate suggestions
-- [ ] Unique voting, comments, and post details
-- [ ] Public roadmap and changelog
-- [ ] Anonymous, email-only, and signed-handoff identity
-- [ ] Branding, responsive themes, and actionable errors
-- [ ] CDN-friendly caching without per-post request waterfalls
-- [ ] Verified Cloudflare, Vercel, and Docker deployment
-- [ ] Dogfood on Feedbax and one external team project
-- [ ] Publish setup, security, and deployment documentation
+- TanStack Start portal on Cloudflare Workers
+- Notion-only Profile
+- Canonical Feedback Data Source and schema validation
+- Anonymous moderated submissions
+- Browser Capability draft editing
+- Public feedback, statuses, and roadmap
+- Best-effort browser-remembered Votes and native Notion Comments
+- Notion-backed Changelog in a sibling Changelog Data Source
+- Trusted HTTP submission endpoint
+- Typed `feedbax.ts` configuration
+- Manual deployment proven before CLI automation
 
-## After the MVP
+## Version 0.2.0: make the proof adoptable
 
-- Embedded feedback and changelog widgets
-- Status notifications, RSS, and digest delivery
-- Triage, merging, internal notes, and private boards
-- Import, export, and migration tools
-- Customer context and prioritization signals
-- Netlify support
-- Better Auth with SQLite and Postgres interaction stores
+- `create-feedbax` interactive generator using a versioned Feedbax-owned template
+- `doctor` diagnostics and API-key rotation
+- Documentation application on Cloudflare
+- shadcn theme preset workflow
+- Dogfooded Feedbax feedback portal
+- Design-partner feedback and production-derived fixes
+
+## Connected Profile
+
+- Verified Participant identity and signed identity handoff
+- D1 operational state managed through Drizzle
+- Reliable unique voting and verified Comment attribution
+- Following and notifications
+- Participant media storage in R2
+- Abuse controls and synchronization hardening
+- Reconsider Effect only for workflows whose complexity justifies it
 
 ## Ecosystem
 
-- GitHub connector and controlled issue promotion
-- Linear, Google Sheets, and generic API connectors
-- Public connector SDK and shared contract tests
-- Storage, notification, authentication, deployment, and theme extensions
+- First evidence-backed connector and connector interface
+- Versioned npm connector packages
+- Optional shadcn registry recipes for copied integrations and widgets
+- Embeddable widget
+- Additional application-framework templates after demonstrated demand or outside maintainership
+- Vercel and Docker deployment after Cloudflare parity is stable
 
-## Deferred
+## Explicit non-goals for the proof release
 
-Full bidirectional synchronization, mandatory AI infrastructure, surveys, help desk features, enterprise administration, realtime WebSockets, managed hosting, and local Obsidian networking are outside v0.1.0.
+- Multi-framework generation
+- Generic plugin registry
+- Effect
+- Drizzle or an application database
+- Vercel or Docker deployment
+- Path-based microfrontends
+- Hosted billing or enterprise features
+- Follow updates and notification delivery
+- Participant-uploaded media and Comment attachments
+- Participation audit history
+- A velocity-based Trending algorithm

@@ -1,25 +1,25 @@
 {
   "name": "create-feedbax",
-  "version": "0.1.0",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "bin": {
-    "create-feedbax": "dist/cli.js"
+    "create-feedbax": "./src/cli.ts"
   },
-  "files": [
-    "dist",
-    "template",
-    "README.md",
-    "LICENSE"
-  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "prepack": "node scripts/prepare-template.mjs && pnpm build",
-    "type-check": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src test",
+    "check-types": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@feedbax/changelog": "workspace:*",
+    "@feedbax/config": "workspace:*",
+    "@feedbax/feedback": "workspace:*"
+  },
   "devDependencies": {
-    "@types/node": "24.10.13"
+    "typescript": "catalog:",
+    "vitest": "4.1.11"
   }
 }

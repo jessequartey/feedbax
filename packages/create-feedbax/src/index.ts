@@ -1,208 +1,249 @@
-import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
-import { spawn } from 'node:child_process'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-type IdentityMode = 'anonymous' | 'email' | 'handoff'
+import type { PortalFeatures } from "@feedbax/config";
+import {
+  validateNotionFeedbackDataSource,
+  type FeedbackDataSourceConfiguration,
+} from "@feedbax/feedback";
+import {
+  createNotionChangelogDataSource,
+  validateNotionChangelogDataSource,
+  type ChangelogDataSourceConfiguration,
+  type ChangelogPropertyIds,
+} from "@feedbax/changelog";
 
-export type Deployment = 'cloudflare' | 'vercel' | 'node'
-export type PackageManager = 'npm' | 'pnpm'
-export interface CreateOptions {
-  readonly directory: string
-  readonly identity: IdentityMode
-  readonly deploy: Deployment
-  readonly packageManager: PackageManager
-  readonly preset: string
-  readonly install: boolean
-  readonly git: boolean
-}
+export const featureChoices = [
+  { key: "voting", label: "Voting", initialValue: true },
+  { key: "comments", label: "Comments", initialValue: true },
+  { key: "changelog", label: "Changelog", initialValue: true },
+] as const;
 
-const valueFlags = new Set([
-  '--connector',
-  '--identity',
-  '--storage',
-  '--deploy',
-  '--preset',
-  '--package-manager',
-])
-const booleanFlags = new Set(['--yes', '--no-install', '--no-git'])
+export type CreatorPrompter = {
+  confirm(input: { message: string; initialValue: boolean }): Promise<boolean>;
+};
 
-const allowedDeployments = new Set<Deployment>(['cloudflare', 'vercel', 'node'])
-const allowedPackageManagers = new Set<PackageManager>(['npm', 'pnpm'])
-const identityMode = (mode: string): IdentityMode => {
-  if (mode === 'anonymous' || mode === 'email' || mode === 'handoff')
-    return mode
-  throw new Error(`Identity mode "${mode}" is not supported in Feedbax 0.1.0.`)
-}
-
-export function resolveCreateOptions(argv: readonly string[]): CreateOptions {
-  const values = new Map<string, string>()
-  let directory: string | undefined
-  for (let index = 0; index < argv.length; index += 1) {
-    const entry = argv[index]!
-    if (valueFlags.has(entry)) {
-      const next = argv[index + 1]
-      if (!next || next.startsWith('-'))
-        throw new Error(`Option ${entry} requires a value.`)
-      values.set(entry, next)
-      index += 1
-    } else if (booleanFlags.has(entry)) continue
-    else if (entry.startsWith('-')) throw new Error(`Unknown option ${entry}.`)
-    else if (directory) throw new Error(`Unexpected argument ${entry}.`)
-    else directory = entry
+export async function collectFeatureSelection(
+  prompter: CreatorPrompter,
+): Promise<PortalFeatures> {
+  const selections: [keyof PortalFeatures, boolean][] = [];
+  for (const { key, label, initialValue } of featureChoices) {
+    selections.push([
+      key,
+      await prompter.confirm({
+        message: `Enable ${label}?`,
+        initialValue,
+      }),
+    ]);
   }
-  const value = (name: string) => values.get(name)
-  directory ??= 'my-feedback'
-  const connector = value('--connector') ?? 'notion'
-  const storage = value('--storage') ?? 'notion'
-  if (connector !== 'notion')
+  return Object.fromEntries(selections) as PortalFeatures;
+}
+
+export function renderFeatureConfiguration(features: PortalFeatures): string {
+  return `features: {
+    voting: ${features.voting},
+    comments: ${features.comments},
+    changelog: ${features.changelog},
+  },`;
+}
+
+export function renderChangelogConfiguration(
+  configuration: ChangelogDataSourceConfiguration,
+): string {
+  const properties = Object.entries(configuration.propertyIds)
+    .map(([key, value]) => `      ${key}: ${JSON.stringify(value)},`)
+    .join("\n");
+  return `changelog: {
+    databaseId: ${JSON.stringify(configuration.databaseId)},
+    dataSourceId: ${JSON.stringify(configuration.dataSourceId)},
+    propertyIds: {
+${properties}
+    },
+  },`;
+}
+
+export interface NotionCommentCapabilities {
+  readComments: boolean;
+  insertComments: boolean;
+}
+
+export async function verifySelectedCommentCapabilities(
+  features: PortalFeatures,
+  {
+    token,
+    pageId,
+    request = fetch,
+    command = "setup",
+  }: {
+    token: string;
+    pageId: string;
+    request?: typeof fetch;
+    command?: "setup" | "doctor";
+  },
+): Promise<void> {
+  if (!features.comments) return;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": "2026-03-11",
+  };
+  const readResponse = await request(
+    `https://api.notion.com/v1/comments?block_id=${encodeURIComponent(pageId)}&page_size=1`,
+    { headers },
+  );
+  if (command === "doctor") {
+    assertEnabledCommentCapabilities({
+      commentsEnabled: true,
+      capabilities: {
+        readComments: readResponse.status !== 403,
+        // Setup proves Insert comments before enabling the capability. Doctor
+        // deliberately avoids a write-method probe and verifies the live read path.
+        insertComments: true,
+      },
+      command,
+    });
+    return;
+  }
+  const insertResponse = await request("https://api.notion.com/v1/comments", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const capabilities = {
+    readComments: readResponse.status !== 403,
+    insertComments: insertResponse.status !== 403,
+  };
+  assertEnabledCommentCapabilities({
+    commentsEnabled: true,
+    capabilities,
+    command,
+  });
+}
+
+export function assertEnabledCommentCapabilities({
+  commentsEnabled,
+  capabilities,
+  command = "setup",
+}: {
+  commentsEnabled: boolean;
+  capabilities: NotionCommentCapabilities;
+  command?: "setup" | "doctor";
+}): void {
+  if (!commentsEnabled) return;
+  const missing = [
+    ...(capabilities.readComments ? [] : ["Read comments"]),
+    ...(capabilities.insertComments ? [] : ["Insert comments"]),
+  ];
+  if (missing.length === 0) return;
+  const retry =
+    command === "doctor"
+      ? "rerun doctor. No changes were made."
+      : "retry setup.";
+  throw new Error(
+    `Enable ${missing.join(" and ")} in the Notion connection settings, then ${retry}`,
+  );
+}
+
+export type ChangelogStorageSelection =
+  | { kind: "create"; databaseId: string }
+  | {
+      kind: "existing";
+      dataSourceId: string;
+      propertyIds: ChangelogPropertyIds;
+    };
+
+export async function configureChangelogStorage({
+  features,
+  selection,
+  token,
+  request = fetch,
+  preview,
+}: {
+  features: PortalFeatures;
+  selection?: ChangelogStorageSelection;
+  token: string;
+  request?: typeof fetch;
+  preview(message: string): Promise<boolean>;
+}): Promise<ChangelogDataSourceConfiguration | undefined> {
+  if (!features.changelog) return;
+  if (!selection) {
     throw new Error(
-      `Connector "${connector}" is not supported in Feedbax 0.1.0.`,
-    )
-  if (storage !== 'notion')
+      "Choose an existing compatible Changelog Data Source or create one beside Feedback.",
+    );
+  }
+  if (selection.kind === "existing") {
+    return validateNotionChangelogDataSource({
+      token,
+      dataSourceId: selection.dataSourceId,
+      propertyIds: selection.propertyIds,
+      request,
+    });
+  }
+  const approved = await preview(
+    `Create an empty Changelog Data Source beside Feedback in Feedbax Database ${selection.databaseId}. No sample entries will be published.`,
+  );
+  if (!approved) throw new Error("Changelog creation was not approved.");
+  return createNotionChangelogDataSource({
+    token,
+    databaseId: selection.databaseId,
+    request,
+  });
+}
+
+export async function doctorChangelogStorage({
+  enabled,
+  configuration,
+  token,
+  request = fetch,
+}: {
+  enabled: boolean;
+  configuration?: ChangelogDataSourceConfiguration;
+  token: string;
+  request?: typeof fetch;
+}): Promise<void> {
+  if (!enabled) return;
+  if (!configuration) {
     throw new Error(
-      `Storage "${storage}" is deferred until after Feedbax 0.1.0.`,
-    )
-  const identity = identityMode(value('--identity') ?? 'email')
-  const deploy = (value('--deploy') ?? 'cloudflare') as Deployment
-  if (!allowedDeployments.has(deploy))
-    throw new Error(`Deployment "${deploy}" is not supported.`)
-  const packageManager = (value('--package-manager') ??
-    'pnpm') as PackageManager
-  if (!allowedPackageManagers.has(packageManager))
-    throw new Error(`Package manager "${packageManager}" is not supported.`)
-  return {
-    directory,
-    identity,
-    deploy,
-    packageManager,
-    preset: value('--preset') ?? 'feedbax-default',
-    install: !argv.includes('--no-install'),
-    git: !argv.includes('--no-git'),
+      "Changelog is enabled without identifiers and property mappings. Create or select a compatible Changelog Data Source, configure it, then rerun doctor. No changes were made.",
+    );
   }
+  await validateNotionChangelogDataSource({
+    token,
+    dataSourceId: configuration.dataSourceId,
+    propertyIds: configuration.propertyIds,
+    request,
+  });
 }
 
-export type CreatePrompt = (
-  question: string,
-  defaultValue: string,
-) => Promise<string>
-
-export async function resolveInteractiveCreateOptions(
-  argv: readonly string[],
-  prompt: CreatePrompt,
-): Promise<CreateOptions> {
-  if (argv.includes('--yes')) return resolveCreateOptions(argv)
-  const prompted = [...argv]
-  const ask = async (flag: string, question: string, defaultValue: string) => {
-    if (argv.includes(flag)) return
-    const answer = (await prompt(question, defaultValue)).trim() || defaultValue
-    prompted.push(flag, answer)
-  }
-  await ask('--identity', 'Identity (anonymous, email, handoff)', 'email')
-  await ask('--deploy', 'Deployment (cloudflare, vercel, node)', 'cloudflare')
-  await ask('--package-manager', 'Package manager (pnpm, npm)', 'pnpm')
-  await ask('--preset', 'shadcn preset', 'feedbax-default')
-  return resolveCreateOptions(prompted)
-}
-
-async function assertEmpty(path: string) {
-  try {
-    if ((await readdir(path)).length > 0)
-      throw new Error(`Target directory is not empty: ${path}`)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-  }
-}
-
-async function replaceInTree(
-  path: string,
-  replacements: Readonly<Record<string, string>>,
-) {
-  for (const entry of await readdir(path)) {
-    const target = join(path, entry)
-    if ((await stat(target)).isDirectory())
-      await replaceInTree(target, replacements)
-    else {
-      let content = await readFile(target, 'utf8')
-      for (const [token, replacement] of Object.entries(replacements))
-        content = content.replaceAll(token, replacement)
-      await writeFile(target, content)
+export async function doctorInstallation({
+  features,
+  feedback,
+  changelog,
+  commentProbePageId,
+  token,
+  request = fetch,
+}: {
+  features: PortalFeatures;
+  feedback: Omit<FeedbackDataSourceConfiguration, "databaseId">;
+  changelog?: ChangelogDataSourceConfiguration;
+  commentProbePageId?: string;
+  token: string;
+  request?: typeof fetch;
+}): Promise<void> {
+  await validateNotionFeedbackDataSource({ token, ...feedback, request });
+  if (features.comments) {
+    if (!commentProbePageId) {
+      throw new Error(
+        "Comments are enabled but no Comment capability probe page is configured. Configure one, then rerun doctor. No changes were made.",
+      );
     }
+    await verifySelectedCommentCapabilities(features, {
+      token,
+      pageId: commentProbePageId,
+      request,
+      command: "doctor",
+    });
   }
-}
-
-const run = (command: string, args: readonly string[], cwd: string) =>
-  new Promise<void>((resolvePromise, reject) => {
-    const child = spawn(command, args, { cwd, stdio: 'inherit', shell: false })
-    child.once('error', reject)
-    child.once('exit', (code) =>
-      code === 0
-        ? resolvePromise()
-        : reject(
-            new Error(`${command} ${args.join(' ')} failed with ${code}.`),
-          ),
-    )
-  })
-
-export async function createProject(options: CreateOptions) {
-  const destination = resolve(options.directory)
-  await assertEmpty(destination)
-  await mkdir(dirname(destination), { recursive: true })
-  const packageDirectory = dirname(fileURLToPath(import.meta.url))
-  const candidates = [
-    resolve(packageDirectory, '../template'),
-    resolve(packageDirectory, '../../../templates/default'),
-  ]
-  let template: string | undefined
-  for (const candidate of candidates) {
-    try {
-      if ((await stat(candidate)).isDirectory()) {
-        template = candidate
-        break
-      }
-    } catch {
-      continue
-    }
-  }
-  if (!template)
-    throw new Error(
-      'The Feedbax project template is missing from this package.',
-    )
-  await cp(template, destination, { recursive: true })
-  await replaceInTree(destination, {
-    __GENERATOR_VERSION__: '0.1.0',
-    __IDENTITY__: options.identity,
-    __DEPLOYMENT__: options.deploy,
-    __PACKAGE_MANAGER__: options.packageManager,
-    __PACKAGE_MANAGER_SPEC__:
-      options.packageManager === 'pnpm' ? 'pnpm@10.29.3' : 'npm@11.4.2',
-    __PRESET__: options.preset,
-    __NITRO_PRESET__:
-      options.deploy === 'vercel'
-        ? 'vercel'
-        : options.deploy === 'cloudflare'
-          ? 'cloudflare-module'
-          : 'node-server',
-  })
-  try {
-    if (options.install) {
-      await run(options.packageManager, ['install'], destination)
-      await run(options.packageManager, ['run', 'type-check'], destination)
-    }
-    if (options.git) await run('git', ['init'], destination)
-  } catch (error) {
-    await writeFile(
-      join(destination, '.feedbax-recovery'),
-      `Generation stopped: ${error instanceof Error ? error.message : String(error)}\nRerun dependency installation and type checking after resolving the reported issue.\n`,
-    )
-    throw error
-  }
-  return {
-    destination,
-    nextSteps: [
-      `cd ${options.directory}`,
-      'Copy .env.example to .env and configure Notion',
-      `${options.packageManager === 'pnpm' ? 'pnpm' : 'npx'} feedbax doctor`,
-      `${options.packageManager} run dev`,
-    ],
-  }
+  await doctorChangelogStorage({
+    enabled: features.changelog,
+    configuration: changelog,
+    token,
+    request,
+  });
 }

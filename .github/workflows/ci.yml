@@ -1,147 +1,64 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  contribution-reference:
-    name: Contribution / Feedbax item
-    if: github.event_name == 'pull_request'
+  verify:
+    name: Verify Core
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: node scripts/check-contribution-reference.mjs
+    timeout-minutes: 15
 
-  dependencies:
-    name: Quality / Dependencies
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: 22.20.0
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
 
-  quality:
-    name: Quality / ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Formatting
-            command: pnpm format:check
-          - name: Linting
-            command: pnpm lint
-          - name: Dependency boundaries
-            command: pnpm build && pnpm check:boundaries
-          - name: Type-checking
-            command: pnpm type-check
-          - name: Unit tests
-            command: pnpm test
-          - name: Build
-            command: pnpm build
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm content:generate
-      - run: ${{ matrix.command }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-  e2e:
-    name: Quality / End-to-end
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
+      - name: Reject tracked secret files
+        shell: bash
+        run: |
+          tracked_secret_files="$({ git ls-files | grep -E '(^|/)(\.env($|\.)|\.dev\.vars($|\.))|(\.pem|\.key|\.p12|\.pfx)$' | grep -vE '(\.env\.example|\.dev\.vars\.example)$'; } || true)"
+          if [[ -n "$tracked_secret_files" ]]; then
+            echo "Secret-bearing paths must not be tracked:"
+            echo "$tracked_secret_files"
+            exit 1
+          fi
 
-  generated-projects:
-    name: Release / Generated projects
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm release:matrix
+      - name: Check formatting
+        run: pnpm format:check
 
-  notion-smoke:
-    name: Integration / Notion smoke
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment: notion-smoke
-    env:
-      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-      NOTION_DATA_SOURCE_ID: ${{ secrets.NOTION_DATA_SOURCE_ID }}
-      NOTION_VOTES_DATA_SOURCE_ID: ${{ secrets.NOTION_VOTES_DATA_SOURCE_ID }}
-      NOTION_COMMENTS_DATA_SOURCE_ID: ${{ secrets.NOTION_COMMENTS_DATA_SOURCE_ID }}
-      FEEDBAX_INTERACTION_HASH_KEY: ${{ secrets.FEEDBAX_INTERACTION_HASH_KEY }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm notion:prepare-smoke
-      - run: pnpm notion:doctor
-      - run: pnpm test:notion-smoke
+      - name: Lint
+        run: pnpm lint
 
-  deployment:
-    name: Deployment / ${{ matrix.name }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Cloudflare
-            command: pnpm turbo run build --filter=@feedbax/deploy-cloudflare
-          - name: Vercel
-            command: pnpm turbo run build --filter=@feedbax/deploy-vercel
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm content:generate
-      - run: ${{ matrix.command }}
+      - name: Type check
+        run: pnpm type-check
 
-  docker:
-    name: Deployment / Docker
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -f deploy/docker/Dockerfile -t feedbax:ci .
+      - name: Run essential tests
+        run: pnpm test
+
+      - name: Build production Worker
+        run: pnpm build
+
+      - name: Verify Worker deployment bundle
+        run: pnpm deploy:dry-run

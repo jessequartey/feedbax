@@ -1,33 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { RoadmapBoard } from '../components/roadmap-board.js'
+import { createPublicRoadmapRoute } from "../public-roadmap-route";
 import {
-  ConnectorOutage,
-  PortalLoading,
-  PortalShell,
-} from '../components/portal-shell.js'
-import { portalBranding, publicRoadmap } from '../portal.config.js'
-import { getServerStatus } from '../server.functions.js'
+  getPublicRoadmapPage,
+  getPublicRoadmapStatusPage,
+} from "../public-roadmap-server-function";
 
-export const Route = createFileRoute('/roadmap')({
-  loader: () => getServerStatus(),
-  head: () => ({
-    meta: [
-      { title: `${publicRoadmap.title} · ${portalBranding.productName}` },
-      { name: 'description', content: publicRoadmap.description },
-    ],
-  }),
-  pendingComponent: () => <PortalLoading activePage="roadmap" wide />,
-  errorComponent: ({ reset }) => (
-    <ConnectorOutage onRetry={reset} activePage="roadmap" wide />
-  ),
-  component: RoadmapPage,
-})
-
-function RoadmapPage() {
-  Route.useLoaderData()
-  return (
-    <PortalShell activePage="roadmap" wide>
-      <RoadmapBoard />
-    </PortalShell>
-  )
-}
+export const Route = createPublicRoadmapRoute({
+  fetchRoadmap: () => getPublicRoadmapPage(),
+  fetchRoadmapStatusPage: (query) =>
+    getPublicRoadmapStatusPage({ data: query }),
+});

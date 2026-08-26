@@ -1,11 +1,20 @@
-## Feedbax roadmap item
-
-Feedbax item: <!-- Required: https://feedbax-feedback.jessefquartey.workers.dev/feedback/<id> -->
-
-<!-- A maintainer may instead apply `feedbax-exempt` and explain why below. -->
-
-Maintainer exception reason:
-
 ## What changed
 
-## Validation
+Describe the focused behavior or maintenance outcome this pull request delivers.
+
+## Why
+
+Link the agreed issue, specification, or ADR and explain why the change belongs in Core.
+
+## Verification
+
+- [ ] Formatting and linting pass
+- [ ] Type checking passes
+- [ ] Essential tests pass
+- [ ] Production build passes
+- [ ] Wrangler deployment dry run passes
+- [ ] No secret-bearing files are tracked
+
+## Visual evidence
+
+Include before/after images for visible UI changes and a short recording when interaction timing matters. Otherwise write “Not applicable.”
