@@ -1,5 +1,9 @@
 import type { PortalFeatures } from "@feedbax/config";
 import {
+  validateNotionFeedbackDataSource,
+  type FeedbackDataSourceConfiguration,
+} from "@feedbax/feedback";
+import {
   createNotionChangelogDataSource,
   validateNotionChangelogDataSource,
   type ChangelogDataSourceConfiguration,
@@ -79,17 +83,28 @@ export async function verifySelectedCommentCapabilities(
     Authorization: `Bearer ${token}`,
     "Notion-Version": "2026-03-11",
   };
-  const [readResponse, insertResponse] = await Promise.all([
-    request(
-      `https://api.notion.com/v1/comments?block_id=${encodeURIComponent(pageId)}&page_size=1`,
-      { headers },
-    ),
-    request("https://api.notion.com/v1/comments", {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: "{}",
-    }),
-  ]);
+  const readResponse = await request(
+    `https://api.notion.com/v1/comments?block_id=${encodeURIComponent(pageId)}&page_size=1`,
+    { headers },
+  );
+  if (command === "doctor") {
+    assertEnabledCommentCapabilities({
+      commentsEnabled: true,
+      capabilities: {
+        readComments: readResponse.status !== 403,
+        // Setup proves Insert comments before enabling the capability. Doctor
+        // deliberately avoids a write-method probe and verifies the live read path.
+        insertComments: true,
+      },
+      command,
+    });
+    return;
+  }
+  const insertResponse = await request("https://api.notion.com/v1/comments", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: "{}",
+  });
   const capabilities = {
     readComments: readResponse.status !== 403,
     insertComments: insertResponse.status !== 403,
@@ -192,6 +207,43 @@ export async function doctorChangelogStorage({
     token,
     dataSourceId: configuration.dataSourceId,
     propertyIds: configuration.propertyIds,
+    request,
+  });
+}
+
+export async function doctorInstallation({
+  features,
+  feedback,
+  changelog,
+  commentProbePageId,
+  token,
+  request = fetch,
+}: {
+  features: PortalFeatures;
+  feedback: Omit<FeedbackDataSourceConfiguration, "databaseId">;
+  changelog?: ChangelogDataSourceConfiguration;
+  commentProbePageId?: string;
+  token: string;
+  request?: typeof fetch;
+}): Promise<void> {
+  await validateNotionFeedbackDataSource({ token, ...feedback, request });
+  if (features.comments) {
+    if (!commentProbePageId) {
+      throw new Error(
+        "Comments are enabled but no Comment capability probe page is configured. Configure one, then rerun doctor. No changes were made.",
+      );
+    }
+    await verifySelectedCommentCapabilities(features, {
+      token,
+      pageId: commentProbePageId,
+      request,
+      command: "doctor",
+    });
+  }
+  await doctorChangelogStorage({
+    enabled: features.changelog,
+    configuration: changelog,
+    token,
     request,
   });
 }

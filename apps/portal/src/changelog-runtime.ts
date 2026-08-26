@@ -1,6 +1,5 @@
 import {
   createChangelogModule,
-  createInMemoryChangelogStorage,
   createNotionChangelogStorage,
 } from "@feedbax/changelog";
 
@@ -15,9 +14,6 @@ export function createConfiguredChangelogModule() {
 }
 
 function buildConfiguredChangelogModule() {
-  if (import.meta.env.MODE === "demo") {
-    return createChangelogModule({ storage: createInMemoryChangelogStorage() });
-  }
   if (!feedbax.changelog) {
     throw new Error("Changelog configuration is missing.");
   }

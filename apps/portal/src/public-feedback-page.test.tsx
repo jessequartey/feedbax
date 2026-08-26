@@ -176,10 +176,7 @@ describe("public feedback home page", () => {
     expect(
       screen.getByRole("button", { name: "Add Vote, 7 Votes" }),
     ).toBeTruthy();
-    expect(
-      within(metadata).getByLabelText("Comments unavailable"),
-    ).toBeTruthy();
-    expect(within(post).getAllByText("—")).toHaveLength(1);
+    expect(within(metadata).queryByText(/comment/i)).toBeNull();
   });
 
   it("links each Published Post by immutable slug", () => {

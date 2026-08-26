@@ -9,8 +9,10 @@ import {
   renderChangelogConfiguration,
   configureChangelogStorage,
   doctorChangelogStorage,
+  doctorInstallation,
 } from "./index";
 import type { ChangelogPropertyIds } from "@feedbax/changelog";
+import type { FeedbackPropertyIds } from "@feedbax/feedback";
 
 describe("Comment capability verification", () => {
   it("runs both capability checks in the setup flow", async () => {
@@ -62,6 +64,51 @@ describe("Comment capability verification", () => {
 });
 
 describe("Changelog setup and doctor", () => {
+  it("always validates Feedback and conditionally validates enabled capabilities without mutation", async () => {
+    const request = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      if (String(url).includes("comments")) {
+        return String(url).endsWith("/comments")
+          ? new Response(null, { status: 400 })
+          : Response.json({ results: [] });
+      }
+      return Response.json(
+        String(url).includes("feedback-source")
+          ? feedbackDataSource()
+          : dataSource("marketing-database"),
+      );
+    });
+
+    await doctorInstallation({
+      features: { voting: false, comments: true, changelog: false },
+      feedback: {
+        dataSourceId: "feedback-source",
+        propertyIds: feedbackPropertyIds,
+      },
+      commentProbePageId: "post-page",
+      token: "token",
+      request,
+    });
+
+    expect(
+      request.mock.calls.some(([url]) =>
+        String(url).includes("feedback-source"),
+      ),
+    ).toBe(true);
+    expect(
+      request.mock.calls.some(([url]) => String(url).includes("comments")),
+    ).toBe(true);
+    expect(
+      request.mock.calls.some(([url]) =>
+        String(url).includes("changelog-source"),
+      ),
+    ).toBe(false);
+    expect(
+      request.mock.calls.every(
+        ([, init]) => !init?.method || init.method === "GET",
+      ),
+    ).toBe(true);
+  });
+
   it("previews sibling creation before applying it and creates no sample entries", async () => {
     const events: string[] = [];
     const request = vi
@@ -163,6 +210,56 @@ const propertyIds: ChangelogPropertyIds = {
   updatedAt: "updated-id",
 };
 
+const feedbackPropertyIds: FeedbackPropertyIds = {
+  title: "title-id",
+  slug: "slug-id",
+  description: "description-id",
+  type: "type-id",
+  status: "status-id",
+  published: "published-id",
+  voteCount: "vote-count-id",
+  submitterName: "submitter-name-id",
+  submitterEmail: "submitter-email-id",
+  source: "source-id",
+  externalId: "external-id",
+  editTokenHash: "edit-token-hash-id",
+  createdAt: "created-at-id",
+  updatedAt: "updated-at-id",
+};
+
+function feedbackDataSource() {
+  const names: Record<keyof FeedbackPropertyIds, [string, string]> = {
+    title: ["Title", "title"],
+    slug: ["Slug", "rich_text"],
+    description: ["Description", "rich_text"],
+    type: ["Type", "select"],
+    status: ["Status", "select"],
+    published: ["Published", "checkbox"],
+    voteCount: ["Vote Count", "number"],
+    submitterName: ["Submitter Name", "rich_text"],
+    submitterEmail: ["Submitter Email", "email"],
+    source: ["Source", "select"],
+    externalId: ["External ID", "rich_text"],
+    editTokenHash: ["Edit Token Hash", "rich_text"],
+    createdAt: ["Created At", "created_time"],
+    updatedAt: ["Updated At", "last_edited_time"],
+  };
+  return {
+    id: "feedback-source",
+    parent: { database_id: "feedback-database" },
+    properties: Object.fromEntries(
+      Object.entries(names).map(([key, [name, type]]) => [
+        name,
+        {
+          id: feedbackPropertyIds[key as keyof FeedbackPropertyIds],
+          name,
+          type,
+        },
+      ]),
+    ),
+  };
+}
+
 function dataSource(databaseId = "feedback-database") {
   const names: Record<keyof ChangelogPropertyIds, [string, string]> = {
     title: ["Title", "title"],
@@ -189,6 +286,20 @@ function dataSource(databaseId = "feedback-database") {
 }
 
 describe("creator capability choices", () => {
+  it("renders every independent capability combination without secrets", () => {
+    for (let mask = 0; mask < 8; mask += 1) {
+      const rendered = renderFeatureConfiguration({
+        voting: Boolean(mask & 1),
+        comments: Boolean(mask & 2),
+        changelog: Boolean(mask & 4),
+      });
+      expect(rendered).toContain(`voting: ${Boolean(mask & 1)}`);
+      expect(rendered).toContain(`comments: ${Boolean(mask & 2)}`);
+      expect(rendered).toContain(`changelog: ${Boolean(mask & 4)}`);
+      expect(rendered).not.toMatch(/token|secret|api.?key/i);
+    }
+  });
+
   it("presents every capability as enabled by default", async () => {
     const prompts: { message: string; initialValue: boolean }[] = [];
     const confirm = async (input: {

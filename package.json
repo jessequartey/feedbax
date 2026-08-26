@@ -17,7 +17,6 @@
     "test": "vitest run --passWithNoTests",
     "manual:setup:notion": "tsx scripts/manual-notion-setup.ts",
     "dev:portal": "turbo run dev -F @feedbax/portal",
-    "demo:portal": "turbo run dev -F @feedbax/portal -- --mode demo",
     "deploy:dry-run": "pnpm --filter @feedbax/portal deploy:dry-run"
   },
   "dependencies": {

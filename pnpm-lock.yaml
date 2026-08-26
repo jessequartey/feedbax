@@ -218,6 +218,9 @@ importers:
       '@feedbax/config':
         specifier: workspace:*
         version: link:../config
+      '@feedbax/feedback':
+        specifier: workspace:*
+        version: link:../feedback
     devDependencies:
       typescript:
         specifier: 'catalog:'

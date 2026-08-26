@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@feedbax/changelog": "workspace:*",
-    "@feedbax/config": "workspace:*"
+    "@feedbax/config": "workspace:*",
+    "@feedbax/feedback": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

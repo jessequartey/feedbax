@@ -6,7 +6,7 @@ import { stdin, stdout } from "node:process";
 import {
   collectFeatureSelection,
   configureChangelogStorage,
-  doctorChangelogStorage,
+  doctorInstallation,
   renderChangelogConfiguration,
   renderFeatureConfiguration,
   type CreatorPrompter,
@@ -36,7 +36,7 @@ try {
           changelog: process.env.FEEDBAX_CHANGELOG_ENABLED !== "false",
         }
       : await collectFeatureSelection(prompter);
-  if (features.comments) {
+  if (features.comments && command === "setup") {
     const token = process.env.NOTION_TOKEN;
     const pageId = process.env.NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID;
     if (!token || !pageId)
@@ -50,19 +50,26 @@ try {
     });
   }
   if (command === "doctor") {
-    await doctorChangelogStorage({
-      enabled: features.changelog,
-      configuration: features.changelog
+    await doctorInstallation({
+      features,
+      feedback: {
+        dataSourceId: environmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
+        propertyIds: feedbackPropertyIdsFromEnvironment(),
+      },
+      changelog: features.changelog
         ? {
             databaseId: environmentValue("NOTION_CHANGELOG_DATABASE_ID"),
             dataSourceId: environmentValue("NOTION_CHANGELOG_DATA_SOURCE_ID"),
             propertyIds: changelogPropertyIdsFromEnvironment("doctor"),
           }
         : undefined,
-      token: features.changelog ? environmentValue("NOTION_TOKEN") : "",
+      commentProbePageId: features.comments
+        ? environmentValue("NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID")
+        : undefined,
+      token: environmentValue("NOTION_TOKEN"),
     });
     stdout.write(
-      "\nEnabled Comment and Changelog capabilities are configured. No changes were made.\n",
+      "\nThe canonical Feedback schema and every enabled optional capability are configured. No changes were made.\n",
     );
     process.exitCode = 0;
   } else {
@@ -101,6 +108,31 @@ try {
   terminal.close();
 }
 
+function feedbackPropertyIdsFromEnvironment() {
+  return {
+    title: environmentValue("NOTION_FEEDBACK_TITLE_PROPERTY_ID"),
+    slug: environmentValue("NOTION_FEEDBACK_SLUG_PROPERTY_ID"),
+    description: environmentValue("NOTION_FEEDBACK_DESCRIPTION_PROPERTY_ID"),
+    type: environmentValue("NOTION_FEEDBACK_TYPE_PROPERTY_ID"),
+    status: environmentValue("NOTION_FEEDBACK_STATUS_PROPERTY_ID"),
+    published: environmentValue("NOTION_FEEDBACK_PUBLISHED_PROPERTY_ID"),
+    voteCount: environmentValue("NOTION_FEEDBACK_VOTE_COUNT_PROPERTY_ID"),
+    submitterName: environmentValue(
+      "NOTION_FEEDBACK_SUBMITTER_NAME_PROPERTY_ID",
+    ),
+    submitterEmail: environmentValue(
+      "NOTION_FEEDBACK_SUBMITTER_EMAIL_PROPERTY_ID",
+    ),
+    source: environmentValue("NOTION_FEEDBACK_SOURCE_PROPERTY_ID"),
+    externalId: environmentValue("NOTION_FEEDBACK_EXTERNAL_ID_PROPERTY_ID"),
+    editTokenHash: environmentValue(
+      "NOTION_FEEDBACK_EDIT_TOKEN_HASH_PROPERTY_ID",
+    ),
+    createdAt: environmentValue("NOTION_FEEDBACK_CREATED_AT_PROPERTY_ID"),
+    updatedAt: environmentValue("NOTION_FEEDBACK_UPDATED_AT_PROPERTY_ID"),
+  };
+}
+
 function environmentValue(
   name: string,
   command: "setup" | "doctor" = "doctor",
@@ -108,7 +140,7 @@ function environmentValue(
   const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(
-      `${name} is required for enabled Changelog ${command} checks. No changes were made.`,
+      `${name} is required for ${command}. No changes were made.`,
     );
   }
   return value;

@@ -10,6 +10,8 @@ When Turnstile is configured, the first participation action issues a signed Par
 
 Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, Trending temporarily aliases that exact ordering, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
 
+Comments use unverified Device Profile names and native Notion threads. Resolved Comments are hidden. Changelog images are managed directly in Notion and temporary file references are discarded or refreshed before expiry. See [Notion-native participation guarantees](docs/notion-native-participation.md) for later enablement, rotation, recovery, and API boundaries.
+
 ## Features
 
 - **TypeScript** - For type safety and improved developer experience
@@ -89,9 +91,7 @@ run the guided Notion and Cloudflare proof:
 ./scripts/prove-manual-production.sh
 ```
 
-The repeatable checklist, security boundaries, recovery steps, and deferred
-custom-domain procedure are in
-[the manual production proof runbook](docs/manual-production-proof.md).
+Use [version 0.2.0 acceptance](docs/version-0.2.0-acceptance.md) for the repeatable capability matrix, security boundaries, and dedicated Workspace checks.
 
 ## Project contract
 

@@ -29,4 +29,4 @@ Each behavior is implemented as one failing test followed by the minimum code ne
 - Production build
 - `wrangler deploy --dry-run`
 
-Broad UI suites, automated multi-browser tests, and live-Notion CI are deferred. Before a release, perform a manual browser smoke test and a real read/write/trash cycle against a dedicated Notion test workspace.
+Broad UI suites, automated multi-browser tests, and live-Notion CI are deferred. Before a release, perform the browser, production Worker, capability opt-out, and real read/write/reply/resolve/trash cycle in [version 0.2.0 acceptance](docs/version-0.2.0-acceptance.md) against a dedicated Notion test workspace.

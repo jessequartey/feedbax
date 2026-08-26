@@ -10,7 +10,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@feedbax/ui/components/empty";
-import { MessageCircle, SearchX } from "lucide-react";
+import { SearchX } from "lucide-react";
 
 import { PostLink } from "./masked-post-link";
 import { PostStatusBadge, PostTypeBadge } from "./post-badges";
@@ -156,15 +156,6 @@ function PostResultRow({
               ) : (
                 <PostStatusBadge status={post.status} />
               )}
-              {features.comments ? (
-                <span
-                  className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground sm:absolute sm:top-1/2 sm:right-5 sm:-translate-y-1/2"
-                  aria-label="Comments unavailable"
-                >
-                  <MessageCircle className="size-4" aria-hidden="true" />
-                  <span aria-hidden="true">—</span>
-                </span>
-              ) : null}
             </span>
           </span>
         </article>
