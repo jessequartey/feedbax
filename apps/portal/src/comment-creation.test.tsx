@@ -149,4 +149,58 @@ describe("Comment creation", () => {
     await screen.findByRole("alert");
     await waitFor(() => expect(renderTurnstile).toHaveBeenCalled());
   });
+
+  it("rolls back an optimistic Comment edit when the server rejects it", async () => {
+    localStorage.setItem(
+      "feedbax:comment-capabilities",
+      JSON.stringify({
+        "comment-1": {
+          capability: "signed-capability",
+          expiresAt: Date.now() + 60_000,
+        },
+      }),
+    );
+    vi.spyOn(window, "prompt").mockReturnValue("Corrected message");
+    let rejectMutation!: (reason: Error) => void;
+    const mutateComment = vi.fn(
+      () =>
+        new Promise<never>((_resolve, reject) => {
+          rejectMutation = reject;
+        }),
+    );
+    render(
+      <PublicPostDetail
+        post={post}
+        comments={{
+          items: [
+            {
+              id: "discussion-1",
+              comments: [
+                {
+                  id: "comment-1",
+                  body: "Original message",
+                  author: { kind: "participant", displayName: "Ari" },
+                  createdAt: new Date("2026-08-25T01:00:00.000Z"),
+                },
+              ],
+            },
+          ],
+        }}
+        mutateComment={mutateComment}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByText("Corrected message")).toBeTruthy();
+    expect(mutateComment).toHaveBeenCalledWith({
+      action: "edit",
+      commentId: "comment-1",
+      commentCapability: "signed-capability",
+      body: "Corrected message",
+    });
+    rejectMutation(new Error("Notion rejected the update. Try again."));
+    await screen.findByRole("alert");
+    expect(screen.getByText("Original message")).toBeTruthy();
+    expect(screen.queryByText("Corrected message")).toBeNull();
+  });
 });

@@ -35,6 +35,8 @@ export interface CommentStorage {
     items: StoredComment[];
     nextCursor?: string;
   }>;
+  updateComment(commentId: string, body: string): Promise<StoredComment>;
+  deleteComment(commentId: string): Promise<void>;
 }
 
 export function createNotionCommentStorage({
@@ -90,6 +92,39 @@ export function createNotionCommentStorage({
         throw new Error("Notion returned an invalid Comment cursor.");
       return { items, ...(nextCursor ? { nextCursor } : {}) };
     },
+    async updateComment(commentId, body) {
+      const response = await requestNotion(
+        `${NOTION_API_URL}/comments/${encodeURIComponent(commentId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "Notion-Version": NOTION_API_VERSION,
+          },
+          body: JSON.stringify({
+            rich_text: [{ type: "text", text: { content: body } }],
+          }),
+        },
+        { request, retry, operation: "idempotent" },
+      );
+      if (!response.ok) throw commentMutationFailure(response.status, "update");
+      return commentFromNotion(await response.json(), "");
+    },
+    async deleteComment(commentId) {
+      const response = await requestNotion(
+        `${NOTION_API_URL}/comments/${encodeURIComponent(commentId)}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Notion-Version": NOTION_API_VERSION,
+          },
+        },
+        { request, retry, operation: "idempotent" },
+      );
+      if (!response.ok) throw commentMutationFailure(response.status, "delete");
+    },
   };
 
   async function createComment(input: {
@@ -132,6 +167,14 @@ export function createNotionCommentStorage({
   }
 }
 
+function commentMutationFailure(status: number, action: "update" | "delete") {
+  return new Error(
+    status === 403
+      ? `Notion does not grant permission to ${action} this Comment. Only Comments created by this connection can be changed.`
+      : `Notion rejected the Comment ${action} (${status}). The Comment may have been resolved or deleted.`,
+  );
+}
+
 function commentFromNotion(value: unknown, postId: string): StoredComment {
   if (!isRecord(value)) throw new Error("Notion returned an invalid Comment.");
   const id = requiredString(value.id, "Comment ID");
@@ -143,7 +186,10 @@ function commentFromNotion(value: unknown, postId: string): StoredComment {
     throw new Error("Notion returned an invalid Comment created time.");
   const parent = value.parent;
   const pageLevel =
-    isRecord(parent) && parent.type === "page_id" && parent.page_id === postId;
+    !postId ||
+    (isRecord(parent) &&
+      parent.type === "page_id" &&
+      parent.page_id === postId);
   const richText = Array.isArray(value.rich_text) ? value.rich_text : [];
   const body = richText
     .map((part) =>

@@ -6,7 +6,7 @@ Feedbax Core is the open-source, self-hostable Feedbax application. Its initial 
 
 In the Notion-only Profile, Votes are browser-remembered convenience state backed by an absolute `Vote Count` Number property in Notion. They are not verified one-person-one-vote records: clearing browser storage, retries, and concurrent writes from separate Worker instances can cause duplicate or drifting counts. One Worker instance serializes changes per Post, but Notion provides no atomic increment across instances.
 
-When Turnstile is configured, the first participation action issues a signed Participation Pass valid for 30 minutes. Setup stores its generated `PARTICIPATION_SIGNING_SECRET` outside typed public configuration; rotating that secret invalidates outstanding passes.
+When Turnstile is configured, the first participation action issues a signed Participation Pass valid for 30 minutes. Confirmed Participant Comments receive a browser-held Comment Capability valid for 15 minutes. Setup stores the shared signing secret outside typed public configuration; rotating `PARTICIPATION_SIGNING_SECRET` invalidates all outstanding Participation Passes and Comment Capabilities.
 
 Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, Trending temporarily aliases that exact ordering, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
 

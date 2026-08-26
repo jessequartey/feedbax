@@ -193,6 +193,15 @@ export interface CreatedComment extends Comment {
   discussionId: string;
 }
 
+export interface EditCommentInput {
+  commentId: string;
+  body: string;
+}
+
+export interface DeleteCommentInput {
+  commentId: string;
+}
+
 export class CommentEligibilityError extends Error {
   constructor() {
     super("Comments are available only for Published Posts.");
@@ -342,6 +351,8 @@ export interface FeedbackModule {
   replyToCommentThread(
     input: ReplyToCommentThreadInput,
   ): Promise<CreatedComment>;
+  editComment(input: EditCommentInput): Promise<CreatedComment>;
+  deleteComment(input: DeleteCommentInput): Promise<void>;
   changeVote(input: ChangeVoteInput): Promise<VoteResult>;
   submitPost(input: SubmitPostInput): Promise<SubmittedPost>;
   editDraftPost(input: EditDraftPostInput): Promise<Post>;
@@ -457,6 +468,16 @@ export function createFeedbackModule(
           displayName,
         }),
       );
+    },
+    async editComment(input) {
+      const body = input.body.trim();
+      if (!body) throw new CommentValidationError("Comment text is required.");
+      return toCreatedComment(
+        await commentStorage.updateComment(input.commentId, body),
+      );
+    },
+    deleteComment(input) {
+      return commentStorage.deleteComment(input.commentId);
     },
     async listCommentThreads({ slug, cursor }) {
       if (!commentsEnabled) return { items: [] };
@@ -673,6 +694,26 @@ function createInMemoryCommentStorage(
           ? { nextCursor: last.id }
           : {}),
       };
+    },
+    async updateComment(commentId, body) {
+      const index = comments.findIndex((comment) => comment.id === commentId);
+      const comment = comments[index];
+      if (!comment || comment.resolved)
+        throw new Error("Comment is no longer open.");
+      if (comment.author.kind !== "participant")
+        throw new Error("Product Team Comments cannot be changed.");
+      const updated = { ...comment, body };
+      comments[index] = updated;
+      return structuredClone(updated);
+    },
+    async deleteComment(commentId) {
+      const index = comments.findIndex((comment) => comment.id === commentId);
+      const comment = comments[index];
+      if (!comment || comment.resolved)
+        throw new Error("Comment is no longer open.");
+      if (comment.author.kind !== "participant")
+        throw new Error("Product Team Comments cannot be changed.");
+      comments.splice(index, 1);
     },
   };
 }

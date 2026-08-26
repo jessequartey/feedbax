@@ -37,6 +37,7 @@ export function createPublicPostRoute({
         post={data.post}
         comments={comments}
         submitComment={submitPublicComment}
+        mutateComment={mutatePublicComment}
         loadMore={
           loadComments && comments.nextCursor
             ? async () => {
@@ -102,10 +103,55 @@ export async function submitPublicComment(input: PortalCommentRequest) {
   const createdAt = new Date(String(Reflect.get(comment, "createdAt")));
   if (Number.isNaN(createdAt.getTime()))
     throw new Error("Comment could not be confirmed. Try again.");
+  const commentCapability = Reflect.get(result, "commentCapability");
+  const commentCapabilityExpiresAt = Reflect.get(
+    result,
+    "commentCapabilityExpiresAt",
+  );
   return {
     ...comment,
     createdAt,
-  } as import("@feedbax/feedback").CreatedComment;
+    ...(typeof commentCapability === "string" &&
+    typeof commentCapabilityExpiresAt === "number"
+      ? { commentCapability, commentCapabilityExpiresAt }
+      : {}),
+  } as import("./public-post-detail").ConfirmedPortalComment;
+}
+
+export async function mutatePublicComment(input: {
+  action: "edit" | "delete";
+  commentId: string;
+  commentCapability: string;
+  body?: string;
+}) {
+  const participationPass = sessionStorage.getItem(
+    "feedbax:participation-pass",
+  );
+  const response = await fetch("/internal/comments", {
+    method: input.action === "edit" ? "PATCH" : "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...input,
+      ...(participationPass ? { participationPass } : {}),
+    }),
+  });
+  const result: unknown = await response.json();
+  if (!response.ok) {
+    const code =
+      result && typeof result === "object"
+        ? Reflect.get(result, "code")
+        : undefined;
+    if (code === "verification_required")
+      sessionStorage.removeItem("feedbax:participation-pass");
+    const message =
+      result &&
+      typeof result === "object" &&
+      typeof Reflect.get(result, "error") === "string"
+        ? Reflect.get(result, "error")
+        : "Comment could not be changed. Try again.";
+    throw new Error(message as string);
+  }
+  return result;
 }
 
 function mergeCommentThreads(

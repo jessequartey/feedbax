@@ -1,4 +1,4 @@
-import type { CommentThreadPage, PublicPost } from "@feedbax/feedback";
+import type { Comment, CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
 import {
   Empty,
@@ -25,6 +25,12 @@ import { VoteToggle } from "./vote-toggle";
 import type { PortalCommentRequest } from "./portal-comments";
 
 const emptyCommentPage: CommentThreadPage = { items: [] };
+const commentCapabilitiesKey = "feedbax:comment-capabilities";
+
+export type ConfirmedPortalComment = CreatedComment & {
+  commentCapability?: string;
+  commentCapabilityExpiresAt?: number;
+};
 
 export function PublicPostDetail({
   post,
@@ -35,6 +41,7 @@ export function PublicPostDetail({
   comments = emptyCommentPage,
   loadMore,
   submitComment,
+  mutateComment,
   turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
     string | undefined,
 }: {
@@ -45,7 +52,15 @@ export function PublicPostDetail({
   features?: PortalFeatures;
   comments?: CommentThreadPage;
   loadMore?: () => Promise<void>;
-  submitComment?: (input: PortalCommentRequest) => Promise<CreatedComment>;
+  submitComment?: (
+    input: PortalCommentRequest,
+  ) => Promise<ConfirmedPortalComment>;
+  mutateComment?: (input: {
+    action: "edit" | "delete";
+    commentId: string;
+    commentCapability: string;
+    body?: string;
+  }) => Promise<unknown>;
   turnstileSiteKey?: string;
 }) {
   const id = useId();
@@ -55,6 +70,9 @@ export function PublicPostDetail({
   const [localComments, setLocalComments] = useState(comments.items);
   const [commentError, setCommentError] = useState<string>();
   const [replyingTo, setReplyingTo] = useState<string>();
+  const [commentCapabilities, setCommentCapabilities] = useState<
+    Record<string, StoredCommentCapability>
+  >({});
   const turnstileContainer = useRef<HTMLDivElement>(null);
   const turnstileWidget = useRef<string | undefined>(undefined);
 
@@ -63,6 +81,25 @@ export function PublicPostDetail({
       mergeConfirmedComments(current, comments.items),
     );
   }, [comments.items]);
+
+  useEffect(() => {
+    const refresh = () => {
+      const now = Date.now();
+      const current = readStoredCommentCapabilities(window.localStorage);
+      setCommentCapabilities(
+        Object.fromEntries(
+          Object.entries(current).filter(([, value]) => value.expiresAt > now),
+        ),
+      );
+    };
+    refresh();
+    window.addEventListener("storage", refresh);
+    const timer = window.setInterval(refresh, 1_000);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -143,12 +180,61 @@ export function PublicPostDetail({
       setLocalComments((current) =>
         replaceComment(current, optimisticId, confirmed),
       );
+      if (confirmed.commentCapability && confirmed.commentCapabilityExpiresAt)
+        setCommentCapabilities(
+          saveCommentCapability(
+            localStorage,
+            confirmed.id,
+            confirmed.commentCapability,
+            confirmed.commentCapabilityExpiresAt,
+          ),
+        );
     } catch (error) {
       setLocalComments((current) => removeComment(current, optimisticId));
       setCommentError(
         error instanceof Error
           ? error.message
           : "Comment could not be saved. Try again.",
+      );
+    }
+  }
+
+  async function changeComment(
+    action: "edit" | "delete",
+    comment: Comment & { discussionId: string },
+  ) {
+    if (!mutateComment) return;
+    const owned = readCommentCapability(localStorage, comment.id, Date.now());
+    if (!owned) return;
+    const body =
+      action === "edit"
+        ? window.prompt("Edit Comment", comment.body)?.trim()
+        : undefined;
+    if (action === "edit" && !body) return;
+    const previous = localComments;
+    setCommentError(undefined);
+    setLocalComments((current) =>
+      action === "delete"
+        ? removeComment(current, comment.id)
+        : replaceComment(current, comment.id, { ...comment, body: body! }),
+    );
+    try {
+      await mutateComment({
+        action,
+        commentId: comment.id,
+        commentCapability: owned.capability,
+        ...(body ? { body } : {}),
+      });
+      if (action === "delete")
+        setCommentCapabilities(
+          removeStoredCommentCapability(localStorage, comment.id),
+        );
+    } catch (error) {
+      setLocalComments(previous);
+      setCommentError(
+        error instanceof Error
+          ? error.message
+          : "Comment could not be changed. Try again.",
       );
     }
   }
@@ -208,6 +294,32 @@ export function PublicPostDetail({
                             </time>
                           </header>
                           <p>{comment.body}</p>
+                          {mutateComment && commentCapabilities[comment.id] ? (
+                            <div className="comment-actions">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void changeComment("edit", {
+                                    ...comment,
+                                    discussionId: thread.id,
+                                  })
+                                }
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void changeComment("delete", {
+                                    ...comment,
+                                    discussionId: thread.id,
+                                  })
+                                }
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                       {submitComment ? (
@@ -382,4 +494,61 @@ function mergeConfirmedComments(
     merged.set(thread.id, { ...existing, comments: [...comments.values()] });
   }
   return [...merged.values()];
+}
+
+interface StoredCommentCapability {
+  capability: string;
+  expiresAt: number;
+}
+
+function readStoredCommentCapabilities(storage: Storage) {
+  try {
+    const value: unknown = JSON.parse(
+      storage.getItem(commentCapabilitiesKey) ?? "{}",
+    );
+    return value && typeof value === "object"
+      ? (value as Record<string, StoredCommentCapability>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCommentCapability(
+  storage: Storage,
+  commentId: string,
+  capability: string,
+  expiresAt: number,
+) {
+  const capabilities = {
+    ...readStoredCommentCapabilities(storage),
+    [commentId]: { capability, expiresAt },
+  };
+  storage.setItem(commentCapabilitiesKey, JSON.stringify(capabilities));
+  return capabilities;
+}
+
+function readCommentCapability(
+  storage: Storage,
+  commentId: string,
+  now: number,
+) {
+  const value = readStoredCommentCapabilities(storage)[commentId];
+  if (
+    !value ||
+    typeof value.capability !== "string" ||
+    typeof value.expiresAt !== "number" ||
+    value.expiresAt <= now
+  ) {
+    if (value) removeStoredCommentCapability(storage, commentId);
+    return undefined;
+  }
+  return value;
+}
+
+function removeStoredCommentCapability(storage: Storage, commentId: string) {
+  const capabilities = readStoredCommentCapabilities(storage);
+  delete capabilities[commentId];
+  storage.setItem(commentCapabilitiesKey, JSON.stringify(capabilities));
+  return capabilities;
 }

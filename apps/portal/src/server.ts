@@ -7,7 +7,10 @@ import { createCloudflareTurnstileVerifier } from "./cloudflare-turnstile";
 import feedbax from "./feedbax";
 import { ActionablePortalFailure } from "./safe-public-failure";
 import { VoteEligibilityError } from "@feedbax/feedback";
-import { createPortalCommentRequestHandler } from "./portal-comments";
+import {
+  createPortalCommentMutationRequestHandler,
+  createPortalCommentRequestHandler,
+} from "./portal-comments";
 
 export default createPortalServerEntry({
   commentHandler: (request) => {
@@ -26,8 +29,25 @@ export default createPortalServerEntry({
             participationSigningSecret: env.PARTICIPATION_SIGNING_SECRET,
           }
         : {}),
+      participationSigningSecret: env.PARTICIPATION_SIGNING_SECRET,
     })(request);
   },
+  commentMutationHandler: (request) =>
+    createPortalCommentMutationRequestHandler({
+      feedback: createConfiguredFeedbackModule(),
+      commentsEnabled: feedbax.features.comments,
+      rateLimiter: env.PORTAL_SUBMISSIONS_RATE_LIMITER,
+      rateLimitKey:
+        request.headers.get("CF-Connecting-IP") ?? "unknown-participant-ip",
+      ...(env.TURNSTILE_SECRET_KEY?.trim()
+        ? {
+            turnstileVerifier: createCloudflareTurnstileVerifier({
+              secretKey: env.TURNSTILE_SECRET_KEY.trim(),
+            }),
+          }
+        : {}),
+      participationSigningSecret: env.PARTICIPATION_SIGNING_SECRET,
+    })(request),
   voteHandler: async (request) => {
     try {
       const turnstileSecret = env.TURNSTILE_SECRET_KEY?.trim();

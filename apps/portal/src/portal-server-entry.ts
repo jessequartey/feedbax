@@ -11,11 +11,13 @@ export function createPortalServerEntry({
   trustedFeedbackHandler,
   voteHandler,
   commentHandler,
+  commentMutationHandler,
   applicationHandler = startHandler.fetch,
 }: {
   trustedFeedbackHandler: (request: Request) => Promise<Response>;
   voteHandler?: (request: Request) => Promise<Response>;
   commentHandler?: (request: Request) => Promise<Response>;
+  commentMutationHandler?: (request: Request) => Promise<Response>;
   applicationHandler?: typeof startHandler.fetch;
 }) {
   return createServerEntry({
@@ -43,6 +45,13 @@ export function createPortalServerEntry({
         commentHandler
       ) {
         return commentHandler(request);
+      }
+      if (
+        (request.method === "PATCH" || request.method === "DELETE") &&
+        url.pathname === "/internal/comments" &&
+        commentMutationHandler
+      ) {
+        return commentMutationHandler(request);
       }
       const canonicalRequest = canonicalPublicRequest(request);
       if (canonicalRequest) {

@@ -108,6 +108,54 @@ describe("Notion Comment HTTP boundary", () => {
       "Enable read comment content for the connection, then retry.",
     );
   });
+
+  it("updates and deletes native Comments", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(notionComment({ id: "comment-1" })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const comments = createNotionCommentStorage({
+      token: "notion-token",
+      dataSourceId: "feedback",
+      propertyIds: {} as never,
+      request,
+    });
+
+    await comments.updateComment("comment-1", "Corrected message");
+    await comments.deleteComment("comment-1");
+
+    expect(String(request.mock.calls[0]?.[0])).toBe(
+      "https://api.notion.com/v1/comments/comment-1",
+    );
+    expect(request.mock.calls[0]?.[1]).toMatchObject({
+      method: "PATCH",
+      body: JSON.stringify({
+        rich_text: [{ type: "text", text: { content: "Corrected message" } }],
+      }),
+    });
+    expect(request.mock.calls[1]).toMatchObject([
+      "https://api.notion.com/v1/comments/comment-1",
+      expect.objectContaining({ method: "DELETE" }),
+    ]);
+  });
+
+  it("returns actionable permission failures for native Comment mutations", async () => {
+    const comments = createNotionCommentStorage({
+      token: "notion-token",
+      dataSourceId: "feedback",
+      propertyIds: {} as never,
+      request: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 403 })),
+    });
+
+    await expect(
+      comments.updateComment("comment-1", "Updated"),
+    ).rejects.toThrow("permission to update this Comment");
+    await expect(comments.deleteComment("comment-1")).rejects.toThrow(
+      "permission to delete this Comment",
+    );
+  });
 });
 
 function notionComment(overrides: Record<string, unknown>) {
