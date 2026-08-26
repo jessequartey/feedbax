@@ -1,6 +1,9 @@
 import { defineFeedbax } from "@feedbax/config";
 
 export default defineFeedbax({
+  product: {
+    logo: "/feedbax-mark.svg",
+  },
   features: {
     voting: true,
     comments: true,

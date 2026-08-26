@@ -1,5 +1,5 @@
 import type { PublicPost } from "@feedbax/feedback";
-import { ArrowUp } from "lucide-react";
+import { ChevronUp } from "lucide-react";
 import { useContext, useEffect, useRef, useState } from "react";
 import { QueryClientContext } from "@tanstack/react-query";
 import { readVotedPostSlugs, persistVotedPost } from "./browser-vote-state";
@@ -183,13 +183,14 @@ export function VoteToggle({
       onSubmit={(event) => event.preventDefault()}
     >
       <button
+        className="vote-toggle-button"
         type="button"
         aria-pressed={voted}
         aria-label={`${voted ? "Remove Vote" : "Add Vote"}, ${count} Votes`}
         disabled={pending}
         onClick={toggle}
       >
-        <ArrowUp aria-hidden="true" /> {count}
+        <ChevronUp aria-hidden="true" /> {count}
       </button>
       {turnstileSiteKey && !participationPass ? (
         <div

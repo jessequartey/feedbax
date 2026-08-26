@@ -30,7 +30,7 @@ function publishedFeedback() {
 }
 
 describe("portal Comment handler", () => {
-  it("requires an unverified Device Profile name and omits email from the command", async () => {
+  it("requires an unverified Device Profile name and valid email while omitting email from the command", async () => {
     const feedback = publishedFeedback();
     const comment = createPortalCommentRequestHandler({
       feedback,
@@ -78,6 +78,24 @@ describe("portal Comment handler", () => {
     await expect(missingProfile.json()).resolves.toMatchObject({
       error: expect.stringContaining("display name is required"),
     });
+
+    for (const email of [undefined, "not-an-email"]) {
+      const response = await comment(
+        new Request("https://portal.test/internal/comments", {
+          method: "POST",
+          body: JSON.stringify({
+            slug: "post",
+            body: "Hello",
+            displayName: "Ari",
+            email,
+          }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: expect.stringContaining("valid email is required"),
+      });
+    }
   });
 
   it("creates replies, rate-limits writes, and reuses a thirty-minute Participation Pass", async () => {
@@ -97,6 +115,7 @@ describe("portal Comment handler", () => {
       slug: "post",
       body: "Top level",
       displayName: "Ari",
+      email: "private@example.com",
       turnstileToken: "verified",
     });
     now += 29 * 60 * 1_000;
@@ -105,6 +124,7 @@ describe("portal Comment handler", () => {
       discussionId: first.comment.discussionId,
       body: "Reply",
       displayName: "Ari",
+      email: "private@example.com",
       participationPass: first.participationPass,
     });
 
@@ -122,7 +142,12 @@ describe("portal Comment handler", () => {
       participationSigningSecret: signingSecret,
     });
     await expect(
-      comment({ slug: "post", body: "Hello", displayName: "Ari" }),
+      comment({
+        slug: "post",
+        body: "Hello",
+        displayName: "Ari",
+        email: "private@example.com",
+      }),
     ).rejects.toThrow("Comment rate limit exceeded");
   });
 
@@ -142,6 +167,7 @@ describe("portal Comment handler", () => {
       slug: "post",
       body: "Original",
       displayName: "Ari",
+      email: "private@example.com",
     });
     expect(created.commentCapability).toEqual(expect.any(String));
 
@@ -186,11 +212,13 @@ describe("portal Comment handler", () => {
       slug: "post",
       body: "First",
       displayName: "Ari",
+      email: "private@example.com",
     });
     const second = await create({
       slug: "post",
       body: "Second",
       displayName: "Ari",
+      email: "private@example.com",
     });
     const mutate = createPortalCommentMutationHandler({
       feedback,
@@ -216,7 +244,7 @@ describe("portal Comment handler", () => {
         commentCapability: `${first.commentCapability}x`,
       }),
     ).rejects.toThrow(rejected);
-    now += 15 * 60 * 1_000 + 1;
+    now = first.commentCapabilityExpiresAt;
     await expect(
       mutate({
         action: "delete",

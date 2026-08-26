@@ -70,6 +70,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("public portal shell", () => {
+  it("uses the configured product logo in the home link", async () => {
+    renderShell("/");
+
+    const logo = (
+      await screen.findByRole("link", { name: "Feedbax home" })
+    ).querySelector("img");
+    if (!logo) throw new Error("Expected the home link to contain a logo.");
+    expect(logo.getAttribute("src")).toBe("/feedbax-mark.svg");
+  });
+
   it("offers skip navigation and global search on every destination", async () => {
     renderShell("/p/keyboard-first-search");
 
@@ -211,6 +221,32 @@ describe("profile menu", () => {
       expect(readDeviceProfile(localStorage)).toBeUndefined(),
     );
     expect(await screen.findByRole("button", { name: "Profile" })).toBeTruthy();
+  });
+
+  it("lets a Participant add the email required for commenting", async () => {
+    localStorage.setItem(deviceProfileKey, JSON.stringify({ name: "Ama" }));
+    renderShell("/");
+
+    await screen.findByText("Ama");
+    fireEvent.click(await screen.findByRole("button", { name: "Profile" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Edit profile" }),
+    );
+
+    expect(
+      (await screen.findByLabelText("Display name")).getAttribute("value"),
+    ).toBe("Ama");
+    fireEvent.change(screen.getByLabelText("Email (optional)"), {
+      target: { value: "ama@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() =>
+      expect(readDeviceProfile(localStorage)).toEqual({
+        name: "Ama",
+        email: "ama@example.com",
+      }),
+    );
   });
 
   it("keeps theme selection inside the configured profile menu", async () => {

@@ -3,7 +3,7 @@ import { cn } from "@feedbax/ui/lib/utils";
 
 import { CommandPaletteTrigger } from "./command-palette";
 import { ProfileMenu } from "./profile-menu";
-import type { PortalFeatures } from "@feedbax/config";
+import type { PortalFeatures, ProductConfiguration } from "@feedbax/config";
 import feedbax from "../feedbax";
 
 function Navigation({
@@ -42,8 +42,10 @@ function Navigation({
 
 export default function Header({
   features = feedbax.features,
+  product = feedbax.product,
 }: {
   features?: PortalFeatures;
+  product?: ProductConfiguration;
 }) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -64,12 +66,12 @@ export default function Header({
           href="/"
           aria-label="Feedbax home"
         >
-          <span
-            className="grid size-10 place-items-center border bg-muted/40 text-xl font-medium"
+          <img
+            className="size-10 border bg-muted/40 object-contain"
+            src={product.logo}
+            alt=""
             aria-hidden="true"
-          >
-            F
-          </span>
+          />
           Feedbax
         </a>
         <nav

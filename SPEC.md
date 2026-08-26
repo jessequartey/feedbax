@@ -150,7 +150,7 @@ Team Members manage Changelog Entries and their optional image directly in Notio
 
 Voting is available only on Published Posts. A Vote is a reversible add-or-remove intention remembered by the current browser after the server confirms the mutation. The server reads the authoritative Vote Count from Notion, applies the delta, clamps at zero, and serializes changes per Post within one Worker instance. Separate instances can race, so browser memory is convenience rather than verified uniqueness. Top sorts by Vote Count then Created At, both descending; Trending remains the default and temporarily aliases Top; New sorts by Created At descending.
 
-Comments use Notion's native page comment and discussion APIs. A Participant supplies the unverified display name from their Device Profile, while email is omitted from Comment content and public responses. Comments authored in the Product Team's Notion Workspace appear as Product Team Comments regardless of the individual Team Member. Only open Comments are shown, on Post detail pages, 50 at a time; feed and roadmap cards do not fetch Comment counts.
+Comments use Notion's native page comment and discussion APIs. Creating a Comment or reply requires a Device Profile with both a display name and a syntactically valid email address. These details remain unverified: the email requirement is a lightweight participation check, not proof of ownership or Participant identity. Email is omitted from Comment content and public responses. Comments authored in the Product Team's Notion Workspace appear as Product Team Comments regardless of the individual Team Member. Only open Comments are shown, on Post detail pages, 50 at a time; feed and roadmap cards do not fetch Comment counts.
 
 After Notion confirms a Participant Comment or reply, Feedbax returns a signed Comment Capability scoped to that Comment. It permits edit or deletion from the originating browser for fifteen minutes and provides no identity, recovery, or cross-device access. Product Team Comments cannot be changed with Participant capabilities. Resolving or deleting a Comment in Notion removes it from the portal.
 
@@ -192,7 +192,7 @@ The standalone portal exposes:
 
 Public Post search is available from every portal page through one global command palette opened by Cmd/Ctrl+K or a Search button. The palette uses the same public Post query definition and cache family as the feed, opens selected Posts with contextual route masking, and offers Feedback, Roadmap, Changelog, and New post navigation actions. The feed route continues to validate and render a `search` parameter supplied in a URL, but Participant search interactions stay in the palette instead of mutating feed URL state.
 
-A Device Profile stores a required display name and optional email on one device. It applies privately to future submissions only, is not authentication or editing authority, and can be cleared without removing Browser Capabilities.
+A Device Profile stores a required display name and optional email on one device. Both fields are required when creating a Comment or reply, while email remains optional for Post submission. A Device Profile is not authentication, proof of email ownership, or editing authority, and can be cleared without removing Browser Capabilities.
 
 TanStack Router owns validated URL state, route masking, and loader orchestration. Loaders seed the same typed TanStack Query definitions consumed by components, so preload and render share one server-state path. Mutations update or invalidate every affected feed, detail, draft, and roadmap query. Public and capability-authorized Draft Post reads use separate query definitions and cache paths; authorized reads are private and `no-store`, and raw Browser Capabilities never enter Query keys or persisted Query caches.
 
@@ -291,6 +291,7 @@ export default defineFeedbax({
   product: {
     name: "Feedbax",
     description: "Help us build the right product",
+    logo: "/logo.svg",
   },
   theme: {
     preset: "preset-code",

@@ -4,12 +4,18 @@ export type PortalFeatures = {
   readonly changelog: boolean;
 };
 
+export type ProductConfiguration = {
+  readonly logo: string;
+};
+
 export type FeedbaxConfigInput = {
+  readonly product?: Partial<ProductConfiguration>;
   readonly features?: Partial<PortalFeatures>;
   readonly changelog?: ChangelogConfiguration;
 };
 
 export type FeedbaxConfig = {
+  readonly product: ProductConfiguration;
   readonly features: PortalFeatures;
   readonly changelog?: ChangelogConfiguration;
 };
@@ -38,6 +44,9 @@ const defaultFeatures: PortalFeatures = {
   comments: true,
   changelog: true,
 };
+const defaultProduct: ProductConfiguration = {
+  logo: "/feedbax-mark.svg",
+};
 
 const featureKeys = Object.keys(defaultFeatures) as (keyof PortalFeatures)[];
 const changelogPropertyKeys = [
@@ -60,13 +69,39 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
   }
 
   const unknownRootKey = Object.keys(config).find(
-    (key) => key !== "features" && key !== "changelog",
+    (key) => key !== "product" && key !== "features" && key !== "changelog",
   );
   if (unknownRootKey) {
     throw new Error(
       `Unknown Feedbax configuration key "${unknownRootKey}". Remove it from feedbax.ts.`,
     );
   }
+
+  const configuredProduct = config.product;
+  if (configuredProduct !== undefined && !isRecord(configuredProduct)) {
+    throw new Error("product must be an object containing portal branding.");
+  }
+  const productInput = configuredProduct ?? {};
+  const unknownProductKey = Object.keys(productInput).find(
+    (key) => key !== "logo",
+  );
+  if (unknownProductKey) {
+    throw new Error(
+      `Unknown product configuration key "${unknownProductKey}".`,
+    );
+  }
+  if (
+    productInput.logo !== undefined &&
+    (typeof productInput.logo !== "string" || !productInput.logo.trim())
+  ) {
+    throw new Error("product.logo must be a non-empty asset URL.");
+  }
+  const product: ProductConfiguration = {
+    ...defaultProduct,
+    ...(typeof productInput.logo === "string"
+      ? { logo: productInput.logo.trim() }
+      : {}),
+  };
 
   const configuredFeatures = config.features;
   if (configuredFeatures !== undefined && !isRecord(configuredFeatures)) {
@@ -99,7 +134,7 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
       "Changelog is enabled but changelog storage is not configured. Add changelog database/data-source identifiers and property IDs, or set features.changelog to false.",
     );
   }
-  return { features, ...(changelog ? { changelog } : {}) };
+  return { product, features, ...(changelog ? { changelog } : {}) };
 }
 
 function validateChangelogConfiguration(

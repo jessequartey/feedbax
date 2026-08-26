@@ -7,6 +7,8 @@ import {
   EmptyTitle,
 } from "@feedbax/ui/components/empty";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
+import { Button } from "@feedbax/ui/components/button";
+import { Textarea } from "@feedbax/ui/components/textarea";
 import { ArrowLeft, MessageCircle } from "lucide-react";
 import {
   type FormEvent,
@@ -23,6 +25,7 @@ import { formatPublicDate } from "./public-date";
 import feedbax from "./feedbax";
 import { VoteToggle } from "./vote-toggle";
 import type { PortalCommentRequest } from "./portal-comments";
+import { isValidCommentEmail } from "./comment-profile";
 
 const emptyCommentPage: CommentThreadPage = { items: [] };
 const commentCapabilitiesKey = "feedbax:comment-capabilities";
@@ -143,8 +146,10 @@ export function PublicPostDetail({
     const form = new FormData(event.currentTarget);
     const body = String(form.get("body") ?? "").trim();
     const profile = readDeviceProfile(window.localStorage);
-    if (!profile) {
-      setCommentError("Set a Device Profile display name before commenting.");
+    if (!isValidCommentEmail(profile?.email)) {
+      setCommentError(
+        "Add a display name and valid email to your Device Profile before commenting.",
+      );
       return;
     }
     if (!body) return;
@@ -167,6 +172,7 @@ export function PublicPostDetail({
         slug: post.slug,
         body,
         displayName: profile.name,
+        email: profile.email,
         ...(replyingTo ? { discussionId: replyingTo } : {}),
         ...(turnstileToken ? { turnstileToken: String(turnstileToken) } : {}),
         ...(sessionStorage.getItem("feedbax:participation-pass")
@@ -335,11 +341,29 @@ export function PublicPostDetail({
                 </div>
               )}
               {submitComment ? (
-                <form onSubmit={createComment}>
-                  <label htmlFor={`${id}-comment-body`}>
+                <form
+                  className="comment-composer"
+                  aria-label="Comment composer"
+                  onSubmit={createComment}
+                >
+                  <label
+                    className="comment-composer-label"
+                    htmlFor={`${id}-comment-body`}
+                  >
                     {replyingTo ? "Write a reply" : "Add a comment"}
                   </label>
-                  <textarea id={`${id}-comment-body`} name="body" required />
+                  <p className="comment-composer-hint">
+                    Your display name is public. Your email is used only to
+                    unlock commenting and is never shown.
+                  </p>
+                  <Textarea
+                    className="comment-composer-input"
+                    id={`${id}-comment-body`}
+                    name="body"
+                    rows={4}
+                    placeholder="Share context, an example, or a question…"
+                    required
+                  />
                   {turnstileSiteKey &&
                   !sessionStorage.getItem("feedbax:participation-pass") ? (
                     <div
@@ -359,17 +383,20 @@ export function PublicPostDetail({
                       data-sitekey={turnstileSiteKey}
                     />
                   ) : null}
-                  <button type="submit">
-                    {replyingTo ? "Post reply" : "Post comment"}
-                  </button>
-                  {replyingTo ? (
-                    <button
-                      type="button"
-                      onClick={() => setReplyingTo(undefined)}
-                    >
-                      Cancel reply
-                    </button>
-                  ) : null}
+                  <div className="comment-composer-actions">
+                    <Button type="submit">
+                      {replyingTo ? "Post reply" : "Post comment"}
+                    </Button>
+                    {replyingTo ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setReplyingTo(undefined)}
+                      >
+                        Cancel reply
+                      </Button>
+                    ) : null}
+                  </div>
                 </form>
               ) : null}
               {commentError ? <p role="alert">{commentError}</p> : null}

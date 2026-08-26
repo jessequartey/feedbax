@@ -1,28 +1,48 @@
 import { useEffect, useState } from "react";
-import type { PublicPost } from "@feedbax/feedback";
+import type { CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import { ExternalLink } from "lucide-react";
 
-import { getPublicPost } from "./public-post-server-function";
+import {
+  getPublicPost,
+  getPublicPostComments,
+} from "./public-post-server-function";
 import {
   PublicPostDetail,
   PublicPostDetailSkeleton,
 } from "./public-post-detail";
 import { AuthorizedDraftPost } from "./authorized-draft-post";
+import { mutatePublicComment, submitPublicComment } from "./public-post-route";
+import { mergeCommentThreads } from "./comment-thread-page";
+
+type OverlayDetail = {
+  post: PublicPost | null;
+  comments: CommentThreadPage;
+};
 
 export function OverlayPostDetail({ slug }: { slug: string }) {
-  const [post, setPost] = useState<PublicPost | null>();
+  const [detail, setDetail] = useState<OverlayDetail>();
   useEffect(() => {
     let current = true;
-    setPost(undefined);
+    setDetail(undefined);
     getPublicPost({ data: { slug } })
-      .then((value) => current && setPost(value))
-      .catch(() => current && setPost(null));
+      .then(async (post) => ({
+        post: post ?? null,
+        comments: post
+          ? await getPublicPostComments({ data: { slug } }).catch(() => ({
+              items: [],
+            }))
+          : { items: [] },
+      }))
+      .then((value) => current && setDetail(value))
+      .catch(
+        () => current && setDetail({ post: null, comments: { items: [] } }),
+      );
     return () => {
       current = false;
     };
   }, [slug]);
 
-  if (post === undefined) return <PublicPostDetailSkeleton />;
+  if (detail === undefined) return <PublicPostDetailSkeleton />;
   return (
     <div className="overlay-post-detail">
       <a
@@ -31,8 +51,39 @@ export function OverlayPostDetail({ slug }: { slug: string }) {
       >
         Open full page <ExternalLink aria-hidden="true" />
       </a>
-      {post ? (
-        <PublicPostDetail post={post} display="overlay" />
+      {detail.post ? (
+        <PublicPostDetail
+          post={detail.post}
+          display="overlay"
+          comments={detail.comments}
+          submitComment={submitPublicComment}
+          mutateComment={mutatePublicComment}
+          loadMore={
+            detail.comments.nextCursor
+              ? async () => {
+                  const next = await getPublicPostComments({
+                    data: { slug, cursor: detail.comments.nextCursor },
+                  });
+                  setDetail((current) =>
+                    current
+                      ? {
+                          ...current,
+                          comments: {
+                            items: mergeCommentThreads(
+                              current.comments.items,
+                              next.items,
+                            ),
+                            ...(next.nextCursor
+                              ? { nextCursor: next.nextCursor }
+                              : {}),
+                          },
+                        }
+                      : current,
+                  );
+                }
+              : undefined
+          }
+        />
       ) : (
         <AuthorizedDraftPost slug={slug} />
       )}

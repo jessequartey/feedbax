@@ -106,30 +106,34 @@ export function ProfileMenu() {
             </DropdownMenuGroup>
             <ThemeMenuItems />
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setSetupOpen(true)}>
+              Edit profile
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={clearProfile}>
               Clear profile
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <>
-          <Button
-            aria-label="Profile"
-            className="h-11 gap-2 px-3 md:h-10"
-            variant="outline"
-            type="button"
-            onClick={() => setSetupOpen(true)}
-          >
-            <UserCircle aria-hidden="true" />
-            <span className="hidden sm:inline">User</span>
-          </Button>
-          <ProfileSetupDialog
-            open={setupOpen}
-            onOpenChange={setSetupOpen}
-            onSave={saveProfile}
-          />
-        </>
+        <Button
+          aria-label="Profile"
+          className="h-11 gap-2 px-3 md:h-10"
+          variant="outline"
+          type="button"
+          onClick={() => setSetupOpen(true)}
+        >
+          <UserCircle aria-hidden="true" />
+          <span className="hidden sm:inline">User</span>
+        </Button>
       )}
+      {setupOpen ? (
+        <ProfileSetupDialog
+          initialProfile={profile}
+          open
+          onOpenChange={setSetupOpen}
+          onSave={saveProfile}
+        />
+      ) : null}
     </>
   );
 }
@@ -149,16 +153,21 @@ function ThemeMenuItems() {
 }
 
 function ProfileSetupDialog({
+  initialProfile,
   open,
   onOpenChange,
   onSave,
 }: {
+  initialProfile?: DeviceProfile;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (profile: DeviceProfile) => void;
 }) {
   const form = useForm({
-    defaultValues: { name: "", email: "" },
+    defaultValues: {
+      name: initialProfile?.name ?? "",
+      email: initialProfile?.email ?? "",
+    },
     validators: { onSubmit: profileSchema },
     onSubmit: ({ value }) => {
       const email = value.email.trim();
@@ -239,7 +248,11 @@ function ProfileSetupDialog({
                     />
                     {isInvalid ? (
                       <FieldError errors={field.state.meta.errors} />
-                    ) : null}
+                    ) : (
+                      <FieldDescription>
+                        Optional for submissions; required to comment.
+                      </FieldDescription>
+                    )}
                   </Field>
                 );
               }}

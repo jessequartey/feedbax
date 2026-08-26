@@ -27,6 +27,19 @@ afterEach(() => {
 });
 
 describe("Comment creation", () => {
+  it("renders a clearly identified Comment composer", () => {
+    render(<PublicPostDetail post={post} submitComment={vi.fn()} />);
+
+    const composer = screen.getByRole("form", { name: "Comment composer" });
+    expect(composer.classList.contains("comment-composer")).toBe(true);
+    expect(screen.getByLabelText("Add a comment").getAttribute("rows")).toBe(
+      "4",
+    );
+    expect(
+      screen.getByPlaceholderText("Share context, an example, or a question…"),
+    ).toBeTruthy();
+  });
+
   it("deserializes Notion confirmation and clears a rejected Participation Pass", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({
@@ -43,6 +56,7 @@ describe("Comment creation", () => {
       slug: "roadmap-search",
       body: "Confirmed",
       displayName: "Ari",
+      email: "private@example.com",
     });
     expect(confirmed.createdAt).toEqual(new Date("2026-08-25T01:00:00.000Z"));
 
@@ -61,6 +75,7 @@ describe("Comment creation", () => {
         slug: "roadmap-search",
         body: "Retry",
         displayName: "Ari",
+        email: "private@example.com",
         participationPass: "expired",
       }),
     ).rejects.toThrow("verification is required");
@@ -92,6 +107,7 @@ describe("Comment creation", () => {
       slug: "roadmap-search",
       body: "Please add shortcuts.",
       displayName: "Ari",
+      email: "private@example.com",
     });
 
     confirm({
@@ -106,8 +122,27 @@ describe("Comment creation", () => {
     );
   });
 
-  it("rolls back a rejected Comment and shows an actionable error", async () => {
+  it("keeps Comment submission locked until the Device Profile has name and email", async () => {
     saveDeviceProfile(localStorage, { name: "Ari" });
+    const submitComment = vi.fn();
+    render(<PublicPostDetail post={post} submitComment={submitComment} />);
+
+    fireEvent.change(screen.getByLabelText("Add a comment"), {
+      target: { value: "Please add shortcuts." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
+
+    expect(submitComment).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain(
+      "display name and valid email",
+    );
+  });
+
+  it("rolls back a rejected Comment and shows an actionable error", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ari",
+      email: "private@example.com",
+    });
     render(
       <PublicPostDetail
         post={post}
@@ -127,7 +162,10 @@ describe("Comment creation", () => {
   });
 
   it("renders a fresh Turnstile challenge after a stale Participation Pass is rejected", async () => {
-    saveDeviceProfile(localStorage, { name: "Ari" });
+    saveDeviceProfile(localStorage, {
+      name: "Ari",
+      email: "private@example.com",
+    });
     sessionStorage.setItem("feedbax:participation-pass", "expired");
     const renderTurnstile = vi.fn().mockReturnValue("widget-1");
     window.turnstile = { render: renderTurnstile, reset: vi.fn() };

@@ -14,6 +14,7 @@ import {
   verifyParticipationPass,
 } from "./portal-voting";
 import { ActionablePortalFailure } from "./safe-public-failure";
+import { isValidCommentEmail } from "./comment-profile";
 
 export interface PortalCommentResult {
   comment: CreatedComment;
@@ -28,6 +29,7 @@ export interface PortalCommentRequest {
   slug: string;
   body: string;
   displayName: string;
+  email: string;
   discussionId?: string;
   turnstileToken?: string;
   participationPass?: string;
@@ -352,10 +354,16 @@ function validateCommentInput(input: unknown): PortalCommentRequest {
       "Device Profile display name is required before commenting.",
       "profile_required",
     );
+  if (!isValidCommentEmail(value.email))
+    throw new ActionablePortalFailure(
+      "A Device Profile with a valid email is required before commenting.",
+      "profile_required",
+    );
   return {
-    slug: value.slug,
-    body: value.body,
-    displayName: value.displayName,
+    slug: value.slug.trim(),
+    body: value.body.trim(),
+    displayName: value.displayName.trim(),
+    email: value.email.trim(),
     ...(typeof value.discussionId === "string" && value.discussionId
       ? { discussionId: value.discussionId }
       : {}),

@@ -2,6 +2,7 @@ import type { CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import type { PortalCommentRequest } from "./portal-comments";
+import { mergeCommentThreads } from "./comment-thread-page";
 
 import {
   PublicPostDetail,
@@ -152,21 +153,4 @@ export async function mutatePublicComment(input: {
     throw new Error(message as string);
   }
   return result;
-}
-
-function mergeCommentThreads(
-  current: CommentThreadPage["items"],
-  next: CommentThreadPage["items"],
-): CommentThreadPage["items"] {
-  const merged = new Map(current.map((thread) => [thread.id, thread]));
-  for (const thread of next) {
-    const existing = merged.get(thread.id);
-    merged.set(
-      thread.id,
-      existing
-        ? { ...existing, comments: [...existing.comments, ...thread.comments] }
-        : thread,
-    );
-  }
-  return [...merged.values()];
 }

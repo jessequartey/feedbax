@@ -4,10 +4,14 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { OverlayPostDetail } from "./overlay-post-detail";
-import { getPublicPost } from "./public-post-server-function";
+import {
+  getPublicPost,
+  getPublicPostComments,
+} from "./public-post-server-function";
 
 vi.mock("./public-post-server-function", () => ({
   getPublicPost: vi.fn(),
+  getPublicPostComments: vi.fn().mockResolvedValue({ items: [] }),
 }));
 vi.mock("./authorized-draft-post", () => ({
   AuthorizedDraftPost: () => <p>Draft fallback</p>,
@@ -49,6 +53,21 @@ it("shows loading instead of stale content when the requested slug changes", asy
 
 it("shows the designed Post detail with a canonical full-page link", async () => {
   vi.mocked(getPublicPost).mockResolvedValue(firstPost);
+  vi.mocked(getPublicPostComments).mockResolvedValue({
+    items: [
+      {
+        id: "discussion-1",
+        comments: [
+          {
+            id: "comment-1",
+            body: "Visible in the dialog",
+            author: { kind: "participant", displayName: "Ari" },
+            createdAt: new Date("2026-08-25T01:00:00.000Z"),
+          },
+        ],
+      },
+    ],
+  });
 
   render(<OverlayPostDetail slug="first-post" />);
 
@@ -61,10 +80,30 @@ it("shows the designed Post detail with a canonical full-page link", async () =>
   expect(screen.getByRole("complementary", { name: "Details" })).toBeTruthy();
   expect(
     within(screen.getByRole("region", { name: "Comments" })).getByText(
-      "No comments yet",
+      "Visible in the dialog",
     ),
   ).toBeTruthy();
+  expect(screen.getByRole("form", { name: "Comment composer" })).toBeTruthy();
+  expect(getPublicPostComments).toHaveBeenCalledWith({
+    data: { slug: "first-post" },
+  });
   expect(screen.queryByRole("link", { name: "Back to Feedback" })).toBeNull();
+});
+
+it("keeps the Post and Comment composer available when Comment loading fails", async () => {
+  vi.mocked(getPublicPost).mockResolvedValue(firstPost);
+  vi.mocked(getPublicPostComments).mockRejectedValue(
+    new Error("Comments temporarily unavailable"),
+  );
+
+  render(<OverlayPostDetail slug="first-post" />);
+
+  expect(
+    await screen.findByRole("heading", { name: "First Post" }),
+  ).toBeTruthy();
+  expect(screen.getByRole("form", { name: "Comment composer" })).toBeTruthy();
+  expect(screen.getByText("No comments yet")).toBeTruthy();
+  expect(screen.queryByText("Draft fallback")).toBeNull();
 });
 
 const firstPost = {

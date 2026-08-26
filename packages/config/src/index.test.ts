@@ -3,6 +3,27 @@ import { describe, expect, it } from "vitest";
 import { defineFeedbax } from "./index";
 
 describe("Feedbax feature configuration", () => {
+  it("uses the built-in mark until a Deployer assigns a logo", () => {
+    expect(defineFeedbax({ features: { changelog: false } }).product.logo).toBe(
+      "/feedbax-mark.svg",
+    );
+    expect(
+      defineFeedbax({
+        product: { logo: "/brand/acme.svg" },
+        features: { changelog: false },
+      }).product.logo,
+    ).toBe("/brand/acme.svg");
+  });
+
+  it("rejects an empty assigned logo", () => {
+    expect(() =>
+      defineFeedbax({
+        product: { logo: "  " },
+        features: { changelog: false },
+      }),
+    ).toThrow("product.logo must be a non-empty asset URL");
+  });
+
   it("enables every optional capability by default and requires enabled Changelog storage", () => {
     expect(() => defineFeedbax({})).toThrow(
       "Changelog is enabled but changelog storage is not configured",

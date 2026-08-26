@@ -41,6 +41,15 @@ afterEach(() => {
 });
 
 describe("Vote toggle", () => {
+  it("presents a caret in an interactive Vote control", () => {
+    renderVoteToggle();
+
+    const button = screen.getByRole("button", { name: "Add Vote, 2 Votes" });
+    expect(button.classList.contains("vote-toggle-button")).toBe(true);
+    expect(button.querySelector(".lucide-chevron-up")).not.toBeNull();
+    expect(button.querySelector(".lucide-arrow-up")).toBeNull();
+  });
+
   it("reconciles every affected browser projection only after confirmation", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({ voteCount: 3 }),

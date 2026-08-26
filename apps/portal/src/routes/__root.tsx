@@ -19,6 +19,8 @@ import { portalFeedbackMutations } from "../routed-post-creation-form";
 import { PostDetailOverlay } from "../post-detail-overlay";
 import { OverlayPostDetail } from "../overlay-post-detail";
 import { getPublicPostPage } from "../public-feedback-server-function";
+import feedbax from "../feedbax";
+import { createPortalHead } from "../portal-head";
 
 import appCss from "../index.css?url";
 
@@ -27,26 +29,7 @@ export type RouterAppContext = {
 };
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
-  head: () => ({
-    meta: [
-      {
-        charSet: "utf-8",
-      },
-      {
-        name: "viewport",
-        content: "width=device-width, initial-scale=1",
-      },
-      {
-        title: "Feedbax",
-      },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-    ],
-  }),
+  head: () => createPortalHead(feedbax.product, appCss),
 
   component: RootDocument,
 });
