@@ -1,0 +1,16 @@
+---
+title: Trusted submission API
+description: Submit feedback from a trusted server without exposing credentials.
+---
+
+Send server-side requests to `POST https://feedback.feedbax.dev/api/v1/posts`.
+
+## curl
+
+<include>../../../examples/trusted-submission.sh</include>
+
+## TypeScript
+
+<include>../../../examples/trusted-submission.ts</include>
+
+Never put the trusted token in browser code. Use a stable idempotency key when retrying the same event.

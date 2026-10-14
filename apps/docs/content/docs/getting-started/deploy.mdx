@@ -1,0 +1,16 @@
+---
+title: Deploy
+description: Verify and deploy a Feedbax portal to Cloudflare Workers.
+---
+
+## Preflight
+
+<include>../../../examples/deploy.sh</include>
+
+`doctor` validates configuration and connectivity. The dry run catches bundling and Worker configuration errors without publishing.
+
+## Production secrets
+
+Store the Notion token and trusted API secret with Wrangler. Do not put secret values in `wrangler.jsonc`.
+
+After deployment, verify the Worker preview hostname before attaching a custom domain.

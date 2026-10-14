@@ -20,7 +20,7 @@ Repeat the Worker smoke cycle with all capabilities enabled, then with voting, C
 ## Browser and Notion acceptance
 
 1. Preview setup before every Notion mutation. Confirm Feedback contains Vote Count even with voting disabled and a newly created Changelog Data Source has no entries.
-2. Vote from feed and detail, remove the Vote, reload, and confirm browser-local state and Notion Vote Count agree. Force a failed mutation and confirm the optimistic state rolls back. Confirm Top and Trending match and New remains chronological.
+2. Vote from feed and detail, remove the Vote, reload, and confirm browser-local state and Notion Vote Count agree. Force a failed mutation and confirm the optimistic state rolls back. Confirm Top is the default, legacy Trending URLs resolve to Top, and New remains chronological.
 3. Create a top-level Comment and reply. Confirm the display name is marked unverified and email is absent. Edit and delete within fifteen minutes from the originating browser. Confirm another browser has no capability. Reply, resolve, and delete from Notion; verify Product Team labeling and resolved/deleted hiding after refresh.
 4. Publish several Changelog Entries in Notion, including one image and open-ended Labels. Confirm newest-first order, filtering, explicit pagination, title-derived image alternative text, and no detail route. Replace/remove the image directly in Notion and verify freshness without serving an expired reference.
 5. Rotate the participation signing secret and confirm outstanding Participation Passes and Comment Capabilities are rejected.

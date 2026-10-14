@@ -1,0 +1,16 @@
+---
+title: Troubleshooting
+description: Diagnose common Notion, Worker, schema, and Participation failures.
+---
+
+## Notion content is missing
+
+Confirm the database is shared with the integration and that configured property names match the schema exactly. Run `feedbax doctor`.
+
+## Mutations fail in production
+
+Check Worker secrets, rate-limit bindings, allowed origins, and the deployed Worker's logs. Reproduce first against the Worker preview hostname.
+
+## Votes disappear
+
+The Notion-only Profile stores Participation state in the browser. A cleared profile or different browser does not carry that state.

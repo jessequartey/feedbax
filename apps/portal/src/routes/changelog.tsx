@@ -6,6 +6,7 @@ import { ChangelogPage } from "../changelog-page";
 import { changelogQuery } from "../changelog-query";
 import feedbax from "../feedbax";
 import { getPublicChangelogPage } from "../public-changelog-server-function";
+import { createRouteHead } from "../portal-head";
 
 export function ensureChangelogEnabled(features: PortalFeatures) {
   if (!features.changelog) throw notFound();
@@ -14,6 +15,12 @@ export function ensureChangelogEnabled(features: PortalFeatures) {
 const query = changelogQuery(getPublicChangelogPage);
 
 export const Route = createFileRoute("/changelog")({
+  head: () =>
+    createRouteHead(feedbax.product, {
+      title: "Changelog",
+      description: `Product updates from ${feedbax.product.name}.`,
+      path: "/changelog",
+    }),
   beforeLoad: () => {
     ensureChangelogEnabled(feedbax.features);
   },

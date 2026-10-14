@@ -1,0 +1,134 @@
+import { isValidCommentEmail } from "./comment-profile";
+
+export const capabilitiesKey = "feedbax:post-capabilities";
+export const deviceProfileKey = "feedbax:device-profile";
+export interface DeviceProfile {
+  name: string;
+  email?: string;
+}
+
+export interface CompleteDeviceProfile extends DeviceProfile {
+  email: string;
+}
+
+type DeviceProfileStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export interface StoredPostCapability {
+  id: string;
+  slug: string;
+  browserCapability: string;
+}
+
+export function readDeviceProfile(
+  storage: Pick<Storage, "getItem">,
+): DeviceProfile | undefined {
+  try {
+    const value = JSON.parse(
+      storage.getItem(deviceProfileKey) ?? "null",
+    ) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    const entries = Object.keys(value);
+    const name = Reflect.get(value, "name");
+    const email = Reflect.get(value, "email");
+    if (
+      entries.some((key) => key !== "name" && key !== "email") ||
+      typeof name !== "string" ||
+      name.trim().length === 0 ||
+      (email !== undefined && typeof email !== "string")
+    ) {
+      return undefined;
+    }
+    return {
+      name: name.trim(),
+      ...(typeof email === "string" && email.trim()
+        ? { email: email.trim() }
+        : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+export function saveDeviceProfile(
+  storage: Pick<DeviceProfileStorage, "setItem">,
+  profile: DeviceProfile,
+) {
+  const name = profile.name.trim();
+  if (!name) throw new Error("Device Profile display name is required.");
+  const email = profile.email?.trim();
+  storage.setItem(
+    deviceProfileKey,
+    JSON.stringify({ name, ...(email ? { email } : {}) }),
+  );
+}
+
+export function isCompleteDeviceProfile(
+  profile: DeviceProfile | undefined,
+): profile is CompleteDeviceProfile {
+  return Boolean(profile?.name.trim() && isValidCommentEmail(profile.email));
+}
+
+export function clearDeviceProfile(
+  storage: Pick<DeviceProfileStorage, "removeItem">,
+) {
+  storage.removeItem(deviceProfileKey);
+}
+
+export function deriveDeviceProfileInitials(profile: DeviceProfile): string {
+  return profile.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase())
+    .join("");
+}
+export function readCapabilities(
+  storage: Pick<Storage, "getItem">,
+): Record<string, StoredPostCapability> {
+  try {
+    const value = JSON.parse(
+      storage.getItem(capabilitiesKey) ?? "{}",
+    ) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, StoredPostCapability] => {
+          const [key, capability] = entry;
+          return (
+            capability !== null &&
+            typeof capability === "object" &&
+            !Array.isArray(capability) &&
+            Reflect.get(capability, "id") === key &&
+            typeof Reflect.get(capability, "slug") === "string" &&
+            Reflect.get(capability, "slug").length > 0 &&
+            typeof Reflect.get(capability, "browserCapability") === "string" &&
+            Reflect.get(capability, "browserCapability").length > 0
+          );
+        },
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+export function retainCapability(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  capability: StoredPostCapability,
+) {
+  storage.setItem(
+    capabilitiesKey,
+    JSON.stringify({
+      ...readCapabilities(storage),
+      [capability.id]: capability,
+    }),
+  );
+}
+export function removeCapability(
+  storage: Pick<Storage, "getItem" | "setItem">,
+  id: string,
+) {
+  const capabilities = readCapabilities(storage);
+  delete capabilities[id];
+  storage.setItem(capabilitiesKey, JSON.stringify(capabilities));
+}

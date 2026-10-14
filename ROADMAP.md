@@ -22,6 +22,7 @@ This roadmap separates the proof release from the larger platform vision. It rec
 - `doctor` diagnostics and API-key rotation
 - Documentation application on Cloudflare
 - shadcn theme preset workflow
+- Framework-neutral shadcn feedback registry block with server-only trusted client helper
 - Dogfooded Feedbax feedback portal
 - Design-partner feedback and production-derived fixes
 
@@ -39,7 +40,7 @@ This roadmap separates the proof release from the larger platform vision. It rec
 
 - First evidence-backed connector and connector interface
 - Versioned npm connector packages
-- Optional shadcn registry recipes for copied integrations and widgets
+- Additional shadcn registry recipes for copied integrations and widgets
 - Embeddable widget
 - Additional application-framework templates after demonstrated demand or outside maintainership
 - Vercel and Docker deployment after Cloudflare parity is stable

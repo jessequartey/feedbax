@@ -64,6 +64,16 @@ import { Button } from "@feedbax/ui/components/button";
 
 Keep app-specific blocks and Feedbax-specific compositions with no shadcn equivalent in `apps/portal`; keep reusable shadcn components in `packages/ui`.
 
+## Feedback registry block
+
+Install the framework-neutral copied-source block from the 0.2.0 tag:
+
+```sh
+pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.0
+```
+
+`FeedbaxFeedback` accepts an `onSubmit` callback and an optional `findSimilar` callback. Configure `createFeedbaxClient` only in server code using `FEEDBAX_API_BASE_URL` and `FEEDBAX_API_SECRET`, then expose submission through the host application's own server function or route. Never pass the secret to the browser or import `feedbax-client.server.ts` from a client module.
+
 ## Project Structure
 
 ```

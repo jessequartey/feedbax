@@ -76,6 +76,10 @@ export function PublicPostDetail({
   const [localComments, setLocalComments] = useState(comments.items);
   const [commentError, setCommentError] = useState<string>();
   const [replyingTo, setReplyingTo] = useState<string>();
+  const [editingComment, setEditingComment] = useState<{
+    id: string;
+    body: string;
+  }>();
   const [commentCapabilities, setCommentCapabilities] = useState<
     Record<string, StoredCommentCapability>
   >({});
@@ -212,14 +216,17 @@ export function PublicPostDetail({
   async function changeComment(
     action: "edit" | "delete",
     comment: Comment & { discussionId: string },
+    editedBody?: string,
   ) {
     if (!mutateComment) return;
     const owned = readCommentCapability(localStorage, comment.id, Date.now());
     if (!owned) return;
-    const body =
-      action === "edit"
-        ? window.prompt("Edit Comment", comment.body)?.trim()
-        : undefined;
+    if (
+      action === "delete" &&
+      !window.confirm("Delete this Comment? This cannot be undone.")
+    )
+      return;
+    const body = action === "edit" ? editedBody?.trim() : undefined;
     if (action === "edit" && !body) return;
     const previous = localComments;
     setCommentError(undefined);
@@ -235,12 +242,14 @@ export function PublicPostDetail({
         commentCapability: owned.capability,
         ...(body ? { body } : {}),
       });
+      if (action === "edit") setEditingComment(undefined);
       if (action === "delete")
         setCommentCapabilities(
           removeStoredCommentCapability(localStorage, comment.id),
         );
     } catch (error) {
       setLocalComments(previous);
+      if (action === "edit") setEditingComment(undefined);
       setCommentError(
         error instanceof Error
           ? error.message
@@ -265,6 +274,23 @@ export function PublicPostDetail({
           </div>
           <h1 id={headingId}>{post.title}</h1>
           <p className="feedback-detail-description">{post.description}</p>
+          {post.teamResponse ? (
+            <section
+              className="border-l-4 border-primary bg-muted/50 p-4"
+              aria-label="Product Team response"
+            >
+              <h2 className="text-sm font-semibold">Product Team response</h2>
+              <p className="mt-2 whitespace-pre-wrap">{post.teamResponse}</p>
+              {post.releaseNotesUrl ? (
+                <a
+                  className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
+                  href={post.releaseNotesUrl}
+                >
+                  Read release notes
+                </a>
+              ) : null}
+            </section>
+          ) : null}
           {summaryActions ? (
             <div className="post-detail-summary-actions">{summaryActions}</div>
           ) : null}
@@ -316,7 +342,47 @@ export function PublicPostDetail({
                                 {formatPublicDate(comment.createdAt, "long")}
                               </time>
                             </header>
-                            <p className="comment-body">{comment.body}</p>
+                            {editingComment?.id === comment.id ? (
+                              <form
+                                className="mt-3 space-y-2"
+                                aria-label="Edit Comment"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  void changeComment(
+                                    "edit",
+                                    { ...comment, discussionId: thread.id },
+                                    editingComment.body,
+                                  );
+                                }}
+                              >
+                                <Textarea
+                                  aria-label="Comment text"
+                                  value={editingComment.body}
+                                  onChange={(event) =>
+                                    setEditingComment({
+                                      id: comment.id,
+                                      body: event.target.value,
+                                    })
+                                  }
+                                  required
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" type="submit">
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setEditingComment(undefined)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </form>
+                            ) : (
+                              <p className="comment-body">{comment.body}</p>
+                            )}
                             {canChange || canReply ? (
                               <div
                                 className="comment-actions"
@@ -340,9 +406,9 @@ export function PublicPostDetail({
                                       size="sm"
                                       variant="ghost"
                                       onClick={() =>
-                                        void changeComment("edit", {
-                                          ...comment,
-                                          discussionId: thread.id,
+                                        setEditingComment({
+                                          id: comment.id,
+                                          body: comment.body,
                                         })
                                       }
                                     >

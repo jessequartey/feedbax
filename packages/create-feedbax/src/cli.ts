@@ -1,171 +1,229 @@
 #!/usr/bin/env node
-
-import { createInterface } from "node:readline/promises";
-import { stdin, stdout } from "node:process";
-
+import * as prompt from "@clack/prompts";
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   collectFeatureSelection,
-  configureChangelogStorage,
-  doctorInstallation,
-  renderChangelogConfiguration,
-  renderFeatureConfiguration,
-  type CreatorPrompter,
-  verifySelectedCommentCapabilities,
-} from "./index.ts";
-
-const terminal = createInterface({ input: stdin, output: stdout });
+  copyPackagedTemplate,
+  provisionGuidedInstallation,
+} from "./index";
+import type { FeedbackDataSourceConfiguration } from "@feedbax/feedback";
+import type { ChangelogPropertyIds } from "@feedbax/changelog";
 
 try {
-  stdout.write("Configure optional Feedbax capabilities\n\n");
-  const prompter: CreatorPrompter = {
-    confirm: async ({ message, initialValue }) => {
-      const hint = initialValue ? "Y/n" : "y/N";
-      const answer = (await terminal.question(`${message} (${hint}) `))
-        .trim()
-        .toLowerCase();
-      if (!answer) return initialValue;
-      return answer === "y" || answer === "yes";
-    },
-  };
-  const command = process.argv.includes("doctor") ? "doctor" : "setup";
-  const features =
-    command === "doctor"
-      ? {
-          voting: process.env.FEEDBAX_VOTING_ENABLED !== "false",
-          comments: process.env.FEEDBAX_COMMENTS_ENABLED !== "false",
-          changelog: process.env.FEEDBAX_CHANGELOG_ENABLED !== "false",
-        }
-      : await collectFeatureSelection(prompter);
-  if (features.comments && command === "setup") {
-    const token = process.env.NOTION_TOKEN;
-    const pageId = process.env.NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID;
-    if (!token || !pageId)
-      throw new Error(
-        "Comment capability verification requires NOTION_TOKEN and NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID.",
-      );
-    await verifySelectedCommentCapabilities(features, {
-      token,
-      pageId,
-      command,
-    });
-  }
-  if (command === "doctor") {
-    await doctorInstallation({
-      features,
-      feedback: {
-        dataSourceId: environmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
-        propertyIds: feedbackPropertyIdsFromEnvironment(),
-      },
-      changelog: features.changelog
-        ? {
-            databaseId: environmentValue("NOTION_CHANGELOG_DATABASE_ID"),
-            dataSourceId: environmentValue("NOTION_CHANGELOG_DATA_SOURCE_ID"),
-            propertyIds: changelogPropertyIdsFromEnvironment("doctor"),
-          }
-        : undefined,
-      commentProbePageId: features.comments
-        ? environmentValue("NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID")
-        : undefined,
-      token: environmentValue("NOTION_TOKEN"),
-    });
-    stdout.write(
-      "\nThe canonical Feedback schema and every enabled optional capability are configured. No changes were made.\n",
+  const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(
+      "Usage: create-feedbax [directory] [--template-only]\nGuided setup prompts for a destination, product, Notion connection, features, and deployment.\n--template-only copies source without external requests or installing dependencies.",
     );
-    process.exitCode = 0;
+  } else if (args.includes("--version")) {
+    console.log(
+      JSON.parse(
+        await readFile(new URL("../package.json", import.meta.url), "utf8"),
+      ).version,
+    );
   } else {
-    const changelog = features.changelog
-      ? await configureChangelogStorage({
-          features,
-          selection: (await prompter.confirm({
-            message: "Use an existing compatible Changelog Data Source?",
-            initialValue: false,
-          }))
-            ? {
-                kind: "existing",
-                dataSourceId: environmentValue(
-                  "NOTION_CHANGELOG_DATA_SOURCE_ID",
-                  "setup",
-                ),
-                propertyIds: changelogPropertyIdsFromEnvironment("setup"),
-              }
-            : {
-                kind: "create",
-                databaseId: environmentValue(
-                  "NOTION_FEEDBACK_DATABASE_ID",
-                  "setup",
-                ),
-              },
-          token: environmentValue("NOTION_TOKEN", "setup"),
-          preview: (message) =>
-            prompter.confirm({ message, initialValue: false }),
-        })
-      : undefined;
-    stdout.write(
-      `\nAdd this to feedbax.ts:\n\n${renderFeatureConfiguration(features)}${changelog ? `\n${renderChangelogConfiguration(changelog)}` : ""}\n`,
+    if (args.some((arg) => arg.startsWith("-") && arg !== "--template-only"))
+      throw new Error("Unknown option. Run create-feedbax --help.");
+    const destination = resolve(
+      args.find((arg) => !arg.startsWith("-")) ??
+        (await text("Project directory", "my-feedback")),
     );
+    if (args.includes("--template-only")) {
+      await copyPackagedTemplate(destination);
+      console.log(`Created a flat Feedbax application in ${destination}.`);
+    } else {
+      prompt.intro("Create a Feedbax portal");
+      const product = {
+        name: await text("Product name", "My product"),
+        description: await text(
+          "Public description",
+          "Share feedback and follow product progress.",
+        ),
+        siteUrl: await text(
+          "Public portal URL (your workers.dev URL or custom domain)",
+          "https://my-feedback.example.workers.dev",
+        ),
+      };
+      const themePreset = await text(
+        "shadcn preset code, or lyra-neutral for the included preset",
+        "lyra-neutral",
+      );
+      const notionToken =
+        process.env.NOTION_TOKEN?.trim() ||
+        (await secret("Notion internal integration token"));
+      const existing = await confirm(
+        "Use an existing compatible Feedback Data Source?",
+        false,
+      );
+      const feedbackSelection = existing
+        ? { kind: "existing" as const, configuration: await existingFeedback() }
+        : {
+            kind: "create" as const,
+            parentPageId: await text(
+              "Notion parent page ID (share it with the integration)",
+            ),
+          };
+      const features = await collectFeatureSelection({
+        confirm: ({ message, initialValue }) => confirm(message, initialValue),
+      });
+      const changelogSelection =
+        features.changelog &&
+        (await confirm(
+          "Use an existing compatible Changelog Data Source?",
+          false,
+        ))
+          ? {
+              kind: "existing" as const,
+              dataSourceId: await text("Changelog Data Source ID"),
+              propertyIds: (await propertyIds([
+                "title",
+                "slug",
+                "date",
+                "summary",
+                "body",
+                "labels",
+                "image",
+                "published",
+                "createdAt",
+                "updatedAt",
+              ])) as ChangelogPropertyIds,
+            }
+          : undefined;
+      const turnstile = (await confirm(
+        "Enable Cloudflare Turnstile? Recommended for production.",
+        true,
+      ))
+        ? {
+            siteKey: await text("Turnstile site key"),
+            secretKey:
+              process.env.TURNSTILE_SECRET_KEY ||
+              (await secret("Turnstile secret key")),
+          }
+        : {};
+      const result = await provisionGuidedInstallation({
+        destination,
+        product,
+        themePreset,
+        features,
+        feedbackSelection,
+        changelogSelection,
+        notionToken,
+        turnstile,
+        preview: (message) => confirm(message, false),
+      });
+      console.log(
+        `Created ${destination}.\nTrusted API key — copy it now; plaintext is not stored:\n${result.apiKey}`,
+      );
+      await runIn(destination, "pnpm", ["install"]);
+      // The included Lyra/neutral preset is already applied to the copied source.
+      if (themePreset !== "lyra-neutral")
+        await runIn(destination, "pnpm", [
+          "dlx",
+          "shadcn@latest",
+          "init",
+          "--preset",
+          themePreset,
+          "--yes",
+          "--force",
+        ]);
+      await runIn(destination, "pnpm", [
+        "exec",
+        "prettier",
+        "--write",
+        "src/feedbax.ts",
+      ]);
+      await runIn(destination, "pnpm", ["exec", "feedbax", "doctor"]);
+      if (
+        await confirm(
+          "Authenticate with Cloudflare and deploy this portal?",
+          false,
+        )
+      ) {
+        await runIn(destination, "pnpm", ["exec", "wrangler", "login"]);
+        await runIn(destination, "pnpm", ["exec", "feedbax", "deploy"]);
+      }
+      prompt.outro(`Your portal source is ready in ${destination}.`);
+    }
   }
-} finally {
-  terminal.close();
+} catch (error) {
+  console.error(
+    error instanceof Error ? error.message : "Feedbax setup failed.",
+  );
+  process.exitCode = 10;
 }
-
-function feedbackPropertyIdsFromEnvironment() {
+function checked<T>(value: T): Exclude<T, symbol> {
+  if (prompt.isCancel(value)) throw new Error("Setup cancelled.");
+  return value as Exclude<T, symbol>;
+}
+async function text(message: string, defaultValue?: string): Promise<string> {
+  return checked(
+    await prompt.text({
+      message,
+      defaultValue,
+      placeholder: defaultValue,
+      validate: (value) =>
+        value?.trim() || defaultValue ? undefined : "A value is required.",
+    }),
+  ).trim();
+}
+async function secret(message: string): Promise<string> {
+  return checked(
+    await prompt.password({
+      message,
+      validate: (value) => (value?.trim() ? undefined : "A value is required."),
+    }),
+  ).trim();
+}
+async function confirm(
+  message: string,
+  initialValue: boolean,
+): Promise<boolean> {
+  return checked(await prompt.confirm({ message, initialValue }));
+}
+async function propertyIds(keys: string[]) {
+  const entries: [string, string][] = [];
+  for (const key of keys)
+    entries.push([key, await text(`Stable property ID: ${key}`)]);
+  return Object.fromEntries(entries);
+}
+async function existingFeedback(): Promise<FeedbackDataSourceConfiguration> {
   return {
-    title: environmentValue("NOTION_FEEDBACK_TITLE_PROPERTY_ID"),
-    slug: environmentValue("NOTION_FEEDBACK_SLUG_PROPERTY_ID"),
-    description: environmentValue("NOTION_FEEDBACK_DESCRIPTION_PROPERTY_ID"),
-    type: environmentValue("NOTION_FEEDBACK_TYPE_PROPERTY_ID"),
-    status: environmentValue("NOTION_FEEDBACK_STATUS_PROPERTY_ID"),
-    published: environmentValue("NOTION_FEEDBACK_PUBLISHED_PROPERTY_ID"),
-    voteCount: environmentValue("NOTION_FEEDBACK_VOTE_COUNT_PROPERTY_ID"),
-    submitterName: environmentValue(
-      "NOTION_FEEDBACK_SUBMITTER_NAME_PROPERTY_ID",
-    ),
-    submitterEmail: environmentValue(
-      "NOTION_FEEDBACK_SUBMITTER_EMAIL_PROPERTY_ID",
-    ),
-    source: environmentValue("NOTION_FEEDBACK_SOURCE_PROPERTY_ID"),
-    externalId: environmentValue("NOTION_FEEDBACK_EXTERNAL_ID_PROPERTY_ID"),
-    editTokenHash: environmentValue(
-      "NOTION_FEEDBACK_EDIT_TOKEN_HASH_PROPERTY_ID",
-    ),
-    createdAt: environmentValue("NOTION_FEEDBACK_CREATED_AT_PROPERTY_ID"),
-    updatedAt: environmentValue("NOTION_FEEDBACK_UPDATED_AT_PROPERTY_ID"),
+    databaseId: await text("Feedback Database ID"),
+    dataSourceId: await text("Feedback Data Source ID"),
+    propertyIds: (await propertyIds([
+      "title",
+      "slug",
+      "description",
+      "type",
+      "status",
+      "published",
+      "voteCount",
+      "teamResponse",
+      "releaseNotesUrl",
+      "submitterName",
+      "submitterEmail",
+      "source",
+      "externalId",
+      "editTokenHash",
+      "createdAt",
+      "updatedAt",
+    ])) as FeedbackDataSourceConfiguration["propertyIds"],
   };
 }
-
-function environmentValue(
-  name: string,
-  command: "setup" | "doctor" = "doctor",
-): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(
-      `${name} is required for ${command}. No changes were made.`,
+function runIn(cwd: string, command: string, args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, { cwd, stdio: "inherit" });
+    child.on("error", reject);
+    child.on("exit", (code) =>
+      code === 0
+        ? resolve()
+        : reject(
+            new Error(
+              `${command} failed with exit code ${code}. The generated source has been preserved.`,
+            ),
+          ),
     );
-  }
-  return value;
-}
-
-function changelogPropertyIdsFromEnvironment(command: "setup" | "doctor") {
-  return {
-    title: environmentValue("NOTION_CHANGELOG_TITLE_PROPERTY_ID", command),
-    slug: environmentValue("NOTION_CHANGELOG_SLUG_PROPERTY_ID", command),
-    date: environmentValue("NOTION_CHANGELOG_DATE_PROPERTY_ID", command),
-    summary: environmentValue("NOTION_CHANGELOG_SUMMARY_PROPERTY_ID", command),
-    body: environmentValue("NOTION_CHANGELOG_BODY_PROPERTY_ID", command),
-    labels: environmentValue("NOTION_CHANGELOG_LABELS_PROPERTY_ID", command),
-    image: environmentValue("NOTION_CHANGELOG_IMAGE_PROPERTY_ID", command),
-    published: environmentValue(
-      "NOTION_CHANGELOG_PUBLISHED_PROPERTY_ID",
-      command,
-    ),
-    createdAt: environmentValue(
-      "NOTION_CHANGELOG_CREATED_AT_PROPERTY_ID",
-      command,
-    ),
-    updatedAt: environmentValue(
-      "NOTION_CHANGELOG_UPDATED_AT_PROPERTY_ID",
-      command,
-    ),
-  };
+  });
 }

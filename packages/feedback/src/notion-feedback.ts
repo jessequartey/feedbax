@@ -374,6 +374,8 @@ function publicProjectionPropertyIds(ids: FeedbackPropertyIds): string[] {
     ids.createdAt,
     ids.updatedAt,
     ids.voteCount,
+    ids.teamResponse,
+    ids.releaseNotesUrl,
   ];
 }
 
@@ -401,6 +403,18 @@ function postFromPublicPage(
     createdAt: new Date(stringField(page, "created_time")),
     updatedAt: new Date(stringField(page, "last_edited_time")),
     voteCount: numberField(property(ids.voteCount), "number"),
+    ...(optionalText(property(ids.teamResponse), "rich_text")
+      ? { teamResponse: optionalText(property(ids.teamResponse), "rich_text") }
+      : {}),
+    ...(safeReleaseNotesUrl(
+      optionalString(property(ids.releaseNotesUrl), "url"),
+    )
+      ? {
+          releaseNotesUrl: safeReleaseNotesUrl(
+            optionalString(property(ids.releaseNotesUrl), "url"),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -604,6 +618,18 @@ function optionalString(
 ): string | undefined {
   const value = record[key];
   return typeof value === "string" ? value : undefined;
+}
+
+export function safeReleaseNotesUrl(
+  value: string | undefined,
+): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  try {
+    return new URL(value).protocol === "https:" ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function stringField(record: Record<string, unknown>, key: string): string {

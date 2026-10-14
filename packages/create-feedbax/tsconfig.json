@@ -1,7 +1,12 @@
 {
   "extends": "@feedbax/config/tsconfig.base.json",
   "compilerOptions": {
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@feedbax/changelog": ["../changelog/src/index.ts"],
+      "@feedbax/config": ["../config/src/index.ts"],
+      "@feedbax/feedback": ["../feedback/src/index.ts"]
+    }
   },
   "include": ["src"]
 }

@@ -36,6 +36,8 @@ import {
   retainCapability,
 } from "./browser-post-state";
 import { isCapabilityAuthorizationFailure } from "./capability-authorization-error";
+import feedbax from "./feedbax";
+import { SimilarPosts } from "./similar-posts";
 
 const draftStorageKey = "feedbax:portal-draft";
 const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
@@ -80,11 +82,17 @@ const postTypeOptions = [
 const feedbackFormSchema = z.object({
   title: z
     .string()
-    .max(160, "Title must be at most 160 characters.")
+    .max(
+      feedbax.submissions.maxTitleLength,
+      `Title must be at most ${feedbax.submissions.maxTitleLength} characters.`,
+    )
     .refine((value) => value.trim().length > 0, "Enter a title."),
   description: z
     .string()
-    .max(5_000, "Description must be at most 5,000 characters.")
+    .max(
+      feedbax.submissions.maxDescriptionLength,
+      `Description must be at most ${feedbax.submissions.maxDescriptionLength.toLocaleString("en-US")} characters.`,
+    )
     .refine((value) => value.trim().length > 0, "Enter a description."),
   type: z.enum(postTypeOptions.map(({ type }) => type)),
 });
@@ -288,7 +296,7 @@ export function PortalFeedbackForm({
                     id={field.name}
                     name={field.name}
                     required
-                    maxLength={160}
+                    maxLength={feedbax.submissions.maxTitleLength}
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(event) =>
@@ -299,6 +307,7 @@ export function PortalFeedbackForm({
                   {isInvalid ? (
                     <FieldError errors={field.state.meta.errors} />
                   ) : null}
+                  {!draft ? <SimilarPosts title={field.state.value} /> : null}
                 </Field>
               );
             }}
@@ -324,7 +333,7 @@ export function PortalFeedbackForm({
                     id={field.name}
                     name={field.name}
                     required
-                    maxLength={5_000}
+                    maxLength={feedbax.submissions.maxDescriptionLength}
                     rows={6}
                     value={field.state.value}
                     onBlur={field.handleBlur}
@@ -338,9 +347,15 @@ export function PortalFeedbackForm({
                     id="description-count"
                     className="feedback-character-count"
                   >
-                    {field.state.value.length.toLocaleString("en-US")} / 5,000
-                    characters
+                    {`${field.state.value.length.toLocaleString("en-US")} / ${feedbax.submissions.maxDescriptionLength.toLocaleString("en-US")} characters`}
                   </FieldDescription>
+                  <form.Subscribe selector={(state) => state.values.type}>
+                    {(type) => (
+                      <FieldDescription>
+                        {descriptionGuidance[type]}
+                      </FieldDescription>
+                    )}
+                  </form.Subscribe>
                   {isInvalid ? (
                     <FieldError errors={field.state.meta.errors} />
                   ) : null}
@@ -451,6 +466,14 @@ export function PortalFeedbackForm({
     </section>
   );
 }
+
+const descriptionGuidance: Record<PostType, string> = {
+  "Feature Request":
+    "Describe the problem, desired outcome, and any current workaround.",
+  "Bug Report":
+    "Include steps, expected behavior, actual behavior, and your environment.",
+  "General Feedback": "Share the context, your observation, and its impact.",
+};
 
 function submissionFailureMessage(error: unknown): string {
   const detail = error instanceof Error ? error.message : "";

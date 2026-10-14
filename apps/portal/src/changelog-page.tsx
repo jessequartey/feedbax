@@ -9,7 +9,7 @@ import { cn } from "@feedbax/ui/lib/utils";
 import { useRouterState } from "@tanstack/react-router";
 import { ChevronDown, Link2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { CommandPaletteTrigger } from "./components/command-palette";
+import { CommandPaletteTrigger } from "./components/command-palette-context";
 
 export type LoadChangelogPage = (input: {
   cursor?: string;

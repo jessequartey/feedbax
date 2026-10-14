@@ -8,8 +8,8 @@ import {
 import feedbax from "./feedbax";
 
 export const feedbackSubmissionLimits = {
-  maxTitleLength: 160,
-  maxDescriptionLength: 5_000,
+  maxTitleLength: feedbax.submissions.maxTitleLength,
+  maxDescriptionLength: feedbax.submissions.maxDescriptionLength,
 } as const;
 
 export function createConfiguredFeedbackModule() {
@@ -18,41 +18,8 @@ export function createConfiguredFeedbackModule() {
       votingEnabled: feedbax.features.voting,
       commentsEnabled: feedbax.features.comments,
       token: requiredEnvironmentValue("NOTION_TOKEN"),
-      dataSourceId: requiredEnvironmentValue("NOTION_FEEDBACK_DATA_SOURCE_ID"),
-      propertyIds: {
-        title: requiredEnvironmentValue("NOTION_FEEDBACK_TITLE_PROPERTY_ID"),
-        slug: requiredEnvironmentValue("NOTION_FEEDBACK_SLUG_PROPERTY_ID"),
-        description: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_DESCRIPTION_PROPERTY_ID",
-        ),
-        type: requiredEnvironmentValue("NOTION_FEEDBACK_TYPE_PROPERTY_ID"),
-        status: requiredEnvironmentValue("NOTION_FEEDBACK_STATUS_PROPERTY_ID"),
-        published: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_PUBLISHED_PROPERTY_ID",
-        ),
-        voteCount: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_VOTE_COUNT_PROPERTY_ID",
-        ),
-        submitterName: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_SUBMITTER_NAME_PROPERTY_ID",
-        ),
-        submitterEmail: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_SUBMITTER_EMAIL_PROPERTY_ID",
-        ),
-        source: requiredEnvironmentValue("NOTION_FEEDBACK_SOURCE_PROPERTY_ID"),
-        externalId: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_EXTERNAL_ID_PROPERTY_ID",
-        ),
-        editTokenHash: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_EDIT_TOKEN_HASH_PROPERTY_ID",
-        ),
-        createdAt: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_CREATED_AT_PROPERTY_ID",
-        ),
-        updatedAt: requiredEnvironmentValue(
-          "NOTION_FEEDBACK_UPDATED_AT_PROPERTY_ID",
-        ),
-      },
+      dataSourceId: feedbax.notion.dataSourceId,
+      propertyIds: feedbax.notion.properties,
     }),
     invalidator: createPublicCacheInvalidator({
       purge: (options) => cache.purge(options),

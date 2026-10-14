@@ -110,7 +110,7 @@ describe("Post feed controls", () => {
       within(controls)
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual(["Trending", "Top", "New", "New post", "Search", "Filters"]);
+    ).toEqual(["Top", "New", "New post", "Search", "Filters"]);
   });
 
   it("keeps the mobile Filters control out of the desktop breakpoint", () => {

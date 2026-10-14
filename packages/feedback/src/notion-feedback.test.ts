@@ -16,6 +16,8 @@ const propertyIds: FeedbackPropertyIds = {
   status: "status-id",
   published: "published-id",
   voteCount: "vote-count-id",
+  teamResponse: "team-response-id",
+  releaseNotesUrl: "release-notes-url-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",
@@ -26,6 +28,41 @@ const propertyIds: FeedbackPropertyIds = {
 };
 
 describe("Notion-backed Feedback module", () => {
+  it("projects Team Response and only safe release-note URLs", async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        results: [
+          notionPage({
+            title: "Shipped",
+            description: "Done",
+            type: "Feature Request",
+            editTokenHash: "",
+            published: true,
+            teamResponse: "Thanks — this is live.",
+            releaseNotesUrl: "https://example.com/releases/1",
+          }),
+        ],
+        has_more: false,
+        next_cursor: null,
+      }),
+    );
+    const feedback = createNotionFeedbackModule({
+      token: "token",
+      dataSourceId: "source",
+      propertyIds,
+      request,
+    });
+    await expect(
+      feedback.listPublicPosts({ sort: "top" }),
+    ).resolves.toMatchObject({
+      items: [
+        {
+          teamResponse: "Thanks — this is live.",
+          releaseNotesUrl: "https://example.com/releases/1",
+        },
+      ],
+    });
+  });
   it("reads the current Vote Count and retries the absolute Number-property write", async () => {
     const page = (voteCount: number) =>
       notionPage({
@@ -868,6 +905,8 @@ function notionPage({
   status = "New",
   published = false,
   voteCount = 0,
+  teamResponse,
+  releaseNotesUrl,
 }: {
   id?: string;
   slug?: string;
@@ -881,6 +920,8 @@ function notionPage({
     "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
   published?: boolean;
   voteCount?: number;
+  teamResponse?: string;
+  releaseNotesUrl?: string;
 }) {
   const canonicalSlug =
     slug ??
@@ -920,6 +961,16 @@ function notionPage({
         id: "vote-count-id",
         type: "number",
         number: voteCount,
+      },
+      "Team Response": {
+        id: "team-response-id",
+        type: "rich_text",
+        rich_text: teamResponse ? [{ plain_text: teamResponse }] : [],
+      },
+      "Release Notes URL": {
+        id: "release-notes-url-id",
+        type: "url",
+        url: releaseNotesUrl ?? null,
       },
       "Submitter Name": {
         id: "submitter-name-id",

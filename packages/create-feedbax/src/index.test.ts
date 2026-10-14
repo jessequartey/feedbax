@@ -10,7 +10,11 @@ import {
   configureChangelogStorage,
   doctorChangelogStorage,
   doctorInstallation,
+  provisionGuidedInstallation,
 } from "./index";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { ChangelogPropertyIds } from "@feedbax/changelog";
 import type { FeedbackPropertyIds } from "@feedbax/feedback";
 
@@ -197,6 +201,30 @@ describe("Changelog setup and doctor", () => {
   });
 });
 
+describe("guided installation", () => {
+  it("creates no local project when the remote mutation preview is declined", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "feedbax-guided-"));
+    const destination = join(parent, "app");
+    try {
+      await expect(
+        provisionGuidedInstallation({
+          destination,
+          product: { name: "Acme", description: "Acme feedback" },
+          themePreset: "lyra-neutral",
+          features: { voting: true, comments: false, changelog: false },
+          feedbackSelection: { kind: "create", parentPageId: "parent" },
+          notionToken: "secret",
+          turnstile: {},
+          preview: async () => false,
+        }),
+      ).rejects.toThrow("No local files were created");
+      await expect(readdir(destination)).rejects.toThrow();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+});
+
 const propertyIds: ChangelogPropertyIds = {
   title: "title-id",
   slug: "slug-id",
@@ -218,6 +246,8 @@ const feedbackPropertyIds: FeedbackPropertyIds = {
   status: "status-id",
   published: "published-id",
   voteCount: "vote-count-id",
+  teamResponse: "team-response-id",
+  releaseNotesUrl: "release-notes-url-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",
@@ -236,6 +266,8 @@ function feedbackDataSource() {
     status: ["Status", "select"],
     published: ["Published", "checkbox"],
     voteCount: ["Vote Count", "number"],
+    teamResponse: ["Team Response", "rich_text"],
+    releaseNotesUrl: ["Release Notes URL", "url"],
     submitterName: ["Submitter Name", "rich_text"],
     submitterEmail: ["Submitter Email", "email"],
     source: ["Source", "select"],

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://feedbax.dev/</loc></url>
+  <url><loc>https://feedbax.dev/docs</loc></url>
+  <url><loc>https://feedbax.dev/docs/introduction</loc></url>
+  <url><loc>https://feedbax.dev/docs/getting-started</loc></url>
+  <url><loc>https://feedbax.dev/docs/getting-started/notion</loc></url>
+  <url><loc>https://feedbax.dev/docs/getting-started/deploy</loc></url>
+  <url><loc>https://feedbax.dev/docs/getting-started/custom-domain</loc></url>
+  <url><loc>https://feedbax.dev/docs/guides/notion-workflow</loc></url>
+  <url><loc>https://feedbax.dev/docs/guides/comments-and-voting</loc></url>
+  <url><loc>https://feedbax.dev/docs/guides/changelog</loc></url>
+  <url><loc>https://feedbax.dev/docs/guides/customization</loc></url>
+  <url><loc>https://feedbax.dev/docs/integrations/submission-api</loc></url>
+  <url><loc>https://feedbax.dev/docs/integrations/feedback-block</loc></url>
+  <url><loc>https://feedbax.dev/docs/operations/configuration</loc></url>
+  <url><loc>https://feedbax.dev/docs/operations/environment</loc></url>
+  <url><loc>https://feedbax.dev/docs/operations/cli</loc></url>
+  <url><loc>https://feedbax.dev/docs/operations/troubleshooting</loc></url>
+  <url><loc>https://feedbax.dev/docs/operations/security</loc></url>
+  <url><loc>https://feedbax.dev/docs/reference/notion-schema</loc></url>
+  <url><loc>https://feedbax.dev/docs/reference/routes</loc></url>
+  <url><loc>https://feedbax.dev/docs/reference/guarantees</loc></url>
+  <url><loc>https://feedbax.dev/docs/reference/version-0.2</loc></url>
+</urlset>

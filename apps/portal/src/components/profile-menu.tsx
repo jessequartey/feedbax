@@ -69,7 +69,7 @@ export function ProfileMenu() {
       onClick={openProfileSetup}
     >
       <UserCircle aria-hidden="true" />
-      <span className="hidden sm:inline">User</span>
+      <span className="hidden sm:inline">Add profile</span>
     </Button>
   );
 }

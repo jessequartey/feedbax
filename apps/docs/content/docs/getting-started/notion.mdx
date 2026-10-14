@@ -1,0 +1,23 @@
+---
+title: Connect Notion
+description: Configure the Notion integration and database schema Feedbax expects.
+---
+
+## Data flow
+
+```text
+Notion integration
+       │ access
+       ▼
+Feedback database ── relations ── Votes and Comments
+       │
+       ├─ public feed and roadmap
+       └─ published changelog entries
+```
+
+1. Create an internal Notion integration.
+2. Share the Feedbax database with that integration.
+3. Copy the database ID and token into your environment.
+4. Run `feedbax doctor` before development or deployment.
+
+See the complete [Notion schema reference](/docs/reference/notion-schema).

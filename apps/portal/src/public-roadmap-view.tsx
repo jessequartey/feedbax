@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger } from "@feedbax/ui/components/tabs";
 import { CircleDashed } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { CommandPaletteTrigger } from "./components/command-palette";
+import { CommandPaletteTrigger } from "./components/command-palette-context";
 import { CreatePostTrigger } from "./components/create-post-trigger";
 import { PostLink } from "./masked-post-link";
 import { PostTypeBadge } from "./post-badges";

@@ -3,23 +3,32 @@ export type PortalFeatures = {
   readonly comments: boolean;
   readonly changelog: boolean;
 };
-
 export type ProductConfiguration = {
+  readonly name: string;
+  readonly description: string;
   readonly logo: string;
+  readonly siteUrl?: string;
+  readonly supportUrl?: string;
+  readonly privacyUrl?: string;
 };
-
-export type FeedbaxConfigInput = {
-  readonly product?: Partial<ProductConfiguration>;
-  readonly features?: Partial<PortalFeatures>;
-  readonly changelog?: ChangelogConfiguration;
+export type FeedbackPropertyIds = {
+  readonly title: string;
+  readonly slug: string;
+  readonly description: string;
+  readonly type: string;
+  readonly status: string;
+  readonly published: string;
+  readonly voteCount: string;
+  readonly teamResponse: string;
+  readonly releaseNotesUrl: string;
+  readonly submitterName: string;
+  readonly submitterEmail: string;
+  readonly source: string;
+  readonly externalId: string;
+  readonly editTokenHash: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 };
-
-export type FeedbaxConfig = {
-  readonly product: ProductConfiguration;
-  readonly features: PortalFeatures;
-  readonly changelog?: ChangelogConfiguration;
-};
-
 export type ChangelogPropertyIds = {
   readonly title: string;
   readonly slug: string;
@@ -32,23 +41,58 @@ export type ChangelogPropertyIds = {
   readonly createdAt: string;
   readonly updatedAt: string;
 };
-
+export type NotionConfiguration = {
+  readonly databaseId: string;
+  readonly dataSourceId: string;
+  readonly properties: FeedbackPropertyIds;
+};
 export type ChangelogConfiguration = {
   readonly databaseId: string;
   readonly dataSourceId: string;
-  readonly propertyIds: ChangelogPropertyIds;
+  readonly properties: ChangelogPropertyIds;
+};
+export type FeedbaxConfig = {
+  readonly product: ProductConfiguration;
+  readonly theme: { readonly preset: string };
+  readonly notion: NotionConfiguration;
+  readonly changelog?: ChangelogConfiguration;
+  readonly features: PortalFeatures;
+  readonly submissions: {
+    readonly moderation: "required";
+    readonly maxTitleLength: number;
+    readonly maxDescriptionLength: number;
+  };
+  readonly turnstile: { readonly enabled: boolean; readonly siteKey?: string };
 };
 
-const defaultFeatures: PortalFeatures = {
-  voting: true,
-  comments: true,
-  changelog: true,
-};
-const defaultProduct: ProductConfiguration = {
-  logo: "/feedbax-mark.svg",
-};
-
-const featureKeys = Object.keys(defaultFeatures) as (keyof PortalFeatures)[];
+const rootKeys = [
+  "product",
+  "theme",
+  "notion",
+  "changelog",
+  "features",
+  "submissions",
+  "turnstile",
+];
+const featureKeys = ["voting", "comments", "changelog"] as const;
+const feedbackPropertyKeys = [
+  "title",
+  "slug",
+  "description",
+  "type",
+  "status",
+  "published",
+  "voteCount",
+  "teamResponse",
+  "releaseNotesUrl",
+  "submitterName",
+  "submitterEmail",
+  "source",
+  "externalId",
+  "editTokenHash",
+  "createdAt",
+  "updatedAt",
+] as const;
 const changelogPropertyKeys = [
   "title",
   "slug",
@@ -60,126 +104,161 @@ const changelogPropertyKeys = [
   "published",
   "createdAt",
   "updatedAt",
-] as const satisfies readonly (keyof ChangelogPropertyIds)[];
+] as const;
 
-export function defineFeedbax(config: FeedbaxConfigInput): FeedbaxConfig;
+export function defineFeedbax(config: FeedbaxConfig): FeedbaxConfig;
 export function defineFeedbax(config: unknown): FeedbaxConfig {
-  if (!isRecord(config)) {
-    throw new Error("Feedbax configuration must be an object.");
-  }
-
-  const unknownRootKey = Object.keys(config).find(
-    (key) => key !== "product" && key !== "features" && key !== "changelog",
+  const value = object(config, "Feedbax configuration");
+  rejectUnknown(value, rootKeys, "Feedbax configuration");
+  const product = object(value.product, "product");
+  rejectUnknown(
+    product,
+    ["name", "description", "logo", "siteUrl", "supportUrl", "privacyUrl"],
+    "product",
   );
-  if (unknownRootKey) {
-    throw new Error(
-      `Unknown Feedbax configuration key "${unknownRootKey}". Remove it from feedbax.ts.`,
-    );
-  }
-
-  const configuredProduct = config.product;
-  if (configuredProduct !== undefined && !isRecord(configuredProduct)) {
-    throw new Error("product must be an object containing portal branding.");
-  }
-  const productInput = configuredProduct ?? {};
-  const unknownProductKey = Object.keys(productInput).find(
-    (key) => key !== "logo",
-  );
-  if (unknownProductKey) {
-    throw new Error(
-      `Unknown product configuration key "${unknownProductKey}".`,
-    );
-  }
-  if (
-    productInput.logo !== undefined &&
-    (typeof productInput.logo !== "string" || !productInput.logo.trim())
-  ) {
-    throw new Error("product.logo must be a non-empty asset URL.");
-  }
-  const product: ProductConfiguration = {
-    ...defaultProduct,
-    ...(typeof productInput.logo === "string"
-      ? { logo: productInput.logo.trim() }
-      : {}),
+  const validatedProduct: ProductConfiguration = {
+    name: text(product.name, "product.name"),
+    description: text(product.description, "product.description"),
+    logo: publicUrl(product.logo, "product.logo", true),
+    ...optionalPublicUrl(product, "siteUrl"),
+    ...optionalPublicUrl(product, "supportUrl"),
+    ...optionalPublicUrl(product, "privacyUrl"),
   };
-
-  const configuredFeatures = config.features;
-  if (configuredFeatures !== undefined && !isRecord(configuredFeatures)) {
+  const theme = object(value.theme, "theme");
+  rejectUnknown(theme, ["preset"], "theme");
+  const notion = storage(
+    value.notion,
+    feedbackPropertyKeys,
+    "notion",
+  ) as NotionConfiguration;
+  const features = object(value.features, "features");
+  rejectUnknown(features, featureKeys, "features");
+  const validatedFeatures = Object.fromEntries(
+    featureKeys.map((key) => {
+      if (typeof features[key] !== "boolean")
+        throw new Error(`features.${key} must be true or false.`);
+      return [key, features[key]];
+    }),
+  ) as PortalFeatures;
+  const changelog =
+    value.changelog === undefined
+      ? undefined
+      : (storage(
+          value.changelog,
+          changelogPropertyKeys,
+          "changelog",
+        ) as ChangelogConfiguration);
+  if (validatedFeatures.changelog && !changelog)
     throw new Error(
-      "features must be an object containing capability switches.",
+      "Changelog is enabled but changelog storage is not configured. Add changelog identifiers and property mappings, or set features.changelog to false.",
     );
-  }
-
-  const featureInput = configuredFeatures ?? {};
-  const unknownFeature = Object.keys(featureInput).find(
-    (key) => !featureKeys.includes(key as keyof PortalFeatures),
+  const submissions = object(value.submissions, "submissions");
+  rejectUnknown(
+    submissions,
+    ["moderation", "maxTitleLength", "maxDescriptionLength"],
+    "submissions",
   );
-  if (unknownFeature) {
-    throw new Error(
-      `Unknown feature "${unknownFeature}". Supported features are voting, comments, and changelog.`,
-    );
-  }
-
-  for (const key of featureKeys) {
-    const value = featureInput[key];
-    if (value !== undefined && typeof value !== "boolean") {
-      throw new Error(`features.${key} must be true or false.`);
-    }
-  }
-
-  const features = { ...defaultFeatures, ...featureInput } as PortalFeatures;
-  const changelog = validateChangelogConfiguration(config.changelog);
-  if (features.changelog && !changelog) {
-    throw new Error(
-      "Changelog is enabled but changelog storage is not configured. Add changelog database/data-source identifiers and property IDs, or set features.changelog to false.",
-    );
-  }
-  return { product, features, ...(changelog ? { changelog } : {}) };
-}
-
-function validateChangelogConfiguration(
-  value: unknown,
-): ChangelogConfiguration | undefined {
-  if (value === undefined) return;
-  if (!isRecord(value)) throw new Error("changelog must be an object.");
-  const unknownKey = Object.keys(value).find(
-    (key) => !["databaseId", "dataSourceId", "propertyIds"].includes(key),
-  );
-  if (unknownKey)
-    throw new Error(`Unknown Changelog configuration key "${unknownKey}".`);
-  for (const key of ["databaseId", "dataSourceId"] as const) {
-    if (typeof value[key] !== "string" || !value[key].trim()) {
-      throw new Error(`changelog.${key} must be a non-empty string.`);
-    }
-  }
-  if (!isRecord(value.propertyIds)) {
-    throw new Error(
-      "changelog.propertyIds must contain the canonical property mapping.",
-    );
-  }
-  const unknownProperty = Object.keys(value.propertyIds).find(
-    (key) => !changelogPropertyKeys.includes(key as keyof ChangelogPropertyIds),
-  );
-  if (unknownProperty) {
-    throw new Error(`Unknown Changelog property mapping "${unknownProperty}".`);
-  }
-  for (const key of changelogPropertyKeys) {
-    if (
-      typeof value.propertyIds[key] !== "string" ||
-      !value.propertyIds[key].trim()
-    ) {
-      throw new Error(
-        `changelog.propertyIds.${key} must be a non-empty string.`,
-      );
-    }
-  }
+  if (submissions.moderation !== "required")
+    throw new Error('submissions.moderation must be "required".');
+  const turnstile = object(value.turnstile, "turnstile");
+  rejectUnknown(turnstile, ["enabled", "siteKey"], "turnstile");
+  if (typeof turnstile.enabled !== "boolean")
+    throw new Error("turnstile.enabled must be true or false.");
+  const siteKey =
+    turnstile.siteKey === undefined
+      ? undefined
+      : text(turnstile.siteKey, "turnstile.siteKey");
+  if (turnstile.enabled && !siteKey)
+    throw new Error("Turnstile is enabled but turnstile.siteKey is missing.");
   return {
-    databaseId: value.databaseId as string,
-    dataSourceId: value.dataSourceId as string,
-    propertyIds: { ...value.propertyIds } as ChangelogPropertyIds,
+    product: validatedProduct,
+    theme: { preset: text(theme.preset, "theme.preset") },
+    notion,
+    ...(changelog ? { changelog } : {}),
+    features: validatedFeatures,
+    submissions: {
+      moderation: "required",
+      maxTitleLength: positiveInteger(
+        submissions.maxTitleLength,
+        "submissions.maxTitleLength",
+      ),
+      maxDescriptionLength: positiveInteger(
+        submissions.maxDescriptionLength,
+        "submissions.maxDescriptionLength",
+      ),
+    },
+    turnstile: { enabled: turnstile.enabled, ...(siteKey ? { siteKey } : {}) },
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+export function assertProductionConfiguration(
+  config: FeedbaxConfig,
+  environment = process.env.NODE_ENV,
+): void {
+  if (environment === "production" && !config.product.siteUrl)
+    throw new Error(
+      "product.siteUrl is required in production so canonical and social metadata use an absolute URL.",
+    );
+}
+function storage(value: unknown, keys: readonly string[], label: string) {
+  const input = object(value, label);
+  rejectUnknown(input, ["databaseId", "dataSourceId", "properties"], label);
+  const properties = object(input.properties, `${label}.properties`);
+  rejectUnknown(properties, keys, `${label}.properties`);
+  for (const key of keys) text(properties[key], `${label}.properties.${key}`);
+  return {
+    databaseId: text(input.databaseId, `${label}.databaseId`),
+    dataSourceId: text(input.dataSourceId, `${label}.dataSourceId`),
+    properties: { ...properties },
+  };
+}
+function object(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`${label} must be an object.`);
+  return value as Record<string, unknown>;
+}
+function text(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim())
+    throw new Error(`${label} must be a non-empty string.`);
+  return value.trim();
+}
+function positiveInteger(value: unknown, label: string): number {
+  if (!Number.isInteger(value) || Number(value) <= 0)
+    throw new Error(`${label} must be a positive integer.`);
+  return Number(value);
+}
+function rejectUnknown(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+  label: string,
+) {
+  const key = Object.keys(value).find(
+    (candidate) => !allowed.includes(candidate),
+  );
+  if (key) throw new Error(`Unknown ${label} key "${key}".`);
+}
+function optionalPublicUrl(
+  value: Record<string, unknown>,
+  key: "siteUrl" | "supportUrl" | "privacyUrl",
+) {
+  return value[key] === undefined
+    ? {}
+    : { [key]: publicUrl(value[key], `product.${key}`, key === "siteUrl") };
+}
+function publicUrl(
+  value: unknown,
+  label: string,
+  allowRelative: boolean,
+): string {
+  const url = text(value, label);
+  if (allowRelative && url.startsWith("/")) return url;
+  try {
+    if (new URL(url).protocol === "https:") return url;
+  } catch {
+    // The actionable validation error below is intentionally shared by parse
+    // failures and unsupported protocols.
+  }
+  throw new Error(
+    `${label} must be ${allowRelative ? "root-relative or " : ""}an HTTPS URL.`,
+  );
 }

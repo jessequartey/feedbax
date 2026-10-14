@@ -9,9 +9,15 @@ export default tseslint.config(
       "**/.output/**",
       "**/routeTree.gen.ts",
       "**/coverage/**",
+      "packages/create-feedbax/template/**",
     ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
+  {
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
+    },
+  },
 );

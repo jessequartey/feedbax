@@ -1,0 +1,10 @@
+{
+  "title": "Operations",
+  "pages": [
+    "configuration",
+    "environment",
+    "cli",
+    "troubleshooting",
+    "security"
+  ]
+}

@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { cn } from "@feedbax/ui/lib/utils";
 
-import { CommandPaletteTrigger } from "./command-palette";
+import { CommandPaletteTrigger } from "./command-palette-context";
 import { ProfileMenu } from "./profile-menu";
 import type { PortalFeatures, ProductConfiguration } from "@feedbax/config";
 import feedbax from "../feedbax";
@@ -64,7 +64,7 @@ export default function Header({
         <a
           className="inline-flex items-center gap-3 py-3 text-lg font-semibold md:py-0"
           href="/"
-          aria-label="Feedbax home"
+          aria-label={`${product.name} home`}
         >
           <img
             className="size-10 border bg-muted/40 object-contain"
@@ -72,7 +72,7 @@ export default function Header({
             alt=""
             aria-hidden="true"
           />
-          Feedbax
+          {product.name}
         </a>
         <nav
           className="order-3 col-span-2 -mx-4 flex border-t bg-background md:order-none md:col-span-1 md:col-start-2 md:row-start-1 md:mx-0 md:gap-1 md:border-0"

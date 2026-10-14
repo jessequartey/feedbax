@@ -14,7 +14,7 @@ import {
 import { List, ListFilter } from "lucide-react";
 import { type ComponentType } from "react";
 
-import { CommandPaletteTrigger } from "./components/command-palette";
+import { CommandPaletteTrigger } from "./components/command-palette-context";
 import { CreatePostTrigger } from "./components/create-post-trigger";
 import { postStatuses, postTypes } from "./public-feedback-page";
 import {
@@ -46,7 +46,6 @@ const roadmapStatuses = [
 ] as const satisfies readonly PostStatus[];
 
 const sortOptions = [
-  { label: "Trending", value: "trending" },
   { label: "Top", value: "top" },
   { label: "New", value: "new" },
 ] as const satisfies readonly {
@@ -93,8 +92,8 @@ export function PostFeedControls({
         aria-label="Sort Posts"
         className={
           mobile
-            ? `order-1 grid h-12 w-full ${features.voting ? "grid-cols-3" : "grid-cols-1"}`
-            : `order-1 grid h-10 ${features.voting ? "w-72 grid-cols-3" : "w-24 grid-cols-1"}`
+            ? `order-1 grid h-12 w-full ${features.voting ? "grid-cols-2" : "grid-cols-1"}`
+            : `order-1 grid h-10 ${features.voting ? "w-48 grid-cols-2" : "w-24 grid-cols-1"}`
         }
       >
         {sortOptions
@@ -105,8 +104,7 @@ export function PostFeedControls({
               type="button"
               variant="outline"
               aria-pressed={
-                (search.sort ?? (features.voting ? "trending" : "new")) ===
-                value
+                (search.sort ?? (features.voting ? "top" : "new")) === value
               }
               className={`${mobile ? "h-12" : "h-10"} px-5 text-sm aria-pressed:bg-muted aria-pressed:text-foreground`}
               onClick={() =>

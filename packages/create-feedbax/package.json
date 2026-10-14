@@ -1,25 +1,50 @@
 {
   "name": "create-feedbax",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.2.0",
   "type": "module",
   "bin": {
-    "create-feedbax": "./src/cli.ts"
+    "create-feedbax": "./dist/cli.js"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./dist/index.js"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@feedbax/changelog": "workspace:*",
-    "@feedbax/config": "workspace:*",
-    "@feedbax/feedback": "workspace:*"
+    "test": "vitest run src/index.test.ts src/template.test.ts",
+    "template:sync": "tsx ../../scripts/assemble-template.ts",
+    "template:check": "tsx ../../scripts/assemble-template.ts --check",
+    "build": "esbuild src/cli.ts src/index.ts --bundle --platform=node --format=esm --alias:@feedbax/config=../config/src/index.ts --alias:@feedbax/feedback=../feedback/src/index.ts --alias:@feedbax/changelog=../changelog/src/index.ts --outdir=dist --external:jsonc-parser --external:@clack/prompts",
+    "prepack": "pnpm build"
   },
   "devDependencies": {
+    "esbuild": "0.28.1",
+    "tsx": "4.20.6",
     "typescript": "catalog:",
     "vitest": "4.1.11"
+  },
+  "files": [
+    "dist",
+    "template"
+  ],
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "jsonc-parser": "3.3.1"
+  },
+  "description": "Create a self-hosted Notion-native feedback portal",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jessequartey/feedbax.git",
+    "directory": "packages/create-feedbax"
+  },
+  "homepage": "https://feedbax.dev/docs",
+  "bugs": {
+    "url": "https://github.com/jessequartey/feedbax/issues"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -1,0 +1,16 @@
+# Feedbax
+
+Feedbax is an open-source, Notion-backed feedback portal deployed to Cloudflare Workers.
+
+## Documentation
+- https://feedbax.dev/docs/introduction
+- https://feedbax.dev/docs/getting-started
+- https://feedbax.dev/docs/integrations/submission-api
+- https://feedbax.dev/docs/operations/configuration
+- https://feedbax.dev/docs/reference/guarantees
+- https://feedbax.dev/docs/reference/version-0.2
+
+## Public interfaces
+- Portal: https://feedback.feedbax.dev
+- Trusted submission: POST https://feedback.feedbax.dev/api/v1/posts
+- Repository: https://github.com/jessequartey/feedbax

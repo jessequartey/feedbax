@@ -11,6 +11,8 @@ import {
   type FetchPublicRoadmap,
   type FetchPublicRoadmapStatusPage,
 } from "./roadmap-query";
+import feedbax from "./feedbax";
+import { createRouteHead } from "./portal-head";
 
 export function createPublicRoadmapRoute({
   fetchRoadmap,
@@ -21,6 +23,12 @@ export function createPublicRoadmapRoute({
 }) {
   const query = publicRoadmapQuery(fetchRoadmap);
   const route = createFileRoute("/roadmap")({
+    head: () =>
+      createRouteHead(feedbax.product, {
+        title: "Roadmap",
+        description: `See what ${feedbax.product.name} is considering, building, and shipping.`,
+        path: "/roadmap",
+      }),
     loader: ({ context }) => context.queryClient.ensureQueryData(query),
     component: RoadmapComponent,
     pendingComponent: PublicRoadmapSkeleton,

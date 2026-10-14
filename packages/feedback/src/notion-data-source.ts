@@ -50,6 +50,16 @@ const canonicalProperties = {
     type: "number",
     schema: { number: { format: "number" } },
   },
+  teamResponse: {
+    name: "Team Response",
+    type: "rich_text",
+    schema: { rich_text: {} },
+  },
+  releaseNotesUrl: {
+    name: "Release Notes URL",
+    type: "url",
+    schema: { url: {} },
+  },
   submitterName: {
     name: "Submitter Name",
     type: "rich_text",
@@ -89,6 +99,34 @@ const canonicalProperties = {
     type: "last_edited_time",
     schema: { last_edited_time: {} },
   },
+} as const;
+
+export const feedbackWorkflowProperties = {
+  Owner: { people: {} },
+  Priority: {
+    select: {
+      options: [
+        { name: "Urgent" },
+        { name: "High" },
+        { name: "Medium" },
+        { name: "Low" },
+      ],
+    },
+  },
+  "Strategic Theme": { multi_select: { options: [] } },
+  "Participant Segment": { multi_select: { options: [] } },
+  Impact: {
+    select: {
+      options: [{ name: "High" }, { name: "Medium" }, { name: "Low" }],
+    },
+  },
+  Effort: {
+    select: {
+      options: [{ name: "Small" }, { name: "Medium" }, { name: "Large" }],
+    },
+  },
+  "Decision Note": { rich_text: {} },
+  "Needs Follow-up": { checkbox: {} },
 } as const;
 
 export type FeedbackPropertyIds = {
@@ -143,12 +181,15 @@ export async function createNotionFeedbackDataSource({
         parent: { type: "page_id", page_id: parentPageId },
         title: [{ type: "text", text: { content: "Feedback" } }],
         initial_data_source: {
-          properties: Object.fromEntries(
-            Object.values(canonicalProperties).map(({ name, schema }) => [
-              name,
-              schema,
-            ]),
-          ),
+          properties: {
+            ...Object.fromEntries(
+              Object.values(canonicalProperties).map(({ name, schema }) => [
+                name,
+                schema,
+              ]),
+            ),
+            ...feedbackWorkflowProperties,
+          },
         },
       }),
     },
@@ -167,6 +208,98 @@ export async function createNotionFeedbackDataSource({
   );
   const dataSource = await readNotionResponse(dataSourceResponse);
   return configurationFromCanonicalNames(dataSource, database.id);
+}
+
+export async function createFeedbackWorkflowViews({
+  token,
+  databaseId,
+  dataSourceId,
+  propertyIds,
+  request = fetch,
+}: {
+  token: string;
+  databaseId: string;
+  dataSourceId: string;
+  propertyIds: FeedbackPropertyIds;
+  request?: typeof fetch;
+}): Promise<void> {
+  const views = [
+    {
+      name: "Inbox",
+      type: "table",
+      filter: selectFilter(propertyIds.status, "New"),
+      sorts: [{ property: propertyIds.createdAt, direction: "descending" }],
+    },
+    {
+      name: "Reviewing",
+      type: "table",
+      filter: selectFilter(propertyIds.status, "Reviewing"),
+      sorts: [{ property: propertyIds.updatedAt, direction: "descending" }],
+    },
+    {
+      name: "Prioritization",
+      type: "table",
+      filter: {
+        or: [
+          selectFilter(propertyIds.status, "Reviewing"),
+          selectFilter(propertyIds.status, "Planned"),
+        ],
+      },
+      sorts: [
+        { property: "Priority", direction: "ascending" },
+        { property: propertyIds.voteCount, direction: "descending" },
+      ],
+    },
+    {
+      name: "Follow-up",
+      type: "table",
+      filter: { property: "Needs Follow-up", checkbox: { equals: true } },
+    },
+    {
+      name: "Roadmap",
+      type: "board",
+      filter: {
+        or: ["Planned", "In Progress", "Shipped"].map((status) =>
+          selectFilter(propertyIds.status, status),
+        ),
+      },
+      configuration: {
+        type: "board",
+        group_by: {
+          type: "select",
+          property_id: propertyIds.status,
+          group_by: "option",
+          sort: { type: "manual" },
+        },
+      },
+    },
+    {
+      name: "Shipped",
+      type: "table",
+      filter: selectFilter(propertyIds.status, "Shipped"),
+      sorts: [{ property: propertyIds.updatedAt, direction: "descending" }],
+    },
+  ];
+  for (const view of views) {
+    const response = await requestNotion(
+      `${NOTION_API_URL}/views`,
+      {
+        method: "POST",
+        headers: notionHeaders(token),
+        body: JSON.stringify({
+          database_id: databaseId,
+          data_source_id: dataSourceId,
+          ...view,
+        }),
+      },
+      { request, operation: "create" },
+    );
+    await readNotionResponse(response);
+  }
+}
+
+function selectFilter(property: string, value: string) {
+  return { property, select: { equals: value } };
 }
 
 export async function validateNotionFeedbackDataSource({

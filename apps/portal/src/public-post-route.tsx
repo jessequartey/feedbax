@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import type { PortalCommentRequest } from "./portal-comments";
 import { mergeCommentThreads } from "./comment-thread-page";
+import feedbax from "./feedbax";
+import { createRouteHead } from "./portal-head";
 
 import {
   PublicPostDetail,
@@ -25,6 +27,19 @@ export function createPublicPostRoute({
         post && loadComments ? await loadComments(params.slug) : { items: [] };
       return { post, comments };
     },
+    head: ({ loaderData, params }) =>
+      loaderData?.post
+        ? createRouteHead(feedbax.product, {
+            title: loaderData.post.title,
+            description: loaderData.post.description,
+            path: `/p/${encodeURIComponent(loaderData.post.slug)}`,
+          })
+        : createRouteHead(feedbax.product, {
+            title: "Post unavailable",
+            description: feedbax.product.description,
+            path: `/p/${encodeURIComponent(params.slug)}`,
+            noIndex: true,
+          }),
     component: PostRoute,
     pendingComponent: PublicPostDetailSkeleton,
   });

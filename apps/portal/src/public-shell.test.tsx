@@ -22,6 +22,7 @@ import { ThemeProvider } from "next-themes";
 import type { PublicPostPage } from "@feedbax/feedback";
 
 import Header from "./components/header";
+import feedbax from "./feedbax";
 import {
   CommandPalette,
   CommandPaletteProvider,
@@ -76,10 +77,10 @@ describe("public portal shell", () => {
     renderShell("/");
 
     const logo = (
-      await screen.findByRole("link", { name: "Feedbax home" })
+      await screen.findByRole("link", { name: `${feedbax.product.name} home` })
     ).querySelector("img");
     if (!logo) throw new Error("Expected the home link to contain a logo.");
-    expect(logo.getAttribute("src")).toBe("/feedbax-mark.svg");
+    expect(logo.getAttribute("src")).toBe(feedbax.product.logo);
   });
 
   it("keeps the public navigation sticky while the page scrolls", async () => {

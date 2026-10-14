@@ -1,0 +1,18 @@
+---
+title: Notion schema
+description: Required and optional database properties for Feedbax Core 0.2.
+---
+
+| Property          | Notion type | Required | Public use              |
+| ----------------- | ----------- | -------- | ----------------------- |
+| Name              | Title       | Yes      | Post title              |
+| Description       | Rich text   | Yes      | Post body               |
+| Status            | Status      | Yes      | Feed and Roadmap state  |
+| Category          | Select      | Yes      | Feed filtering          |
+| Votes             | Number      | Yes      | Aggregate vote count    |
+| Slug              | Rich text   | Yes      | Stable public route     |
+| Team Response     | Rich text   | No       | Official response       |
+| Changelog Date    | Date        | No       | Release ordering        |
+| Release Notes URL | URL         | No       | External release detail |
+
+Property mappings are explicit so private Notion fields do not become public accidentally.

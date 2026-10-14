@@ -12,7 +12,7 @@ const EDGE_CACHE_CONTROL =
 const CHANGELOG_EDGE_CACHE_CONTROL = "public, max-age=30";
 const PUBLIC_PROJECTION_SCHEMA_VERSION = "1";
 const PUBLIC_FEEDBACK_PAGE_SIZE = "25";
-const PUBLIC_FEEDBACK_SORT = "trending";
+const PUBLIC_FEEDBACK_SORT = "top";
 const PUBLIC_ROADMAP_SORT = "updated-at-desc";
 
 const postTypeSet = new Set<string>(postTypes);

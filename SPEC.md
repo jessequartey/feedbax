@@ -69,7 +69,7 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 - A velocity-based Trending algorithm
 - Follow updates controls or notification delivery
 - A separate management dashboard
-- An embeddable React widget
+- A versioned runtime embeddable package or framework-specific route adapter; version 0.2.0 includes only a copied-source shadcn registry block with an injected submission interface
 - Vercel and Docker deployment
 - A generic storage or plugin system
 - Linear, Jira, GitHub, and Slack connectors
@@ -111,26 +111,28 @@ A Browser Capability never permits changes to status, publication, prioritizatio
 
 The setup flow creates a **Feedbax Database** inside a Notion page selected by the Deployer. It contains separate sibling Feedback and Changelog Data Sources by default, giving each workflow a focused schema and views while sharing one obvious location and database-level permission boundary. A Deployer may supply an existing compatible Feedback Data Source and may place a compatible Changelog Data Source in another database when separate Product and Marketing access is required. `doctor` validates compatibility before the application starts. Version 0.2.0 does not map arbitrary schemas.
 
-The Feedback Data Source has this canonical schema:
+The Feedback Data Source has this canonical runtime schema:
 
-| Property          | Notion type      | Public output | Purpose                                          |
-| ----------------- | ---------------- | ------------: | ------------------------------------------------ |
-| `Title`           | Title            |           Yes | Short summary                                    |
-| `Slug`            | Rich text        |           Yes | Immutable canonical public identity              |
-| `Description`     | Rich text        |           Yes | Participant-supplied details                     |
-| `Type`            | Select           |           Yes | Feature Request, Bug Report, or General Feedback |
-| `Status`          | Select           |           Yes | Post Status                                      |
-| `Published`       | Checkbox         |            No | Controls public visibility                       |
-| `Vote Count`      | Number           |           Yes | Best-effort visible support                      |
-| `Submitter Name`  | Rich text        |            No | Optional unverified follow-up information        |
-| `Submitter Email` | Email            |            No | Optional unverified follow-up information        |
-| `Source`          | Select           |            No | Portal, API, or Team                             |
-| `External ID`     | Rich text        |            No | API idempotency and external reference           |
-| `Edit Token Hash` | Rich text        |            No | Verifies a Browser Capability                    |
-| `Created At`      | Created time     |           Yes | Submission time                                  |
-| `Updated At`      | Last edited time |           Yes | Most recent change                               |
+| Property            | Notion type      | Public output | Purpose                                          |
+| ------------------- | ---------------- | ------------: | ------------------------------------------------ |
+| `Title`             | Title            |           Yes | Short summary                                    |
+| `Slug`              | Rich text        |           Yes | Immutable canonical public identity              |
+| `Description`       | Rich text        |           Yes | Participant-supplied details                     |
+| `Type`              | Select           |           Yes | Feature Request, Bug Report, or General Feedback |
+| `Status`            | Select           |           Yes | Post Status                                      |
+| `Published`         | Checkbox         |            No | Controls public visibility                       |
+| `Vote Count`        | Number           |           Yes | Best-effort visible support                      |
+| `Team Response`     | Rich text        |           Yes | Explicit Product Team response                   |
+| `Release Notes URL` | URL              |           Yes | Optional safe release-notes link                 |
+| `Submitter Name`    | Rich text        |            No | Optional unverified follow-up information        |
+| `Submitter Email`   | Email            |            No | Optional unverified follow-up information        |
+| `Source`            | Select           |            No | Portal, API, or Team                             |
+| `External ID`       | Rich text        |            No | API idempotency and external reference           |
+| `Edit Token Hash`   | Rich text        |            No | Verifies a Browser Capability                    |
+| `Created At`        | Created time     |           Yes | Submission time                                  |
+| `Updated At`        | Last edited time |           Yes | Most recent change                               |
 
-Public pages and APIs use an explicit allowlist containing only Slug, Title, Description, Type, Status, Created At, and Updated At, plus Vote Count when voting is enabled. The public description lives in its dedicated property; Feedbax never renders the page body, so Team Members may use it for private notes without accidentally publishing them. Vote Count remains part of every canonical Feedback schema even when voting is disabled, so later enablement requires only a typed configuration change.
+Public pages and APIs use an explicit allowlist containing only Slug, Title, Description, Type, Status, Created At, Updated At, Team Response, and a root-relative or HTTPS Release Notes URL, plus Vote Count when voting is enabled. The public description lives in its dedicated property; Feedbax never renders the page body, so Team Members may use it for private notes without accidentally publishing them. Vote Count remains part of every canonical Feedback schema even when voting is disabled, so later enablement requires only a typed configuration change.
 
 Slugs are derived at creation, receive deterministic numeric suffixes when titles collide, and never change when a title is edited. Storage IDs remain internal and never appear in canonical public URLs.
 
@@ -148,7 +150,7 @@ Team Members manage Changelog Entries and their optional image directly in Notio
 
 ### Notion-native Participation
 
-Voting is available only on Published Posts. A Vote is a reversible add-or-remove intention remembered by the current browser after the server confirms the mutation. The server reads the authoritative Vote Count from Notion, applies the delta, clamps at zero, and serializes changes per Post within one Worker instance. Separate instances can race, so browser memory is convenience rather than verified uniqueness. Top sorts by Vote Count then Created At, both descending; Trending remains the default and temporarily aliases Top; New sorts by Created At descending.
+Voting is available only on Published Posts. A Vote is a reversible add-or-remove intention remembered by the current browser after the server confirms the mutation. The server reads the authoritative Vote Count from Notion, applies the delta, clamps at zero, and serializes changes per Post within one Worker instance. Separate instances can race, so browser memory is convenience rather than verified uniqueness. Top is the default and sorts by Vote Count then Created At, both descending; legacy Trending URLs resolve to Top; New sorts by Created At descending.
 
 Comments use Notion's native page comment and discussion APIs. Creating a Comment or reply requires a Device Profile with both a display name and a syntactically valid email address. These details remain unverified: the email requirement is a lightweight participation check, not proof of ownership or Participant identity. Email is omitted from Comment content and public responses. Comments authored in the Product Team's Notion Workspace appear as Product Team Comments regardless of the individual Team Member. Only open Comments are shown, on Post detail pages, 50 at a time; feed and roadmap cards do not fetch Comment counts.
 
@@ -160,7 +162,7 @@ Voting, Comments, and Changelog are independent typed feature switches, enabled 
 
 ## Technical architecture
 
-Version 0.2.0 is a standalone portal deployed to its own Cloudflare Worker and custom domain. A Product Team's SaaS submits feedback through the portal's HTTP endpoint; installing Feedbax inside an existing application and an embeddable package are deferred.
+Version 0.2.0 is a standalone portal deployed to its own Cloudflare Worker and custom domain. A Product Team's SaaS submits feedback through the portal's HTTP endpoint. A framework-neutral shadcn registry block may be copied into a React SaaS, but its browser interface receives injected submission and suggestion functions; the trusted key and Feedbax base URL remain behind the SaaS's server seam. A versioned embeddable package and framework-specific route adapters are deferred.
 
 The Deployer connects an internal Notion integration token with Insert Content access to a selected parent page. Public OAuth and Notion Marketplace distribution are deferred.
 
@@ -202,13 +204,13 @@ The stable external HTTP contract initially contains:
 - `PATCH /api/drafts/:id` for Browser Capability draft edits
 - `DELETE /api/drafts/:id` for Browser Capability withdrawal
 
-Public form submission and public reads use internal TanStack server functions. Stable public read endpoints are deferred until a widget or real external consumer requires them.
+Public form submission and public reads use internal TanStack server functions. The copied registry block accepts an optional injected similar-Post function, so version 0.2.0 does not add a stable public read endpoint.
 
 Vote and Comment mutations also use internal portal handlers. They are not added to the stable external versioned API in 0.2.0. Handlers validate publication eligibility, feature configuration, rate limits, Turnstile or Participation Pass requirements, and browser capabilities before calling module behavior.
 
 ## Public read query
 
-Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Trending is the default validated sort state and temporarily uses Top's Vote Count-descending, Created At-descending ordering. New sorts by Created At descending. A real time- or velocity-based Trending algorithm is excluded from version 0.2.0. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
+Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Top is the default validated sort state; legacy `sort=trending` resolves to Top. New sorts by Created At descending. A real time- or velocity-based Trending algorithm is excluded from version 0.2.0. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
 
 Each public feedback-list cache miss performs one Notion query with no per-item follow-up requests. A roadmap cache miss fetches one 25-Post cursor page per roadmap Post Status. Because Notion data-source queries do not expose total result counts, each first-page roadmap read follows the remaining per-status cursors with 100-Post count pages to calculate the exact column totals; it never performs per-Post follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable page size is deferred.
 
@@ -230,9 +232,9 @@ Core is licensed under Apache-2.0. Contributions are accepted directly under the
 
 ## Scaffolding and build order
 
-A pinned Better-T-Stack release is used once to generate a pnpm workspace with TanStack Start, `backend:self`, and shared configuration/UI foundations. Its Alchemy Cloudflare preset, database, authentication, and Effect-based infrastructure are not selected. Feedbax adds Cloudflare's official Vite plugin and Wrangler configuration directly, and Better-T-Stack is not a runtime dependency.
+A pinned Better-T-Stack release was used once to establish the contributor workspace with TanStack Start, `backend:self`, and shared configuration/UI foundations. Its Alchemy Cloudflare preset, database, authentication, and Effect-based infrastructure are not selected. Feedbax adds Cloudflare's official Vite plugin and Wrangler configuration directly, and Better-T-Stack is not a runtime dependency.
 
-`create-feedbax` provides an interactive experience inspired by Better-T-Stack but does not invoke Better-T-Stack during installation. It generates a versioned Feedbax-owned TanStack Start template with dependency ranges verified for that Feedbax release. Additional application frameworks remain deferred until they satisfy the accepted demand or outside-maintainer threshold.
+`create-feedbax` provides an interactive experience inspired by Better-T-Stack but does not invoke Better-T-Stack during installation. It generates one flat, versioned Feedbax-owned TanStack Start application. A deterministic assembler copies the tested contributor modules into local `src/feedbax` and `src/components/ui` folders; generated projects contain no workspace or Turborepo files. Additional application frameworks remain deferred until they satisfy the accepted demand or outside-maintainer threshold.
 
 Version 0.2.0 uses a typed `feedbax.ts` file for product identity, public copy, the shadcn theme preset, Notion connection identifiers, publication/display settings, optional Turnstile configuration, and submission limits. Secrets never appear in this file. A generic plugin interface is deferred until the first real connector exists; runtime connectors will use versioned npm packages, while shadcn registry items are reserved for intentionally copied source and integration recipes.
 

@@ -16,6 +16,8 @@ const propertyIds: FeedbackPropertyIds = {
   status: "status-id",
   published: "published-id",
   voteCount: "vote-count-id",
+  teamResponse: "team-response-id",
+  releaseNotesUrl: "release-notes-url-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",
@@ -41,7 +43,7 @@ describe("trusted feedback Worker handler", () => {
 
     expect(response.status).toBe(308);
     expect(response.headers.get("location")).toBe(
-      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=trending&schema=1",
+      "https://feedback.example.com/?status=New&type=Bug+Report&pageSize=25&sort=top&schema=1",
     );
     expect(applicationHandler).not.toHaveBeenCalled();
   });
@@ -401,6 +403,8 @@ function notionPage({
       Status: { id: "status-id", select: { name: "New" } },
       Published: { id: "published-id", checkbox: false },
       "Vote Count": { id: "vote-count-id", number: 0 },
+      "Team Response": { id: "team-response-id", rich_text: [] },
+      "Release Notes URL": { id: "release-notes-url-id", url: null },
       "Submitter Name": {
         id: "submitter-name-id",
         rich_text: [{ plain_text: "Ama" }],

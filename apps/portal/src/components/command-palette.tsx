@@ -60,7 +60,7 @@ export function CommandPalette({
 
   const query = useInfiniteQuery({
     ...publicPostsQuery(
-      { search: deferredTerm, sort: features.voting ? "trending" : "new" },
+      { search: deferredTerm, sort: features.voting ? "top" : "new" },
       (search) => searchPosts(search.search ?? ""),
     ),
     enabled: open && deferredTerm.trim().length > 0,

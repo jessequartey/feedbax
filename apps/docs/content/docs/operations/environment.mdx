@@ -1,0 +1,13 @@
+---
+title: Environment
+description: Configure local and production environment values without leaking secrets.
+---
+
+```dotenv title=".dev.vars"
+NOTION_TOKEN=secret_replace_me
+NOTION_DATABASE_ID=replace_me
+FEEDBAX_API_SECRET=replace_with_a_long_random_value
+FEEDBAX_SITE_URL=https://feedback.feedbax.dev
+```
+
+Public values may live in Worker configuration. Store tokens and API secrets with `.dev.vars` locally and `wrangler secret put` in production.

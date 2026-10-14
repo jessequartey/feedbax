@@ -1,0 +1,23 @@
+---
+title: Introduction
+description: Understand the Feedbax model before you deploy it.
+---
+
+Feedbax is a self-hosted feedback portal for Product Teams that use Notion as their working system.
+
+## The model
+
+```text
+Participant → public Feedbax portal → Notion database → Product Team
+```
+
+The portal handles public reading, submission, Votes, Comments, Roadmap, and Changelog. Notion remains the source of truth for triage and publishing.
+
+## Core 0.2 boundaries
+
+- One Notion workspace and one feedback database.
+- Notion-only Participation, with browser-scoped identity.
+- Cloudflare Worker deployment.
+- No Feedbax-hosted identity, billing, or analytics service.
+
+Read [Participation guarantees](/docs/reference/guarantees) before promising identity or voting properties to Participants.

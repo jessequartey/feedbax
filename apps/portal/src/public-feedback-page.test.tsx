@@ -157,7 +157,8 @@ describe("public feedback home page", () => {
     expect(html).toContain("Boards");
     expect(html).toContain("All posts");
     expect(html).toContain("Status");
-    expect(html).toContain("Trending");
+    expect(html).not.toContain("Trending");
+    expect(html).toContain("Top");
     expect(html).toContain("Top");
     expect(html).toContain("New post");
   });

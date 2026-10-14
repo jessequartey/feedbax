@@ -22,6 +22,8 @@ import {
 
 export {
   createNotionFeedbackDataSource,
+  createFeedbackWorkflowViews,
+  feedbackWorkflowProperties,
   validateNotionFeedbackDataSource,
   type FeedbackDataSourceConfiguration,
   type FeedbackPropertyIds,
@@ -54,6 +56,8 @@ export interface Post extends SubmitPostInput {
   createdAt: Date;
   updatedAt: Date;
   voteCount?: number;
+  teamResponse?: string;
+  releaseNotesUrl?: string;
 }
 
 declare const browserCapabilityBrand: unique symbol;
@@ -82,7 +86,11 @@ export type PublicPost = Pick<
   | "status"
   | "createdAt"
   | "updatedAt"
-> & { voteCount?: number };
+> & {
+  voteCount?: number;
+  teamResponse?: string;
+  releaseNotesUrl?: string;
+};
 
 export interface ChangeVoteInput {
   slug: string;
@@ -779,7 +787,7 @@ function decodePublicPostCursor(
 
 function publicPostCursorScope(query: PublicPostQuery): string {
   return JSON.stringify({
-    sort: query.sort ?? "trending",
+    sort: query.sort === "trending" ? "top" : (query.sort ?? "top"),
     type: query.type,
     status: query.status,
     types: query.types,
@@ -829,6 +837,8 @@ function toPost(item: StoredPost): Post {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     voteCount: item.voteCount ?? 0,
+    ...(item.teamResponse ? { teamResponse: item.teamResponse } : {}),
+    ...(item.releaseNotesUrl ? { releaseNotesUrl: item.releaseNotesUrl } : {}),
   };
 }
 
@@ -842,6 +852,8 @@ function toPublicPost(post: Post, votingEnabled = true): PublicPost {
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
     ...(votingEnabled ? { voteCount: post.voteCount ?? 0 } : {}),
+    ...(post.teamResponse ? { teamResponse: post.teamResponse } : {}),
+    ...(post.releaseNotesUrl ? { releaseNotesUrl: post.releaseNotesUrl } : {}),
   };
 }
 

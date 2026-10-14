@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches:
@@ -17,7 +18,7 @@ jobs:
   verify:
     name: Verify Core
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -45,6 +46,12 @@ jobs:
             exit 1
           fi
 
+      - name: Verify generated template
+        run: pnpm template:check
+
+      - name: Scan tracked files for secrets
+        run: pnpm security:check
+
       - name: Check formatting
         run: pnpm format:check
 
@@ -59,6 +66,15 @@ jobs:
 
       - name: Build production Worker
         run: pnpm build
+
+      - name: Check portal JavaScript budget
+        run: node scripts/check-bundle.mjs
+
+      - name: Verify packed packages and clean generated installation
+        run: pnpm packages:check
+
+      - name: Verify documentation deployment bundle
+        run: pnpm deploy:docs:dry-run
 
       - name: Verify Worker deployment bundle
         run: pnpm deploy:dry-run

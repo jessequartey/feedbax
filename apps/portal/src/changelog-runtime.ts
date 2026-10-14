@@ -21,7 +21,7 @@ function buildConfiguredChangelogModule() {
     storage: createNotionChangelogStorage({
       token: requiredEnvironmentValue("NOTION_TOKEN"),
       dataSourceId: feedbax.changelog.dataSourceId,
-      propertyIds: feedbax.changelog.propertyIds,
+      propertyIds: feedbax.changelog.properties,
     }),
   });
 }

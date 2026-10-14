@@ -4,26 +4,46 @@ import {
   Outlet,
   Scripts,
   createRootRouteWithContext,
+  useRouterState,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/header";
 import { DeviceProfileProvider } from "../components/device-profile-provider";
 import {
-  CommandPalette,
   CommandPaletteProvider,
-} from "../components/command-palette";
-import { CreatePostOverlay } from "../create-post-overlay";
-import { portalFeedbackMutations } from "../routed-post-creation-form";
-import { PostDetailOverlay } from "../post-detail-overlay";
-import { OverlayPostDetail } from "../overlay-post-detail";
-import { getPublicPostPage } from "../public-feedback-server-function";
+  useCommandPalette,
+} from "../components/command-palette-context";
 import feedbax from "../feedbax";
 import { createPortalHead } from "../portal-head";
 
 import appCss from "../index.css?url";
+
+const RouterDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-router-devtools").then((module) => ({
+        default: module.TanStackRouterDevtools,
+      })),
+    )
+  : null;
+
+const CommandPalette = lazy(() =>
+  import("../components/command-palette").then((module) => ({
+    default: module.CommandPalette,
+  })),
+);
+const CreatePostOverlay = lazy(() =>
+  import("../lazy-create-post-overlay").then((module) => ({
+    default: module.LazyCreatePostOverlay,
+  })),
+);
+const PostDetailOverlay = lazy(() =>
+  import("../lazy-post-detail-overlay").then((module) => ({
+    default: module.LazyPostDetailOverlay,
+  })),
+);
 
 export type RouterAppContext = {
   queryClient: import("@tanstack/react-query").QueryClient;
@@ -34,6 +54,31 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 
   component: RootDocument,
 });
+
+function OptionalPortalSurfaces() {
+  const { open: commandPaletteOpen } = useCommandPalette();
+  const overlayState = useRouterState({
+    select: (state) => state.location.state,
+  });
+
+  return (
+    <Suspense fallback={null}>
+      {overlayState.createPostOverlay ? <CreatePostOverlay /> : null}
+      {overlayState.postDetailOverlay ? <PostDetailOverlay /> : null}
+      {commandPaletteOpen ? (
+        <CommandPalette
+          searchPosts={async (term) => {
+            const { getPublicPostPage } =
+              await import("../public-feedback-server-function");
+            return getPublicPostPage({
+              data: { search: term || undefined },
+            });
+          }}
+        />
+      ) : null}
+    </Suspense>
+  );
+}
 
 function RootDocument() {
   const { queryClient } = Route.useRouteContext();
@@ -52,24 +97,18 @@ function RootDocument() {
                   <div id="main-content" tabIndex={-1}>
                     <Outlet />
                   </div>
-                  <CreatePostOverlay mutations={portalFeedbackMutations} />
-                  <PostDetailOverlay
-                    renderDetail={(slug) => <OverlayPostDetail slug={slug} />}
-                  />
-                  <CommandPalette
-                    searchPosts={(term) =>
-                      getPublicPostPage({
-                        data: { search: term || undefined },
-                      })
-                    }
-                  />
+                  <OptionalPortalSurfaces />
                 </div>
               </CommandPaletteProvider>
             </DeviceProfileProvider>
           </ThemeProvider>
         </QueryClientProvider>
         <Toaster richColors />
-        <TanStackRouterDevtools position="bottom-left" />
+        {RouterDevtools ? (
+          <Suspense fallback={null}>
+            <RouterDevtools position="bottom-left" />
+          </Suspense>
+        ) : null}
         <Scripts />
       </body>
     </html>

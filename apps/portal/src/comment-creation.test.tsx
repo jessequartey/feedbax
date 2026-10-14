@@ -241,6 +241,10 @@ describe("Comment creation", () => {
       ),
     ).toEqual(["Reply", "Edit", "Delete"]);
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Comment text" }), {
+      target: { value: "Corrected message" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Corrected message")).toBeTruthy();
     expect(mutateComment).toHaveBeenCalledWith({
       action: "edit",

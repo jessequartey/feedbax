@@ -8,3 +8,4 @@
 **/coverage/**
 **/routeTree.gen.ts
 pnpm-lock.yaml
+packages/create-feedbax/template/

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createNotionFeedbackDataSource,
+  feedbackWorkflowProperties,
   validateNotionFeedbackDataSource,
   type FeedbackPropertyIds,
 } from "./index";
@@ -14,6 +15,8 @@ const propertyIds: FeedbackPropertyIds = {
   status: "status-id",
   published: "published-id",
   voteCount: "vote-count-id",
+  teamResponse: "team-response-id",
+  releaseNotesUrl: "release-notes-url-id",
   submitterName: "submitter-name-id",
   submitterEmail: "submitter-email-id",
   source: "source-id",
@@ -91,6 +94,8 @@ describe("Notion Feedback Data Source", () => {
               ["Status", "status-id", "select"],
               ["Published", "published-id", "checkbox"],
               ["Vote Count", "vote-count-id", "number"],
+              ["Team Response", "team-response-id", "rich_text"],
+              ["Release Notes URL", "release-notes-url-id", "url"],
               ["Submitter Name", "submitter-name-id", "rich_text"],
               ["Submitter Email", "submitter-email-id", "email"],
               ["Source", "source-id", "select"],
@@ -156,6 +161,8 @@ describe("Notion Feedback Data Source", () => {
           },
           Published: { checkbox: {} },
           "Vote Count": { number: { format: "number" } },
+          "Team Response": { rich_text: {} },
+          "Release Notes URL": { url: {} },
           "Submitter Name": { rich_text: {} },
           "Submitter Email": { email: {} },
           Source: {
@@ -167,6 +174,7 @@ describe("Notion Feedback Data Source", () => {
           "Edit Token Hash": { rich_text: {} },
           "Created At": { created_time: {} },
           "Updated At": { last_edited_time: {} },
+          ...feedbackWorkflowProperties,
         },
       },
     });
@@ -193,6 +201,8 @@ describe("Notion Feedback Data Source", () => {
         status: "status-id",
         published: "published-id",
         voteCount: "vote-count-id",
+        teamResponse: "team-response-id",
+        releaseNotesUrl: "release-notes-url-id",
         submitterName: "submitter-name-id",
         submitterEmail: "submitter-email-id",
         source: "source-id",
@@ -226,6 +236,16 @@ describe("Notion Feedback Data Source", () => {
             type: "checkbox",
           },
           Votes: { id: "vote-count-id", name: "Votes", type: "number" },
+          Response: {
+            id: "team-response-id",
+            name: "Response",
+            type: "rich_text",
+          },
+          Release: {
+            id: "release-notes-url-id",
+            name: "Release",
+            type: "url",
+          },
           Contact: {
             id: "submitter-name-id",
             name: "Contact",
@@ -332,6 +352,8 @@ const expectedTypes: Record<string, string> = {
   status: "select",
   published: "checkbox",
   voteCount: "number",
+  teamResponse: "rich_text",
+  releaseNotesUrl: "url",
   submitterName: "rich_text",
   submitterEmail: "email",
   source: "select",

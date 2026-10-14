@@ -1,5 +1,5 @@
 {
-  "name": "feedbax",
+  "name": "@feedbax/workspace",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -17,22 +17,41 @@
     "test": "vitest run --passWithNoTests",
     "manual:setup:notion": "tsx scripts/manual-notion-setup.ts",
     "dev:portal": "turbo run dev -F @feedbax/portal",
-    "deploy:dry-run": "pnpm --filter @feedbax/portal deploy:dry-run"
+    "dev:docs": "turbo run dev -F @feedbax/docs",
+    "build:docs": "turbo run build -F @feedbax/docs",
+    "deploy:docs": "pnpm --filter @feedbax/docs run deploy",
+    "deploy:docs:dry-run": "pnpm --filter @feedbax/docs deploy:dry-run",
+    "deploy:dry-run": "pnpm --filter @feedbax/portal deploy:dry-run",
+    "changeset": "changeset",
+    "release:version": "changeset version && pnpm template:sync",
+    "release:publish": "node scripts/publish-packages.mjs",
+    "template:sync": "tsx scripts/assemble-template.ts",
+    "template:check": "tsx scripts/assemble-template.ts --check",
+    "packages:check": "tsx scripts/check-packages.ts",
+    "security:check": "node scripts/check-secrets.mjs",
+    "registry:build": "node scripts/build-registry.mjs"
   },
   "dependencies": {
     "@feedbax/env": "workspace:*",
     "dotenv": "catalog:",
+    "esbuild": "0.28.1",
+    "jsonc-parser": "3.3.1",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@feedbax/config": "workspace:*",
-    "@types/node": "catalog:",
+    "@changesets/cli": "^3.0.3",
     "@eslint/js": "10.0.1",
+    "@feedbax/config": "workspace:*",
+    "@testing-library/react": "16.3.2",
+    "@types/node": "catalog:",
     "eslint": "10.8.1",
     "globals": "17.11.0",
+    "jsdom": "29.1.1",
     "prettier": "3.9.6",
-    "turbo": "2.10.11",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tsx": "4.20.6",
+    "turbo": "2.10.11",
     "typescript": "catalog:",
     "typescript-eslint": "8.67.0",
     "vitest": "4.1.11"

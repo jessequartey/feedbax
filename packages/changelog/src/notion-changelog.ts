@@ -344,7 +344,13 @@ function propertyAt(
   properties: Record<string, unknown>,
   id: string,
 ): Record<string, unknown> {
-  return recordAt(properties, id);
+  const direct = properties[id];
+  if (isRecord(direct)) return direct;
+
+  const matched = Object.values(properties).find(
+    (property) => isRecord(property) && property.id === id,
+  );
+  return record(matched);
 }
 
 function notionHeaders(token: string): Record<string, string> {

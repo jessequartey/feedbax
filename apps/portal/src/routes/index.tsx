@@ -10,11 +10,14 @@ import { publicPostsQuery, type FetchPublicPostsPage } from "../post-queries";
 import { getPublicPostPage } from "../public-feedback-server-function";
 import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { useTransition } from "react";
+import feedbax from "../feedbax";
+import { createRouteHead } from "../portal-head";
 
 const fetchPublicPostsPage: FetchPublicPostsPage = (search) =>
   getPublicPostPage({ data: search });
 
 export const Route = createFileRoute("/")({
+  head: () => createRouteHead(feedbax.product, { path: "/" }),
   validateSearch: publicPostSearch,
   loaderDeps: ({ search }) => search,
   loader: ({ deps, context }) =>

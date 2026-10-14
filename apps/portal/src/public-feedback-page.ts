@@ -21,7 +21,7 @@ export const postStatuses = [
   "Shipped",
   "Closed",
 ] as const satisfies readonly PostStatus[];
-export const postSorts = ["trending", "top", "new"] as const;
+export const postSorts = ["top", "new"] as const;
 
 export async function loadPublicPostPage({
   feedback,
@@ -53,9 +53,11 @@ export function publicPostSearch(
     ...(query ? { search: query } : {}),
     sort: !features.voting
       ? "new"
-      : postSorts.includes(sortValue as (typeof postSorts)[number])
-        ? (sortValue as PublicPostQuery["sort"])
-        : "trending",
+      : sortValue === "trending"
+        ? "top"
+        : postSorts.includes(sortValue as (typeof postSorts)[number])
+          ? (sortValue as PublicPostQuery["sort"])
+          : "top",
     ...(types.length ? { types } : {}),
     ...(statuses.length ? { statuses } : {}),
   };

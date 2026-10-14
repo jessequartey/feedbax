@@ -91,6 +91,42 @@ describe("Notion Changelog Data Source contract", () => {
 });
 
 describe("Notion Changelog query contract", () => {
+  it("maps projected properties when Notion keys them by property name", async () => {
+    const page = notionPage();
+    page.properties = Object.fromEntries(
+      Object.entries(page.properties).map(([id, property]) => [
+        id === propertyIds.title
+          ? "Title"
+          : id === propertyIds.slug
+            ? "Slug"
+            : id === propertyIds.date
+              ? "Date"
+              : id === propertyIds.summary
+                ? "Summary"
+                : id === propertyIds.body
+                  ? "Body"
+                  : id === propertyIds.labels
+                    ? "Labels"
+                    : "Image",
+        { ...property, id },
+      ]),
+    );
+    const storage = createNotionChangelogStorage({
+      token: "token",
+      dataSourceId: "changelog-source",
+      propertyIds,
+      request: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({ results: [page], has_more: false }),
+        ),
+    });
+
+    await expect(storage.listPublished({})).resolves.toMatchObject({
+      items: [{ slug: "entry", title: "Entry", body: "Body text" }],
+    });
+  });
+
   it("queries only Published entries with public properties, ordering, Labels, and cursors", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValueOnce(
       Response.json({
