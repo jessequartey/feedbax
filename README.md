@@ -1,6 +1,22 @@
 # Feedbax Core
 
-Feedbax Core is the open-source, self-hostable Feedbax application. Its initial workspace was generated once from the pinned Better-T-Stack foundation recorded in `bts.jsonc`; Better-T-Stack is not a runtime dependency.
+Feedbax Core is an open-source feedback portal backed by Notion and deployed on Cloudflare Workers. Product Teams manage feedback, Comments, Roadmap, and Changelog in Notion.
+
+## Install 0.2.0
+
+Use Node.js 22.14 or newer and pnpm 10:
+
+```sh
+npx create-feedbax@0.2.0 my-feedback
+```
+
+Guided setup creates the Notion schema, copies an application you own, installs dependencies, checks configuration, and offers deployment. It collects secrets privately and stores public configuration in `src/feedbax.ts`.
+
+From the generated application, run `pnpm exec feedbax doctor` to check readiness, `pnpm exec feedbax deploy --dry-run` to verify the Worker bundle, or `pnpm exec feedbax deploy` to publish it. See the [setup guide](https://feedbax-docs.jessefquartey.workers.dev/docs) and [release process](docs/releases-0.2.0.md).
+
+### Replacing 0.1
+
+Version 0.2.0 requires a fresh Installation. Create a new project directory, Notion Database, and Worker; setup does not import or mutate legacy content. Keep the existing 0.1 Installation and content read-only while checking the new portal, then change your public links or domain when ready. Archive legacy content manually only after deciding what to retain.
 
 ## Best-effort voting
 
@@ -8,7 +24,7 @@ In the Notion-only Profile, Votes are browser-remembered convenience state backe
 
 When Turnstile is configured, the first participation action issues a signed Participation Pass valid for 30 minutes. Confirmed Participant Comments receive a browser-held Comment Capability valid for 15 minutes. Setup stores the shared signing secret outside typed public configuration; rotating `PARTICIPATION_SIGNING_SECRET` invalidates all outstanding Participation Passes and Comment Capabilities.
 
-Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, Trending temporarily aliases that exact ordering, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
+Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, legacy Trending URLs resolve to Top, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
 
 Public portal Posts and Comments use an unverified Device Profile. A display name and syntactically valid email are required to create a Post, Comment, or reply, but this does not verify email ownership; email remains private. Resolved Comments are hidden. Changelog images are managed directly in Notion and temporary file references are discarded or refreshed before expiry. See [Notion-native participation guarantees](docs/notion-native-participation.md) for later enablement, rotation, recovery, and API boundaries.
 
@@ -20,7 +36,7 @@ Public portal Posts and Comments use an unverified Device Profile. A display nam
 - **Shared UI package** - shadcn/ui primitives live in `packages/ui`
 - **Turborepo** - Optimized monorepo build system
 
-## Getting Started
+## Contributing locally
 
 First, install the dependencies:
 
@@ -94,8 +110,7 @@ feedbax/
 
 ## Manual production proof
 
-Before the setup and deployment workflow is extracted into the lifecycle CLI,
-run the guided Notion and Cloudflare proof:
+For low-level Notion and Cloudflare diagnostics outside guided setup, run:
 
 ```bash
 ./scripts/prove-manual-production.sh
