@@ -1,4 +1,9 @@
-import { postStatuses, postTypes } from "./public-feedback-page";
+import {
+  defaultParseSearch,
+  defaultStringifySearch,
+} from "@tanstack/react-router";
+import type { PortalFeatures } from "@feedbax/config";
+import { publicPostSearch } from "./public-feedback-page";
 import {
   publicChangelogCacheTag,
   publicFeedbackCacheTag,
@@ -12,24 +17,37 @@ const EDGE_CACHE_CONTROL =
 const CHANGELOG_EDGE_CACHE_CONTROL = "public, max-age=30";
 const PUBLIC_PROJECTION_SCHEMA_VERSION = "1";
 const PUBLIC_FEEDBACK_PAGE_SIZE = "25";
-const PUBLIC_FEEDBACK_SORT = "top";
 const PUBLIC_ROADMAP_SORT = "updated-at-desc";
 
-const postTypeSet = new Set<string>(postTypes);
-const postStatusSet = new Set<string>(postStatuses);
-
-export function canonicalPublicRequest(request: Request): Request | undefined {
+export function canonicalPublicRequest(
+  request: Request,
+  features?: PortalFeatures,
+): Request | undefined {
   if (request.method !== "GET") return undefined;
   const source = new URL(request.url);
   if (!isPublicPath(source.pathname)) return undefined;
 
   const canonical = new URL(source.origin + source.pathname);
   if (source.pathname === "/") {
-    appendAllowed(canonical, source, "cursor");
-    appendAllowed(canonical, source, "status", postStatusSet);
-    appendAllowed(canonical, source, "type", postTypeSet);
-    canonical.searchParams.set("pageSize", PUBLIC_FEEDBACK_PAGE_SIZE);
-    canonical.searchParams.set("sort", PUBLIC_FEEDBACK_SORT);
+    const parsed = defaultParseSearch(source.search);
+    const query = publicPostSearch(
+      {
+        ...parsed,
+        types: parsed.types ?? parsed.type,
+        statuses: parsed.statuses ?? parsed.status,
+      },
+      features,
+    );
+    const { cursor, search, types, statuses, sort } = query;
+    canonical.search = defaultStringifySearch({
+      ...(cursor ? { cursor } : {}),
+      ...(search ? { search } : {}),
+      ...(types?.length ? { types: [...types].sort() } : {}),
+      ...(statuses?.length ? { statuses: [...statuses].sort() } : {}),
+      pageSize: Number(PUBLIC_FEEDBACK_PAGE_SIZE),
+      sort,
+      schema: Number(PUBLIC_PROJECTION_SCHEMA_VERSION),
+    });
   } else if (source.pathname === "/roadmap") {
     canonical.searchParams.set("sort", PUBLIC_ROADMAP_SORT);
   }
@@ -97,17 +115,5 @@ function decodePathSegment(value: string): string {
     return decodeURIComponent(value);
   } catch {
     return value;
-  }
-}
-
-function appendAllowed(
-  target: URL,
-  source: URL,
-  name: string,
-  allowed?: ReadonlySet<string>,
-): void {
-  const value = source.searchParams.get(name);
-  if (value && (!allowed || allowed.has(value))) {
-    target.searchParams.set(name, value);
   }
 }
