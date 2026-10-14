@@ -1,10 +1,10 @@
-const portalUrl = "https://feedback.feedbax.dev";
+const portalUrl = "https://feedback.example.com";
 
 export async function submitFeedback(
   input: {
     title: string;
     description: string;
-    category: "Feature Request" | "Bug Report";
+    type: "Feature Request" | "Bug Report" | "General Feedback";
   },
   eventId: string,
 ) {

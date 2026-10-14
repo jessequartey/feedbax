@@ -11,6 +11,6 @@ description: Verify and deploy a Feedbax portal to Cloudflare Workers.
 
 ## Production secrets
 
-Store the Notion token and trusted API secret with Wrangler. Do not put secret values in `wrangler.jsonc`.
+The lifecycle deploy command uploads the Notion token, trusted API-key **hash**, participation signing secret, and enabled Turnstile secret after confirmation. The plaintext trusted API key belongs only in the calling product. Do not put secrets in `src/feedbax.ts` or `wrangler.jsonc`.
 
 After deployment, verify the Worker preview hostname before attaching a custom domain.

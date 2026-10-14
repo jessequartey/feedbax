@@ -1,15 +1,14 @@
 ---
 title: Comments and voting
-description: Understand Participation behavior and moderate public discussion.
+description: Participate through best-effort Votes and native Notion Comment Threads.
 ---
 
-Votes and Comments help Product Teams understand interest and context; they are not verified identities or scientific polling.
+Votes are reversible and remembered in the current browser after server confirmation. Top orders by Vote Count and then creation time; New is chronological. Legacy Trending URLs resolve to Top. Different Worker instances can race when updating a count, and clearing browser storage removes local duplicate prevention.
 
-## Moderation
+A display name and valid contact email are required to create a Post, Comment, or reply. This Device Profile is unverified and stored on one browser. Comment names are public and marked unverified; email remains private and is never included in Comment content.
 
-- Remove sensitive information from public Comments.
-- Treat vote counts as directional signals.
-- Keep Team Responses factual and link to shipped work when possible.
-- Document stronger identity requirements outside the Notion-only Profile.
+Comments and replies are native Notion discussions on Published Posts. Notion-authored contributions appear as Product Team. Resolving or deleting a discussion in Notion hides it from the portal. Detail pages load 50 Comments at a time; feed and roadmap cards do not fetch Comment counts.
 
-See [Participation guarantees](/docs/reference/guarantees) for the exact boundary.
+The creating browser receives a signed Comment Capability for fifteen minutes. It can edit or delete that Comment during the window. Clearing storage, changing devices, or rotating the signing secret removes that access; there is no recovery. Participants cannot edit Product Team Comments.
+
+All public writes are rate-limited. When Turnstile is enabled, the first successful participation challenge issues a Participation Pass for thirty minutes. See the [guarantees](/docs/reference/guarantees).

@@ -5,7 +5,7 @@ description: Diagnose common Notion, Worker, schema, and Participation failures.
 
 ## Notion content is missing
 
-Confirm the database is shared with the integration and that configured property names match the schema exactly. Run `feedbax doctor`.
+Confirm the database is shared with the integration and that the stable property IDs in `src/feedbax.ts` match the expected property types. Run `feedbax doctor`.
 
 ## Mutations fail in production
 
@@ -13,4 +13,4 @@ Check Worker secrets, rate-limit bindings, allowed origins, and the deployed Wor
 
 ## Votes disappear
 
-The Notion-only Profile stores Participation state in the browser. A cleared profile or different browser does not carry that state.
+The Notion-only Profile stores Participation state in the browser. Clearing browser storage or switching browsers removes that local state. Changing or clearing the Device Profile alone does not grant or remove editing capabilities.

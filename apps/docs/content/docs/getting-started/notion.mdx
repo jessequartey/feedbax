@@ -1,23 +1,23 @@
 ---
 title: Connect Notion
-description: Configure the Notion integration and database schema Feedbax expects.
+description: Configure an internal integration and the canonical Feedbax data sources.
 ---
 
-## Data flow
+## Storage layout
 
 ```text
-Notion integration
-       │ access
-       ▼
-Feedback database ── relations ── Votes and Comments
-       │
-       ├─ public feed and roadmap
-       └─ published changelog entries
+Feedbax Database
+  ├─ Feedback Data Source: Posts, statuses, Vote Count, private team fields
+  │    └─ Native Notion Comments on each Post page
+  └─ Changelog Data Source: independently published product updates
 ```
 
-1. Create an internal Notion integration.
-2. Share the Feedbax database with that integration.
-3. Copy the database ID and token into your environment.
-4. Run `feedbax doctor` before development or deployment.
+Posts and Changelog Entries have separate schemas. A Changelog Data Source can use a different database when it needs a separate access boundary. There is no Votes database or Comments relation.
 
-See the complete [Notion schema reference](/docs/reference/notion-schema).
+1. Create a Notion internal integration with read, insert, and update content capabilities. When Comments are enabled, also enable both Read comments and Insert comments.
+2. Share a parent page with the integration. Enter that page ID and the integration token when prompted by `create-feedbax`; token input is hidden.
+3. Review the mutation previews. Setup creates the Feedback Data Source, private workflow properties, six team views, and an empty sibling Changelog Data Source when enabled. It publishes no sample Changelog Entries.
+4. Alternatively, select existing compatible storage and provide its stable property IDs. Setup validates it instead of migrating an arbitrary schema. For enabled Comments, provide an accessible shared page for the permission check.
+5. Run `pnpm exec feedbax doctor` after setup and whenever mappings change.
+
+The generated `src/feedbax.ts` stores identifiers and property mappings. The token stays in ignored `.dev.vars` and the production Worker's encrypted secrets. See the [schema reference](/docs/reference/notion-schema).

@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import documentedConfiguration from "../examples/feedbax.config";
+import { createFeedbackModule } from "../../../packages/feedback/src/index";
+import { createTrustedFeedbackHandler } from "../../portal/src/trusted-feedback-handler";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -42,4 +46,38 @@ describe("documentation content contract", () => {
       expect(sitemap).toContain(`https://feedbax.dev/docs/${slug}`);
     }
   });
+});
+
+it("keeps the documented complete configuration valid", () => {
+  expect(documentedConfiguration.features.changelog).toBe(true);
+  expect(documentedConfiguration.changelog?.properties.body).toBeTruthy();
+});
+
+it("accepts the documented curl payload through the real trusted Worker handler", async () => {
+  const script = readFileSync(`${root}examples/trusted-submission.sh`, "utf8");
+  const payload = /--data '([^']+)'/.exec(script)?.[1];
+  if (!payload)
+    throw new Error("Expected a documented JSON submission payload.");
+  const key = "documentation-test-key";
+  const handler = createTrustedFeedbackHandler({
+    apiKeyHash: createHash("sha256").update(key).digest("base64url"),
+    feedback: createFeedbackModule(),
+    rateLimiter: { limit: async () => ({ success: true }) },
+    limits: { maxTitleLength: 160, maxDescriptionLength: 5000 },
+  });
+  const response = await handler(
+    new Request("https://feedback.example.com/api/v1/posts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Idempotency-Key": "docs-example",
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(((await response.json()) as { title: string }).title).toBe(
+    "Export feedback as CSV",
+  );
 });

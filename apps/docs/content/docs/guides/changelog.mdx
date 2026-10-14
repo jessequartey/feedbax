@@ -1,14 +1,14 @@
 ---
 title: Changelog
-description: Publish credible release notes from the same Notion workflow.
+description: Publish product updates from a separate Notion Changelog Data Source.
 ---
 
-Changelog entries are feedback posts with release metadata. A useful entry says what changed, why it matters, and which feedback shaped it.
+Changelog Entries use their own schema and Data Source, separate from feedback Posts. By default they share one Feedbax Database. A new Changelog Data Source starts empty.
 
-## Example release
+Create an entry in Notion with Title, immutable Slug, Date, Summary, Body, Labels, and optional Image. Summary and Body are rich-text properties; the Notion page body is not published. Check Published when the entry is ready.
 
-### Feedbax Core 0.2
+The public timeline sorts by Date, newest first, and loads 20 entries at a time. Participants can filter Labels and link to entries through hash anchors. There is no separate Changelog detail route in 0.2.0.
 
-Core 0.2 adds public Comments, browser-scoped Votes, Roadmap views, Changelog publishing, trusted server submissions, and Cloudflare-first deployment checks.
+Manage zero or one image directly in Notion. Feedbax reads that file reference, refreshes or discards temporary URLs before expiry, and preserves text when an image is unavailable. It does not upload, resize, copy, or separately store images.
 
-Use a release date, stable slug, concise summary, and optional release notes URL. Only publish entries that are ready for Participants to read.
+A feedback Post can point to a public Changelog anchor using its Release Notes URL. Describe what changed and why it matters; do not publish private planning notes or Participant details.

@@ -1,18 +1,52 @@
 ---
 title: Notion schema
-description: Required and optional database properties for Feedbax Core 0.2.
+description: Canonical Feedback and Changelog properties and their public boundaries.
 ---
 
-| Property          | Notion type | Required | Public use              |
-| ----------------- | ----------- | -------- | ----------------------- |
-| Name              | Title       | Yes      | Post title              |
-| Description       | Rich text   | Yes      | Post body               |
-| Status            | Status      | Yes      | Feed and Roadmap state  |
-| Category          | Select      | Yes      | Feed filtering          |
-| Votes             | Number      | Yes      | Aggregate vote count    |
-| Slug              | Rich text   | Yes      | Stable public route     |
-| Team Response     | Rich text   | No       | Official response       |
-| Changelog Date    | Date        | No       | Release ordering        |
-| Release Notes URL | URL         | No       | External release detail |
+## Feedback Data Source
 
-Property mappings are explicit so private Notion fields do not become public accidentally.
+Every property below is required by the schema. Values such as a Team Response or release link may be empty.
+
+| Property          | Notion type      | Public use                                            |
+| ----------------- | ---------------- | ----------------------------------------------------- |
+| Title             | Title            | Post title                                            |
+| Slug              | Rich text        | Immutable public route                                |
+| Description       | Rich text        | Public description                                    |
+| Type              | Select           | Feature Request, Bug Report, General Feedback         |
+| Status            | Select           | New, Reviewing, Planned, In Progress, Shipped, Closed |
+| Published         | Checkbox         | Visibility control; not projected                     |
+| Vote Count        | Number           | Visible only with voting enabled                      |
+| Team Response     | Rich text        | Product Team response                                 |
+| Release Notes URL | URL              | Root-relative or HTTPS release link                   |
+| Submitter Name    | Rich text        | Private, unverified follow-up information             |
+| Submitter Email   | Email            | Private, unverified follow-up information             |
+| Source            | Select           | Private: Portal, API, or Team                         |
+| External ID       | Rich text        | Private trusted-submission idempotency key            |
+| Edit Token Hash   | Rich text        | Private Browser Capability hash                       |
+| Created At        | Created time     | Public timestamp                                      |
+| Updated At        | Last edited time | Public timestamp                                      |
+
+Vote Count remains required even when voting is disabled. Status uses Notion's **Select** type. Required properties can be renamed when their configured stable IDs remain correct; changing a required type or deleting a mapped property makes diagnostics fail.
+
+New Posts are New and unpublished. Only Published Posts appear publicly. Notion page-body content and unknown custom properties are never projected publicly.
+
+## Changelog Data Source
+
+| Property   | Notion type      | Purpose                                 |
+| ---------- | ---------------- | --------------------------------------- |
+| Title      | Title            | Entry title                             |
+| Slug       | Rich text        | Immutable timeline anchor               |
+| Date       | Date             | Newest-first timeline ordering          |
+| Summary    | Rich text        | Entry summary                           |
+| Body       | Rich text        | Entry content; not the Notion page body |
+| Labels     | Multi-select     | Open-ended Changelog Labels             |
+| Image      | Files            | Zero or one Team Member-managed image   |
+| Published  | Checkbox         | Public visibility                       |
+| Created At | Created time     | Creation timestamp                      |
+| Updated At | Last edited time | Modification timestamp                  |
+
+Changelog storage is required only when enabled. Setup leaves newly created storage empty. Feedbax reads native Notion file URLs and discards expired image references; it does not upload or separately store media.
+
+## Private team workflow
+
+Setup also adds Owner (People), Priority (Select), Strategic Theme and Participant Segment (Multi-select), Impact and Effort (Select), Decision Note (Rich text), and Needs Follow-up (Checkbox). These fields stay private. Default views are Inbox, Reviewing, Prioritization, Follow-up, Roadmap, and Shipped.

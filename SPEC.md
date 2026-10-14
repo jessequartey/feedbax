@@ -201,10 +201,8 @@ TanStack Router owns validated URL state, route masking, and loader orchestratio
 The stable external HTTP contract initially contains:
 
 - `POST /api/v1/posts` for trusted SaaS submissions using a Bearer key and `Idempotency-Key`
-- `PATCH /api/drafts/:id` for Browser Capability draft edits
-- `DELETE /api/drafts/:id` for Browser Capability withdrawal
 
-Public form submission and public reads use internal TanStack server functions. The copied registry block accepts an optional injected similar-Post function, so version 0.2.0 does not add a stable public read endpoint.
+Browser Capability draft reads, edits, and withdrawal use internal portal handlers, as recorded in ADR 0024. Public form submission and public reads use internal TanStack server functions. The copied registry block accepts an optional injected similar-Post function, so version 0.2.0 does not add a stable public read endpoint.
 
 Vote and Comment mutations also use internal portal handlers. They are not added to the stable external versioned API in 0.2.0. Handlers validate publication eligibility, feature configuration, rate limits, Turnstile or Participation Pass requirements, and browser capabilities before calling module behavior.
 

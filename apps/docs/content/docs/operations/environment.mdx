@@ -1,13 +1,22 @@
 ---
 title: Environment
-description: Configure local and production environment values without leaking secrets.
+description: Keep installation secrets separate from typed public configuration.
 ---
 
+Guided setup writes these values to the ignored `.dev.vars` file. Keep the generated values; the examples below are placeholders.
+
 ```dotenv title=".dev.vars"
-NOTION_TOKEN=secret_replace_me
-NOTION_DATABASE_ID=replace_me
-FEEDBAX_API_SECRET=replace_with_a_long_random_value
-FEEDBAX_SITE_URL=https://feedback.feedbax.dev
+NOTION_TOKEN=replace_with_your_internal_integration_token
+FEEDBAX_API_KEY_HASH=replace_with_the_generated_sha256_hash
+PARTICIPATION_SIGNING_SECRET=replace_with_the_generated_signing_secret
+# Required only when turnstile.enabled is true:
+TURNSTILE_SECRET_KEY=replace_with_your_turnstile_secret
 ```
 
-Public values may live in Worker configuration. Store tokens and API secrets with `.dev.vars` locally and `wrangler secret put` in production.
+`src/feedbax.ts` contains public product settings, independent capability switches, Notion identifiers and stable property IDs, and the public Turnstile site key. It contains no Notion token, API key, API-key hash, Turnstile secret, or participation signing secret.
+
+`feedbax deploy` uploads only the allowlisted secrets to Cloudflare's encrypted secret store after showing the target and receiving confirmation. It never uploads arbitrary local environment values.
+
+The trusted submission key printed by the creator belongs in the **calling product's server environment**. The copied server helper calls that value `FEEDBAX_API_SECRET`; the portal stores only its hash as `FEEDBAX_API_KEY_HASH`. Never expose the plaintext key to browser code.
+
+Rotating `PARTICIPATION_SIGNING_SECRET` invalidates outstanding Participation Passes and Comment Capabilities. `feedbax rotate-api-key` rotates the trusted submission key and synchronizes its local hash; update the calling product with the newly printed key.

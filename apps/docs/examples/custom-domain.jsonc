@@ -1,4 +1,4 @@
 {
-  "name": "my-feedbax-portal",
-  "routes": [{ "pattern": "feedback.feedbax.dev", "custom_domain": true }],
+  "name": "my-feedback",
+  "routes": [{ "pattern": "feedback.example.com", "custom_domain": true }],
 }
