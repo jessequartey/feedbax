@@ -1,25 +1,20 @@
-# Security Policy
+# Security policy
 
-Feedbax is pre-release and does not yet have a supported production version.
+Feedbax handles Notion credentials, trusted-submission API keys, Turnstile secrets, private submitter contact data, and browser-held draft capabilities. Please report suspected exposure or authorization failures privately.
 
 ## Reporting a vulnerability
 
-Do not open a public issue. Use GitHub's private vulnerability reporting and include affected versions, reproduction steps, impact, and suggested mitigation.
+Use GitHub's private vulnerability reporting when the repository's **Report a vulnerability** action is available. Until then, open a minimal issue asking the repository owner to establish a private reporting channel; do not include vulnerability details. Do not place real credentials, private Post data, or raw Browser Capabilities in any public report.
 
-## Rewrite principles
+Include the affected version or commit, the smallest reproducible example, the expected security boundary, the observed behavior, and any known mitigations. Maintainers aim to acknowledge a complete report within five business days and will coordinate disclosure after a fix or mitigation is available.
 
-- Connector credentials remain server-side.
-- User identity is verified server-side; query parameters alone are never trusted.
-- Signed identity tokens are short-lived and exchanged for secure sessions.
-- Mutations are authenticated, validated, and rate-limited where appropriate.
-- Public responses exclude private identities and internal fields.
-- Handoff tokens and session cookies must never be logged. Public users contain only an opaque ID, display name, and optional avatar URL.
-- Public mutation routes require a verified session, same-origin JSON requests, strict runtime schemas, bounded bodies, and per-action rate limits. Client-supplied identity and aggregate totals are ignored.
-- Connector-only Notion voting stores only an HMAC-derived opaque voter key. `FEEDBAX_INTERACTION_HASH_KEY` must be a high-entropy server secret and must never be exposed to browsers or logs.
-- Notion voting is best-effort: Feedbax serializes votes per feedback item within one process, but Notion provides no unique constraint, compare-and-swap, or cross-record transaction. Route vote mutations through one application instance. Multi-instance races or partial failures can temporarily create duplicate ledger rows or stale totals; strict distributed guarantees require an atomic interaction-store adapter.
-- The built-in rate-limit store is process-local and is suitable only for development or a single Node/Docker process. Distributed production deployments must inject a shared durable `RateLimitStore`.
-- Public failures carry a correlation ID and a sanitized application code. Server logs record that ID with route, method, operation, connector, status, and retryability; authorization headers, cookies, tokens, request bodies, private identity claims, and raw connector responses are excluded.
-- Optional CAPTCHA is exposed through a server-side `CaptchaProvider`; it is disabled unless a provider is configured. CAPTCHA tokens and request bodies are never logged.
-- Feedback and comments retain canonical Markdown. Rendering escapes raw HTML, allowlists emitted tags, and rejects unsafe link protocols.
-- Comment authors are projected from verified sessions to opaque public IDs, names, optional avatars, and server-derived responder kinds. Authenticated email addresses are never persisted with comments, and email-like text in comment bodies is rejected.
-- Rotate signing and session keys by adding a new key ID, making it active, retaining the previous key through the longest outstanding lifetime, and only then removing it.
+## Supported versions
+
+Before the final 0.2.0 release, only the latest published 0.2.0 prerelease is supported. After 0.2.0, the latest released patch receives security fixes unless a release notice states otherwise.
+
+## Security boundaries
+
+- Secrets belong in ignored local files or Cloudflare's encrypted secret store, never public configuration, logs, responses, or URLs.
+- Public projections contain only explicitly approved Post fields.
+- Browser Capabilities authorize limited changes to New, unpublished drafts; they are not identity or email verification.
+- Live Notion credentials are never used in pull-request CI.

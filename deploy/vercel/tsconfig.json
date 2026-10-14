@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "rootDir": "scripts",
-    "outDir": "dist",
-    "tsBuildInfoFile": "dist/vercel.tsbuildinfo"
-  },
-  "include": ["scripts"]
-}

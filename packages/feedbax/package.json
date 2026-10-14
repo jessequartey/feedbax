@@ -1,0 +1,43 @@
+{
+  "name": "feedbax",
+  "version": "0.2.0",
+  "type": "module",
+  "bin": {
+    "feedbax": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "4.1.11"
+  },
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --external:esbuild --outfile=dist/cli.js --external:jsonc-parser",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "jsonc-parser": "3.3.1",
+    "esbuild": "0.28.1"
+  },
+  "description": "Notion-native feedback portal lifecycle CLI",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jessequartey/feedbax.git",
+    "directory": "packages/feedbax"
+  },
+  "homepage": "https://feedbax.dev/docs",
+  "bugs": {
+    "url": "https://github.com/jessequartey/feedbax/issues"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

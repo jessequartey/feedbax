@@ -1,0 +1,14 @@
+---
+title: Feedback block
+description: Install the copied-source feedback UI in your application.
+---
+
+Install the registry block from your project root:
+
+```bash title="Terminal"
+pnpm dlx shadcn@latest add https://feedbax.dev/r/feedbax-feedback.json
+```
+
+The block submits through your server, never directly with the trusted secret. Review generated paths and adapt copy, routing, and styles to your product.
+
+The copied `FeedbaxFeedback` component accepts an injected `onSubmit` callback and optional `findSimilar` callback. Implement submission in your server using the copied server-only client, and call that server handler from `onSubmit`. The browser component must never import the server client or receive the trusted API key.

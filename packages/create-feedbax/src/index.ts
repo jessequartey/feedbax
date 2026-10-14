@@ -1,208 +1,479 @@
-import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
-import { spawn } from 'node:child_process'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-type IdentityMode = 'anonymous' | 'email' | 'handoff'
+import type { PortalFeatures } from "@feedbax/config";
+import { createHash, randomBytes } from "node:crypto";
+import { readFile, readdir, writeFile } from "node:fs/promises";
+import { defineFeedbax } from "@feedbax/config";
+import { basename, join } from "node:path";
+import { copyPackagedTemplate } from "./template";
+export {
+  assembleFlatTemplate,
+  copyPackagedTemplate,
+  templateChecksum,
+  verifyPackagedTemplate,
+} from "./template";
+import {
+  createNotionFeedbackDataSource,
+  createFeedbackWorkflowViews,
+  validateNotionFeedbackDataSource,
+  type FeedbackDataSourceConfiguration,
+} from "@feedbax/feedback";
+import {
+  createNotionChangelogDataSource,
+  validateNotionChangelogDataSource,
+  type ChangelogDataSourceConfiguration,
+  type ChangelogPropertyIds,
+} from "@feedbax/changelog";
 
-export type Deployment = 'cloudflare' | 'vercel' | 'node'
-export type PackageManager = 'npm' | 'pnpm'
-export interface CreateOptions {
-  readonly directory: string
-  readonly identity: IdentityMode
-  readonly deploy: Deployment
-  readonly packageManager: PackageManager
-  readonly preset: string
-  readonly install: boolean
-  readonly git: boolean
-}
+export type FeedbackStorageSelection =
+  | { kind: "create"; parentPageId: string }
+  | { kind: "existing"; configuration: FeedbackDataSourceConfiguration };
 
-const valueFlags = new Set([
-  '--connector',
-  '--identity',
-  '--storage',
-  '--deploy',
-  '--preset',
-  '--package-manager',
-])
-const booleanFlags = new Set(['--yes', '--no-install', '--no-git'])
-
-const allowedDeployments = new Set<Deployment>(['cloudflare', 'vercel', 'node'])
-const allowedPackageManagers = new Set<PackageManager>(['npm', 'pnpm'])
-const identityMode = (mode: string): IdentityMode => {
-  if (mode === 'anonymous' || mode === 'email' || mode === 'handoff')
-    return mode
-  throw new Error(`Identity mode "${mode}" is not supported in Feedbax 0.1.0.`)
-}
-
-export function resolveCreateOptions(argv: readonly string[]): CreateOptions {
-  const values = new Map<string, string>()
-  let directory: string | undefined
-  for (let index = 0; index < argv.length; index += 1) {
-    const entry = argv[index]!
-    if (valueFlags.has(entry)) {
-      const next = argv[index + 1]
-      if (!next || next.startsWith('-'))
-        throw new Error(`Option ${entry} requires a value.`)
-      values.set(entry, next)
-      index += 1
-    } else if (booleanFlags.has(entry)) continue
-    else if (entry.startsWith('-')) throw new Error(`Unknown option ${entry}.`)
-    else if (directory) throw new Error(`Unexpected argument ${entry}.`)
-    else directory = entry
-  }
-  const value = (name: string) => values.get(name)
-  directory ??= 'my-feedback'
-  const connector = value('--connector') ?? 'notion'
-  const storage = value('--storage') ?? 'notion'
-  if (connector !== 'notion')
-    throw new Error(
-      `Connector "${connector}" is not supported in Feedbax 0.1.0.`,
-    )
-  if (storage !== 'notion')
-    throw new Error(
-      `Storage "${storage}" is deferred until after Feedbax 0.1.0.`,
-    )
-  const identity = identityMode(value('--identity') ?? 'email')
-  const deploy = (value('--deploy') ?? 'cloudflare') as Deployment
-  if (!allowedDeployments.has(deploy))
-    throw new Error(`Deployment "${deploy}" is not supported.`)
-  const packageManager = (value('--package-manager') ??
-    'pnpm') as PackageManager
-  if (!allowedPackageManagers.has(packageManager))
-    throw new Error(`Package manager "${packageManager}" is not supported.`)
-  return {
-    directory,
-    identity,
-    deploy,
-    packageManager,
-    preset: value('--preset') ?? 'feedbax-default',
-    install: !argv.includes('--no-install'),
-    git: !argv.includes('--no-git'),
-  }
-}
-
-export type CreatePrompt = (
-  question: string,
-  defaultValue: string,
-) => Promise<string>
-
-export async function resolveInteractiveCreateOptions(
-  argv: readonly string[],
-  prompt: CreatePrompt,
-): Promise<CreateOptions> {
-  if (argv.includes('--yes')) return resolveCreateOptions(argv)
-  const prompted = [...argv]
-  const ask = async (flag: string, question: string, defaultValue: string) => {
-    if (argv.includes(flag)) return
-    const answer = (await prompt(question, defaultValue)).trim() || defaultValue
-    prompted.push(flag, answer)
-  }
-  await ask('--identity', 'Identity (anonymous, email, handoff)', 'email')
-  await ask('--deploy', 'Deployment (cloudflare, vercel, node)', 'cloudflare')
-  await ask('--package-manager', 'Package manager (pnpm, npm)', 'pnpm')
-  await ask('--preset', 'shadcn preset', 'feedbax-default')
-  return resolveCreateOptions(prompted)
-}
-
-async function assertEmpty(path: string) {
+export async function provisionGuidedInstallation({
+  destination,
+  product,
+  themePreset,
+  workerName,
+  commentProbePageId,
+  features,
+  feedbackSelection,
+  changelogSelection,
+  notionToken,
+  turnstile,
+  preview,
+  request = fetch,
+}: {
+  destination: string;
+  product: { name: string; description: string; siteUrl?: string };
+  themePreset: string;
+  workerName?: string;
+  commentProbePageId?: string;
+  features: PortalFeatures;
+  feedbackSelection: FeedbackStorageSelection;
+  changelogSelection?: ChangelogStorageSelection;
+  notionToken: string;
+  turnstile: { siteKey?: string; secretKey?: string };
+  preview(message: string): Promise<boolean>;
+  request?: typeof fetch;
+}) {
   try {
-    if ((await readdir(path)).length > 0)
-      throw new Error(`Target directory is not empty: ${path}`)
+    if ((await readdir(destination)).length)
+      throw new Error(
+        `Refusing to generate into non-empty destination: ${destination}`,
+      );
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-}
-
-async function replaceInTree(
-  path: string,
-  replacements: Readonly<Record<string, string>>,
-) {
-  for (const entry of await readdir(path)) {
-    const target = join(path, entry)
-    if ((await stat(target)).isDirectory())
-      await replaceInTree(target, replacements)
-    else {
-      let content = await readFile(target, 'utf8')
-      for (const [token, replacement] of Object.entries(replacements))
-        content = content.replaceAll(token, replacement)
-      await writeFile(target, content)
-    }
-  }
-}
-
-const run = (command: string, args: readonly string[], cwd: string) =>
-  new Promise<void>((resolvePromise, reject) => {
-    const child = spawn(command, args, { cwd, stdio: 'inherit', shell: false })
-    child.once('error', reject)
-    child.once('exit', (code) =>
-      code === 0
-        ? resolvePromise()
-        : reject(
-            new Error(`${command} ${args.join(' ')} failed with ${code}.`),
-          ),
-    )
-  })
-
-export async function createProject(options: CreateOptions) {
-  const destination = resolve(options.directory)
-  await assertEmpty(destination)
-  await mkdir(dirname(destination), { recursive: true })
-  const packageDirectory = dirname(fileURLToPath(import.meta.url))
-  const candidates = [
-    resolve(packageDirectory, '../template'),
-    resolve(packageDirectory, '../../../templates/default'),
-  ]
-  let template: string | undefined
-  for (const candidate of candidates) {
-    try {
-      if ((await stat(candidate)).isDirectory()) {
-        template = candidate
-        break
-      }
-    } catch {
-      continue
-    }
-  }
-  if (!template)
+  if (product.siteUrl && new URL(product.siteUrl).protocol !== "https:")
+    throw new Error("product.siteUrl must be an HTTPS URL.");
+  const targetName =
+    workerName ??
+    basename(destination)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-");
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(targetName))
     throw new Error(
-      'The Feedbax project template is missing from this package.',
+      "Worker name must contain 1–63 lowercase letters, numbers, or hyphens.",
+    );
+  const approved = await preview(
+    feedbackSelection.kind === "create"
+      ? `Create the canonical Feedback Data Source inside Notion page ${feedbackSelection.parentPageId}.`
+      : `Validate existing Feedback Data Source ${feedbackSelection.configuration.dataSourceId} without changing it.`,
+  );
+  if (!approved)
+    throw new Error(
+      "Feedback setup was not approved. No local files were created.",
+    );
+  const feedback =
+    feedbackSelection.kind === "create"
+      ? await createNotionFeedbackDataSource({
+          token: notionToken,
+          parentPageId: feedbackSelection.parentPageId,
+          request,
+        })
+      : await validateNotionFeedbackDataSource({
+          token: notionToken,
+          ...feedbackSelection.configuration,
+          request,
+        });
+  if (feedbackSelection.kind === "create") {
+    if (
+      !(await preview(
+        "Create six Notion team views: Inbox, Reviewing, Prioritization, Follow-up, Roadmap, and Shipped.",
+      ))
     )
-  await cp(template, destination, { recursive: true })
-  await replaceInTree(destination, {
-    __GENERATOR_VERSION__: '0.1.0',
-    __IDENTITY__: options.identity,
-    __DEPLOYMENT__: options.deploy,
-    __PACKAGE_MANAGER__: options.packageManager,
-    __PACKAGE_MANAGER_SPEC__:
-      options.packageManager === 'pnpm' ? 'pnpm@10.29.3' : 'npm@11.4.2',
-    __PRESET__: options.preset,
-    __NITRO_PRESET__:
-      options.deploy === 'vercel'
-        ? 'vercel'
-        : options.deploy === 'cloudflare'
-          ? 'cloudflare-module'
-          : 'node-server',
-  })
-  try {
-    if (options.install) {
-      await run(options.packageManager, ['install'], destination)
-      await run(options.packageManager, ['run', 'type-check'], destination)
+      throw new Error("Workflow view creation was not approved.");
+    await createFeedbackWorkflowViews({
+      token: notionToken,
+      ...feedback,
+      request,
+    });
+  }
+  await verifySelectedCommentCapabilities(features, {
+    token: notionToken,
+    pageId:
+      commentProbePageId ??
+      (feedbackSelection.kind === "create"
+        ? feedbackSelection.parentPageId
+        : feedback.databaseId),
+    request,
+    command: "setup",
+  });
+  const changelog = await configureChangelogStorage({
+    features,
+    selection:
+      changelogSelection ??
+      (features.changelog
+        ? { kind: "create", databaseId: feedback.databaseId }
+        : undefined),
+    token: notionToken,
+    request,
+    preview,
+  });
+
+  await copyPackagedTemplate(destination);
+  const wranglerPath = join(destination, "wrangler.jsonc");
+  const wrangler = JSON.parse(await readFile(wranglerPath, "utf8"));
+  await writeFile(
+    wranglerPath,
+    JSON.stringify({ ...wrangler, name: targetName }, null, 2) + "\n",
+  );
+  const apiKey = randomBytes(32).toString("base64url");
+  const signingSecret = randomBytes(32).toString("base64url");
+  const values: Record<string, string> = {
+    NOTION_TOKEN: notionToken,
+    NOTION_FEEDBACK_DATABASE_ID: feedback.databaseId,
+    NOTION_FEEDBACK_DATA_SOURCE_ID: feedback.dataSourceId,
+    ...prefixProperties("NOTION_FEEDBACK", feedback.propertyIds),
+    FEEDBAX_API_KEY_HASH: createHash("sha256")
+      .update(apiKey)
+      .digest("base64url"),
+    PARTICIPATION_SIGNING_SECRET: signingSecret,
+    FEEDBAX_VOTING_ENABLED: String(features.voting),
+    FEEDBAX_COMMENTS_ENABLED: String(features.comments),
+    FEEDBAX_CHANGELOG_ENABLED: String(features.changelog),
+    ...(turnstile.siteKey
+      ? { VITE_TURNSTILE_SITE_KEY: turnstile.siteKey }
+      : {}),
+    ...(turnstile.secretKey
+      ? { TURNSTILE_SECRET_KEY: turnstile.secretKey }
+      : {}),
+    ...(changelog
+      ? {
+          NOTION_CHANGELOG_DATABASE_ID: changelog.databaseId,
+          NOTION_CHANGELOG_DATA_SOURCE_ID: changelog.dataSourceId,
+          ...prefixProperties("NOTION_CHANGELOG", changelog.propertyIds),
+        }
+      : {}),
+  };
+  await writeFile(
+    join(destination, ".dev.vars"),
+    Object.entries(values)
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join("\n") + "\n",
+    { mode: 0o600 },
+  );
+  const configuration = defineFeedbax({
+    product: { ...product, logo: "/feedbax-mark.svg" },
+    theme: { preset: themePreset },
+    notion: {
+      databaseId: feedback.databaseId,
+      dataSourceId: feedback.dataSourceId,
+      properties: feedback.propertyIds,
+    },
+    ...(changelog
+      ? {
+          changelog: {
+            databaseId: changelog.databaseId,
+            dataSourceId: changelog.dataSourceId,
+            properties: changelog.propertyIds,
+          },
+        }
+      : {}),
+    features,
+    submissions: {
+      moderation: "required",
+      maxTitleLength: 160,
+      maxDescriptionLength: 5000,
+    },
+    turnstile: {
+      enabled: Boolean(turnstile.siteKey),
+      ...(turnstile.siteKey ? { siteKey: turnstile.siteKey } : {}),
+    },
+  });
+  await writeFile(
+    join(destination, "src/feedbax.ts"),
+    `import { defineFeedbax } from "@feedbax/config";\n\nexport default defineFeedbax(${JSON.stringify(configuration, null, 2)});\n`,
+  );
+  const probePage =
+    commentProbePageId ??
+    (feedbackSelection.kind === "create"
+      ? feedbackSelection.parentPageId
+      : feedback.databaseId);
+  await writeFile(
+    join(destination, ".dev.vars"),
+    `NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID=${JSON.stringify(probePage)}\n`,
+    { flag: "a", mode: 0o600 },
+  );
+  return { apiKey, feedback, changelog };
+}
+
+function prefixProperties(prefix: string, properties: object) {
+  return Object.fromEntries(
+    (Object.entries(properties) as [string, string][]).map(([key, value]) => [
+      `${prefix}_${key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()}_PROPERTY_ID`,
+      value,
+    ]),
+  );
+}
+
+export const featureChoices = [
+  { key: "voting", label: "Voting", initialValue: true },
+  { key: "comments", label: "Comments", initialValue: true },
+  { key: "changelog", label: "Changelog", initialValue: true },
+] as const;
+
+export type CreatorPrompter = {
+  confirm(input: { message: string; initialValue: boolean }): Promise<boolean>;
+};
+
+export async function collectFeatureSelection(
+  prompter: CreatorPrompter,
+): Promise<PortalFeatures> {
+  const selections: [keyof PortalFeatures, boolean][] = [];
+  for (const { key, label, initialValue } of featureChoices) {
+    selections.push([
+      key,
+      await prompter.confirm({
+        message: `Enable ${label}?`,
+        initialValue,
+      }),
+    ]);
+  }
+  return Object.fromEntries(selections) as PortalFeatures;
+}
+
+export function renderFeatureConfiguration(features: PortalFeatures): string {
+  return `features: {
+    voting: ${features.voting},
+    comments: ${features.comments},
+    changelog: ${features.changelog},
+  },`;
+}
+
+export function renderChangelogConfiguration(
+  configuration: ChangelogDataSourceConfiguration,
+): string {
+  const properties = Object.entries(configuration.propertyIds)
+    .map(([key, value]) => `      ${key}: ${JSON.stringify(value)},`)
+    .join("\n");
+  return `changelog: {
+    databaseId: ${JSON.stringify(configuration.databaseId)},
+    dataSourceId: ${JSON.stringify(configuration.dataSourceId)},
+    propertyIds: {
+${properties}
+    },
+  },`;
+}
+
+export interface NotionCommentCapabilities {
+  readComments: boolean;
+  insertComments: boolean;
+}
+
+export async function verifySelectedCommentCapabilities(
+  features: PortalFeatures,
+  {
+    token,
+    pageId,
+    request = fetch,
+    command = "setup",
+  }: {
+    token: string;
+    pageId: string;
+    request?: typeof fetch;
+    command?: "setup" | "doctor";
+  },
+): Promise<void> {
+  if (!features.comments) return;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": "2026-03-11",
+  };
+  const readResponse = await request(
+    `https://api.notion.com/v1/comments?block_id=${encodeURIComponent(pageId)}&page_size=1`,
+    { headers },
+  );
+  if (!readResponse.ok) {
+    if (readResponse.status === 403)
+      assertEnabledCommentCapabilities({
+        commentsEnabled: true,
+        capabilities: { readComments: false, insertComments: true },
+        command,
+      });
+    throw new Error(
+      `Notion Comment read check failed (HTTP ${readResponse.status}). Verify a shared page ID and connection access.`,
+    );
+  }
+  if (command === "doctor") {
+    assertEnabledCommentCapabilities({
+      commentsEnabled: true,
+      capabilities: {
+        readComments: readResponse.status !== 403,
+        // Setup proves Insert comments before enabling the capability. Doctor
+        // deliberately avoids a write-method probe and verifies the live read path.
+        insertComments: true,
+      },
+      command,
+    });
+    return;
+  }
+  const insertResponse = await request("https://api.notion.com/v1/comments", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (insertResponse.status !== 400 && insertResponse.status !== 403)
+    throw new Error(
+      `Notion Comment insert capability check failed (HTTP ${insertResponse.status}).`,
+    );
+  const capabilities = {
+    readComments: readResponse.status !== 403,
+    insertComments: insertResponse.status !== 403,
+  };
+  assertEnabledCommentCapabilities({
+    commentsEnabled: true,
+    capabilities,
+    command,
+  });
+}
+
+export function assertEnabledCommentCapabilities({
+  commentsEnabled,
+  capabilities,
+  command = "setup",
+}: {
+  commentsEnabled: boolean;
+  capabilities: NotionCommentCapabilities;
+  command?: "setup" | "doctor";
+}): void {
+  if (!commentsEnabled) return;
+  const missing = [
+    ...(capabilities.readComments ? [] : ["Read comments"]),
+    ...(capabilities.insertComments ? [] : ["Insert comments"]),
+  ];
+  if (missing.length === 0) return;
+  const retry =
+    command === "doctor"
+      ? "rerun doctor. No changes were made."
+      : "retry setup.";
+  throw new Error(
+    `Enable ${missing.join(" and ")} in the Notion connection settings, then ${retry}`,
+  );
+}
+
+export type ChangelogStorageSelection =
+  | { kind: "create"; databaseId: string }
+  | {
+      kind: "existing";
+      dataSourceId: string;
+      propertyIds: ChangelogPropertyIds;
+    };
+
+export async function configureChangelogStorage({
+  features,
+  selection,
+  token,
+  request = fetch,
+  preview,
+}: {
+  features: PortalFeatures;
+  selection?: ChangelogStorageSelection;
+  token: string;
+  request?: typeof fetch;
+  preview(message: string): Promise<boolean>;
+}): Promise<ChangelogDataSourceConfiguration | undefined> {
+  if (!features.changelog) return;
+  if (!selection) {
+    throw new Error(
+      "Choose an existing compatible Changelog Data Source or create one beside Feedback.",
+    );
+  }
+  if (selection.kind === "existing") {
+    return validateNotionChangelogDataSource({
+      token,
+      dataSourceId: selection.dataSourceId,
+      propertyIds: selection.propertyIds,
+      request,
+    });
+  }
+  const approved = await preview(
+    `Create an empty Changelog Data Source beside Feedback in Feedbax Database ${selection.databaseId}. No sample entries will be published.`,
+  );
+  if (!approved) throw new Error("Changelog creation was not approved.");
+  return createNotionChangelogDataSource({
+    token,
+    databaseId: selection.databaseId,
+    request,
+  });
+}
+
+export async function doctorChangelogStorage({
+  enabled,
+  configuration,
+  token,
+  request = fetch,
+}: {
+  enabled: boolean;
+  configuration?: ChangelogDataSourceConfiguration;
+  token: string;
+  request?: typeof fetch;
+}): Promise<void> {
+  if (!enabled) return;
+  if (!configuration) {
+    throw new Error(
+      "Changelog is enabled without identifiers and property mappings. Create or select a compatible Changelog Data Source, configure it, then rerun doctor. No changes were made.",
+    );
+  }
+  await validateNotionChangelogDataSource({
+    token,
+    dataSourceId: configuration.dataSourceId,
+    propertyIds: configuration.propertyIds,
+    request,
+  });
+}
+
+export async function doctorInstallation({
+  features,
+  feedback,
+  changelog,
+  commentProbePageId,
+  token,
+  request = fetch,
+}: {
+  features: PortalFeatures;
+  feedback: Omit<FeedbackDataSourceConfiguration, "databaseId">;
+  changelog?: ChangelogDataSourceConfiguration;
+  commentProbePageId?: string;
+  token: string;
+  request?: typeof fetch;
+}): Promise<void> {
+  await validateNotionFeedbackDataSource({ token, ...feedback, request });
+  if (features.comments) {
+    if (!commentProbePageId) {
+      throw new Error(
+        "Comments are enabled but no Comment capability probe page is configured. Configure one, then rerun doctor. No changes were made.",
+      );
     }
-    if (options.git) await run('git', ['init'], destination)
-  } catch (error) {
-    await writeFile(
-      join(destination, '.feedbax-recovery'),
-      `Generation stopped: ${error instanceof Error ? error.message : String(error)}\nRerun dependency installation and type checking after resolving the reported issue.\n`,
-    )
-    throw error
+    await verifySelectedCommentCapabilities(features, {
+      token,
+      pageId: commentProbePageId,
+      request,
+      command: "doctor",
+    });
   }
-  return {
-    destination,
-    nextSteps: [
-      `cd ${options.directory}`,
-      'Copy .env.example to .env and configure Notion',
-      `${options.packageManager === 'pnpm' ? 'pnpm' : 'npx'} feedbax doctor`,
-      `${options.packageManager} run dev`,
-    ],
-  }
+  await doctorChangelogStorage({
+    enabled: features.changelog,
+    configuration: changelog,
+    token,
+    request,
+  });
 }

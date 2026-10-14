@@ -1,25 +1,50 @@
 {
   "name": "create-feedbax",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "bin": {
-    "create-feedbax": "dist/cli.js"
+    "create-feedbax": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run src/index.test.ts src/template.test.ts",
+    "template:sync": "tsx ../../scripts/assemble-template.ts",
+    "template:check": "tsx ../../scripts/assemble-template.ts --check",
+    "build": "esbuild src/cli.ts src/index.ts --bundle --platform=node --format=esm --alias:@feedbax/config=../config/src/index.ts --alias:@feedbax/feedback=../feedback/src/index.ts --alias:@feedbax/changelog=../changelog/src/index.ts --outdir=dist --external:jsonc-parser --external:@clack/prompts",
+    "prepack": "pnpm build"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1",
+    "tsx": "4.20.6",
+    "typescript": "catalog:",
+    "vitest": "4.1.11"
   },
   "files": [
     "dist",
-    "template",
-    "README.md",
-    "LICENSE"
+    "template"
   ],
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "prepack": "node scripts/prepare-template.mjs && pnpm build",
-    "type-check": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src test",
-    "test": "vitest run"
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "jsonc-parser": "3.3.1"
   },
-  "dependencies": {},
-  "devDependencies": {
-    "@types/node": "24.10.13"
+  "description": "Create a self-hosted Notion-native feedback portal",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jessequartey/feedbax.git",
+    "directory": "packages/create-feedbax"
+  },
+  "homepage": "https://feedbax.dev/docs",
+  "bugs": {
+    "url": "https://github.com/jessequartey/feedbax/issues"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

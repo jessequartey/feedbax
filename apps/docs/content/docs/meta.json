@@ -1,0 +1,12 @@
+{
+  "title": "Feedbax",
+  "pages": [
+    "index",
+    "introduction",
+    "getting-started",
+    "guides",
+    "integrations",
+    "operations",
+    "reference"
+  ]
+}

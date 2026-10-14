@@ -1,10 +1,12 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@feedbax/config/tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "tsBuildInfoFile": "dist/create-feedbax.tsbuildinfo",
-    "types": ["node"]
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@feedbax/changelog": ["../changelog/src/index.ts"],
+      "@feedbax/config": ["../config/src/index.ts"],
+      "@feedbax/feedback": ["../feedback/src/index.ts"]
+    }
   },
   "include": ["src"]
 }

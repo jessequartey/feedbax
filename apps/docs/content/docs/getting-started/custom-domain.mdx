@@ -1,0 +1,15 @@
+---
+title: Custom domain
+description: Attach your own hostname after verifying the workers.dev deployment.
+---
+
+Verify your Installation on its `workers.dev` hostname before attaching a domain. The domain must be in the Cloudflare account that owns the Worker.
+
+1. Add your hostname as a Worker custom domain in Cloudflare, or add a `routes` entry to your `wrangler.jsonc`. Replace the example hostname and Worker name below with your own.
+2. Set `product.siteUrl` in `src/feedbax.ts` to the absolute HTTPS custom-domain origin so canonical and social metadata use it.
+3. If Turnstile is enabled, add that hostname to the widget's allowed hostnames.
+4. Run diagnostics and deploy. Verify the feed, a Post detail page, submission, Roadmap, Changelog, and participation on the new hostname.
+
+<include>../../../examples/custom-domain.jsonc</include>
+
+Official Feedbax domain attachment is an owner operation and is separate from publishing the npm packages. Generated Installations never inherit Feedbax's official domain or zone.

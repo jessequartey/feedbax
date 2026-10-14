@@ -1,0 +1,5 @@
+# Use immutable Post slugs
+
+Public Post identity uses a persisted, immutable slug at `/p/:slug`, with deterministic numeric suffixes for collisions. Because Feedbax is still pre-release and current data is disposable, the old `/feedback/:id/:slug` route is removed without redirects and existing records are not backfilled; new schema-compliant Posts retain their internal storage ID but expose only the slug in public URLs.
+
+Slug uniqueness is best effort in the Notion-only Profile because Notion provides no transactional uniqueness constraint or conditional create. Feedbax serializes allocation within one running Worker isolate and checks the Feedback Data Source before creating a Post, so ordinary and concurrent in-isolate submissions receive distinct slugs; separate isolates or external writers can still race and create the same slug. Durable cross-instance uniqueness is deferred until Feedbax adopts shared write coordination, rather than adding a sidecar datastore solely for slug allocation.

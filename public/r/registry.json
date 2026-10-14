@@ -1,0 +1,36 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "feedbax",
+  "homepage": "https://github.com/jessequartey/feedbax",
+  "items": [
+    {
+      "name": "feedbax-feedback",
+      "type": "registry:block",
+      "title": "Feedbax Feedback",
+      "description": "A responsive feedback form that opens in a dialog on desktop and a drawer on mobile.",
+      "registryDependencies": [
+        "button",
+        "dialog",
+        "drawer",
+        "field",
+        "input",
+        "select",
+        "textarea"
+      ],
+      "dependencies": ["@tanstack/react-form", "zod"],
+      "files": [
+        {
+          "path": "registry/default/feedbax-feedback/feedbax-feedback.tsx",
+          "type": "registry:component",
+          "target": "@components/feedbax-feedback.tsx"
+        },
+        {
+          "path": "registry/default/feedbax-feedback/feedbax-client.server.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax-client.server.ts"
+        }
+      ],
+      "docs": "Keep FEEDBAX_API_SECRET and FEEDBAX_API_BASE_URL in server-only environment configuration. Create the client in your server handler and pass the browser component an onSubmit callback that invokes that handler. Never import feedbax-client.server.ts from a client module. Optional findSimilar behavior should call your public server-side search adapter."
+    }
+  ]
+}

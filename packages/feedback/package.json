@@ -1,0 +1,17 @@
+{
+  "name": "@feedbax/feedback",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@feedbax/config": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "4.1.11"
+  }
+}

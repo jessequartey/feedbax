@@ -1,0 +1,16 @@
+---
+title: Customization
+description: Configure product identity and optional capabilities in locally owned source.
+---
+
+Edit `src/feedbax.ts` for product name, public description, logo, absolute HTTPS site URL, supported links, feature switches, submission limits, Notion mappings, and Turnstile settings. Post Types and Status values follow the canonical schema; they are not arbitrary configuration lists.
+
+Voting, Comments, and Changelog are independent switches and start enabled. Disabling voting leaves New ordering and removes Vote controls. Disabling Comments removes the discussion. Disabling Changelog removes its navigation and public route.
+
+To enable a capability later, set its typed switch and run diagnostics. Voting needs no schema change because Vote Count is always present. Comments also require both Notion Comment capabilities. Changelog also requires compatible configured storage. There is no configure or migration command in 0.2.0.
+
+The included source already uses the Lyra/neutral shadcn preset. Guided setup can apply a different selected preset before customization. For an established Installation, apply reviewed theme/font changes or refresh individual components rather than reapplying an entire preset over customized product components.
+
+<include>../../../examples/feedbax.config.ts</include>
+
+The Product Team owns the generated application and copied registry source. Version 0.2.0 has no automatic upgrade command; future changes use reviewed diffs and explicit migrations.

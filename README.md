@@ -1,75 +1,135 @@
-# Feedbax
+# Feedbax Core
 
-Feedbax is becoming a lightweight, self-hostable customer-feedback portal that works with the tools product teams already use.
+Feedbax Core is an open-source feedback portal backed by Notion and deployed on Cloudflare Workers. Product Teams manage feedback, Comments, Roadmap, and Changelog in Notion.
 
-> Own your feedback. Keep your existing workflow.
+## Install 0.2.0
 
-## v0.1.0 preview
-
-Feedbax is being rebuilt as a generator-led TanStack Start application with Effect contracts, conventional shadcn source ownership, and Notion as the launch connector and interaction store.
-
-The first release will use Notion as its backend and provide:
-
-- A public feedback board with search, filtering, and duplicate suggestions
-- Anonymous or email-capture submission, best-effort voting, and comments
-- A public roadmap and changelog
-- Anonymous, email-only, and signed identity handoff modes
-- Configurable branding and deployment to Cloudflare, Vercel, or Docker
-
-Better Auth and SQL interaction stores are deferred until after v0.1.0. See [ROADMAP.md](ROADMAP.md) for the staged plan.
-
-The intended installation path is:
+Use Node.js 22.14 or newer and pnpm 10:
 
 ```sh
-npx create-feedbax@latest my-feedback
-cd my-feedback
-npx feedbax doctor
+npx create-feedbax@0.2.0 my-feedback
 ```
 
-## Goals
+Guided setup creates the Notion schema, copies an application you own, installs dependencies, checks configuration, and offers deployment. It collects secrets privately and stores public configuration in `src/feedbax.ts`.
 
-- Make a useful portal deployable in minutes and inexpensive to operate.
-- Avoid requiring another project-management backend.
-- Keep the core framework, hosting platform, and connector agnostic.
-- Provide honest documentation and predictable upgrades.
+From the generated application, run `pnpm exec feedbax doctor` to check readiness, `pnpm exec feedbax deploy --dry-run` to verify the Worker bundle, or `pnpm exec feedbax deploy` to publish it. See the [setup guide](https://feedbax-docs.jessefquartey.workers.dev/docs) and [release process](docs/releases-0.2.0.md).
 
-## Repository shape
+### Replacing 0.1
 
-```text
-apps/        Product and documentation applications
-packages/    Domain, contracts, services, identity, CLIs, and shared UI
-connectors/  Notion and future backend integrations
-deploy/      Verified hosting presets
-examples/    Integration and identity-handoff examples
+Version 0.2.0 requires a fresh Installation. Create a new project directory, Notion Database, and Worker; setup does not import or mutate legacy content. Keep the existing 0.1 Installation and content read-only while checking the new portal, then change your public links or domain when ready. Archive legacy content manually only after deciding what to retain.
+
+## Best-effort voting
+
+In the Notion-only Profile, Votes are browser-remembered convenience state backed by an absolute `Vote Count` Number property in Notion. They are not verified one-person-one-vote records: clearing browser storage, retries, and concurrent writes from separate Worker instances can cause duplicate or drifting counts. One Worker instance serializes changes per Post, but Notion provides no atomic increment across instances.
+
+When Turnstile is configured, the first participation action issues a signed Participation Pass valid for 30 minutes. Confirmed Participant Comments receive a browser-held Comment Capability valid for 15 minutes. Setup stores the shared signing secret outside typed public configuration; rotating `PARTICIPATION_SIGNING_SECRET` invalidates all outstanding Participation Passes and Comment Capabilities.
+
+Feed ordering is deterministic: Top uses Vote Count descending with Created At descending as its tie-breaker, legacy Trending URLs resolve to Top, and New uses Created At descending. Opaque cursors are scoped to the selected ordering. A timed-out or retried Vote cannot determine whether another Worker instance completed the same write, so Participants should check the confirmed count before retrying.
+
+Public portal Posts and Comments use an unverified Device Profile. A display name and syntactically valid email are required to create a Post, Comment, or reply, but this does not verify email ownership; email remains private. Resolved Comments are hidden. Changelog images are managed directly in Notion and temporary file references are discarded or refreshed before expiry. See [Notion-native participation guarantees](docs/notion-native-participation.md) for later enablement, rotation, recovery, and API boundaries.
+
+## Features
+
+- **TypeScript** - For type safety and improved developer experience
+- **TanStack Start** - SSR framework with TanStack Router
+- **TailwindCSS** - Utility-first CSS for rapid UI development
+- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
+- **Turborepo** - Optimized monorepo build system
+
+## Contributing locally
+
+First, install the dependencies:
+
+```bash
+pnpm install
 ```
 
-## Development
+Then, run the development server:
 
-Use Node 22.18 or newer and the pnpm version pinned in `package.json`.
+```bash
+pnpm run dev
+```
+
+Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
+
+## UI Customization
+
+React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+
+- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
+- Update shared primitives in `packages/ui/src/components/*`
+- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/portal/components.json`
+
+### Add more shared components
+
+Run the current generator from the project root through the portal workspace. Add or refresh components individually so each generated-source diff can be reviewed. The CLI detects TanStack Start there and follows the configured aliases into the shared UI package:
+
+```bash
+pnpm dlx shadcn@latest add <component> -c apps/portal
+```
+
+Do not pin the shadcn CLI or its package version. The shared UI package follows the `latest` distribution tag because its global styles import `shadcn/tailwind.css`. If shadcn provides a component, use its current registry source instead of creating a parallel generic primitive.
+
+Import shared components like this:
+
+```tsx
+import { Button } from "@feedbax/ui/components/button";
+```
+
+### Add app-specific blocks
+
+Keep app-specific blocks and Feedbax-specific compositions with no shadcn equivalent in `apps/portal`; keep reusable shadcn components in `packages/ui`.
+
+## Feedback registry block
+
+Install the framework-neutral copied-source block from the 0.2.0 tag:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build
-pnpm type-check
-pnpm lint
-pnpm test
+pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.0
 ```
 
-Turborepo stores local task results in `.turbo`. Run `pnpm build` twice to observe cache hits, or `pnpm clean:cache` to clear the local task cache.
+`FeedbaxFeedback` accepts an `onSubmit` callback and an optional `findSimilar` callback. Configure `createFeedbaxClient` only in server code using `FEEDBAX_API_BASE_URL` and `FEEDBAX_API_SECRET`, then expose submission through the host application's own server function or route. Never pass the secret to the browser or import `feedbax-client.server.ts` from a client module.
 
-## Participate
+## Project Structure
 
-- Read the [roadmap](ROADMAP.md).
-- Open an [issue](https://github.com/jessequartey/feedbax/issues) to describe your workflow.
-- Open an [early-adopter issue](https://github.com/jessequartey/feedbax/issues/new/choose) if you want to test the rewrite with your team.
-- Review [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+```
+feedbax/
+├── apps/
+│   └── portal/      # Fullstack application (React + TanStack Start)
+├── packages/
+│   ├── ui/          # Shared shadcn/ui components and styles
+```
 
-Feedbax is MIT licensed. The v0.1.0 APIs remain preview interfaces.
+## Available Scripts
 
-## Dogfood board
+- `pnpm run dev`: Start all applications in development mode
+- `pnpm run build`: Build all applications
+- `pnpm run dev:portal`: Start only the portal application
+- `pnpm run type-check`: Check TypeScript types across all workspaces
+- `pnpm run deploy:dry-run`: Build the portal and verify its Worker bundle
 
-Feedbax uses its own public portal for feature requests, roadmap updates, and
-rollout issues: [Feedbax feedback](https://feedbax-feedback.jessefquartey.workers.dev).
+## Manual production proof
 
-- [Marketing and documentation](https://feedbax-docs.jessefquartey.workers.dev)
-- [Duplicable Notion starter](https://brave-number-c98.notion.site/Feedbax-Notion-Starter-39dafe1596918155a94cc24a1a41a2a5)
+For low-level Notion and Cloudflare diagnostics outside guided setup, run:
+
+```bash
+./scripts/prove-manual-production.sh
+```
+
+Use [version 0.2.0 acceptance](docs/version-0.2.0-acceptance.md) for the repeatable capability matrix, security boundaries, and dedicated Workspace checks.
+
+## Project contract
+
+- [Product context](CONTEXT.md)
+- [Core specification](SPEC.md)
+- [Public roadmap](ROADMAP.md)
+- [Testing contract](TESTING.md)
+- [Architecture decisions](docs/adr/)
+- [Contributing](CONTRIBUTING.md)
+- [Governance](GOVERNANCE.md)
+- [Security policy](SECURITY.md)
+- [Community code of conduct](CODE_OF_CONDUCT.md)
+
+## License
+
+Feedbax Core is licensed under [Apache-2.0](LICENSE).

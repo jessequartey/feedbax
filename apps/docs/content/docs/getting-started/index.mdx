@@ -1,0 +1,27 @@
+---
+title: Getting started
+description: Create a Feedbax portal, connect Notion, and run it locally.
+---
+
+## Prerequisites
+
+Use Node.js 22.14 or newer, pnpm 10, a Notion workspace, and a Cloudflare account.
+
+## Create the portal
+
+<include>../../../examples/quickstart.sh</include>
+
+The setup flow creates a portal project and a typed `src/feedbax.ts` configuration.
+
+## Run locally
+
+<include>../../../examples/local-development.sh</include>
+
+Guided setup already installs dependencies, generates ignored local secrets, and runs diagnostics.
+
+Open the local URL, then check the Feedback, Roadmap, Changelog, Post submission, and search surfaces.
+
+<Callout type="info" title="Keep secrets local">
+  Never commit the Notion token or trusted-submission secret. Use `.dev.vars`
+  locally and Worker secrets in production.
+</Callout>

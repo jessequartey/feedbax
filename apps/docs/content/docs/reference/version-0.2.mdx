@@ -1,0 +1,14 @@
+---
+title: Core 0.2
+description: The supported capabilities and boundaries of Feedbax Core 0.2.
+---
+
+Core 0.2 includes a Notion-backed feedback feed, filtering and sorting, Post detail, submission, Votes, Comments, Roadmap, Changelog, global search, trusted submissions, registry feedback block, lifecycle CLI, and Cloudflare deployment.
+
+This documentation describes only the current 0.2 contract. Legacy 0.1 material is not presented as current behavior.
+
+## Replacing 0.1
+
+Version 0.2.0 requires a fresh Installation; there is no in-place upgrade or automatic content migration. Run `npx create-feedbax@0.2.0 my-feedback` in a new directory and use a new Notion Database and Worker. Setup never imports or mutates legacy content.
+
+Keep the 0.1 Installation and its content read-only while checking the new portal, then switch your public links or domain when ready. Archive legacy content manually after deciding what to retain.

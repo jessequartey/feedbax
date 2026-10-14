@@ -1,0 +1,16 @@
+---
+title: Deploy
+description: Verify and deploy a Feedbax portal to Cloudflare Workers.
+---
+
+## Preflight
+
+<include>../../../examples/deploy.sh</include>
+
+`doctor` validates configuration and connectivity. The dry run catches bundling and Worker configuration errors without publishing.
+
+## Production secrets
+
+The lifecycle deploy command uploads the Notion token, trusted API-key **hash**, participation signing secret, and enabled Turnstile secret after confirmation. The plaintext trusted API key belongs only in the calling product. Do not put secrets in `src/feedbax.ts` or `wrangler.jsonc`.
+
+After deployment, verify the Worker preview hostname before attaching a custom domain.

@@ -1,0 +1,4 @@
+{
+  "name": "my-feedback",
+  "routes": [{ "pattern": "feedback.example.com", "custom_domain": true }],
+}

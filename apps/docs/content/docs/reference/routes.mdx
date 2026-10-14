@@ -1,0 +1,20 @@
+---
+title: Routes
+description: Public portal routes and the supported external mutation API.
+---
+
+Use these paths on your own portal origin:
+
+| Surface                   | Route                |
+| ------------------------- | -------------------- |
+| Feedback feed             | `/`                  |
+| Canonical Post detail     | `/p/:slug`           |
+| New Post                  | `/submit`            |
+| Roadmap                   | `/roadmap`           |
+| Changelog, when enabled   | `/changelog`         |
+| Trusted server submission | `POST /api/v1/posts` |
+| Health                    | `GET /health`        |
+
+Post URLs use immutable slugs, not Notion storage IDs. Draft reads, edits, and withdrawal, public participation, and internal public reads are portal implementation details; they are not additional stable external APIs. Changelog entries use hash anchors on the timeline, with no detail route.
+
+The official website and documentation use `https://feedbax.dev` and `/docs`. Documentation search uses `GET /api/search` on the documentation origin. The copied-source registry item is served by the website at `/r/feedbax-feedback.json`. The Feedbax dogfood portal uses `https://feedback.feedbax.dev` once its custom domain is attached; independent Installations use their own hostname.

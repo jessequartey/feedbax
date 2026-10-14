@@ -1,0 +1,19 @@
+---
+title: CLI
+description: Use Feedbax lifecycle commands for setup, validation, and deployment.
+---
+
+| Command                    | Purpose                                                         |
+| -------------------------- | --------------------------------------------------------------- |
+| `create-feedbax`           | Scaffold a new portal.                                          |
+| `feedbax doctor`           | Validate configuration, environment, and external connectivity. |
+| `feedbax deploy --dry-run` | Build and validate the Worker bundle.                           |
+| `feedbax deploy`           | Publish the configured Worker.                                  |
+
+`feedbax info` prints the installed version and configured product. `feedbax rotate-api-key` rotates the trusted submission key and prints its plaintext once; update the calling product immediately. The local `.dev.vars` hash is synchronized after successful rotation.
+
+`doctor` reads the authoritative `src/feedbax.ts`, checks mapped property IDs even when properties are renamed, and never modifies Notion. Missing private workflow properties produce repair guidance. Enabled Comment reads must succeed; Notion access errors never count as a pass.
+
+`deploy` runs diagnostics and the production build, previews the Worker target, and asks for confirmation before uploading. It sends only the allowlisted Notion token, API key hash, participation signing secret, and optional Turnstile secret to Cloudflare's encrypted secret store. `--dry-run` performs no deployment or secret upload; `--yes` explicitly confirms a deployment for automated operation.
+
+The lifecycle command documentation always lives at `https://feedbax.dev/docs`.

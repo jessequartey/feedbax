@@ -1,0 +1,45 @@
+{
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@feedbax/feedback": [
+        "./src/feedbax/feedback/index.ts"
+      ],
+      "@feedbax/changelog": [
+        "./src/feedbax/changelog/index.ts"
+      ],
+      "@feedbax/config": [
+        "./src/feedbax/config/index.ts"
+      ],
+      "@feedbax/ui/*": [
+        "./src/components/ui/*"
+      ],
+      "@feedbax/ui/globals.css": [
+        "./src/components/ui/styles/globals.css"
+      ]
+    }
+  }
+}

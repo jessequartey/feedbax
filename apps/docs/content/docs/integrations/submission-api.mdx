@@ -1,0 +1,20 @@
+---
+title: Trusted submission API
+description: Submit feedback from a trusted server without exposing credentials.
+---
+
+Send server-side requests to `POST /api/v1/posts` on your deployed portal origin. The examples use `https://feedback.example.com`; replace it with your own URL.
+
+## curl
+
+<include>../../../examples/trusted-submission.sh</include>
+
+## TypeScript
+
+<include>../../../examples/trusted-submission.ts</include>
+
+The body requires `title`, `description`, and `type` (Feature Request, Bug Report, or General Feedback). Optional `submitter.name` and `submitter.email` remain private. New Posts are New and unpublished.
+
+Use the plaintext key printed by setup in the calling server's `FEEDBAX_API_SECRET` environment value. Never put it in browser code. Include a stable `Idempotency-Key` when retrying the same event; duplicate prevention is best-effort because Notion has no transactional uniqueness constraint.
+
+This is the only stable versioned external mutation API in 0.2.0. Votes and Comments use internal portal handlers; the release does not expose a stable public search API.
