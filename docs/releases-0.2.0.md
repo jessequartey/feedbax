@@ -14,3 +14,7 @@ Publishing checks the registry first, so rerunning after one package succeeds re
 `main` requires the Verify Core check and resolved review conversations. Direct administrator pushes, force pushes, and branch deletion are blocked. GitHub Actions may create the version pull requests; another approving maintainer is not required while this remains a single-maintainer project.
 
 Cloudflare deployments remain separate from npm release automation. Run the documented deployment commands after validating the target account and Worker. Official custom domains are intentionally deferred until the owner attaches them.
+
+Generated behavior tests deliberately use a fixed configuration fixture. Changing a supported feature switch or product identity does not make unrelated UI assertions fail; `doctor` still reads and validates the real configuration file and live Notion schema. Production capability combinations are verified separately against a dedicated Installation.
+
+GitHub may require **Approve workflows to run** on a version pull request opened by GitHub Actions. Approve that run before merging; required branch checks are never bypassed. Release tags matching `v*` are protected against updates and deletion.

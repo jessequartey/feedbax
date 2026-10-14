@@ -12,7 +12,7 @@ import {
   doctorInstallation,
   provisionGuidedInstallation,
 } from "./index";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ChangelogPropertyIds } from "@feedbax/changelog";
@@ -388,4 +388,81 @@ describe("creator capability choices", () => {
       }),
     ).toContain('updatedAt: "updated-id"');
   });
+});
+
+it("generates an independent Worker target, typed public settings, and private secrets", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "feedbax-guided-success-"));
+  const destination = join(parent, "acme");
+  try {
+    const result = await provisionGuidedInstallation({
+      destination,
+      workerName: "acme-two",
+      product: {
+        name: "Acme",
+        description: "Acme feedback",
+        siteUrl: "https://acme-two.example.workers.dev",
+      },
+      themePreset: "lyra-neutral",
+      features: { voting: true, comments: false, changelog: false },
+      feedbackSelection: {
+        kind: "existing",
+        configuration: {
+          databaseId: "feedback-database",
+          dataSourceId: "feedback-source",
+          propertyIds: feedbackPropertyIds,
+        },
+      },
+      notionToken: "test-notion-secret",
+      turnstile: {
+        siteKey: "test-public-site-key",
+        secretKey: "test-private-turnstile-secret",
+      },
+      preview: async () => true,
+      request: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json(feedbackDataSource())),
+    });
+    const configuration = await readFile(
+      join(destination, "src/feedbax.ts"),
+      "utf8",
+    );
+    const secrets = await readFile(join(destination, ".dev.vars"), "utf8");
+    expect(configuration).toContain("test-public-site-key");
+    expect(configuration).toContain('"enabled": true');
+    expect(configuration).not.toContain("test-notion-secret");
+    expect(configuration).not.toContain("test-private-turnstile-secret");
+    expect(configuration).not.toContain(result.apiKey);
+    expect(secrets).toContain("test-notion-secret");
+    expect(secrets).not.toContain(result.apiKey);
+    expect(
+      JSON.parse(await readFile(join(destination, "wrangler.jsonc"), "utf8"))
+        .name,
+    ).toBe("acme-two");
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+it("refuses a non-empty destination before any Notion request", async () => {
+  const destination = await mkdtemp(join(tmpdir(), "feedbax-nonempty-"));
+  const request = vi.fn<typeof fetch>();
+  try {
+    await writeFile(join(destination, "keep.txt"), "user content");
+    await expect(
+      provisionGuidedInstallation({
+        destination,
+        product: { name: "Acme", description: "Feedback" },
+        themePreset: "lyra-neutral",
+        features: { voting: true, comments: true, changelog: true },
+        feedbackSelection: { kind: "create", parentPageId: "parent" },
+        notionToken: "test-token",
+        turnstile: {},
+        preview: async () => true,
+        request,
+      }),
+    ).rejects.toThrow("non-empty destination");
+    expect(request).not.toHaveBeenCalled();
+  } finally {
+    await rm(destination, { recursive: true, force: true });
+  }
 });

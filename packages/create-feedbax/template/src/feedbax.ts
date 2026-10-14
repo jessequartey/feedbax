@@ -1,5 +1,9 @@
 import { defineFeedbax } from "@feedbax/config";
 
+const turnstileSiteKey =
+  import.meta.env?.VITE_TURNSTILE_SITE_KEY ??
+  process.env.VITE_TURNSTILE_SITE_KEY;
+
 const env = (name: string) => process.env[name] ?? "not-configured";
 
 export default defineFeedbax({
@@ -59,7 +63,7 @@ export default defineFeedbax({
     maxDescriptionLength: 5_000,
   },
   turnstile: {
-    enabled: Boolean(process.env.VITE_TURNSTILE_SITE_KEY),
-    siteKey: process.env.VITE_TURNSTILE_SITE_KEY,
+    enabled: Boolean(turnstileSiteKey),
+    siteKey: turnstileSiteKey,
   },
 });

@@ -31,8 +31,11 @@ export async function diagnoseInstallation({
 } = {}): Promise<Diagnostic[]> {
   const results: Diagnostic[] = [];
   const effectiveEnv = { ...(await readLocalEnvironment(cwd)), ...env };
+  const [nodeMajor = 0, nodeMinor = 0] = process.versions.node
+    .split(".")
+    .map(Number);
   results.push(
-    Number(process.versions.node.split(".")[0]) >= 22
+    nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 14)
       ? pass("Node.js", `Node ${process.versions.node} is supported.`)
       : fail(
           "Node.js",
@@ -153,6 +156,49 @@ export async function diagnoseInstallation({
         });
       return "Configured stable property IDs, types, and workflow options are readable, including Vote Count.";
     });
+    await check("Notion team views", async () => {
+      const names = new Set<string>();
+      let cursor: string | undefined;
+      do {
+        const list = await get(
+          `views?database_id=${encodeURIComponent(config!.notion.databaseId)}${cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : ""}`,
+        );
+        if (!Array.isArray(list.results))
+          throw new Error("Notion returned an invalid team-view list.");
+        for (const view of list.results) {
+          const detail = view.name
+            ? view
+            : await get(`views/${encodeURIComponent(view.id)}`);
+          if (
+            detail.name &&
+            (!detail.data_source_id ||
+              detail.data_source_id === config!.notion.dataSourceId)
+          )
+            names.add(detail.name);
+        }
+        cursor =
+          list.has_more && list.next_cursor ? list.next_cursor : undefined;
+      } while (cursor);
+      const missing = [
+        "Inbox",
+        "Reviewing",
+        "Prioritization",
+        "Follow-up",
+        "Roadmap",
+        "Shipped",
+      ].filter((name) => !names.has(name));
+      if (missing.length)
+        results.push({
+          name: "Notion team views",
+          status: "warn",
+          message: `Missing default views: ${missing.join(", ")}.`,
+          repair:
+            "Restore the missing views in Notion or retain your intentionally customized team workflow.",
+        });
+      return missing.length
+        ? "View access is readable; review the missing-view warning."
+        : "All six default team views are readable.";
+    });
     if (config.features.comments)
       await check("Notion Comments", async () => {
         await get(
@@ -243,7 +289,14 @@ type NotionProperty = {
   type: string;
   select?: { options?: { name: string }[] };
 };
-type NotionSource = { properties?: Record<string, NotionProperty> };
+type NotionSource = {
+  properties?: Record<string, NotionProperty>;
+  results?: { id: string; name?: string; data_source_id?: string }[];
+  has_more?: boolean;
+  next_cursor?: string;
+  name?: string;
+  data_source_id?: string;
+};
 function propertiesById(source: NotionSource) {
   return new Map(
     Object.values(source.properties ?? {}).map((property) => [

@@ -243,7 +243,7 @@ function optionalPublicUrl(
 ) {
   return value[key] === undefined
     ? {}
-    : { [key]: publicUrl(value[key], `product.${key}`, key === "siteUrl") };
+    : { [key]: publicUrl(value[key], `product.${key}`, false) };
 }
 function publicUrl(
   value: unknown,
@@ -251,7 +251,14 @@ function publicUrl(
   allowRelative: boolean,
 ): string {
   const url = text(value, label);
-  if (allowRelative && url.startsWith("/")) return url;
+  if (
+    allowRelative &&
+    url.startsWith("/") &&
+    !url.startsWith("//") &&
+    !url.includes("\\") &&
+    !Array.from(url).some((character) => character.charCodeAt(0) <= 32)
+  )
+    return url;
   try {
     if (new URL(url).protocol === "https:") return url;
   } catch {

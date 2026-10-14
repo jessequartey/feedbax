@@ -121,9 +121,22 @@ describe("doctor diagnostics", () => {
     expect(request).not.toHaveBeenCalled();
   });
   it("uses typed feature switches and stable IDs even after properties are renamed", async () => {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockImplementation(async () => Response.json(source()));
+    const request = vi.fn<typeof fetch>().mockImplementation(async (url) =>
+      Response.json(
+        String(url).includes("/views?")
+          ? {
+              results: [
+                "Inbox",
+                "Reviewing",
+                "Prioritization",
+                "Follow-up",
+                "Roadmap",
+                "Shipped",
+              ].map((name) => ({ id: name, name })),
+            }
+          : source(),
+      ),
+    );
     const results = await diagnoseInstallation({
       cwd: await fixture(false),
       env,
@@ -131,7 +144,7 @@ describe("doctor diagnostics", () => {
       execute,
     });
     expect(diagnosticsPassed(results)).toBe(true);
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
     expect(request).toHaveBeenCalledWith(
       expect.stringContaining("/data_sources/source-from-config"),
       expect.not.objectContaining({ method: expect.anything() }),

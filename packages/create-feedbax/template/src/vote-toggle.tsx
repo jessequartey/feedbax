@@ -1,3 +1,4 @@
+import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { PublicPost } from "@feedbax/feedback";
 import { ChevronUp } from "lucide-react";
 import { useContext, useEffect, useRef, useState } from "react";
@@ -19,8 +20,7 @@ declare global {
 
 export function VoteToggle({
   post,
-  turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
-    string | undefined,
+  turnstileSiteKey = configuredTurnstileSiteKey(),
   requestTimeoutMs = 10_000,
 }: {
   post: PublicPost;

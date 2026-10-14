@@ -143,8 +143,7 @@ it("confirms withdrawal, removes visible state, and cleans up authority", async 
   renderDraft(client);
 
   const actions = await screen.findByRole("button", { name: "Draft actions" });
-  actions.focus();
-  fireEvent.keyDown(actions, { key: "ArrowDown" });
+  fireEvent.click(actions);
   fireEvent.click(
     await screen.findByRole("menuitem", { name: "Withdraw draft" }),
   );
@@ -165,8 +164,7 @@ it("keeps the draft visible and reports a withdrawal failure", async () => {
   renderDraft();
 
   const actions = await screen.findByRole("button", { name: "Draft actions" });
-  actions.focus();
-  fireEvent.keyDown(actions, { key: "ArrowDown" });
+  fireEvent.click(actions);
   fireEvent.click(
     await screen.findByRole("menuitem", { name: "Withdraw draft" }),
   );

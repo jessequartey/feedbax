@@ -1,3 +1,4 @@
+import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { Comment, CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
 import {
@@ -48,8 +49,7 @@ export function PublicPostDetail({
   loadMore,
   submitComment,
   mutateComment,
-  turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
-    string | undefined,
+  turnstileSiteKey = configuredTurnstileSiteKey(),
 }: {
   post: PublicPost;
   display?: "overlay" | "page";

@@ -81,6 +81,84 @@ export async function assembleFlatTemplate(
     join(target, "vitest.config.ts"),
     'import { fileURLToPath } from "node:url";\nimport { defineConfig } from "vitest/config";\nconst src = fileURLToPath(new URL("./src/", import.meta.url));\nexport default defineConfig({ resolve: { alias: [{ find: "@feedbax/feedback", replacement: `${src}feedbax/feedback/index.ts` }, { find: "@feedbax/changelog", replacement: `${src}feedbax/changelog/index.ts` }, { find: "@feedbax/config", replacement: `${src}feedbax/config/index.ts` }, { find: "cloudflare:workers", replacement: `${src}cloudflare-workers-test.ts` }, { find: /^@feedbax\\/ui\\/(.*)$/, replacement: `${src}components/ui/$1` }] } });\n',
   );
+  // Runtime configuration is a filesystem boundary: behavioral tests use an
+  // explicit fixture so a supported capability opt-out does not fail unrelated
+  // all-capabilities UI assertions. Doctor separately validates the real file.
+  const feedbackKeys = [
+    "title",
+    "slug",
+    "description",
+    "type",
+    "status",
+    "published",
+    "voteCount",
+    "teamResponse",
+    "releaseNotesUrl",
+    "submitterName",
+    "submitterEmail",
+    "source",
+    "externalId",
+    "editTokenHash",
+    "createdAt",
+    "updatedAt",
+  ];
+  const changelogKeys = [
+    "title",
+    "slug",
+    "date",
+    "summary",
+    "body",
+    "labels",
+    "image",
+    "published",
+    "createdAt",
+    "updatedAt",
+  ];
+  const fixture = {
+    product: {
+      name: "Feedbax",
+      description: "Share feedback and follow product progress.",
+      logo: "/feedbax-mark.svg",
+    },
+    theme: { preset: "lyra-neutral" },
+    notion: {
+      databaseId: "test-database",
+      dataSourceId: "test-feedback",
+      properties: Object.fromEntries(
+        feedbackKeys.map((key) => [key, `test-${key}`]),
+      ),
+    },
+    changelog: {
+      databaseId: "test-database",
+      dataSourceId: "test-changelog",
+      properties: Object.fromEntries(
+        changelogKeys.map((key) => [key, `test-${key}`]),
+      ),
+    },
+    features: { voting: true, comments: true, changelog: true },
+    submissions: {
+      moderation: "required",
+      maxTitleLength: 120,
+      maxDescriptionLength: 5000,
+    },
+    turnstile: { enabled: false },
+  };
+  await writeFile(
+    join(target, "src/feedbax.test-fixture.ts"),
+    `import { defineFeedbax } from "@feedbax/config";\n\n// prettier-ignore\nexport default defineFeedbax(${JSON.stringify(fixture, null, 2)});\n`,
+  );
+  await writeFile(
+    join(target, "vitest.setup.ts"),
+    'import { vi } from "vitest";\n\nvi.mock("./src/feedbax", () => import("./src/feedbax.test-fixture"));\n',
+  );
+  const testConfigPath = join(target, "vitest.config.ts");
+  await writeFile(
+    testConfigPath,
+    (await readFile(testConfigPath, "utf8")).replace(
+      "defineConfig({ resolve:",
+      'defineConfig({ test: { setupFiles: ["./vitest.setup.ts"] }, resolve:',
+    ),
+  );
   await writeFile(
     join(target, ".gitignore.template"),
     ".dev.vars\n.env*\ndist/\n.wrangler/\n*.log\nnode_modules/\n",

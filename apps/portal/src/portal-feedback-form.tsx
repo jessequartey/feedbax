@@ -1,3 +1,4 @@
+import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { Post, PostType, SubmittedPost } from "@feedbax/feedback";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
@@ -40,8 +41,7 @@ import feedbax from "./feedbax";
 import { SimilarPosts } from "./similar-posts";
 
 const draftStorageKey = "feedbax:portal-draft";
-const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as
-  string | undefined;
+const turnstileSiteKey = configuredTurnstileSiteKey();
 
 export interface StoredDraft {
   id: string;

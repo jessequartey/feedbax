@@ -2,7 +2,7 @@
 import * as prompt from "@clack/prompts";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   collectFeatureSelection,
   copyPackagedTemplate,
@@ -46,6 +46,12 @@ try {
           "https://my-feedback.example.workers.dev",
         ),
       };
+      const workerName = await text(
+        "Cloudflare Worker name (choose a distinct name for this product)",
+        basename(destination)
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, "-"),
+      );
       const themePreset = await text(
         "shadcn preset code, or lyra-neutral for the included preset",
         "lyra-neutral",
@@ -68,6 +74,10 @@ try {
       const features = await collectFeatureSelection({
         confirm: ({ message, initialValue }) => confirm(message, initialValue),
       });
+      const commentProbePageId =
+        existing && features.comments
+          ? await text("Shared Notion page ID for checking Comment permissions")
+          : undefined;
       const changelogSelection =
         features.changelog &&
         (await confirm(
@@ -106,6 +116,8 @@ try {
         destination,
         product,
         themePreset,
+        workerName,
+        commentProbePageId,
         features,
         feedbackSelection,
         changelogSelection,

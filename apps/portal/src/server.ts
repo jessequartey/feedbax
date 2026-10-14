@@ -1,3 +1,4 @@
+import { configuredTurnstileSecret } from "./turnstile-configuration";
 import { createPortalServerEntry } from "./portal-server-entry";
 import { createConfiguredTrustedFeedbackHandler } from "./trusted-feedback-runtime";
 import { env } from "cloudflare:workers";
@@ -14,7 +15,7 @@ import {
 
 export default createPortalServerEntry({
   commentHandler: (request) => {
-    const turnstileSecret = env.TURNSTILE_SECRET_KEY?.trim();
+    const turnstileSecret = configuredTurnstileSecret(env.TURNSTILE_SECRET_KEY);
     return createPortalCommentRequestHandler({
       feedback: createConfiguredFeedbackModule(),
       commentsEnabled: feedbax.features.comments,
@@ -39,10 +40,10 @@ export default createPortalServerEntry({
       rateLimiter: env.PORTAL_SUBMISSIONS_RATE_LIMITER,
       rateLimitKey:
         request.headers.get("CF-Connecting-IP") ?? "unknown-participant-ip",
-      ...(env.TURNSTILE_SECRET_KEY?.trim()
+      ...(configuredTurnstileSecret(env.TURNSTILE_SECRET_KEY)
         ? {
             turnstileVerifier: createCloudflareTurnstileVerifier({
-              secretKey: env.TURNSTILE_SECRET_KEY.trim(),
+              secretKey: configuredTurnstileSecret(env.TURNSTILE_SECRET_KEY)!,
             }),
           }
         : {}),
@@ -50,7 +51,9 @@ export default createPortalServerEntry({
     })(request),
   voteHandler: async (request) => {
     try {
-      const turnstileSecret = env.TURNSTILE_SECRET_KEY?.trim();
+      const turnstileSecret = configuredTurnstileSecret(
+        env.TURNSTILE_SECRET_KEY,
+      );
       const result = await createPortalVoteHandler({
         feedback: createConfiguredFeedbackModule(),
         votingEnabled: feedbax.features.voting,

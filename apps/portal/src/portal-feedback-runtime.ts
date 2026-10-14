@@ -1,3 +1,6 @@
+import feedbax from "./feedbax";
+import type { FeedbaxConfig } from "@feedbax/config";
+import { configuredTurnstileSecret } from "./turnstile-configuration";
 import { createCloudflareTurnstileVerifier } from "./cloudflare-turnstile";
 import type { PortalSubmissionRateLimiter } from "./portal-feedback-submission";
 
@@ -12,6 +15,7 @@ interface PortalSubmissionSecurityOptions {
 }
 
 interface TurnstileWarningOptions {
+  turnstile?: FeedbaxConfig["turnstile"];
   environment: PortalSubmissionEnvironment;
   nodeEnv: "development" | "production" | "test";
   warn?: (message: string) => void;
@@ -21,7 +25,9 @@ export function createPortalSubmissionSecurity({
   environment,
   rateLimitKey,
 }: PortalSubmissionSecurityOptions) {
-  const turnstileSecretKey = environment.TURNSTILE_SECRET_KEY?.trim();
+  const turnstileSecretKey = configuredTurnstileSecret(
+    environment.TURNSTILE_SECRET_KEY,
+  );
 
   return {
     rateLimiter: environment.PORTAL_SUBMISSIONS_RATE_LIMITER,
@@ -37,11 +43,11 @@ export function createPortalSubmissionSecurity({
 }
 
 export function warnIfTurnstileDisabled({
-  environment,
+  turnstile = feedbax.turnstile,
   nodeEnv,
   warn = console.warn,
 }: TurnstileWarningOptions): void {
-  if (nodeEnv === "production" && !environment.TURNSTILE_SECRET_KEY?.trim()) {
+  if (nodeEnv === "production" && !turnstile.enabled) {
     warn(
       "WARNING: Turnstile is disabled in production; this Installation has weaker spam protection.",
     );

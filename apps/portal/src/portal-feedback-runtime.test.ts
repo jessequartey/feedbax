@@ -11,11 +11,13 @@ describe("portal feedback submission security configuration", () => {
     };
 
     warnIfTurnstileDisabled({
+      turnstile: { enabled: false },
       environment: { PORTAL_SUBMISSIONS_RATE_LIMITER: rateLimiter },
       nodeEnv: "development",
       warn: localWarning,
     });
     warnIfTurnstileDisabled({
+      turnstile: { enabled: false },
       environment: { PORTAL_SUBMISSIONS_RATE_LIMITER: rateLimiter },
       nodeEnv: "production",
       warn: productionWarning,

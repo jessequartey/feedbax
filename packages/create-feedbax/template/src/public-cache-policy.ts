@@ -29,7 +29,7 @@ export function canonicalPublicRequest(
 
   const canonical = new URL(source.origin + source.pathname);
   if (source.pathname === "/") {
-    const parsed = defaultParseSearch(source.search);
+    const parsed: Record<string, unknown> = defaultParseSearch(source.search);
     const query = publicPostSearch(
       {
         ...parsed,

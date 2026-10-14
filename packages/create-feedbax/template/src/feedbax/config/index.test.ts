@@ -100,3 +100,12 @@ describe("Feedbax configuration", () => {
       defineFeedbax({ ...input, turnstile: { enabled: true } }),
     ).toThrow("turnstile.siteKey is missing"));
 });
+
+it.each(["/portal", "//example.com", "http://example.com"])(
+  "rejects a non-HTTPS absolute site URL: %s",
+  (siteUrl) => {
+    expect(() =>
+      defineFeedbax({ ...input, product: { ...input.product, siteUrl } }),
+    ).toThrow("product.siteUrl must be an HTTPS URL");
+  },
+);

@@ -1,8 +1,8 @@
 import type { PortalFeatures } from "@feedbax/config";
 import { createHash, randomBytes } from "node:crypto";
-import { readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { defineFeedbax } from "@feedbax/config";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { copyPackagedTemplate } from "./template";
 export {
   assembleFlatTemplate,
@@ -31,6 +31,8 @@ export async function provisionGuidedInstallation({
   destination,
   product,
   themePreset,
+  workerName,
+  commentProbePageId,
   features,
   feedbackSelection,
   changelogSelection,
@@ -42,6 +44,8 @@ export async function provisionGuidedInstallation({
   destination: string;
   product: { name: string; description: string; siteUrl?: string };
   themePreset: string;
+  workerName?: string;
+  commentProbePageId?: string;
   features: PortalFeatures;
   feedbackSelection: FeedbackStorageSelection;
   changelogSelection?: ChangelogStorageSelection;
@@ -58,6 +62,17 @@ export async function provisionGuidedInstallation({
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
+  if (product.siteUrl && new URL(product.siteUrl).protocol !== "https:")
+    throw new Error("product.siteUrl must be an HTTPS URL.");
+  const targetName =
+    workerName ??
+    basename(destination)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-");
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(targetName))
+    throw new Error(
+      "Worker name must contain 1–63 lowercase letters, numbers, or hyphens.",
+    );
   const approved = await preview(
     feedbackSelection.kind === "create"
       ? `Create the canonical Feedback Data Source inside Notion page ${feedbackSelection.parentPageId}.`
@@ -95,9 +110,10 @@ export async function provisionGuidedInstallation({
   await verifySelectedCommentCapabilities(features, {
     token: notionToken,
     pageId:
-      feedbackSelection.kind === "create"
+      commentProbePageId ??
+      (feedbackSelection.kind === "create"
         ? feedbackSelection.parentPageId
-        : feedback.databaseId,
+        : feedback.databaseId),
     request,
     command: "setup",
   });
@@ -114,6 +130,12 @@ export async function provisionGuidedInstallation({
   });
 
   await copyPackagedTemplate(destination);
+  const wranglerPath = join(destination, "wrangler.jsonc");
+  const wrangler = JSON.parse(await readFile(wranglerPath, "utf8"));
+  await writeFile(
+    wranglerPath,
+    JSON.stringify({ ...wrangler, name: targetName }, null, 2) + "\n",
+  );
   const apiKey = randomBytes(32).toString("base64url");
   const signingSecret = randomBytes(32).toString("base64url");
   const values: Record<string, string> = {
@@ -182,9 +204,10 @@ export async function provisionGuidedInstallation({
     `import { defineFeedbax } from "@feedbax/config";\n\nexport default defineFeedbax(${JSON.stringify(configuration, null, 2)});\n`,
   );
   const probePage =
-    feedbackSelection.kind === "create"
+    commentProbePageId ??
+    (feedbackSelection.kind === "create"
       ? feedbackSelection.parentPageId
-      : feedback.databaseId;
+      : feedback.databaseId);
   await writeFile(
     join(destination, ".dev.vars"),
     `NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID=${JSON.stringify(probePage)}\n`,
