@@ -6,6 +6,8 @@ export default tseslint.config(
   {
     ignores: [
       "**/dist/**",
+      "**/.source/**",
+      "**/.wrangler/**",
       "**/.output/**",
       "**/routeTree.gen.ts",
       "**/coverage/**",
