@@ -13,7 +13,7 @@ import {
 } from "@testing-library/react";
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRouter,
   Outlet,
   RouterProvider,
@@ -27,6 +27,8 @@ import {
   it,
   vi,
 } from "vitest";
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { loadPublicPost } from "./public-post-page";
 import { createPublicPostRoute } from "./public-post-route";
@@ -76,7 +78,7 @@ describe("/p/$slug", () => {
     expect(details.getByText("Submitted")).toBeTruthy();
     expect(details.getByText("Updated")).toBeTruthy();
     expect(history.location.pathname).toBe("/p/keyboard-first-search");
-    expect(screen.getByText("Please add Vim bindings.")).toBeTruthy();
+    expect(await screen.findByText("Please add Vim bindings.")).toBeTruthy();
     expect(screen.getByText("Ari")).toBeTruthy();
     expect(document.body.textContent).not.toContain("secret-id");
   });
@@ -161,6 +163,30 @@ describe("/p/$slug", () => {
       "native-cursor",
     );
   });
+
+  it("renders the full-page Post before a slow Comment request completes", async () => {
+    const feedback = createFeedbackModule({ initialItems: [publishedPost] });
+    let finish!: (page: CommentThreadPage) => void;
+    const loadComments = vi.fn(
+      () =>
+        new Promise<CommentThreadPage>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const history = createMemoryHistory({
+      initialEntries: ["/p/keyboard-first-search"],
+    });
+    const router = createPostRouter({ feedback, history, loadComments });
+    render(<RouterProvider router={router} />);
+    expect(
+      await screen.findByRole("heading", { name: "Keyboard-first search" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("status", { name: "Loading Comments" }),
+    ).toBeTruthy();
+    finish({ items: [] });
+    expect(await screen.findByText("No comments yet")).toBeTruthy();
+  });
 });
 
 function createPostRouter({
@@ -172,7 +198,16 @@ function createPostRouter({
   history: ReturnType<typeof createMemoryHistory>;
   loadComments?: (slug: string, cursor?: string) => Promise<CommentThreadPage>;
 }) {
-  const rootRoute = createRootRoute({ component: () => <Outlet /> });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+    component: () => (
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+      </QueryClientProvider>
+    ),
+  });
   const postRoute = createPublicPostRoute({
     loadPost: (slug) => loadPublicPost({ feedback, slug }),
     loadComments:
@@ -185,6 +220,7 @@ function createPostRouter({
     getParentRoute: () => rootRoute,
   } as never);
   return createRouter({
+    context: { queryClient },
     history,
     routeTree: rootRoute.addChildren([postRoute]),
   });

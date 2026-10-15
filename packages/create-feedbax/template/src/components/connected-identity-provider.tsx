@@ -6,6 +6,14 @@ import {
   type ReactNode,
 } from "react";
 import feedbax from "../feedbax";
+import { Button } from "@feedbax/ui/components/button";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemTitle,
+} from "@feedbax/ui/components/item";
 
 type IdentityState = {
   enabled: boolean;
@@ -77,12 +85,24 @@ export function ConnectedIdentityProvider({
 export function ConnectedSignInPrompt() {
   const identity = useConnectedIdentity();
   return (
-    <div className="profile-gate">
-      <p>
-        {identity.error ??
-          "Sign in through the product to vote and join the conversation."}
-      </p>
-      <a href="/internal/identity/start">Sign in</a>
-    </div>
+    <Item variant="muted" size="sm" className="my-4">
+      <ItemContent className="min-w-36">
+        <ItemTitle>Join the conversation</ItemTitle>
+        <ItemDescription className="line-clamp-none">
+          {identity.error ?? "Sign in with your product account to comment."}
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Button
+          nativeButton={false}
+          render={<a href="/internal/identity/start" />}
+          variant="outline"
+          size="sm"
+          disabled={!identity.ready}
+        >
+          Sign in
+        </Button>
+      </ItemActions>
+    </Item>
   );
 }

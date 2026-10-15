@@ -39,11 +39,11 @@ export function PublicPostIndex({
           <section aria-labelledby="feedback-heading">
             <h1
               id="feedback-heading"
-              className="text-3xl font-semibold tracking-tight"
+              className="text-2xl font-semibold tracking-tight"
             >
               Feedback
             </h1>
-            <p className="mt-2 text-base text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               {features.voting
                 ? "Share ideas and vote on what matters."
                 : "Share ideas and follow public progress."}
@@ -58,10 +58,11 @@ export function PublicPostIndex({
               features={features}
             />
           </div>
-          <section className="mt-8" aria-live="polite">
-            <div className="mb-4">
-              <h2 className="text-lg font-medium">Posts</h2>
-            </div>
+          <section
+            className="mt-8"
+            aria-live="polite"
+            aria-label="Feedback posts"
+          >
             <PostResults
               drafts={drafts}
               initialItems={page.items}

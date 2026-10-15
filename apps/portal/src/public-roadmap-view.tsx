@@ -50,6 +50,12 @@ const roadmapGroups = [
 ] as const;
 
 const mobileMediaQuery = "(max-width: 1023px)";
+const previewSize = 5;
+const initialVisible = {
+  Planned: previewSize,
+  "In Progress": previewSize,
+  Shipped: previewSize,
+};
 
 export function PublicRoadmapView({
   roadmap,
@@ -63,6 +69,7 @@ export function PublicRoadmapView({
   const mobile = useMediaQuery(mobileMediaQuery);
   const [activeStatus, setActiveStatus] = useState<RoadmapStatus>("Planned");
   const [columns, setColumns] = useState(roadmap);
+  const [visible, setVisible] = useState(initialVisible);
   const [loading, setLoading] = useState<Partial<Record<RoadmapStatus, true>>>(
     {},
   );
@@ -71,7 +78,10 @@ export function PublicRoadmapView({
   );
   const [loadStatusMessage, setLoadStatusMessage] = useState("");
 
-  useEffect(() => setColumns(roadmap), [roadmap]);
+  useEffect(() => {
+    setColumns(roadmap);
+    setVisible(initialVisible);
+  }, [roadmap]);
 
   const visibleGroups = mobile
     ? roadmapGroups.filter(({ status }) => status === activeStatus)
@@ -89,13 +99,26 @@ export function PublicRoadmapView({
       return next;
     });
     try {
-      const nextPage = await loadMore(query);
-      setColumns((current) => ({
-        ...current,
-        [query.status]: appendRoadmapPage(current[query.status], nextPage),
-      }));
+      const before = Math.min(
+        visible[query.status],
+        columns[query.status].items.length,
+      );
+      const target = before + previewSize;
+      let combined = columns[query.status];
+      const cursors = new Set<string>();
+      do {
+        if (!combined.nextCursor || cursors.has(combined.nextCursor)) break;
+        cursors.add(combined.nextCursor);
+        combined = appendRoadmapPage(
+          combined,
+          await loadMore({ status: query.status, cursor: combined.nextCursor }),
+        );
+      } while (combined.items.length < target && combined.nextCursor);
+      setColumns((current) => ({ ...current, [query.status]: combined }));
+      const count = Math.min(target, combined.items.length) - before;
+      setVisible((current) => ({ ...current, [query.status]: before + count }));
       setLoadStatusMessage(
-        `${nextPage.items.length} more ${group.heading} ${nextPage.items.length === 1 ? "Post" : "Posts"} loaded.`,
+        `${count} more ${group.heading} ${count === 1 ? "Post" : "Posts"} loaded.`,
       );
     } catch {
       setErrors((current) => ({ ...current, [query.status]: true }));
@@ -168,7 +191,7 @@ export function PublicRoadmapView({
                 <RoadmapEmptyState heading={heading} />
               ) : (
                 <ol className="grid gap-3">
-                  {column.items.map((item) => (
+                  {column.items.slice(0, visible[status]).map((item) => (
                     <RoadmapItem
                       item={item}
                       key={item.slug}
@@ -200,26 +223,36 @@ export function PublicRoadmapView({
                   </Button>
                 </div>
               ) : null}
-              {column.nextCursor && !errors[status] && loadMore ? (
+              {(column.items.length > visible[status] ||
+                (column.nextCursor && loadMore)) &&
+              !errors[status] ? (
                 <Button
-                  aria-label={`Load more ${heading} Posts`}
+                  aria-label={`View more ${heading} Posts`}
                   className="mt-4 h-10 w-full gap-2"
                   disabled={loading[status] === true}
                   type="button"
                   variant="ghost"
-                  onClick={() =>
-                    void loadNextPage({
-                      status,
-                      cursor: column.nextCursor,
-                    })
-                  }
+                  onClick={() => {
+                    if (
+                      column.items.length - visible[status] >= previewSize ||
+                      !column.nextCursor ||
+                      !loadMore
+                    ) {
+                      setVisible((current) => ({
+                        ...current,
+                        [status]: current[status] + previewSize,
+                      }));
+                    } else if (column.nextCursor) {
+                      void loadNextPage({ status, cursor: column.nextCursor });
+                    }
+                  }}
                 >
                   {loading[status] ? (
                     <>
                       <Spinner aria-hidden="true" /> Loading…
                     </>
                   ) : (
-                    "Load more"
+                    "View more"
                   )}
                 </Button>
               ) : null}
@@ -306,12 +339,12 @@ function RoadmapIntro() {
   return (
     <section aria-labelledby="roadmap-heading">
       <h1
-        className="text-3xl font-semibold tracking-tight"
+        className="text-2xl font-semibold tracking-tight"
         id="roadmap-heading"
       >
         Roadmap
       </h1>
-      <p className="mt-2 text-base text-muted-foreground">
+      <p className="mt-2 text-sm text-muted-foreground">
         What we’re planning, building, and shipping.
       </p>
     </section>
@@ -342,15 +375,15 @@ function RoadmapItem({ item, masked }: { item: PublicPost; masked: boolean }) {
         contextual={masked}
         className="group block border bg-background/30 transition-colors duration-150 hover:bg-muted/30"
       >
-        <article className="p-5">
-          <h3 className="text-base font-medium group-hover:text-foreground">
+        <article className="flex h-40 flex-col p-4">
+          <h3 className="line-clamp-2 min-h-10 text-sm font-medium leading-5 group-hover:text-foreground">
             {item.title}
           </h3>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
             {item.description}
           </p>
           <div
-            className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground"
+            className="mt-auto flex items-center gap-3 pt-3 text-xs text-muted-foreground"
             role="group"
             aria-label="Post metadata"
           >

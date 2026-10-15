@@ -3,9 +3,8 @@ import type {
   PublicChangelogEntry,
 } from "@feedbax/changelog";
 import { Badge } from "@feedbax/ui/components/badge";
-import { Button } from "@feedbax/ui/components/button";
+import { Button, buttonVariants } from "@feedbax/ui/components/button";
 import { ButtonGroup } from "@feedbax/ui/components/button-group";
-import { cn } from "@feedbax/ui/lib/utils";
 import { useRouterState } from "@tanstack/react-router";
 import { ChevronDown, Link2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -80,21 +79,24 @@ export function ChangelogPage({
   ]);
 
   return (
-    <main className="changelog-page">
-      <header className="changelog-heading">
+    <main className="mx-auto w-full max-w-[96rem] px-6 py-10 lg:px-10">
+      <header className="flex flex-wrap items-start justify-between gap-5">
         <div>
-          <h1>Changelog</h1>
-          <p>Product updates, fixes, and improvements.</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Changelog</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Product updates, fixes, and improvements.
+          </p>
         </div>
+        <CommandPaletteTrigger className="h-10" />
       </header>
-      <div className="changelog-toolbar">
-        <ButtonGroup className="changelog-filters" aria-label="Filter updates">
+      {labels.length ? (
+        <ButtonGroup className="mt-6 flex-wrap" aria-label="Filter updates">
           {[undefined, ...labels].map((label) => (
             <Button
-              className="h-11 md:h-8"
               key={label ?? "all"}
               type="button"
-              variant="outline"
+              size="sm"
+              variant={selectedLabel === label ? "secondary" : "outline"}
               aria-pressed={selectedLabel === label}
               disabled={loading}
               onClick={() => void replaceForLabel(label)}
@@ -103,23 +105,30 @@ export function ChangelogPage({
             </Button>
           ))}
         </ButtonGroup>
-        <CommandPaletteTrigger className="h-11 md:h-10" />
-      </div>
-      <ol className="changelog-timeline" aria-label="Product updates">
+      ) : null}
+      <ol
+        className="changelog-timeline"
+        aria-label="Product updates"
+        aria-busy={loading}
+      >
         {page.items.map((entry) => (
           <TimelineEntry entry={entry} key={entry.slug} />
         ))}
       </ol>
+      {!page.items.length && !loading ? (
+        <p className="py-12 text-sm text-muted-foreground">
+          No updates published yet.
+        </p>
+      ) : null}
       {page.nextCursor ? (
-        <div className="changelog-load-more">
+        <div className="mx-auto mt-8 flex max-w-5xl justify-center">
           <Button
-            className="h-11 min-w-64 gap-2 text-sm md:h-10"
             type="button"
             variant="outline"
             disabled={loading}
             onClick={() => void loadMore()}
           >
-            Load more updates
+            {loading ? "Loading updates…" : "Load more updates"}
             <ChevronDown aria-hidden="true" />
           </Button>
         </div>
@@ -135,28 +144,46 @@ function TimelineEntry({ entry }: { entry: PublicChangelogEntry }) {
       <time dateTime={entry.date}>{formatDate(entry.date)}</time>
       <span className="changelog-timeline-marker" aria-hidden="true" />
       <article id={entry.slug} tabIndex={-1}>
-        <div className={cn("changelog-entry-layout", image && "has-image")}>
-          <div className="changelog-entry-copy">
-            <div className="changelog-labels" aria-label="Labels">
-              {entry.labels.map((label) => (
-                <Label key={label} label={label} />
-              ))}
-            </div>
-            <div className="changelog-entry-title">
-              <h2>{entry.title}</h2>
-              <a href={`#${entry.slug}`} aria-label={`Link to ${entry.title}`}>
-                <Link2 aria-hidden="true" />
-              </a>
-            </div>
-            <p className="changelog-entry-summary">{entry.summary}</p>
-            <div className="changelog-entry-body">
-              <p>{entry.body}</p>
-            </div>
+        {entry.labels.length ? (
+          <div className="mb-3 flex flex-wrap gap-2" aria-label="Labels">
+            {entry.labels.map((label) => (
+              <Badge key={label} variant="outline">
+                {label}
+              </Badge>
+            ))}
           </div>
-          {image ? (
-            <img src={image.src} alt={image.alt} width={760} height={420} />
-          ) : null}
+        ) : null}
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {entry.title}
+          </h2>
+          <a
+            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+            href={`#${entry.slug}`}
+            aria-label={`Link to ${entry.title}`}
+          >
+            <Link2 aria-hidden="true" />
+          </a>
         </div>
+        <p className="mt-3 text-sm leading-relaxed">{entry.summary}</p>
+        <div className="changelog-entry-body">
+          {entry.body
+            .trim()
+            .split(/\n\s*\n/)
+            .filter(Boolean)
+            .map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+        </div>
+        {image ? (
+          <img
+            className="mt-6 w-full border"
+            src={image.src}
+            alt={image.alt}
+            width={760}
+            height={420}
+          />
+        ) : null}
       </article>
     </li>
   );
@@ -188,24 +215,6 @@ function useUnexpiredImage(image: PublicChangelogEntry["image"]) {
   return available && (expiry === undefined || expiry > Date.now())
     ? image
     : undefined;
-}
-
-function Label({ label }: { label: string }) {
-  const tone = label.toLowerCase();
-  return (
-    <Badge
-      className={cn(
-        "changelog-label",
-        tone === "new feature" && "is-new",
-        tone === "improved" && "is-improved",
-        tone === "fixed" && "is-fixed",
-      )}
-      variant="outline"
-    >
-      <span aria-hidden="true" />
-      {label}
-    </Badge>
-  );
 }
 
 function formatDate(date: string) {

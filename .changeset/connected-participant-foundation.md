@@ -10,3 +10,7 @@ Refresh the installed shadcn component baseline and dependencies, register the s
 Exclude Shipped Posts from unfiltered Top feedback before pagination. Keep Shipped Posts discoverable through explicit status filters, search, New, and the roadmap, and version cached public projections for the new policy.
 
 Complete the authentication and feedback block setup guides with tested server examples, application adapters, credential handling, verification steps, and troubleshooting.
+
+Enforce theme colors, known Tailwind classes, and inspectable component classes through shadcn lint in the workspace and generated Installations. Improve Post dialog and full-page loading, move the Comment composer above a scrollable thread list, and replace large profile gates with compact shadcn Items.
+
+Show five uniform roadmap previews per column with incremental View more, use the shared type scale throughout the portal, simplify the changelog timeline, and add the GitHub-linked Feedbax footer. Include informative repository and owned-app setup instructions for people and agents.

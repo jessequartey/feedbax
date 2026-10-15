@@ -1,15 +1,14 @@
 import type { CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import { createFileRoute } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { type ReactNode } from "react";
 import type { PortalCommentRequest } from "./portal-comments";
-import { mergeCommentThreads } from "./comment-thread-page";
+import { PostDetailContent } from "./post-detail-content";
 import feedbax from "./feedbax";
 import { createRouteHead } from "./portal-head";
 
-import {
-  PublicPostDetail,
-  PublicPostDetailSkeleton,
-} from "./public-post-detail";
+import { PublicPostDetailSkeleton } from "./public-post-detail-skeleton";
+import { publicPostQuery } from "./post-detail-query";
 
 export function createPublicPostRoute({
   loadPost,
@@ -21,11 +20,11 @@ export function createPublicPostRoute({
   renderUnavailable: (slug: string) => ReactNode;
 }) {
   const route = createFileRoute("/p/$slug")({
-    loader: async ({ params }) => {
-      const post = await loadPost(params.slug);
-      const comments =
-        post && loadComments ? await loadComments(params.slug) : { items: [] };
-      return { post, comments };
+    loader: async ({ params, context }) => {
+      const post = await context.queryClient.ensureQueryData(
+        publicPostQuery(params.slug, loadPost),
+      );
+      return { post };
     },
     head: ({ loaderData, params }) =>
       loaderData?.post
@@ -45,26 +44,14 @@ export function createPublicPostRoute({
   });
 
   function PostRoute() {
-    const data = route.useLoaderData();
     const { slug } = route.useParams();
-    const [comments, setComments] = useState(data.comments);
-    return data.post ? (
-      <PublicPostDetail
-        post={data.post}
-        comments={comments}
+    const { data: post } = useSuspenseQuery(publicPostQuery(slug, loadPost));
+    return post ? (
+      <PostDetailContent
+        post={post}
+        loadComments={loadComments}
         submitComment={submitPublicComment}
         mutateComment={mutatePublicComment}
-        loadMore={
-          loadComments && comments.nextCursor
-            ? async () => {
-                const next = await loadComments(slug, comments.nextCursor);
-                setComments({
-                  items: mergeCommentThreads(comments.items, next.items),
-                  ...(next.nextCursor ? { nextCursor: next.nextCursor } : {}),
-                });
-              }
-            : undefined
-        }
       />
     ) : (
       renderUnavailable(slug)

@@ -11,6 +11,8 @@ import { ThemeProvider } from "next-themes";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/header";
+import { PortalFooter } from "../components/portal-footer";
+import { LazyPostDetailOverlay as PostDetailOverlay } from "../lazy-post-detail-overlay";
 import { DeviceProfileProvider } from "../components/device-profile-provider";
 import {
   CommandPaletteProvider,
@@ -37,11 +39,6 @@ const CommandPalette = lazy(() =>
 const CreatePostOverlay = lazy(() =>
   import("../lazy-create-post-overlay").then((module) => ({
     default: module.LazyCreatePostOverlay,
-  })),
-);
-const PostDetailOverlay = lazy(() =>
-  import("../lazy-post-detail-overlay").then((module) => ({
-    default: module.LazyPostDetailOverlay,
   })),
 );
 
@@ -97,6 +94,7 @@ function RootDocument() {
                   <div id="main-content" tabIndex={-1}>
                     <Outlet />
                   </div>
+                  <PortalFooter />
                   <OptionalPortalSurfaces />
                 </div>
               </CommandPaletteProvider>

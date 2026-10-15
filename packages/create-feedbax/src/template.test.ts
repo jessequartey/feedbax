@@ -48,9 +48,7 @@ describe("flat template", () => {
     const components = JSON.parse(
       await readFile(join(first, "components.json"), "utf8"),
     );
-    expect(components.tailwind.css).toBe(
-      "src/components/ui/styles/globals.css",
-    );
+    expect(components.tailwind.css).toBe("src/index.css");
     expect(manifest.devDependencies.turbo).toBeUndefined();
     expect(await readdir(join(first, "src/feedbax"))).toEqual([
       "changelog",

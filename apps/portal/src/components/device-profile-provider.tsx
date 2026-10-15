@@ -22,13 +22,14 @@ import {
   DialogTitle,
 } from "@feedbax/ui/components/dialog";
 import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@feedbax/ui/components/empty";
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@feedbax/ui/components/item";
+import { Skeleton } from "@feedbax/ui/components/skeleton";
 import {
   Field,
   FieldDescription,
@@ -164,31 +165,44 @@ export function DeviceProfilePrompt({
 
   if (!ready)
     return (
-      <div className="profile-gate" aria-label="Loading profile" aria-busy />
+      <div
+        className="my-4 flex items-center gap-3"
+        aria-label="Loading profile"
+        aria-busy
+      >
+        <Skeleton className="size-8" />
+        <Skeleton className="h-4 w-48" />
+      </div>
     );
 
   const incomplete = Boolean(profile);
   return (
-    <Empty className="profile-gate" aria-labelledby={id}>
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <UserRound aria-hidden="true" />
-        </EmptyMedia>
-        <EmptyTitle id={id}>
+    <Item variant="muted" size="sm" className="my-4" aria-labelledby={id}>
+      <ItemMedia variant="icon">
+        <UserRound aria-hidden="true" />
+      </ItemMedia>
+      <ItemContent className="min-w-36">
+        <ItemTitle id={id}>
           {incomplete ? "Complete your profile" : "Add your profile"}
-        </EmptyTitle>
-        <EmptyDescription>
-          A display name and valid email are required to{" "}
-          {purpose === "comment" ? "join the conversation" : "create a Post"}.
-          Your email stays private and is not verified.
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button type="button" onClick={openProfileSetup}>
+        </ItemTitle>
+        <ItemDescription className="line-clamp-none">
+          {purpose === "comment"
+            ? "Add a name and email to comment."
+            : "Add a name and email to create a Post."}{" "}
+          Email stays private. Details are unverified.
+        </ItemDescription>
+      </ItemContent>
+      <ItemActions>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={openProfileSetup}
+        >
           {incomplete ? "Complete profile" : "Add profile"}
         </Button>
-      </EmptyContent>
-    </Empty>
+      </ItemActions>
+    </Item>
   );
 }
 

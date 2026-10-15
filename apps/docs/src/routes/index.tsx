@@ -22,7 +22,7 @@ function HomePage() {
       <SiteHeader />
       <main>
         <section className="hero">
-          <div className="hero-copy">
+          <div>
             <p className="eyebrow">Open-source feedback management</p>
             <h1>
               Feedback in Notion.
@@ -137,7 +137,7 @@ function HomePage() {
               Use the copied-source feedback block or submit through the trusted
               server endpoint.
             </p>
-            <a className="text-link" href="/docs/integrations/submission-api">
+            <a className="docs-link" href="/docs/integrations/submission-api">
               Read the integration guide <ArrowRight />
             </a>
           </div>
@@ -156,7 +156,7 @@ function HomePage() {
               Comments. It does not pretend browser memory is an account or a
               one-person-one-vote system.
             </p>
-            <a className="text-link" href="/docs/reference/guarantees">
+            <a className="docs-link" href="/docs/reference/guarantees">
               Understand the guarantees <ArrowRight />
             </a>
           </div>

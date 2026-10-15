@@ -39,3 +39,11 @@ Use the already accepted Feedback module, external adapter boundary, and Worker 
 ## Excluded
 
 Feedbax email/password sign-in, following, notifications, Participant media, hosted billing, additional frameworks, and additional deployment platforms.
+
+## Post detail follow-up
+
+Open the dialog shell immediately, match its loading layout to the final content, and render Post content without waiting for Comments on both dialog and canonical page. Remove the full-page toolbar. Put the composer above the scrollable thread list and use compact profile/sign-in prompts. Enforce the selected shadcn lint rules in source and generated apps.
+
+Roadmap columns initially show five uniform cards, with two-line title and description previews and five more per View more action. Retain the backend cursor pages and total counts. Normalize portal headings to the shared shadcn type scale (24px page heading, 18px Post dialog title, 14px description), retain Geist and theme colors, and redesign Changelog as a readable release timeline with paragraph spacing and compact controls.
+
+The portal includes a bottom-right Powered by Feedbax footer linked to GitHub and removes the redundant Posts heading from Feedback. The repository and generated app include clear README/AGENTS setup instructions, including the supported --template-only path and distinct local/deployed completion checks.

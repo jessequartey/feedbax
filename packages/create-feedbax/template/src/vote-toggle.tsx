@@ -1,3 +1,4 @@
+import { publicPostQueryKey } from "./post-detail-query";
 import { useConnectedIdentity } from "./components/connected-identity-provider";
 import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { PublicPost } from "@feedbax/feedback";
@@ -181,6 +182,7 @@ export function VoteToggle({
       if (queryClient) {
         void Promise.all([
           queryClient.invalidateQueries({ queryKey: publicPostsQueryKey }),
+          queryClient.invalidateQueries({ queryKey: publicPostQueryKey }),
           queryClient.invalidateQueries({ queryKey: publicRoadmapQueryKey }),
         ]);
       }
@@ -207,11 +209,7 @@ export function VoteToggle({
   }
 
   return (
-    <form
-      ref={form}
-      className="vote-toggle"
-      onSubmit={(event) => event.preventDefault()}
-    >
+    <form ref={form} onSubmit={(event) => event.preventDefault()}>
       <button
         className="vote-toggle-button"
         type="button"

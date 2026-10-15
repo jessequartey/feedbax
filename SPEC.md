@@ -386,3 +386,7 @@ Existing `feedbax@0.1.1` and `create-feedbax@0.1.0` packages are replaced throug
 All changes to `main` use pull requests with required CI and resolved conversations; force pushes and branch deletion are blocked. Another approving review becomes mandatory only after a second trusted maintainer exists.
 
 Contributions require no CLA. Issues are reserved for reproducible bugs, while features and architectural proposals begin as discussions. Maintainers favor small bug, reliability, performance, documentation, and maintenance changes; non-trivial work requires prior agreement, and maintainers may close, split, or decline unsolicited scope-expanding work.
+
+### 0.2.1 portal presentation refinements
+
+Roadmap columns show five Posts initially and reveal five more per View more action; this presentation window does not change backend cursor page sizes or total counts. Card titles and descriptions use two-line previews of uniform height. Post dialogs open their loading shell immediately; dialog and canonical pages render Post content without waiting for Comments. The Comment composer or compact profile/sign-in prompt precedes a separately scrollable thread list with loading and retry feedback. The redundant full-page toolbar is absent. Portal page headings and Post dialog titles/descriptions use the shared shadcn type scale, and Changelog uses a compact release timeline with readable paragraphs.

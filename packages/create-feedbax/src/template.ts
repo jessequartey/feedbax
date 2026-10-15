@@ -36,6 +36,14 @@ export async function assembleFlatTemplate(
     join(target, "CONNECTED.md"),
   );
   await copy(
+    join(coreRoot, "packages/create-feedbax/docs/installation-readme.md"),
+    join(target, "README.md"),
+  );
+  await copy(
+    join(coreRoot, "packages/create-feedbax/docs/installation-agents.md"),
+    join(target, "AGENTS.md"),
+  );
+  await copy(
     join(coreRoot, "packages/feedback/src"),
     join(target, "src/feedbax/feedback"),
   );
@@ -51,12 +59,21 @@ export async function assembleFlatTemplate(
     join(coreRoot, "packages/ui/src"),
     join(target, "src/components/ui"),
   );
+  // CSS tools resolve real paths rather than Vite's workspace aliases.
+  const stylesheet = join(target, "src/index.css");
+  await writeFile(
+    stylesheet,
+    (await readFile(stylesheet, "utf8")).replace(
+      '@import "@feedbax/ui/globals.css";',
+      '@import "./components/ui/styles/globals.css";',
+    ),
+  );
   for (const name of ["vite.config.ts"])
     await copy(join(coreRoot, "apps/portal", name), join(target, name));
   const components = parse(
     await readFile(join(coreRoot, "apps/portal/components.json"), "utf8"),
   );
-  components.tailwind.css = "src/components/ui/styles/globals.css";
+  components.tailwind.css = "src/index.css";
   await writeFile(
     join(target, "components.json"),
     JSON.stringify(components, null, 2) + "\n",

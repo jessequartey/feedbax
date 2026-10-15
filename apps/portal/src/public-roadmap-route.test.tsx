@@ -128,7 +128,7 @@ describe("/roadmap route", () => {
     render(<RouterProvider router={router} />);
 
     const loadMore = await screen.findByRole("button", {
-      name: "Load more Planned Posts",
+      name: "View more Planned Posts",
     });
     fireEvent.click(loadMore);
 
@@ -152,7 +152,7 @@ describe("/roadmap route", () => {
     ).toBeTruthy();
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", { name: "Load more Planned Posts" }),
+        screen.queryByRole("button", { name: "View more Planned Posts" }),
       ).toBeNull(),
     );
     expect(
@@ -161,6 +161,42 @@ describe("/roadmap route", () => {
     expect(
       screen.getByRole("status", { name: "Roadmap status" }).textContent,
     ).toBe("1 more Planned Post loaded.");
+  });
+
+  it("reveals five cards at a time before requesting another server page", async () => {
+    const items = Array.from({ length: 12 }, (_, index) =>
+      post(`planned-${index}`, "Planned"),
+    );
+    const loadMore = vi.fn().mockResolvedValue({
+      items: [post("planned-12", "Planned")],
+      totalCount: 13,
+    });
+    render(
+      <PublicRoadmapView
+        roadmap={{
+          Planned: { items, totalCount: 13, nextCursor: "next-page" },
+          "In Progress": { items: [], totalCount: 0 },
+          Shipped: { items: [], totalCount: 0 },
+        }}
+        loadMore={loadMore}
+      />,
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(5);
+    const button = screen.getByRole("button", {
+      name: "View more Planned Posts",
+    });
+    fireEvent.click(button);
+    expect(screen.getAllByRole("link")).toHaveLength(10);
+    expect(loadMore).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    expect(
+      await screen.findByRole("link", { name: /planned-12 / }),
+    ).toBeTruthy();
+    expect(screen.getAllByRole("link")).toHaveLength(13);
+    expect(loadMore).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "View more Planned Posts" }),
+    ).toBeNull();
   });
 
   it("shows one status column at a time behind mobile status tabs", async () => {

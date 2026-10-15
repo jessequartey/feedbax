@@ -5,16 +5,10 @@ import {
 import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { Comment, CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@feedbax/ui/components/empty";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
 import { Button } from "@feedbax/ui/components/button";
 import { Textarea } from "@feedbax/ui/components/textarea";
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
   type FormEvent,
   type ReactNode,
@@ -28,6 +22,7 @@ import { PostStatusBadge, PostTypeBadge } from "./post-badges";
 import { formatPublicDate } from "./public-date";
 import feedbax from "./feedbax";
 import { VoteToggle } from "./vote-toggle";
+import { mergeCommentThreads } from "./comment-thread-page";
 import type { PortalCommentRequest } from "./portal-comments";
 import { isValidCommentEmail } from "./comment-profile";
 import {
@@ -50,6 +45,9 @@ export function PublicPostDetail({
   summaryMarker,
   features = feedbax.features,
   comments = emptyCommentPage,
+  commentsLoading = false,
+  commentsLoadError = false,
+  retryComments,
   loadMore,
   submitComment,
   mutateComment,
@@ -61,6 +59,9 @@ export function PublicPostDetail({
   summaryMarker?: ReactNode;
   features?: PortalFeatures;
   comments?: CommentThreadPage;
+  commentsLoading?: boolean;
+  commentsLoadError?: boolean;
+  retryComments?: () => void;
   loadMore?: () => Promise<void>;
   submitComment?: (
     input: PortalCommentRequest,
@@ -88,6 +89,7 @@ export function PublicPostDetail({
     Record<string, StoredCommentCapability>
   >({});
   const turnstileContainer = useRef<HTMLDivElement>(null);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
   const turnstileWidget = useRef<string | undefined>(undefined);
   const { completeProfile, ready: profileReady } = useDeviceProfile();
   const identity = useConnectedIdentity();
@@ -97,7 +99,17 @@ export function PublicPostDetail({
 
   useEffect(() => {
     setLocalComments((current) =>
-      mergeConfirmedComments(current, comments.items),
+      mergeCommentThreads(
+        comments.items,
+        current
+          .map((thread) => ({
+            ...thread,
+            comments: thread.comments.filter((comment) =>
+              comment.id.startsWith("optimistic-"),
+            ),
+          }))
+          .filter((thread) => thread.comments.length > 0),
+      ),
     );
   }, [comments.items]);
 
@@ -319,144 +331,6 @@ export function PublicPostDetail({
               aria-labelledby={commentsHeadingId}
             >
               <h2 id={commentsHeadingId}>Comments</h2>
-              {localComments.length === 0 ? (
-                <Empty className="post-detail-comments-empty">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageCircle aria-hidden="true" />
-                    </EmptyMedia>
-                    <EmptyTitle>No comments yet</EmptyTitle>
-                  </EmptyHeader>
-                </Empty>
-              ) : (
-                <div className="comment-threads">
-                  {localComments.map((thread) => (
-                    <article className="comment-thread" key={thread.id}>
-                      {thread.comments.map((comment, index) => {
-                        const canChange = Boolean(
-                          mutateComment && commentCapabilities[comment.id],
-                        );
-                        const canReply = Boolean(
-                          index === 0 && submitComment && canComment,
-                        );
-                        return (
-                          <div
-                            className="comment"
-                            data-reply={index > 0 || undefined}
-                            key={comment.id}
-                          >
-                            <header className="comment-header">
-                              <div className="comment-author">
-                                <strong>{comment.author.displayName}</strong>
-                                {comment.author.kind === "participant" ? (
-                                  <span>
-                                    {comment.author.verified
-                                      ? "Verified"
-                                      : "Unverified"}
-                                  </span>
-                                ) : null}
-                              </div>
-                              <time dateTime={comment.createdAt.toISOString()}>
-                                {formatPublicDate(comment.createdAt, "long")}
-                              </time>
-                            </header>
-                            {editingComment?.id === comment.id ? (
-                              <form
-                                className="mt-3 space-y-2"
-                                aria-label="Edit Comment"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  void changeComment(
-                                    "edit",
-                                    { ...comment, discussionId: thread.id },
-                                    editingComment.body,
-                                  );
-                                }}
-                              >
-                                <Textarea
-                                  aria-label="Comment text"
-                                  value={editingComment.body}
-                                  onChange={(event) =>
-                                    setEditingComment({
-                                      id: comment.id,
-                                      body: event.target.value,
-                                    })
-                                  }
-                                  required
-                                />
-                                <div className="flex gap-2">
-                                  <Button size="sm" type="submit">
-                                    Save
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() => setEditingComment(undefined)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </form>
-                            ) : (
-                              <p className="comment-body">{comment.body}</p>
-                            )}
-                            {canChange || canReply ? (
-                              <div
-                                className="comment-actions"
-                                role="group"
-                                aria-label={`Comment actions by ${comment.author.displayName}`}
-                              >
-                                {canReply ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => setReplyingTo(thread.id)}
-                                  >
-                                    Reply
-                                  </Button>
-                                ) : null}
-                                {canChange ? (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() =>
-                                        setEditingComment({
-                                          id: comment.id,
-                                          body: comment.body,
-                                        })
-                                      }
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      className="text-destructive hover:text-destructive"
-                                      onClick={() =>
-                                        void changeComment("delete", {
-                                          ...comment,
-                                          discussionId: thread.id,
-                                        })
-                                      }
-                                    >
-                                      Delete
-                                    </Button>
-                                  </>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </article>
-                  ))}
-                </div>
-              )}
               {submitComment &&
               (identity.enabled ? identity.ready : profileReady) &&
               canComment ? (
@@ -473,14 +347,15 @@ export function PublicPostDetail({
                   </label>
                   <p className="comment-composer-hint">
                     {identity.enabled
-                      ? "Your verified product identity is shown with your Comment."
-                      : "Your display name is public. Your email is used only to unlock commenting and is never shown."}
+                      ? `Posting as ${identity.displayName}.`
+                      : "Your name is public. Your email stays private."}
                   </p>
                   <Textarea
+                    ref={composerInput}
                     className="comment-composer-input"
                     id={`${id}-comment-body`}
                     name="body"
-                    rows={4}
+                    rows={3}
                     placeholder="Share context, an example, or a question…"
                     required
                   />
@@ -524,15 +399,184 @@ export function PublicPostDetail({
                 <DeviceProfilePrompt purpose="comment" />
               ) : null}
               {commentError ? <p role="alert">{commentError}</p> : null}
-              {loadMore ? (
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => void loadMore()}
-                >
-                  Load more
-                </button>
-              ) : null}
+              <div
+                className="post-detail-thread-list"
+                role="region"
+                aria-label="Comment threads"
+                tabIndex={localComments.length ? 0 : undefined}
+              >
+                {commentsLoading && localComments.length === 0 ? (
+                  <PostCommentsSkeleton />
+                ) : commentsLoadError &&
+                  localComments.length === 0 ? null : localComments.length ===
+                  0 ? (
+                  <p className="py-5 text-sm text-muted-foreground">
+                    No comments yet
+                  </p>
+                ) : (
+                  <div className="comment-threads">
+                    {localComments.map((thread) => (
+                      <article className="comment-thread" key={thread.id}>
+                        {thread.comments.map((comment, index) => {
+                          const canChange = Boolean(
+                            mutateComment && commentCapabilities[comment.id],
+                          );
+                          const canReply = Boolean(
+                            index === 0 && submitComment && canComment,
+                          );
+                          return (
+                            <div
+                              className="comment"
+                              data-reply={index > 0 || undefined}
+                              key={comment.id}
+                            >
+                              <header className="comment-header">
+                                <div className="comment-author">
+                                  <strong>{comment.author.displayName}</strong>
+                                  {comment.author.kind === "participant" ? (
+                                    <span>
+                                      {comment.author.verified
+                                        ? "Verified"
+                                        : "Unverified"}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <time
+                                  dateTime={comment.createdAt.toISOString()}
+                                >
+                                  {formatPublicDate(comment.createdAt, "long")}
+                                </time>
+                              </header>
+                              {editingComment?.id === comment.id ? (
+                                <form
+                                  className="mt-3 space-y-2"
+                                  aria-label="Edit Comment"
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    void changeComment(
+                                      "edit",
+                                      { ...comment, discussionId: thread.id },
+                                      editingComment.body,
+                                    );
+                                  }}
+                                >
+                                  <Textarea
+                                    aria-label="Comment text"
+                                    value={editingComment.body}
+                                    onChange={(event) =>
+                                      setEditingComment({
+                                        id: comment.id,
+                                        body: event.target.value,
+                                      })
+                                    }
+                                    required
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button size="sm" type="submit">
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        setEditingComment(undefined)
+                                      }
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </form>
+                              ) : (
+                                <p className="comment-body">{comment.body}</p>
+                              )}
+                              {canChange || canReply ? (
+                                <div
+                                  className="comment-actions"
+                                  role="group"
+                                  aria-label={`Comment actions by ${comment.author.displayName}`}
+                                >
+                                  {canReply ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setReplyingTo(thread.id);
+                                        composerInput.current?.focus();
+                                      }}
+                                    >
+                                      Reply
+                                    </Button>
+                                  ) : null}
+                                  {canChange ? (
+                                    <>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                          setEditingComment({
+                                            id: comment.id,
+                                            body: comment.body,
+                                          })
+                                        }
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() =>
+                                          void changeComment("delete", {
+                                            ...comment,
+                                            discussionId: thread.id,
+                                          })
+                                        }
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </article>
+                    ))}
+                  </div>
+                )}
+                {commentsLoadError ? (
+                  <div className="space-y-3 py-4">
+                    <p role="alert" className="text-sm text-muted-foreground">
+                      Comments could not be loaded.
+                    </p>
+                    {retryComments ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={retryComments}
+                      >
+                        Retry Comments
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {loadMore ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={commentsLoading}
+                    onClick={() => void loadMore()}
+                  >
+                    {commentsLoading ? "Loading Comments…" : "Load more"}
+                  </Button>
+                ) : null}
+              </div>
             </section>
           ) : null}
         </div>
@@ -575,39 +619,37 @@ export function PublicPostDetail({
   );
 }
 
-export function PublicPostDetailSkeleton() {
+function PostCommentsSkeleton() {
   return (
-    <main
-      className="feedback-detail post-detail-skeleton"
-      aria-label="Loading Post details"
+    <div
+      role="status"
+      aria-label="Loading Comments"
       aria-busy="true"
+      className="space-y-5 py-6"
     >
-      <div aria-hidden="true">
-        <Skeleton className="post-detail-skeleton-back" />
-        <article>
-          <Skeleton className="post-detail-skeleton-meta" />
-          <Skeleton className="post-detail-skeleton-title" />
-          <Skeleton className="post-detail-skeleton-copy" />
-          <Skeleton className="post-detail-skeleton-copy post-detail-skeleton-copy-short" />
-        </article>
+      <span className="sr-only">Loading Comments…</span>
+      <div aria-hidden="true" className="space-y-4">
+        {[0, 1].map((row) => (
+          <div key={row} className="space-y-3">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-2/3" />
+          </div>
+        ))}
       </div>
-      <span className="sr-only">Loading Post details…</span>
-    </main>
+    </div>
   );
 }
+
+export { PublicPostDetailSkeleton } from "./public-post-detail-skeleton";
 
 function addComment(
   threads: CommentThreadPage["items"],
   comment: CreatedComment,
 ) {
-  const existing = threads.find((thread) => thread.id === comment.discussionId);
-  return existing
-    ? threads.map((thread) =>
-        thread.id === comment.discussionId
-          ? { ...thread, comments: [...thread.comments, comment] }
-          : thread,
-      )
-    : [...threads, { id: comment.discussionId, comments: [comment] }];
+  return mergeCommentThreads(threads, [
+    { id: comment.discussionId, comments: [comment] },
+  ]);
 }
 
 function removeComment(threads: CommentThreadPage["items"], commentId: string) {
@@ -625,26 +667,6 @@ function replaceComment(
   confirmed: CreatedComment,
 ) {
   return addComment(removeComment(threads, optimisticId), confirmed);
-}
-
-function mergeConfirmedComments(
-  current: CommentThreadPage["items"],
-  confirmed: CommentThreadPage["items"],
-) {
-  const merged = new Map(current.map((thread) => [thread.id, thread]));
-  for (const thread of confirmed) {
-    const existing = merged.get(thread.id);
-    if (!existing) {
-      merged.set(thread.id, thread);
-      continue;
-    }
-    const comments = new Map(
-      existing.comments.map((comment) => [comment.id, comment]),
-    );
-    for (const comment of thread.comments) comments.set(comment.id, comment);
-    merged.set(thread.id, { ...existing, comments: [...comments.values()] });
-  }
-  return [...merged.values()];
 }
 
 interface StoredCommentCapability {
