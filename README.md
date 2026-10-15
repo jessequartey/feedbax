@@ -2,7 +2,7 @@
 
 An open-source feedback portal with Product Team workflow in Notion or GitHub. Collect ideas and bug reports, publish a roadmap, and discuss feedback. You own the application source and Cloudflare deployment.
 
-**Released: 0.2.1**, with Notion and optional Connected participation. This branch implements **0.2.2**: GitHub, private My feedback, and further lifecycle work. GitHub has dedicated live acceptance portals; the complete release is still in progress. [Acceptance and remaining work](docs/version-0.2.2-acceptance.md).
+**Version 0.2.2** adds Issues-only GitHub integration, private My feedback, opt-in progress history and reviewed source upgrades while preserving Notion and optional Connected participation. [Release scope, evidence and follow-up work](docs/version-0.2.2-acceptance.md).
 
 [Documentation](https://feedbax-docs.jessefquartey.workers.dev/docs) · [Agent setup](docs/agent-setup.md) · [Existing-app authentication](docs/connected-profile.md) · [Feedback block](apps/docs/content/docs/integrations/feedback-block.mdx) · [Roadmap](ROADMAP.md)
 
@@ -13,19 +13,19 @@ Use Node **24 LTS** and **pnpm 10**, a Cloudflare account, and the selected Cont
 For the released Notion path:
 
 ```sh
-npx create-feedbax@0.2.1 my-feedback
+npx create-feedbax@0.2.2 my-feedback
 cd my-feedback
 pnpm dev
 ```
 
 Have your product name, description, HTTPS portal URL, distinct Worker name, and Notion internal integration token ready. Share a parent page with the integration; enable read/insert Comments if needed. Guided setup previews schema changes, creates or validates storage, generates an application and private local secrets, installs dependencies, and checks readiness. It also offers deployment. Turnstile is optional and recommended for public intake.
 
-For the upcoming GitHub path, follow [GitHub setup](apps/docs/content/docs/getting-started/github.mdx). It requires dedicated D1 and a paired GitHub App service, uses no Notion credentials, and disables Changelog. The guide distinguishes released commands from development-source setup.
+For the GitHub path, follow [GitHub setup](apps/docs/content/docs/getting-started/github.mdx). It requires dedicated D1 and a paired GitHub App service, uses no Notion credentials, and disables Changelog. The guide covers the released creator and lifecycle CLI.
 
 | Choice                     | Content and workflow                                                                                               | Participant identity                                                          |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | Notion                     | Feedback Data Source, native publication, Comments and optional Changelog                                          | Browser capabilities by default; optional Connected                           |
-| GitHub, 0.2.2 development  | One Feedback Repository, explicit approved issue content, status/publication labels, portal Comments; dedicated D1 | Browser capabilities by default; optional Connected                           |
+| GitHub, 0.2.2              | One Feedback Repository, explicit approved issue content, status/publication labels, portal Comments; dedicated D1 | Browser capabilities by default; optional Connected                           |
 | Connected, either provider | Unique Votes, verified Comment attribution, Follows, private Notifications, optional email/images                  | Your existing product signs an Identity Handoff; D1 stores revocable sessions |
 
 D1 alone never establishes verified identity. A Device Profile is unverified and is separate from draft authority. In 0.2.2, Connected also provides My feedback and cross-device ownership of new signed-in submissions; an old browser draft needs an explicit capability-backed claim.
@@ -36,7 +36,7 @@ D1 alone never establishes verified identity. A Device Profile is unverified and
 
 Start with the [integration checklist](docs/integration-checklist.md) for the setup path, credential locations and end-to-end verification.
 
-For a public progress timeline in 0.2.2 development, explicitly enable root-level `history: true` with dedicated D1 and a timer. Post details open on Comments, with progress under Activities. Follow controls appear after sign-in. The [history guide](apps/docs/content/docs/guides/progress-history.mdx) explains its public baseline, observation timestamps, publication checks and release links. Existing Notion Installations keep their current storage requirements when history is omitted.
+For a public progress timeline in 0.2.2, explicitly enable root-level `history: true` with dedicated D1 and a timer. Post details open on Comments, with progress under Activities. Follow controls appear after sign-in. The [history guide](apps/docs/content/docs/guides/progress-history.mdx) explains its public baseline, observation timestamps, publication checks and release links. Existing Notion Installations keep their current storage requirements when history is omitted.
 
 The [feedback block guide](apps/docs/content/docs/integrations/feedback-block.mdx) covers the React/shadcn UI, server endpoint, validation, retries and abuse prevention:
 
@@ -74,12 +74,12 @@ Diagnostics check the real selected provider, enabled features and bindings. Dep
 ## Use a coding agent
 
 ```sh
-npx create-feedbax@0.2.1 my-feedback --template-only
+npx create-feedbax@0.2.2 my-feedback --template-only
 ```
 
 Template-only copies source without external provisioning or dependency installation. Follow [agent setup](docs/agent-setup.md), supply actual mappings/credentials, and verify the result. Test fixtures are not live configuration. Guided provisioning has no `--yes` flag.
 
-For a customized released Installation, follow the development [source upgrade guide](apps/docs/content/docs/guides/upgrading.mdx). Review its three-way diff before applying; the source journal supports resume and guarded rollback. Full data archive/restore and provider migration remain separate pending work.
+For a customized released Installation, follow the [source upgrade guide](apps/docs/content/docs/guides/upgrading.mdx). Review its three-way diff before applying; the source journal supports resume and guarded rollback. Full data archive/restore and provider migration remain separate pending work.
 
 ## Work on this repository
 
@@ -122,4 +122,4 @@ pnpm deploy:docs:dry-run
 
 [Context](CONTEXT.md) · [Specification](SPEC.md) · [Testing](TESTING.md) · [Architecture decisions](docs/adr/) · [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md).
 
-Core is [Apache-2.0](LICENSE). New Team Member tools are deferred for 0.2.2; native provider workflow remains available. Source upgrade commands are available in development source; full archive/restore/migration readiness remains tracked in the acceptance record.
+Core is [Apache-2.0](LICENSE). New Team Member tools are deferred for 0.2.2; native provider workflow remains available. Source upgrade commands are included in 0.2.2; full archive/restore/migration readiness remains tracked in the acceptance record.

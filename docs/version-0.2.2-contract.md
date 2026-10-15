@@ -1,6 +1,6 @@
 # Version 0.2.2 shared implementation contract
 
-Status: accepted implementation target; provider/setup/runtime, paired App service and private My feedback are implemented and undergoing acceptance. Optional Projects and remaining lifecycle work are pending. See the [acceptance record](version-0.2.2-acceptance.md) for evidence and limits.
+Status: design target with an owner-accepted implemented release cut for 0.2.2. See the [accepted inventory and evidence](version-0.2.2-acceptance.md#accepted-release-cut); Projects and unfinished lifecycle work carry forward without delivery claims.
 Owner decisions: 2026-10-15. Requirements: [release plan and amendments](version-0.2.2-plan.md).
 
 ## Released baseline and precedence

@@ -3,7 +3,7 @@ title: Progress history
 description: Show public status changes and Product Team updates that Feedbax observes.
 ---
 
-Observed History is an opt-in capability in 0.2.2 development source for either Content Provider. It requires explicitly provisioned D1; it does not establish Participant identity or require Connected sign-in. Existing Notion Installations keep their current storage footprint when it is omitted.
+Observed History is an opt-in capability in 0.2.2 for either Content Provider. It requires explicitly provisioned D1; it does not establish Participant identity or require Connected sign-in. Existing Notion Installations keep their current storage footprint when it is omitted.
 
 ## Enable it
 
@@ -15,7 +15,7 @@ pnpm exec wrangler d1 migrations apply FEEDBAX_DB --remote
 pnpm exec feedbax doctor
 ```
 
-Use the matching development CLI until 0.2.2 is published. Diagnostics validate the schema, D1 binding and timer before deployment. For a Notion portal without D1, create and bind its own database explicitly before enabling history. Setting `history: false` or omitting it disables the timeline.
+Use the matching 0.2.2 CLI. Diagnostics validate the schema, D1 binding and timer before deployment. For a Notion portal without D1, create and bind its own database explicitly before enabling history. Setting `history: false` or omitting it disables the timeline.
 
 With history enabled, public portal responses use `no-store` instead of Notion's stale-content cache policy. Purge any previously cached public pages when switching an existing deployment to this policy. An unavailable history read clears the open Post and Comment query data; a confirmed unpublication cannot keep using its earlier visible projection.
 

@@ -17,10 +17,10 @@ After deployment, verify the Worker preview hostname before attaching a custom d
 
 Connected Installations also require their dedicated D1 binding and all included migrations before deployment. Follow the [authentication guide](/docs/guides/connected-profile) and verify the real application handoff in a dedicated environment before enabling it for Participants.
 
-## GitHub in 0.2.2 development
+## GitHub in 0.2.2
 
 GitHub requires a dedicated D1 binding and every included migration independently of Participant sign-in. Both portal and App service need exact configured origins and appropriate Worker-to-Worker routing. The [GitHub guide](/docs/getting-started/github) walks through bootstrap deployment, authorization and full diagnostics. App keys stay in the service; only per-portal credentials are stored in portal D1.
 
 Deploy once with `feedbax deploy --pairing-bootstrap`, run `feedbax pair-github GITHUB_APP_INSTALLATION_ID`, complete authorization and run full diagnostics. Then verify a real Post, approved publication, a Comment and unpublication on the deployed portal. Local development has its own database and requires a separate binding; production pairing does not populate local D1.
 
-Published 0.2.1 has no GitHub pairing commands; use the matching built development CLI until 0.2.2 is available. Keep a protected copy of configuration and required credentials. For a customized existing Installation, use the [source upgrade guide](/docs/guides/upgrading) and finish its separate configuration/dependency/D1 stages before deploying. Full archive/restore/migration readiness remains recorded in release acceptance.
+Published 0.2.1 has no GitHub pairing commands; use the matching 0.2.2 CLI. Keep a protected copy of configuration and required credentials. For a customized existing Installation, use the [source upgrade guide](/docs/guides/upgrading) and finish its separate configuration/dependency/D1 stages before deploying. Full archive/restore/migration readiness remains recorded in release acceptance.

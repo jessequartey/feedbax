@@ -7,7 +7,7 @@ Use this guide when a person or coding agent is creating a portal, configuring c
 For the published 0.2.1 release, use Node 24 LTS and pnpm 10:
 
 ```sh
-npx create-feedbax@0.2.1 my-feedback
+npx create-feedbax@0.2.2 my-feedback
 ```
 
 The guided creator provisions or validates Notion sources, copies the app, generates local secrets, installs dependencies, and runs diagnostics. It has no non-interactive provisioning `--yes` flag.
@@ -15,14 +15,14 @@ The guided creator provisions or validates Notion sources, copies the app, gener
 For source copying without prompts, external service calls, or dependency installation:
 
 ```sh
-npx create-feedbax@0.2.1 my-feedback --template-only
+npx create-feedbax@0.2.2 my-feedback --template-only
 cd my-feedback
 pnpm install
 ```
 
 Template-only output is intentionally unconfigured. Do not substitute test IDs or use `src/feedbax.test-fixture.ts` as a real installation configuration.
 
-For work on unreleased 0.2.2, use this repository with Node 24 LTS (24.15+; `.nvmrc` pins 24.22.0) and its workspace commands. Run `nvm install` and `nvm use` before installing dependencies. The published 0.2.1 creator includes Connected identity and social capabilities; GitHub commands require the matching 0.2.2 development creator/CLI. `pnpm packages:check` verifies the development packages by packing both CLIs and using them in an independent application.
+For work on 0.2.2, use this repository with Node 24 LTS (24.15+; `.nvmrc` pins 24.22.0) and its workspace commands. Run `nvm install` and `nvm use` before installing dependencies. The published 0.2.1 creator includes Connected identity and social capabilities; GitHub commands require the matching 0.2.2 creator/CLI. `pnpm packages:check` verifies the development packages by packing both CLIs and using them in an independent application.
 
 ## 2. Collect the required inputs
 
@@ -35,7 +35,7 @@ For work on unreleased 0.2.2, use this repository with Node 24 LTS (24.15+; `.nv
 
 Credentials belong in ignored local files or secret stores. Product settings and selected provider identifiers belong in `src/feedbax.ts`. Do not send the Notion token or signing keys to browser code.
 
-For GitHub 0.2.2 development, first read [GitHub setup](../apps/docs/content/docs/getting-started/github.mdx). Collect the service origin, exact portal origin, distinct Feedbax Installation ID, repository numeric ID/owner/name, App bot ID, external GitHub App installation ID and explicitly provisioned D1 ID/name. Select `provider: "github"`, omit Notion configuration and disable Changelog. Keep the App key only in the separate service. Use the guide's local CLI instructions until 0.2.2 is published; a published 0.2.1 CLI lacks pairing commands.
+For GitHub 0.2.2, first read [GitHub setup](../apps/docs/content/docs/getting-started/github.mdx). Collect the service origin, exact portal origin, distinct Feedbax Installation ID, repository numeric ID/owner/name, App bot ID, external GitHub App installation ID and explicitly provisioned D1 ID/name. Select `provider: "github"`, omit Notion configuration and disable Changelog. Keep the App key only in the separate service. Use the guide's matching 0.2.2 CLI instructions; a published 0.2.1 CLI lacks pairing commands.
 
 ## 3. Configure the owned application
 

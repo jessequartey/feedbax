@@ -3,7 +3,7 @@ title: Authentication
 description: Set up signed application identity, D1, verified participation, and session operations.
 ---
 
-Connected Profile is optional. Omit `connected` to retain the selected provider’s unsigned participation behavior. Published 0.2.1 uses Notion; 0.2.2 development source also supports GitHub. A Connected Installation requires a dedicated D1 database (reuse the Installation’s required provider D1 for GitHub) and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in. Small processing also uses a dedicated Cloudflare Queue for background work.
+Connected Profile is optional. Omit `connected` to retain the selected provider’s unsigned participation behavior. Published 0.2.1 uses Notion; 0.2.2 also supports GitHub. A Connected Installation requires a dedicated D1 database (reuse the Installation’s required provider D1 for GitHub) and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in. Small processing also uses a dedicated Cloudflare Queue for background work.
 
 ## Configure an Installation
 
@@ -410,7 +410,7 @@ In a dedicated Installation, apply all D1 migrations, configure the timer and pr
 
 These checks require your real application, sender, and infrastructure. Local tests and builds do not constitute production delivery or release evidence.
 
-## GitHub and My feedback in 0.2.2 development
+## GitHub and My feedback in 0.2.2
 
 Provider setup and Participant authentication are separate. Complete the GitHub App service pairing and use the same Installation D1 database for Connected; GitHub needs no Notion token and disables Changelog. The existing issuer/subject trust pair, signed handoff, consent and session revocation rules remain unchanged. GitHub Participants need no GitHub account. Follow the GitHub setup guide before adding Connected bindings and secrets.
 

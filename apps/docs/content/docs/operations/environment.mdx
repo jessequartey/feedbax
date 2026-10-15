@@ -25,7 +25,7 @@ Rotating `PARTICIPATION_SIGNING_SECRET` invalidates outstanding Participation Pa
 
 For Connected Profile, add the dedicated `FEEDBAX_DB` D1 binding to Wrangler configuration and apply its migration. The binding is infrastructure configuration, not a plaintext secret. See the [complete authentication guide](/docs/guides/connected-profile) for application setup, secrets, sessions, verification, and troubleshooting.
 
-## GitHub secrets in 0.2.2 development
+## GitHub secrets in 0.2.2
 
 A GitHub portal uses `GITHUB_PAIRING_SECRET`, `FEEDBAX_API_KEY_HASH` and `PARTICIPATION_SIGNING_SECRET`, plus independently enabled Turnstile/Connected/email secrets. It needs no `NOTION_TOKEN`. Pairing stores separate portal-to-service and service-to-portal credentials in its private D1 database. Keep the bootstrap secret private and use the pairing flow for rotation/reconnection.
 

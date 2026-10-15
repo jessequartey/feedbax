@@ -3,13 +3,19 @@ title: Upgrade a customized Installation
 description: Review generated-source changes, preserve local edits, and recover an interrupted source upgrade.
 ---
 
-The source-upgrade commands below are implemented in **0.2.2 development source**. Published `feedbax@0.2.1` does not contain them. Package versions remain 0.2.1 until release acceptance and Changesets versioning; a development preview therefore labels its target as bundled 0.2.1 source even though it includes unreleased changes. This guide does not claim that backup, isolated restore or provider migration is delivered.
+The source-upgrade commands below are included in **0.2.2**. Published `feedbax@0.2.1` does not contain them. They upgrade source from the exact released 0.2.1 baseline; full data backup, isolated restore and provider migration are follow-up work.
 
 ## Prepare a recovery point
 
 Keep your Installation's current source and dependency lockfile in private version control or a protected local backup. Separately back up provider content, D1 and private R2 objects when used. Inventory credentials without copying their values into a portable archive. The source journal is a rollback aid for changed generated files, **not** a complete data backup.
 
-Use Node 24 LTS, pnpm 10 and Git. Run the matching upgraded CLI from outside the Installation's dependency manifest so installing the tool does not create a conflicting `package.json` edit. For the development checkout:
+Use Node 24 LTS, pnpm 10 and Git. Run the matching upgraded CLI from outside the Installation's dependency manifest so installing the tool does not create a conflicting `package.json` edit. Use the released CLI without first modifying your Installation manifest:
+
+```sh
+pnpm dlx feedbax@0.2.2 upgrade --from 0.2.1
+```
+
+For a reviewed source checkout, the equivalent commands are:
 
 ```sh
 # In the reviewed Core checkout:
@@ -20,7 +26,7 @@ pnpm --filter feedbax build
 node /absolute/path/to/core/packages/feedbax/dist/cli.js upgrade --from 0.2.1
 ```
 
-After 0.2.2 is published, the equivalent one-off invocation is `pnpm dlx feedbax@0.2.2 upgrade --from 0.2.1`. Do not use that release command before publication.
+The commands below show the source-checkout invocation. With the released package, use the same flags after `pnpm dlx feedbax@0.2.2 upgrade`.
 
 ## Review and apply source
 

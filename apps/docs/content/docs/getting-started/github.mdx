@@ -3,7 +3,7 @@ title: Connect GitHub
 description: Prepare a Feedback Repository, private D1 state, and a paired GitHub App service.
 ---
 
-GitHub is the alternative Content Provider in the **0.2.2 development source**. It is undergoing acceptance and is not included in published 0.2.1. The dedicated acceptance service is not a generally available hosted service. Deploy your own service using the same Apache-2.0 source.
+GitHub is the alternative Content Provider in the **0.2.2**. It is not included in 0.2.1. The dedicated acceptance service is not a generally available hosted service. Deploy your own service using the same Apache-2.0 source.
 
 GitHub requires a dedicated D1 database even without sign-in. Participant GitHub accounts are unnecessary. Changelog must be disabled; Connected authentication, unique Votes, Follows, Notifications and images remain independent options.
 
@@ -19,23 +19,16 @@ Record the repository's numeric ID, App bot user ID from the service's `/v1/info
 
 Issues-only is the implemented workflow in this slice. Optional organization Projects and PR automation remain under development; personal Projects use the Issues-only fallback. Do not add PATs or broader App permissions to work around an unsupported path.
 
-## 2. Use matching development source
-
-Until 0.2.2 is published, use both the creator and lifecycle CLI from the same checkout. From the repository root:
+## 2. Create with matching released packages
 
 ```sh
-nvm install
-nvm use
-pnpm install --frozen-lockfile
-pnpm template:sync
-pnpm --filter feedbax build
-pnpm --filter create-feedbax build
-node packages/create-feedbax/dist/cli.js ../my-feedback --template-only
-cd ../my-feedback
-pnpm add -D /absolute/path/to/feedbax/packages/feedbax
+npx create-feedbax@0.2.2 my-feedback
+cd my-feedback
 ```
 
-Replace the final path with the actual checkout package path. This local dependency uses the built CLI with `pair-github`; installing published `feedbax@0.2.1` would not provide that command. Template-only source still needs the configuration below. Once 0.2.2 is published, its guided creator will collect these values and generate the files for you.
+Choose GitHub in guided setup and provide the resources above. The creator collects the connection values, generates configuration and private local secrets, and installs the matching `feedbax@0.2.2` CLI. For a manual setup, `npx create-feedbax@0.2.2 my-feedback --template-only` copies source without external requests or dependency installation; configure the following values and install dependencies yourself. Published 0.2.1 lacks GitHub pairing commands.
+
+Maintainers can instead build the creator and CLI from the same reviewed checkout with `pnpm template:check`, `pnpm --filter create-feedbax build` and `pnpm --filter feedbax build`. Keep those source versions aligned.
 
 ## 3. Configure the portal
 

@@ -1,9 +1,9 @@
 # create-feedbax
 
-Create an owned Feedbax portal for Cloudflare Workers. Released 0.2.1 supports Notion and optional Connected participation; the 0.2.2 development source adds GitHub setup.
+Create an owned Feedbax portal for Cloudflare Workers. Version 0.2.2 supports Notion or Issues-only GitHub content with independent optional Connected participation.
 
 ```sh
-npx create-feedbax@0.2.1 my-feedback
+npx create-feedbax@0.2.2 my-feedback
 cd my-feedback
 pnpm dev
 ```
@@ -16,10 +16,10 @@ Notion setup needs an internal integration and shared parent page. GitHub setup 
 
 Observed History is an explicit `history: true` configuration with D1 and a timer, independent of Connected identity. It records public changes after a baseline rather than reconstructing private provider history; see the [history guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/progress-history.mdx).
 
-[GitHub setup and development-source instructions](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/getting-started/github.mdx) · [Agent setup](https://github.com/jessequartey/feedbax/blob/main/docs/agent-setup.md) · [Authentication](https://github.com/jessequartey/feedbax/blob/main/docs/connected-profile.md) · [Release acceptance](https://github.com/jessequartey/feedbax/blob/main/docs/version-0.2.2-acceptance.md).
+[GitHub setup](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/getting-started/github.mdx) · [Agent setup](https://github.com/jessequartey/feedbax/blob/main/docs/agent-setup.md) · [Authentication](https://github.com/jessequartey/feedbax/blob/main/docs/connected-profile.md) · [Release acceptance](https://github.com/jessequartey/feedbax/blob/main/docs/version-0.2.2-acceptance.md).
 
 Documentation: [feedbax.dev/docs](https://feedbax.dev/docs). Core is Apache-2.0.
 
 [Integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) covers product-server intake, credential locations and production verification.
 
-Existing customized Installations use the separate development CLI [source upgrade flow](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/upgrading.mdx); do not generate a fresh template over an existing app. Full data restore/migration acceptance remains pending.
+Existing customized Installations use the separate lifecycle CLI [source upgrade flow](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/upgrading.mdx); do not generate a fresh template over an existing app. Full data restore/migration acceptance remains pending.

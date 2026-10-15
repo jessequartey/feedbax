@@ -1,6 +1,6 @@
 # Integrate Feedbax with your product
 
-Released 0.2.1 supports Notion. This branch's GitHub and My feedback instructions describe 0.2.2 development source; use matching creator/CLI source until that version is published. [Release acceptance](version-0.2.2-acceptance.md) records remaining work.
+Version 0.2.2 supports Notion or Issues-only GitHub, optional Connected identity and private My feedback. Use matching `create-feedbax@0.2.2` and `feedbax@0.2.2` packages. [Release acceptance](version-0.2.2-acceptance.md) distinguishes delivered features from follow-up work.
 
 ## Choose the setup path
 

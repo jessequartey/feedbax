@@ -4,6 +4,10 @@ Status: amended owner-approved release scope; ticket 01 resolved, tickets 02/03/
 Approved: 2026-10-15.
 Start gate: 0.2.1 production acceptance and published release verified on 2026-10-15.
 
+## Owner release-cut acceptance — 2026-10-15
+
+The owner explicitly accepted the current implemented milestone and authorized merge/publication as 0.2.2 after its remaining scope was disclosed. The [accepted release inventory](version-0.2.2-acceptance.md#accepted-release-cut) governs this release. Projects/PR automation, full archive/isolated restore, provider migration and remaining live/capacity checks move to follow-up work; their original requirements below remain traceable and are not reported as delivered. This amendment supersedes the original all-workstreams release gate, while preserving security and data-integrity requirements for implemented features.
+
 ## Owner decisions — 2026-10-15
 
 These amendments take precedence over the original scope below. The 0.2.1 gate is satisfied: production acceptance is recorded in [0.2.1 acceptance](version-0.2.1-acceptance.md), [v0.2.1](https://github.com/jessequartey/feedbax/releases/tag/v0.2.1) was published on 2026-10-15, and both npm packages resolve to 0.2.1. This is permission to start implementation, not evidence of any 0.2.2 delivery.

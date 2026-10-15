@@ -3,7 +3,7 @@ title: Native GitHub workflow
 description: Manage approved portal content and status without publishing engineering discussion.
 ---
 
-This guide covers the Issues-only implementation in 0.2.2 development source. Product Teams work in GitHub; there is no new Feedbax Team Member login or moderation command.
+This guide covers the Issues-only implementation in 0.2.2. Product Teams work in GitHub; there is no new Feedbax Team Member login or moderation command.
 
 ## Approve content and publish independently
 
@@ -46,4 +46,4 @@ Connected unique Votes and Follows live in private D1 rather than GitHub reactio
 
 The App service verifies webhook signatures and persists opaque work before acknowledgment. Duplicate/reordered events trigger current provider reads. The initial polling interval is five minutes, with bounded per-pass work and durable retries. GitHub portal content uses `no-store` and fails closed when access or publication is unavailable.
 
-Run `feedbax doctor` after configuration or permission changes. Re-pair after a revoked binding or directional-key rotation as instructed by diagnostics. Preserve the private D1 mappings and App service credentials in appropriately protected recovery systems. Portable archive, upgrade and provider migration commands remain under development; follow the acceptance inventory before relying on them.
+Run `feedbax doctor` after configuration or permission changes. Re-pair after a revoked binding or directional-key rotation as instructed by diagnostics. Preserve the private D1 mappings and App service credentials in appropriately protected recovery systems. Source-only upgrades are documented in the [upgrade guide](/docs/guides/upgrading). Full portable archives and provider migration remain follow-up work; follow the acceptance inventory before relying on them.
