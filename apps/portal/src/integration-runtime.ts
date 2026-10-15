@@ -70,7 +70,7 @@ export function createPortalIntegration(options: {
           !secret ||
           request.headers.get("X-Feedbax-Installation") !==
             github.installationId ||
-          !verifyIntegrationRequest(request, body, secret)
+          !verifyIntegrationRequest(request, body, secret, now())
         )
           return json({ error: "Unauthorized." }, 401);
         const input = JSON.parse(body) as Record<string, unknown>;
@@ -172,10 +172,20 @@ export function createPortalIntegration(options: {
       if (!github) return;
       if (!Number.isInteger(limit) || limit < 1 || limit > 10)
         throw new Error("Reconciliation work limit must be 1–10.");
+      await database.batch([
+        database
+          .prepare("DELETE FROM portal_integration_nonces WHERE expires_at<?")
+          .bind(now()),
+        database
+          .prepare(
+            "UPDATE integration_receipts SET failure_code=NULL WHERE received_at<?",
+          )
+          .bind(now() - 30 * 86400_000),
+      ]);
       const time = now();
       const candidate = await database
         .prepare(
-          "SELECT event_id FROM integration_receipts WHERE installation_id=? AND state='pending' AND next_attempt<=? AND lease_until<=? ORDER BY COALESCE(last_checked_at,0),received_at,event_id LIMIT 1",
+          "SELECT event_id FROM integration_receipts WHERE installation_id=? AND state='pending' AND next_attempt<=? AND lease_until<=? ORDER BY received_at,event_id LIMIT 1",
         )
         .bind(github.installationId, time, time)
         .first<{ event_id: string }>();
@@ -252,16 +262,19 @@ export function createPortalIntegration(options: {
           )
           .run();
       }
-      await database.batch([
-        database
-          .prepare("DELETE FROM portal_integration_nonces WHERE expires_at<?")
-          .bind(now()),
-        database
-          .prepare(
-            "UPDATE integration_receipts SET failure_code=NULL WHERE received_at<?",
-          )
-          .bind(now() - 30 * 86400_000),
-      ]);
+    },
+    async status() {
+      if (!github) return { pending: 0, terminalFailures: 0 };
+      const summary = await database
+        .prepare(
+          "SELECT SUM(CASE WHEN state='pending' THEN 1 ELSE 0 END) AS pending,SUM(CASE WHEN state='failed' AND failure_code IS NOT NULL THEN 1 ELSE 0 END) AS failures FROM integration_receipts WHERE installation_id=?",
+        )
+        .bind(github.installationId)
+        .first<{ pending: number | null; failures: number | null }>();
+      return {
+        pending: summary?.pending ?? 0,
+        terminalFailures: summary?.failures ?? 0,
+      };
     },
     signedRequest(path: "/v1/status" | "/v1/revoke", secret: string) {
       if (!github) throw new Error("GitHub is not configured.");

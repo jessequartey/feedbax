@@ -1,4 +1,8 @@
-import type { FeedbackModule, CreateCommentInput } from "./index";
+import {
+  recoverableComment,
+  type FeedbackModule,
+  type CreateCommentInput,
+} from "./index";
 import type { createImageModule, ImageAttachment } from "./images";
 
 export function createImageFeedbackModule(
@@ -10,15 +14,23 @@ export function createImageFeedbackModule(
     input: CreateCommentInput & { discussionId?: string },
   ) => {
     const ids = input.imageIds ?? [];
-    await images.validatePending(ids);
+    const attachedComment = input.submissionKey
+      ? await images.validateCommentImages(ids, input.slug)
+      : (await images.validatePending(ids), undefined);
+    const command = {
+      ...input,
+      ...(attachedComment ? { recoveryCommentId: attachedComment } : {}),
+    };
     const comment = input.discussionId
       ? await base.replyToCommentThread({
-          ...input,
+          ...command,
           discussionId: input.discussionId,
         })
-      : await base.createComment(input);
+      : await base.createComment(command);
     if (!ids.length) return comment;
     try {
+      if (attachedComment && attachedComment !== comment.id)
+        throw new Error("Images belong to another Comment.");
       return {
         ...comment,
         images: await images.attachComment({
@@ -28,12 +40,13 @@ export function createImageFeedbackModule(
         }),
       };
     } catch (error) {
-      try {
-        await base.deleteComment({ commentId: comment.id });
-        await images.discardAttached(input.slug, comment.id);
-      } catch {
-        /* External cleanup remains best effort; never expose an unpublished attachment. */
-      }
+      if (!comment[recoverableComment])
+        try {
+          await base.deleteComment({ commentId: comment.id });
+          await images.discardAttached(input.slug, comment.id);
+        } catch {
+          /* External cleanup remains best effort; never expose an unpublished attachment. */
+        }
       throw error;
     }
   };

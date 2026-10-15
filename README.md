@@ -34,6 +34,8 @@ D1 alone never establishes verified identity. A Device Profile is unverified and
 
 ## Integrate your product
 
+Start with the [integration checklist](docs/integration-checklist.md) for the setup path, credential locations and end-to-end verification.
+
 The [feedback block guide](apps/docs/content/docs/integrations/feedback-block.mdx) covers the React/shadcn UI, server endpoint, validation, retries and abuse prevention:
 
 ```sh

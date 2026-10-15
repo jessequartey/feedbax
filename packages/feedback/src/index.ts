@@ -197,6 +197,9 @@ export interface ListCommentThreadsInput {
 }
 
 export interface CreateCommentInput {
+  submissionKey?: string;
+  /** Internal recovery precondition; it never grants Comment authority. */
+  recoveryCommentId?: string;
   imageIds?: string[];
   slug: string;
   body: string;
@@ -207,7 +210,9 @@ export interface ReplyToCommentThreadInput extends CreateCommentInput {
   discussionId: string;
 }
 
+export const recoverableComment = Symbol("recoverable-comment");
 export interface CreatedComment extends Comment {
+  [recoverableComment]?: boolean;
   discussionId: string;
 }
 
@@ -511,6 +516,10 @@ export function createFeedbackModule(
             : "private";
     },
     async createComment(input) {
+      if (input.recoveryCommentId && !commentStorage.supportsIntentRecovery)
+        throw new CommentValidationError(
+          "Attached Comment recovery is unavailable.",
+        );
       const { post, body, displayName } = await validateCommentCreation(
         input,
         storage,
@@ -518,12 +527,22 @@ export function createFeedbackModule(
       return toCreatedComment(
         await commentStorage.createPageComment({
           postId: post.id,
+          ...(input.recoveryCommentId
+            ? { recoveryCommentId: input.recoveryCommentId }
+            : {}),
+          ...(input.submissionKey
+            ? { submissionKey: input.submissionKey }
+            : {}),
           body,
           displayName,
         }),
       );
     },
     async replyToCommentThread(input) {
+      if (input.recoveryCommentId && !commentStorage.supportsIntentRecovery)
+        throw new CommentValidationError(
+          "Attached Comment recovery is unavailable.",
+        );
       const { post, body, displayName } = await validateCommentCreation(
         input,
         storage,
@@ -550,6 +569,12 @@ export function createFeedbackModule(
         await commentStorage.createDiscussionReply({
           postId: post.id,
           discussionId: input.discussionId,
+          ...(input.recoveryCommentId
+            ? { recoveryCommentId: input.recoveryCommentId }
+            : {}),
+          ...(input.submissionKey
+            ? { submissionKey: input.submissionKey }
+            : {}),
           body,
           displayName,
         }),
@@ -859,13 +884,16 @@ async function validateCommentCreation(
 }
 
 function toCreatedComment(comment: StoredComment): CreatedComment {
-  return {
+  const result: CreatedComment = {
     id: comment.id,
     discussionId: comment.discussionId,
     body: comment.body,
     author: comment.author,
     createdAt: comment.createdAt,
   };
+  if (comment.recoverable)
+    Object.defineProperty(result, recoverableComment, { value: true });
+  return result;
 }
 
 function encodePublicPostCursor(

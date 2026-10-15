@@ -28,3 +28,5 @@ These GitHub commands are in development source until 0.2.2 is published. Follow
 [Configuration](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/operations/configuration.mdx) · [Authentication](https://github.com/jessequartey/feedbax/blob/main/docs/connected-profile.md) · [Release acceptance](https://github.com/jessequartey/feedbax/blob/main/docs/version-0.2.2-acceptance.md).
 
 Documentation: [feedbax.dev/docs](https://feedbax.dev/docs). Core is Apache-2.0.
+
+[Integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) covers setup choices and end-to-end verification.

@@ -25,7 +25,9 @@ it("rejects unpaired token requests and unsigned webhook ingress without upstrea
           new URL(`../migrations/${file}`, import.meta.url),
           "utf8",
         )
-      ).replace(/\s+/g, " "),
+      )
+        .replace(/--[^\n]*/g, "")
+        .replace(/\s+/g, " "),
     );
   const service = createIntegrationService({
     database,
@@ -85,7 +87,9 @@ it("pairs only after GitHub authorization and portal proof, scopes tokens, and r
           new URL(`../migrations/${file}`, import.meta.url),
           "utf8",
         )
-      ).replace(/\s+/g, " "),
+      )
+        .replace(/--[^\n]*/g, "")
+        .replace(/\s+/g, " "),
     );
   const pairSecret = "p".repeat(40);
   let revocationDelivered = false;
@@ -265,7 +269,9 @@ it("deduplicates signed webhooks durably, revokes removed resources, and survive
           new URL(`../migrations/${file}`, import.meta.url),
           "utf8",
         )
-      ).replace(/\s+/g, " "),
+      )
+        .replace(/--[^\n]*/g, "")
+        .replace(/\s+/g, " "),
     );
   // A previously paired binding is durable external setup data.
   await database

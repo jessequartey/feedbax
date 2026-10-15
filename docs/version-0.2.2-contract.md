@@ -1,6 +1,6 @@
 # Version 0.2.2 shared implementation contract
 
-Status: accepted implementation target; GitHub module foundation implemented in ticket 02, with portal/setup/service integration still pending.
+Status: accepted implementation target; provider/setup/runtime, paired App service and private My feedback are implemented and undergoing acceptance. Optional Projects and remaining lifecycle work are pending. See the [acceptance record](version-0.2.2-acceptance.md) for evidence and limits.
 Owner decisions: 2026-10-15. Requirements: [release plan and amendments](version-0.2.2-plan.md).
 
 ## Released baseline and precedence

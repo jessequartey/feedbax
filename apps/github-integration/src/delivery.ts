@@ -22,6 +22,7 @@ interface Work {
   kind: string;
   attempts: number;
   lease_token: string;
+  binding_version: number;
 }
 export function createDeliveryModule(options: {
   database: D1Database;
@@ -111,9 +112,15 @@ export function createDeliveryModule(options: {
           statements.push(
             database
               .prepare(
-                `UPDATE portal_bindings SET active=0 WHERE installation_id=? AND ${ownsReceipt}`,
+                `UPDATE portal_bindings SET active=0 WHERE installation_id=? AND key_version=? AND ${ownsReceipt}`,
               )
-              .bind(binding.installation_id, options.appId, delivery, receipt),
+              .bind(
+                binding.installation_id,
+                binding.key_version,
+                options.appId,
+                delivery,
+                receipt,
+              ),
           );
         const id = createHash("sha256")
           .update(
@@ -123,7 +130,7 @@ export function createDeliveryModule(options: {
         statements.push(
           database
             .prepare(
-              `INSERT OR IGNORE INTO portal_work(id,app_id,delivery_id,installation_id,kind,priority,next_attempt,created_at) SELECT ?,?,?,?,?,?,?,? WHERE ${ownsReceipt}`,
+              `INSERT OR IGNORE INTO portal_work(id,app_id,delivery_id,installation_id,kind,priority,next_attempt,created_at,binding_version) SELECT ?,?,?,?,?,?,?,?,? WHERE ${ownsReceipt} AND EXISTS(SELECT 1 FROM portal_bindings WHERE installation_id=? AND key_version=?)`,
             )
             .bind(
               id,
@@ -134,9 +141,12 @@ export function createDeliveryModule(options: {
               revoked ? 3 : 2,
               time,
               time,
+              binding.key_version,
               options.appId,
               delivery,
               receipt,
+              binding.installation_id,
+              binding.key_version,
             ),
         );
       }
@@ -165,7 +175,7 @@ export function createDeliveryModule(options: {
         await database.batch([
           database
             .prepare(
-              "INSERT OR IGNORE INTO portal_work(id,app_id,installation_id,kind,next_attempt,created_at) VALUES(?,?,?,'reconcile',?,?)",
+              "INSERT OR IGNORE INTO portal_work(id,app_id,installation_id,kind,next_attempt,created_at,binding_version) VALUES(?,?,?,'reconcile',?,?,?)",
             )
             .bind(
               `poll:${binding.installation_id}:${Math.floor(time / 300_000)}`,
@@ -173,6 +183,7 @@ export function createDeliveryModule(options: {
               binding.installation_id,
               time,
               time,
+              binding.key_version,
             ),
           database
             .prepare(
@@ -205,6 +216,16 @@ export function createDeliveryModule(options: {
           .first<Binding>();
         try {
           if (!binding) throw new Error("Binding missing.");
+          if (work.binding_version !== binding.key_version) {
+            await database
+              .prepare(
+                "UPDATE portal_work SET state='complete',completed_at=?,failure_code=NULL,lease_until=0 WHERE id=? AND lease_token=?",
+              )
+              .bind(time, work.id, lease)
+              .run();
+            completed++;
+            continue;
+          }
           const kind = binding.active ? work.kind : "revoke";
           const result = await options.deliver(
             binding.origin,

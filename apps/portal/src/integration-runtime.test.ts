@@ -244,3 +244,122 @@ it("backs off provider failures and fences concurrent portal reconciliation", as
   release?.();
   await active;
 });
+
+it("advances the existing cursor when a fresh polling receipt arrives on every pass", async () => {
+  runtime = new Miniflare({
+    modules: true,
+    script: "export default {}",
+    d1Databases: ["DB"],
+    compatibilityDate: "2026-07-30",
+  });
+  const database = await runtime.getD1Database("DB");
+  const directory = resolve(import.meta.dirname, "../migrations");
+  for (const file of (await readdir(directory)).sort())
+    await database.exec(
+      (await readFile(resolve(directory, file), "utf8"))
+        .replace(/--[^\n]*/g, "")
+        .replace(/\s+/g, " "),
+    );
+  if (configuration.provider !== "github")
+    throw Error("GitHub fixture required");
+  const github = configuration.github;
+  const issues: Record<string, unknown>[] = [];
+  const reads: string[] = [];
+  const feedback = createGitHubFeedbackModule({
+    ...github,
+    database,
+    getToken: async () => "token",
+    request: async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/acme/feedback")) return Response.json({ id: 123 });
+      if (init?.method === "POST") {
+        const issue = {
+          ...JSON.parse(String(init.body)),
+          id: 1000 + issues.length,
+          number: issues.length + 1,
+          user: { id: 456 },
+          labels: [],
+        };
+        issues.push(issue);
+        return Response.json(issue);
+      }
+      reads.push(url);
+      const number = Number(url.split("/").at(-1));
+      return Response.json(issues.find((issue) => issue.number === number));
+    },
+  });
+  for (const title of ["First", "Second"])
+    await feedback.submitPost({
+      title,
+      description: "Details",
+      type: "General Feedback",
+      submitter: { name: "Alice", email: "alice@example.com" },
+    });
+  let time = Date.now();
+  await database
+    .prepare(
+      "INSERT INTO integration_credentials(installation_id,portal_secret,delivery_secret,paired_at) VALUES(?,?,?,?)",
+    )
+    .bind(github.installationId, "a".repeat(43), "b".repeat(43), time)
+    .run();
+  const integration = createPortalIntegration({
+    config: configuration,
+    database,
+    now: () => time,
+  });
+  for (let pass = 0; pass < 2; pass++) {
+    expect(
+      (
+        await integration.handle(
+          signIntegrationRequest({
+            url: `${configuration.product.siteUrl}/internal/integration/delivery`,
+            installationId: github.installationId,
+            secret: "b".repeat(43),
+            now: time,
+            body: JSON.stringify({
+              eventId: `poll-${pass}`,
+              kind: "reconcile",
+            }),
+          }),
+        )
+      )?.status,
+    ).toBe(202);
+    await integration.reconcile(feedback);
+    time += 300_000;
+  }
+  expect(reads).toHaveLength(2);
+  expect(new Set(reads).size).toBe(2);
+});
+
+it("expires terminal diagnostics even when no work is eligible", async () => {
+  const { createFeedbackModule } = await import("@feedbax/feedback");
+  runtime = new Miniflare({
+    modules: true,
+    script: "export default {}",
+    d1Databases: ["DB"],
+    compatibilityDate: "2026-07-30",
+  });
+  const database = await runtime.getD1Database("DB");
+  const directory = resolve(import.meta.dirname, "../migrations");
+  for (const file of (await readdir(directory)).sort())
+    await database.exec(
+      (await readFile(resolve(directory, file), "utf8"))
+        .replace(/--[^\n]*/g, "")
+        .replace(/\s+/g, " "),
+    );
+  const time = Date.now();
+  await database
+    .prepare(
+      "INSERT INTO integration_receipts(installation_id,event_id,kind,state,received_at,failure_code) VALUES(?,?,?,'failed',?,'provider_unavailable')",
+    )
+    .bind("portal-acme", "expired-work", "reconcile", time - 31 * 86400_000)
+    .run();
+  const integration = createPortalIntegration({
+    config: configuration,
+    database,
+    now: () => time,
+  });
+  expect((await integration.status()).terminalFailures).toBe(1);
+  await integration.reconcile(createFeedbackModule());
+  expect((await integration.status()).terminalFailures).toBe(0);
+});

@@ -18,9 +18,10 @@ Registration credentials are held only in ignored local files with restrictive p
 
 - GitHub App registration and the selected two-repository installation completed in the signed-in owner account.
 - Three dedicated D1 databases created. The private portal database was created after the owner freed account quota.
-- Service migrations 0001/0002 applied and the configured Worker deployed. `/v1/info` returned the registered App identity and bot identity.
+- Service migrations 0001–0003 applied and the configured Worker deployed. `/v1/info` returned the registered App identity and bot identity. The reviewed generation fence is deployed in service version `65ec9fbb-fefc-441e-92f4-9973299577a6`.
 - Real migrated local D1 tests cover pairing/callback replay, directional request authentication, webhook deduplication, failed delivery and resource revocation. A polling fairness regression proves one unavailable portal cannot prevent the next portal being scheduled.
 - Portal reconciliation tests cover bounded backoff, concurrent worker fencing, revoked delivery rejection, and invalidation of cached access after local revocation.
+- Follow-up review tests cover stale-generation revocations, pairing rotation during webhook ingress, continuation despite newer poll receipts, idle diagnostic expiry, Comment response-loss recovery, definitive rate-limit resumption, and transient attribution/attachment recovery with real migrated D1/R2. An attached image cannot create another Comment under a different intent.
 - Local provider/HTTP/UI tests cover GitHub without Notion/verified identity, browser submission recovery, verified ownership, private My feedback filters and editing without a Browser Capability on another verified device.
 
 ## Live checks on 2026-10-15
@@ -31,7 +32,7 @@ Registration credentials are held only in ignored local files with restrictive p
 - The public portal accepted and persisted a browser Vote and an App-authored portal Comment with unverified attribution. The Comment body on GitHub contained only its explicit public section and no email.
 - A browser submitted an unpublished draft, recovered browser-held editing access on its private draft view, edited its title, and retained the original slug. Live withdrawal remains pending.
 - Real scoped tokens ignored client-supplied repository IDs. Cross-binding signatures and portal deliveries returned 401. Tokens could not PATCH the other repository's test issue; the public binding could not read the private repository. Installation-scoped status responses exposed no other binding or credentials.
-- Clean packed creator/CLI archives produced a Notion Installation that passed 314 tests, types/lint/build and deployment dry-run. Reconfiguring that same packed Installation for GitHub passed types/build and a scan of all client assets and source maps for private binding/repository/runtime-secret sentinels. Later source changes still require the final packed check.
+- Clean packed creator/CLI archives produced a Notion Installation that passed 322 tests, types/lint/build and deployment dry-run after the recovery fixes. Reconfiguring that same packed Installation for GitHub passed types/build and a scan of all client assets and source maps for private binding/repository/runtime-secret sentinels. Repository validation passed 400 tests across 67 files, types/lint, production builds, formatting, synchronized-template checks and a 733-file tracked secret scan. Later release work requires another final check.
 
 Two live-environment issues were corrected during pairing: same-account Worker routing requires the explicit public-fetch compatibility flag, and bot identity lookup uses the already authorized user token during pairing rather than shared anonymous API capacity. See [Cloudflare fetch](https://developers.cloudflare.com/workers/runtime-apis/fetch/). GitHub setup now includes that compatibility flag.
 
@@ -39,6 +40,8 @@ Two live-environment issues were corrected during pairing: same-account Worker r
 
 Record actual results, dates and limits here as they are exercised. Still pending: remaining Comment/draft/revocation cycles; browser ownership/capability claims; real Workers processing limits; supported Project setup; existing Notion regression; lifecycle upgrade/archive/restore/migration; final reviews and package checks. Unit tests are not substitutes for these live checks.
 
-## Current interruption
+## Recovered live interruption
 
-At approximately 12:43 UTC on 2026-10-15, all three new `*.jessefquartey.workers.dev` hosts stopped resolving from the local/browser environment. Earlier live results above were recorded before this interruption. The private fixture's publication label was removed with conflicting status labels for a visibility test; that final read is **not verified**, and the fixture remains intentionally unpublished until the test can finish. Local source/package/documentation work continues independently. Do not represent the current live endpoints as healthy based on the earlier checks.
+At approximately 12:43 UTC on 2026-10-15, all three new `*.jessefquartey.workers.dev` hosts stopped resolving from the local/browser environment. Earlier live results above were recorded before this interruption. The private fixture's publication label had been removed with conflicting status labels for a visibility test; its final read remained unverified during the outage. Local source/package/documentation work continued independently.
+
+At 14:23 UTC the service health endpoint resolved and returned 200 again. The previously interrupted private Post read then rendered the unavailable state with neither approved title nor engineering sentinel, despite conflicting status labels. The fixture was restored to Planned/published after that check; a fresh read rendered its approved title again without the engineering sentinel. The cause of the DNS interruption was not established; no capacity or availability guarantee follows from these checks.

@@ -1,6 +1,6 @@
 # Version 0.2.2 — GitHub integration and feedback operations
 
-Status: amended owner-approved release scope; ticket 01 resolved, ticket 02 provider implementation in progress.
+Status: amended owner-approved release scope; ticket 01 resolved, tickets 02/03/06 in progress. See the [acceptance record](version-0.2.2-acceptance.md) for implemented behavior, live evidence and remaining work.
 Approved: 2026-10-15.
 Start gate: 0.2.1 production acceptance and published release verified on 2026-10-15.
 

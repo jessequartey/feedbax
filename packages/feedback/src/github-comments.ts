@@ -1,8 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { CommentStorage, StoredComment } from "./comment-storage";
 import type { FeedbackStorage } from "./feedback-storage";
 import type { GitHubFeedbackOptions } from "./github-feedback";
-import { createGitHubClient, isRecord } from "./github-request";
+import {
+  createGitHubClient,
+  GitHubRateLimitError,
+  isRecord,
+} from "./github-request";
 
 interface CommentMapping {
   comment_id: string;
@@ -104,12 +108,17 @@ export function createGitHubCommentStorage(
   ) => {
     const comment = project(row, value);
     if (!comment) throw new Error("GitHub returned an invalid portal Comment.");
-    await database
+    const result = await database
       .prepare(
         "UPDATE github_comments SET remote_id=?,state='ready' WHERE installation_id=? AND repository_id=? AND comment_id=? AND state IN('creating','uncertain')",
       )
       .bind(value.id, installationId, repository.id, row.comment_id)
       .run();
+    if (result.meta.changes === 0) {
+      const current = await rowFor(row.comment_id);
+      if (current?.state !== "ready" || current.remote_id !== value.id)
+        throw new Error("Comment is unavailable.");
+    }
     return comment;
   };
   const list = async (postId: string) => {
@@ -142,14 +151,39 @@ export function createGitHubCommentStorage(
     return result;
   };
   const create = async (input: {
+    submissionKey?: string;
+    recoveryCommentId?: string;
     postId: string;
     discussionId?: string;
     body: string;
     displayName: string;
   }) => {
     const post = await postFor(input.postId);
-    const id = randomUUID();
-    const row: CommentMapping = {
+    if (
+      input.submissionKey !== undefined &&
+      !/^[A-Za-z0-9_-]{43}$/.test(input.submissionKey)
+    )
+      throw new Error("Comment intent is invalid.");
+    const digest = input.submissionKey
+      ? createHash("sha256")
+          .update(
+            JSON.stringify([
+              "feedbax-comment-intent-v1",
+              installationId,
+              repository.id,
+              input.postId,
+              input.discussionId ?? null,
+              input.submissionKey,
+            ]),
+          )
+          .digest("hex")
+      : undefined;
+    const id = digest
+      ? `${digest.slice(0, 8)}-${digest.slice(8, 12)}-8${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`
+      : randomUUID();
+    if (input.recoveryCommentId && input.recoveryCommentId !== id)
+      throw new Error("Images belong to another Comment intent.");
+    let row: CommentMapping = {
       comment_id: id,
       post_id: input.postId,
       discussion_id: input.discussionId ?? id,
@@ -160,9 +194,9 @@ export function createGitHubCommentStorage(
       }),
       state: "creating",
     };
-    await database
+    const claimed = await database
       .prepare(
-        "INSERT INTO github_comments(installation_id,repository_id,comment_id,post_id,discussion_id,record,state) VALUES(?,?,?,?,?,?,'creating')",
+        "INSERT INTO github_comments(installation_id,repository_id,comment_id,post_id,discussion_id,record,state) VALUES(?,?,?,?,?,?,'creating') ON CONFLICT DO NOTHING RETURNING comment_id",
       )
       .bind(
         installationId,
@@ -172,30 +206,108 @@ export function createGitHubCommentStorage(
         row.discussion_id,
         row.record,
       )
-      .run();
+      .first();
+    if (!claimed) {
+      const original = await rowFor(id);
+      if (!original || original.state === "deleted")
+        throw new Error("Comment is unavailable.");
+      if (original.state === "ready") {
+        const response = await request(
+          `/issues/comments/${original.remote_id}`,
+        );
+        if (!response.ok) throw new Error("Comment is unavailable.");
+        const comment = project(
+          original,
+          (await response.json()) as Record<string, unknown>,
+        );
+        if (!comment) throw new Error("Comment is unavailable.");
+        return { ...comment, recoverable: true };
+      }
+      const retryAt = (JSON.parse(original.record) as { retryAt?: number })
+        .retryAt;
+      if (retryAt === undefined) {
+        const candidates = (
+          await scan(`/issues/${post.issue_number}/comments`)
+        ).filter((value) => project(original, value));
+        if (candidates.length !== 1)
+          throw new Error(
+            "Comment creation is pending reconciliation; do not start another intent.",
+          );
+        return {
+          ...(await complete(original, candidates[0]!)),
+          recoverable: true,
+        };
+      }
+      if (retryAt > Date.now())
+        throw new GitHubRateLimitError(retryAt - Date.now());
+      const resumed = await database
+        .prepare(
+          "UPDATE github_comments SET state='creating',record=json_remove(record,'$.retryAt') WHERE installation_id=? AND repository_id=? AND comment_id=? AND state='uncertain' AND json_extract(record,'$.retryAt') <= ? RETURNING *",
+        )
+        .bind(installationId, repository.id, id, Date.now())
+        .first<CommentMapping>();
+      if (!resumed) throw new Error("Comment creation is already in progress.");
+      row = resumed;
+    }
     try {
       const response = await request(
         `/issues/${post.issue_number}/comments`,
         "POST",
-        { body: encode(row, input.body) },
+        {
+          body: encode(row, (JSON.parse(row.record) as { body: string }).body),
+        },
       );
+      if (
+        response.status === 429 ||
+        (response.status === 403 &&
+          (response.headers.has("Retry-After") ||
+            response.headers.get("X-RateLimit-Remaining") === "0"))
+      ) {
+        const after = response.headers.get("Retry-After");
+        const reset = response.headers.get("X-RateLimit-Reset");
+        const delay =
+          after !== null
+            ? Number.isFinite(Number(after))
+              ? Number(after) * 1000
+              : Date.parse(after) - Date.now()
+            : reset
+              ? Number(reset) * 1000 - Date.now()
+              : 1000;
+        throw new GitHubRateLimitError(
+          Number.isFinite(delay) ? Math.max(0, delay) : 1000,
+        );
+      }
       if (!response.ok)
         throw new Error(`GitHub Comment creation failed (${response.status}).`);
-      return await complete(
-        row,
-        (await response.json()) as Record<string, unknown>,
-      );
+      return {
+        ...(await complete(
+          row,
+          (await response.json()) as Record<string, unknown>,
+        )),
+        recoverable: Boolean(input.submissionKey),
+      };
     } catch (error) {
       await database
         .prepare(
-          "UPDATE github_comments SET state='uncertain' WHERE installation_id=? AND repository_id=? AND comment_id=? AND state='creating'",
+          "UPDATE github_comments SET state='uncertain',record=CASE WHEN ? IS NULL THEN record ELSE json_set(record,'$.retryAt',?) END WHERE installation_id=? AND repository_id=? AND comment_id=? AND state='creating'",
         )
-        .bind(installationId, repository.id, id)
+        .bind(
+          error instanceof GitHubRateLimitError
+            ? Date.now() + error.retryAfterMs
+            : null,
+          error instanceof GitHubRateLimitError
+            ? Date.now() + error.retryAfterMs
+            : null,
+          installationId,
+          repository.id,
+          id,
+        )
         .run();
       throw error;
     }
   };
   return {
+    supportsIntentRecovery: true,
     createPageComment: create,
     createDiscussionReply: create,
     async listPageComments(postId, cursor) {

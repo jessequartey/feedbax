@@ -253,10 +253,13 @@ it("edits and withdraws only eligible drafts, preserving private engineering not
 
 it("filters and paginates public Posts and roadmap totals without admitting unmapped issues or PRs", async () => {
   const { feedback, issues } = await setup();
-  for (let index = 0; index < 27; index++) {
-    await feedback.submitPost({ ...submission, title: `Request ${index}` });
-    issues[index]!.labels = ["feedbax:planned", "feedbax:published"];
-  }
+  await Promise.all(
+    Array.from({ length: 27 }, (_, index) =>
+      feedback.submitPost({ ...submission, title: `Request ${index}` }),
+    ),
+  );
+  for (const issue of issues)
+    issue.labels = ["feedbax:planned", "feedbax:published"];
   issues.push({ ...issues[0], id: 9999, number: 9999 });
   issues.push({ ...issues[0], pull_request: { url: "private-pr-url" } });
   const first = await feedback.listPublicPosts({ sort: "new" });
@@ -873,4 +876,208 @@ it("links an unsigned old draft only with both verified identity and its browser
       }).list({ filter: "submitted" })
     ).items,
   ).toHaveLength(1);
+});
+
+it("recovers a retried Comment intent after GitHub succeeds but its reply is lost", async () => {
+  const { options, feedback, issues, comments, writes } = await setup();
+  const post = await feedback.submitPost(submission);
+  issues[0]!.labels = ["feedbax:new", "feedbax:published"];
+  let lost = false;
+  const interrupted = createGitHubFeedbackModule({
+    ...options,
+    request: async (input, init) => {
+      const response = await options.request(input, init);
+      if (
+        init?.method === "POST" &&
+        String(input).endsWith("/comments") &&
+        !lost
+      ) {
+        lost = true;
+        throw Error("Comment reply lost");
+      }
+      return response;
+    },
+  });
+  const intent = {
+    slug: post.slug,
+    body: "A useful public comment",
+    displayName: "Alice",
+    submissionKey: "c".repeat(43),
+  };
+  await expect(interrupted.createComment(intent)).rejects.toThrow("reply lost");
+  const restarted = createGitHubFeedbackModule(options);
+  const recovered = await restarted.createComment(intent);
+  expect(comments).toHaveLength(1);
+  expect((await restarted.createComment(intent)).id).toBe(recovered.id);
+  expect(comments).toHaveLength(1);
+  expect(JSON.stringify(writes)).not.toContain(intent.submissionKey);
+  await restarted.createComment({ ...intent, submissionKey: "d".repeat(43) });
+  expect(comments).toHaveLength(2);
+});
+
+it("recovers Connected Comment attribution without deleting or duplicating an already attributed Comment", async () => {
+  const { options, feedback, issues, comments } = await setup();
+  for (const name of ["0001_connected.sql", "0002_participation.sql"])
+    await options.database.exec(
+      await readFile(
+        existsSync(`apps/portal/migrations/${name}`)
+          ? `apps/portal/migrations/${name}`
+          : `migrations/${name}`,
+        "utf8",
+      ),
+    );
+  const alice = { subject: "issuer:alice", displayName: "Alice" };
+  const store = createConnectedStore(options.database);
+  await store.acceptIdentity({
+    ...alice,
+    nonce: "comment-intent",
+    sessionHash: "comment-intent",
+    expiresAt: Date.now() + 60000,
+  });
+  const post = await feedback.submitPost(submission);
+  issues[0]!.labels = ["feedbax:new", "feedbax:published"];
+  const connected = createConnectedFeedbackModule(
+    createGitHubFeedbackModule(options),
+    store,
+    alice,
+  );
+  const intent = {
+    slug: post.slug,
+    body: "Verified comment",
+    displayName: "Ignored",
+    submissionKey: "e".repeat(43),
+  };
+  const first = await connected.createComment(intent);
+  const retried = await connected.createComment(intent);
+  expect(retried.id).toBe(first.id);
+  expect(retried.author).toMatchObject({
+    displayName: "Alice",
+    verified: true,
+  });
+  expect(comments).toHaveLength(1);
+  expect(comments[0]!.deleted).not.toBe(true);
+  expect(
+    (await connected.listCommentThreads({ slug: post.slug })).items[0]
+      ?.comments[0]?.id,
+  ).toBe(first.id);
+});
+
+it("resumes the same Comment intent after definitive rate limiting clears", async () => {
+  const { options, feedback, issues, comments } = await setup();
+  const post = await feedback.submitPost(submission);
+  issues[0]!.labels = ["feedbax:new", "feedbax:published"];
+  let limited = true;
+  const module = createGitHubFeedbackModule({
+    ...options,
+    sleep: async () => {},
+    request: async (input, init) => {
+      if (
+        limited &&
+        init?.method === "POST" &&
+        String(input).endsWith("/comments")
+      )
+        return new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "0" },
+        });
+      return options.request(input, init);
+    },
+  });
+  const intent = {
+    slug: post.slug,
+    body: "Retry after quota",
+    displayName: "Alice",
+    submissionKey: "r".repeat(43),
+  };
+  await expect(module.createComment(intent)).rejects.toThrow("rate limited");
+  limited = false;
+  const recovered = await module.createComment(intent);
+  expect((await module.createComment(intent)).id).toBe(recovered.id);
+  expect(comments).toHaveLength(1);
+});
+
+it("recovers an attached verified Comment and a transient attribution failure without deleting the original", async () => {
+  const { options, feedback, issues, comments } = await setup();
+  for (const name of [
+    "0001_connected.sql",
+    "0002_participation.sql",
+    "0003_images.sql",
+  ])
+    await options.database.exec(
+      await readFile(
+        existsSync(`apps/portal/migrations/${name}`)
+          ? `apps/portal/migrations/${name}`
+          : `migrations/${name}`,
+        "utf8",
+      ),
+    );
+  const alice = { subject: "issuer:alice", displayName: "Alice" };
+  const store = createConnectedStore(options.database);
+  await store.acceptIdentity({
+    ...alice,
+    nonce: "attached-recovery",
+    sessionHash: "attached-recovery",
+    expiresAt: Date.now() + 60000,
+  });
+  const post = await feedback.submitPost(submission);
+  issues[0]!.labels = ["feedbax:new", "feedbax:published"];
+  const connected = createConnectedFeedbackModule(
+    createGitHubFeedbackModule(options),
+    store,
+    alice,
+  );
+  const images = createImageModule({
+    database: options.database,
+    bucket: await runtime!.getR2Bucket("IMAGES"),
+    feedback: connected,
+    participant: alice,
+    reviewSecret: "s".repeat(40),
+  });
+  const module = createImageFeedbackModule(connected, images);
+  const png = Uint8Array.from(
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aE2sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  );
+  const image = await images.upload(png, "image/png");
+  const intent = {
+    slug: post.slug,
+    body: "With screenshot",
+    displayName: "Ignored",
+    imageIds: [image.id],
+    submissionKey: "i".repeat(43),
+  };
+  await options.database.exec(
+    "CREATE TRIGGER fail_attribution BEFORE INSERT ON comment_attribution BEGIN SELECT RAISE(FAIL,'Attribution unavailable'); END;",
+  );
+  await expect(module.createComment(intent)).rejects.toThrow();
+  await options.database.exec("DROP TRIGGER fail_attribution;");
+  const first = await module.createComment(intent);
+  const retried = await module.createComment(intent);
+  expect(retried.id).toBe(first.id);
+  expect(retried.images?.map((image) => image.id)).toEqual([image.id]);
+  expect(retried.author).toMatchObject({
+    displayName: "Alice",
+    verified: true,
+  });
+  expect(comments).toHaveLength(1);
+  expect(comments[0]!.deleted).not.toBe(true);
+  expect(JSON.stringify(retried)).not.toContain("recoverable");
+  await expect(
+    module.createComment({
+      ...intent,
+      body: "Edited after lost reply",
+      submissionKey: "j".repeat(43),
+    }),
+  ).rejects.toThrow("another Comment intent");
+  expect(comments).toHaveLength(1);
+  expect(
+    (await module.listCommentThreads({ slug: post.slug })).items.flatMap(
+      (thread) => thread.comments,
+    ),
+  ).toHaveLength(1);
+  await module.deleteComment({ commentId: retried.id });
+  await expect(module.createComment(intent)).rejects.toThrow();
+  expect(comments).toHaveLength(1);
 });

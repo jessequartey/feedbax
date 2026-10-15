@@ -128,10 +128,11 @@ Open the printed GitHub authorization link while signed into an account with rep
 
 ```sh
 pnpm exec feedbax doctor
-pnpm dev
 ```
 
 Check the deployed portal, submit a disposable Post and verify the App-created issue. It should be New and unpublished. Follow the [native GitHub workflow](/docs/guides/github-workflow) to publish it, then verify public reading, Comments and removal of publication. A build, health response or pairing success alone does not establish all acceptance criteria.
+
+`pnpm dev` uses local D1, while the pairing callback above writes credentials to the deployed portal's remote D1. Apply migrations locally with `pnpm exec wrangler d1 migrations apply FEEDBAX_DB --local`, but do not expect that to copy remote pairing credentials. Use a separately configured development Installation, origin and repository for local GitHub writes; the service must trust and verify that destination too. Never copy production directional credentials into source or a second Installation.
 
 ## 5. Integrate your existing application
 

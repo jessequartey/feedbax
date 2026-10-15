@@ -6,6 +6,18 @@ This Worker holds the GitHub App key for paired Feedbax portals. The official Ap
 
 Use Node 24 LTS and the repository's pnpm version. Copy `wrangler.example.jsonc` to ignored `wrangler.jsonc`; choose a distinct Worker, account, and D1 database. Configure `SERVICE_ORIGIN` and exact `TRUSTED_PORTAL_ORIGINS`. Apply `migrations/` to `FEEDBAX_APP_DB` with Wrangler. Do not point this binding at a portal's D1 database.
 
+From the repository root, install dependencies with `pnpm install --frozen-lockfile`. Then, from this directory:
+
+```sh
+cp wrangler.example.jsonc wrangler.jsonc
+pnpm exec wrangler login
+pnpm exec wrangler d1 create feedbax-github-service
+# Fill in wrangler.jsonc with the returned database ID and your exact origins.
+pnpm exec wrangler d1 migrations apply FEEDBAX_APP_DB --remote --config wrangler.jsonc
+```
+
+Apply all included service migrations before each service upgrade; these are separate from the generated portal's migrations. Migration 0003 fences queued work to the binding credential version, so an earlier revocation cannot revoke a newly authorized pairing. It completes old work whose original active binding version cannot be proved; periodic authoritative polling replaces those notifications.
+
 For a `*.workers.dev` portal, the configured platform hostname is used directly. Keep `global_fetch_strictly_public` in both service and GitHub portal compatibility flags for Worker-to-Worker routing; this is included in the example and generated GitHub setup. A custom portal origin requires an explicit Cloudflare Service Binding: add the binding to Wrangler and set `PORTAL_SERVICE_BINDINGS` to a JSON object mapping that exact HTTPS origin to the binding name. Arbitrary custom-domain DNS is never used for pairing or delivery, avoiding private-network and DNS-rebinding destinations. No redirects are followed.
 
 Run from this directory:
@@ -47,3 +59,9 @@ Raw webhook bodies are never persisted, queued, backed up, or logged: after auth
 Successful delivery updates its private checkpoint. Terminal failures remain visible through the authenticated, Installation-scoped `/v1/status` endpoint. Diagnostic codes expire within 30 days; stable mapping and receipt tombstones remain for replay safety. Deployment observability is disabled by default to avoid storing authorization callback URLs in request logs. If you add monitoring or external backups, enforce the contract's retention and secret exclusions in those systems too. Public `/health` reports liveness only.
 
 The portal separately reconciles bounded mapped Posts and runs enabled Connected processing. GitHub content responses use `no-store`; known revocation cannot fall back to stale public HTML. A missed event is bounded by scheduled checks rather than an instant-revocation promise. Validate Worker CPU, freshness, account permissions, and queue drain with your real deployment before claiming capacity or release acceptance.
+
+## Verify the integration
+
+Check `/health` for service liveness and `/v1/info` for the expected App identity. After pairing, run `feedbax doctor` in the portal, submit a disposable Post, publish only its approved JSON section through the native GitHub workflow, and verify removal of `feedbax:published` hides it again. Check both public and private repositories if you intend to support both. A public health response does not verify permissions, delivery backlog or portal readiness.
+
+The [GitHub setup guide](../docs/content/docs/getting-started/github.mdx) covers the portal configuration, secret generation, database migrations and authorization sequence. The [native workflow guide](../docs/content/docs/guides/github-workflow.mdx) defines exact labels and public content. [Release acceptance](../../docs/version-0.2.2-acceptance.md) records tested behavior and remaining limits.

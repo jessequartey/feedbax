@@ -17,3 +17,5 @@ Notion setup needs an internal integration and shared parent page. GitHub setup 
 [GitHub setup and development-source instructions](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/getting-started/github.mdx) · [Agent setup](https://github.com/jessequartey/feedbax/blob/main/docs/agent-setup.md) · [Authentication](https://github.com/jessequartey/feedbax/blob/main/docs/connected-profile.md) · [Release acceptance](https://github.com/jessequartey/feedbax/blob/main/docs/version-0.2.2-acceptance.md).
 
 Documentation: [feedbax.dev/docs](https://feedbax.dev/docs). Core is Apache-2.0.
+
+[Integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) covers product-server intake, credential locations and production verification.

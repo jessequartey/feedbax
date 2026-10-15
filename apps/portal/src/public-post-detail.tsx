@@ -1,3 +1,4 @@
+import { submissionIntent } from "./submission-intent";
 import { ImageAttachments, ImageGallery } from "./components/image-attachments";
 import { FollowPostButton } from "./components/follow-post-button";
 import {
@@ -180,7 +181,8 @@ export function PublicPostDetail({
   async function createComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!submitComment) return;
-    const form = new FormData(event.currentTarget);
+    const composer = event.currentTarget;
+    const form = new FormData(composer);
     const body = String(form.get("body") ?? "").trim();
     const profile = completeProfile;
     if (
@@ -208,11 +210,19 @@ export function PublicPostDetail({
     };
     setCommentError(undefined);
     setLocalComments((current) => addComment(current, optimistic));
-    event.currentTarget.reset();
-    setReplyingTo(undefined);
     try {
       const turnstileToken = form.get("cf-turnstile-response");
+      const intent = await submissionIntent(sessionStorage, {
+        kind: "comment",
+        slug: post.slug,
+        discussionId: replyingTo ?? null,
+        body,
+        imageIds: images.map((image) => image.id),
+        session: identity.sessionKey ?? "browser",
+        displayName: identity.enabled ? identity.displayName : profile?.name,
+      });
       const confirmed = await submitComment({
+        submissionKey: intent.key,
         slug: post.slug,
         ...(images.length ? { imageIds: images.map((image) => image.id) } : {}),
         body,
@@ -228,10 +238,6 @@ export function PublicPostDetail({
             }
           : {}),
       });
-      setImages([]);
-      setLocalComments((current) =>
-        replaceComment(current, optimisticId, confirmed),
-      );
       if (confirmed.commentCapability && confirmed.commentCapabilityExpiresAt)
         setCommentCapabilities(
           saveCommentCapability(
@@ -241,6 +247,13 @@ export function PublicPostDetail({
             confirmed.commentCapabilityExpiresAt,
           ),
         );
+      intent.complete();
+      composer.reset();
+      setReplyingTo(undefined);
+      setImages([]);
+      setLocalComments((current) =>
+        replaceComment(current, optimisticId, confirmed),
+      );
     } catch (error) {
       setLocalComments((current) => removeComment(current, optimisticId));
       setCommentError(

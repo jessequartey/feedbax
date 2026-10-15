@@ -93,6 +93,32 @@ export function createImageModule(options: {
       );
   };
   return {
+    async validateCommentImages(ids: string[], slug: string) {
+      if (!ids.length) return;
+      const person = identity();
+      if (ids.length > 4 || new Set(ids).size !== ids.length)
+        throw new ImageAttachmentError("Choose up to four images.");
+      let attachedComment: string | undefined;
+      for (const id of ids) {
+        const image = await row(id);
+        if (
+          !image ||
+          image.subject !== person.subject ||
+          image.deleting ||
+          (image.post_slug === null
+            ? image.created_at <= now() - 86400000
+            : image.post_slug !== slug ||
+              !image.comment_id ||
+              (attachedComment !== undefined &&
+                attachedComment !== image.comment_id))
+        )
+          throw new ImageAttachmentError(
+            "One or more images are unavailable. Upload them again.",
+          );
+        if (image.comment_id) attachedComment = image.comment_id;
+      }
+      return attachedComment;
+    },
     async validatePending(ids: string[]) {
       if (!ids.length) return;
       const person = identity();

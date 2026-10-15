@@ -1,6 +1,7 @@
 import type { CommentAuthor } from "./index";
 
 export interface StoredComment {
+  recoverable?: boolean;
   id: string;
   postId: string;
   discussionId: string;
@@ -12,12 +13,17 @@ export interface StoredComment {
 }
 
 export interface CommentStorage {
+  supportsIntentRecovery?: boolean;
   createPageComment(input: {
+    submissionKey?: string;
+    recoveryCommentId?: string;
     postId: string;
     body: string;
     displayName: string;
   }): Promise<StoredComment>;
   createDiscussionReply(input: {
+    submissionKey?: string;
+    recoveryCommentId?: string;
     postId: string;
     discussionId: string;
     body: string;

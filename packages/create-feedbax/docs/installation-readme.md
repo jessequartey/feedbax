@@ -49,7 +49,7 @@ Keep the included Geist font and shadcn theme tokens consistent. Run `pnpm lint`
 
 Use the [feedback block guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/integrations/feedback-block.mdx) to add feedback collection to your product. Its server helper uses a trusted submission key and new Posts remain unpublished until your Product Team publishes them through its selected provider. The portal’s standard footer links to Feedbax on GitHub.
 
-Keep Comments and browser capabilities distinct from verified identity: Notion-only names/email are unverified, Votes are best-effort, and recent Comment editing uses short-lived browser capabilities. Connected adds signed identity, unique Votes, and durable attribution without moving content out of Notion.
+Keep Device Profiles and browser capabilities distinct from verified identity: names/email supplied by the browser are unverified, Votes without Connected are best-effort, and recent Comment editing uses short-lived browser capabilities. Connected adds signed identity, unique Votes, and durable attribution while keeping content in the selected provider.
 
 See `AGENTS.md` for the short agent workflow.
 
@@ -61,7 +61,16 @@ For following, in-app/email notifications, or image attachments, use the full Co
 
 GitHub requires a dedicated D1 database even without Participant sign-in. It uses no Notion token, and Changelog must be disabled. A GitHub App service holds the App key; this portal stores only its own directional binding credentials. Setup must use the public-fetch compatibility flag for Worker-to-Worker calls, or an explicitly configured Service Binding. Never copy an App private key into the portal.
 
-Apply the included D1 migrations, deploy once with `feedbax deploy --pairing-bootstrap`, run `feedbax pair-github GITHUB_APP_INSTALLATION_ID`, and complete the printed GitHub authorization flow. Run `feedbax doctor` after pairing. Bootstrap deployment intentionally leaves feedback unavailable until authorization finishes.
+Apply every included D1 migration before deploying updated source:
+
+```sh
+pnpm exec wrangler d1 migrations apply FEEDBAX_DB --local
+pnpm exec wrangler d1 migrations apply FEEDBAX_DB --remote
+pnpm exec feedbax deploy --pairing-bootstrap
+pnpm exec feedbax pair-github GITHUB_APP_INSTALLATION_ID
+```
+
+Complete the printed GitHub authorization flow, then run `pnpm exec feedbax doctor`. Bootstrap deployment intentionally leaves feedback unavailable until authorization finishes. Local development uses local D1; production pairing writes credentials only into remote D1. A production binding does not automatically authorize a local development origin. Use a separately configured development Installation/repository when testing GitHub writes locally.
 
 Native GitHub workflow uses exactly one label: `feedbax:new`, `feedbax:reviewing`, `feedbax:planned`, `feedbax:in-progress`, `feedbax:shipped`, or `feedbax:closed`. Add `feedbax:published` independently to display a Post in the portal. Issue closure alone does not change its Feedbax status. Missing/conflicting status labels block draft changes until repaired.
 
@@ -70,3 +79,13 @@ The issue body contains a versioned JSON section between `<!-- feedbax:public:v1
 **A public repository exposes issue titles and bodies on GitHub immediately, including Posts awaiting portal moderation.** Use a private Feedback Repository for confidential intake. Portal moderation cannot make an existing public GitHub issue private.
 
 Connected identity remains independent: only verified application sessions get cross-device ownership, My feedback, unique Votes and Follows. D1 alone does not establish identity. Browser drafts can be explicitly linked only while New/unpublished and while the browser still possesses their capability.
+
+## Integration checks
+
+The [integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) brings together provider setup, product-server intake, credential locations and authentication.
+
+Before connecting your product, test a disposable submission from its server, retry with the same `Idempotency-Key`, and confirm one New, unpublished Post. Publish through the selected provider and check that only approved fields appear. Remove publication and verify the Post, Comments and images become unavailable.
+
+For Connected, verify two application accounts and two browsers: each account should see only its own My feedback and Notifications. Sign out, then check that private views clear. Test email and images only when enabled; a local build does not verify production sender delivery, identity handoff or private R2 access.
+
+Keep the product server's trusted key private. A trusted API submission does not acquire verified ownership from a submitted name, email or subject. Use the signed Identity Handoff for Participant identity. Follow the [submission API guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/integrations/submission-api.mdx) and `CONNECTED.md` for working examples.

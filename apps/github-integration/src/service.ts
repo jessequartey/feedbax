@@ -464,7 +464,7 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
                 .bind(binding.installation_id, binding.key_version),
               database
                 .prepare(
-                  "INSERT OR IGNORE INTO portal_work(id,app_id,installation_id,kind,priority,next_attempt,created_at) SELECT ?,?,?,'revoke',3,?,? WHERE EXISTS(SELECT 1 FROM portal_bindings WHERE installation_id=? AND key_version=? AND active=0)",
+                  "INSERT OR IGNORE INTO portal_work(id,app_id,installation_id,kind,priority,next_attempt,created_at,binding_version) SELECT ?,?,?,'revoke',3,?,?,? WHERE EXISTS(SELECT 1 FROM portal_bindings WHERE installation_id=? AND key_version=? AND active=0)",
                 )
                 .bind(
                   `revoke:${binding.installation_id}:${binding.key_version}`,
@@ -472,6 +472,7 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
                   binding.installation_id,
                   time,
                   time,
+                  binding.key_version,
                   binding.installation_id,
                   binding.key_version,
                 ),
