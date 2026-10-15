@@ -48,6 +48,7 @@ export async function provisionGuidedInstallation({
   workerName?: string;
   commentProbePageId?: string;
   connected?: {
+    processing?: "small" | "standard";
     issuer: string;
     loginUrl: string;
     databaseId: string;
@@ -283,6 +284,7 @@ export async function provisionGuidedInstallation({
     ...(connected
       ? {
           connected: {
+            processing: connected.processing ?? "small",
             issuer: connected.issuer,
             loginUrl: connected.loginUrl,
             ...(connected.email

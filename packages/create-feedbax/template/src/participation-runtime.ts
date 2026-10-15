@@ -206,6 +206,7 @@ export function configuredParticipation(participant?: VerifiedParticipant) {
     database: env.FEEDBAX_DB,
     feedback: createConfiguredFeedbackModule(),
     participant,
+    processing: feedbax.connected.processing ?? "small",
     email,
   });
 }

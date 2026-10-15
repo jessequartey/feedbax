@@ -16,6 +16,7 @@ export function createParticipationModule(options: {
   database: D1Database;
   feedback: FeedbackModule;
   participant?: VerifiedParticipant;
+  processing?: "small" | "standard";
   now?: () => number;
   email?: {
     sender: EmailSender;
@@ -157,7 +158,7 @@ export function createParticipationModule(options: {
         attempts: number;
         created_at: number;
       }>(
-        sql`SELECT n.id,n.subject,e.post_slug,e.title,e.message,n.attempts,n.created_at FROM participant_notifications n JOIN post_events e ON n.event_id=e.id WHERE n.email_state='pending' AND n.next_attempt_at <= ${now()} AND n.lease_until <= ${now()} ORDER BY n.created_at,n.id LIMIT 20`,
+        sql`SELECT n.id,n.subject,e.post_slug,e.title,e.message,n.attempts,n.created_at FROM participant_notifications n JOIN post_events e ON n.event_id=e.id WHERE n.email_state='pending' AND n.next_attempt_at <= ${now()} AND n.lease_until <= ${now()} ORDER BY n.created_at,n.id LIMIT ${options.processing === "small" ? 1 : 20}`,
       );
       let sent = 0,
         failed = 0;
@@ -306,7 +307,7 @@ export function createParticipationModule(options: {
         status: string;
         comment_cursor: string | null;
       }>(
-        sql`SELECT post_slug,status,comment_cursor FROM post_observations o WHERE lease_until <= ${now()} AND EXISTS(SELECT 1 FROM post_follows f WHERE f.post_slug=o.post_slug) ORDER BY checked_at,post_slug LIMIT 10`,
+        sql`SELECT post_slug,status,comment_cursor FROM post_observations o WHERE lease_until <= ${now()} AND EXISTS(SELECT 1 FROM post_follows f WHERE f.post_slug=o.post_slug) ORDER BY checked_at,post_slug LIMIT ${options.processing === "small" ? 1 : 10}`,
       );
       let checked = 0,
         failed = 0;

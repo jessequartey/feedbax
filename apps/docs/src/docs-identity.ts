@@ -1,4 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import { createHash } from "node:crypto";
+import { createEmailSender } from "@feedbax/feedback";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth/minimal";
 import { magicLink } from "better-auth/plugins/magic-link";
@@ -26,6 +28,11 @@ export function createDocsIdentityApplication(options: {
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(options.emailFrom)
   )
     throw new Error("Docs sign-in secrets or sender are incomplete.");
+  const sendEmail = createEmailSender({
+    provider: "resend",
+    token: options.resendToken,
+    request: options.request,
+  });
   const auth = betterAuth({
     appName: "Feedbax Docs",
     baseURL: origin,
@@ -55,26 +62,16 @@ export function createDocsIdentityApplication(options: {
               origin,
             ),
           }).toString();
-          const response = await (options.request ?? fetch)(
-            "https://api.resend.com/emails",
+          await sendEmail(
             {
-              method: "POST",
-              redirect: "error",
-              signal: AbortSignal.timeout(10000),
-              headers: {
-                Authorization: `Bearer ${options.resendToken}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                from: options.emailFrom,
-                to: [email],
-                subject: "Sign in to Feedbax Docs",
-                text: `Use this link to sign in to Feedbax Docs. It expires in five minutes and can be used once.\n\n${confirmation}\n\nIf you did not request this email, you can ignore it.`,
-              }),
+              from: options.emailFrom,
+              to: [email],
+              subject: "Sign in to Feedbax Docs",
+              text: `Use this link to sign in to Feedbax Docs. It expires in five minutes and can be used once.\n\n${confirmation}\n\nIf you did not request this email, you can ignore it.`,
+              headers: {},
             },
+            `feedbax-docs-signin/${createHash("sha256").update(token).digest("hex")}`,
           );
-          await response.body?.cancel();
-          if (!response.ok) throw new Error("Sign-in email could not be sent.");
         },
       }),
     ],

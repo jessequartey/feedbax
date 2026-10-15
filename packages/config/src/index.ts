@@ -57,6 +57,7 @@ export type EmailConfiguration = {
   readonly endpoint?: string;
 };
 export type ConnectedConfiguration = {
+  readonly processing?: "small" | "standard";
   readonly email?: EmailConfiguration;
   readonly images?: boolean;
   readonly issuer: string;
@@ -142,7 +143,7 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
     const input = object(value.connected, "connected");
     rejectUnknown(
       input,
-      ["issuer", "loginUrl", "email", "images"],
+      ["issuer", "loginUrl", "email", "images", "processing"],
       "connected",
     );
     const issuer = publicUrl(input.issuer, "connected.issuer", false);
@@ -199,9 +200,18 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
     }
     if (input.images !== undefined && typeof input.images !== "boolean")
       throw new Error("connected.images must be true or false.");
+    if (
+      input.processing !== undefined &&
+      input.processing !== "small" &&
+      input.processing !== "standard"
+    )
+      throw new Error("connected.processing must be small or standard.");
     connected = {
       issuer,
       loginUrl,
+      ...(input.processing !== undefined
+        ? { processing: input.processing }
+        : {}),
       ...(email ? { email } : {}),
       ...(input.images !== undefined ? { images: input.images } : {}),
     };

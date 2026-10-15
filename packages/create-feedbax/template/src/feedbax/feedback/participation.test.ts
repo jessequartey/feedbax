@@ -13,6 +13,67 @@ afterEach(async () => {
   await previous?.dispose();
 });
 const participant = { subject: "alice", displayName: "Alice" };
+
+it("small processing resumes one followed Post and one pending email per run", async () => {
+  const { database } = await setup();
+  const posts = (status: "Planned" | "In Progress", updatedAt: number) =>
+    createFeedbackModule({
+      initialItems: ["first", "second"].map((slug) => ({
+        id: slug,
+        slug,
+        title: slug,
+        description: "Public",
+        type: "Feature Request",
+        status,
+        published: true,
+        createdAt: new Date(1000),
+        updatedAt: new Date(updatedAt),
+      })),
+    });
+  await createConnectedStore(database).acceptIdentity({
+    ...participant,
+    email: "alice@example.com",
+    nonce: "email",
+    sessionHash: "email",
+    expiresAt: 100000,
+  });
+  const sent: string[] = [];
+  const email = {
+    sender: async (message: { subject: string }) => {
+      sent.push(message.subject);
+    },
+    from: "updates@example.com",
+    siteUrl: "https://feedback.example",
+    unsubscribeSecret: "test-unsubscribe-secret-at-least-32-characters",
+  };
+  const follower = createParticipationModule({
+    database,
+    feedback: posts("Planned", 1000),
+    participant,
+    now: () => 2000,
+    email,
+  });
+  await follower.follow("first", true);
+  await follower.follow("second", true);
+  await follower.setEmailPreference(true);
+  const worker = createParticipationModule({
+    database,
+    feedback: posts("In Progress", 3000),
+    participant,
+    now: () => 4000,
+    email,
+    processing: "small",
+  });
+  expect(await worker.synchronize()).toEqual({ checked: 1, failed: 0 });
+  expect((await worker.inbox()).items).toHaveLength(1);
+  expect(await worker.synchronize()).toEqual({ checked: 1, failed: 0 });
+  expect((await worker.inbox()).items).toHaveLength(2);
+  expect(await worker.deliverEmails()).toEqual({ sent: 1, failed: 0 });
+  expect(sent).toHaveLength(1);
+  expect(await worker.deliverEmails()).toEqual({ sent: 1, failed: 0 });
+  expect(sent).toHaveLength(2);
+  expect(await worker.deliverEmails()).toEqual({ sent: 0, failed: 0 });
+});
 async function setup() {
   runtime = new Miniflare({
     modules: true,
@@ -313,7 +374,7 @@ it("supports Cloudflare structured sending and an authenticated custom HTTPS ada
     },
   })(message, "delivery-2");
   expect(custom?.headers.get("Idempotency-Key")).toBe("delivery-2");
-  expect(custom?.redirect).toBe("error");
+  expect(custom?.redirect).toBe("manual");
   expect(custom?.headers.get("Authorization")).toBe(
     "Bearer private-adapter-key",
   );

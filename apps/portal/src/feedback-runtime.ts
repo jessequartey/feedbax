@@ -92,6 +92,7 @@ export function configuredImages(
     feedback,
     participant,
     reviewSecret: env.PARTICIPATION_SIGNING_SECRET,
+    processing: feedbax.connected?.processing ?? "small",
   });
 }
 export async function requestParticipant(request: Request) {

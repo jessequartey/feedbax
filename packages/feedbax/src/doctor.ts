@@ -67,13 +67,25 @@ export async function diagnoseInstallation({
   });
   if (config?.connected) {
     results.push({
-      name: "Connected Worker plan",
-      status: "warn",
+      name: "Connected processing",
+      status: config.connected.processing === "standard" ? "warn" : "pass",
       message:
-        "The scheduled Connected workload targets Workers Paid; Free invocation limits are insufficient for a full batch.",
+        config.connected.processing === "standard"
+          ? "Standard processing targets Workers Paid; full batches exceed Free invocation limits."
+          : "Small processing caps each run at one followed Post, one email attempt, and five image cleanups. Verify CPU use and backlog on the target account.",
       repair:
-        "Verify the Installation uses Workers Paid. Cloudflare Email Service also requires Paid for arbitrary recipients.",
+        config.connected.processing === "standard"
+          ? "Use Workers Paid for standard processing, or choose connected.processing: small."
+          : undefined,
     });
+    if (config.connected.email?.provider === "cloudflare")
+      results.push({
+        name: "Cloudflare Email Service plan",
+        status: "warn",
+        message:
+          "Cloudflare Email Service requires Workers Paid for arbitrary recipients.",
+        repair: "Verify Workers Paid or use Resend/custom delivery.",
+      });
     await check("Connected identity", async () => {
       if (
         !effectiveEnv.IDENTITY_HANDOFF_SECRET ||
