@@ -54,3 +54,28 @@ it("accepts only a signed identity bound to this Installation, browser and time"
     }),
   ).toThrow();
 });
+
+it("accepts email delivery addresses only when the trusted application signs a verified assertion", () => {
+  const expected = {
+    audience: claims.audience,
+    issuer: claims.issuer,
+    state: claims.state,
+    now: 1020,
+  };
+  const verify = (value: Parameters<typeof signIdentityHandoff>[0]) =>
+    verifyIdentityHandoff(signIdentityHandoff(value, secret), secret, expected);
+  expect(
+    verify({ ...claims, email: "private@example.com" }),
+  ).not.toHaveProperty("email");
+  expect(
+    verify({ ...claims, email: "private@example.com", emailVerified: true }),
+  ).toMatchObject({ email: "private@example.com", emailVerified: true });
+  expect(() => verify({ ...claims, emailVerified: true })).toThrow();
+  expect(() =>
+    verify({
+      ...claims,
+      email: "bad\r\naddress@example.com",
+      emailVerified: true,
+    }),
+  ).toThrow();
+});

@@ -5,9 +5,12 @@ export function createIdentityLoginHandler(options: {
   portalOrigin: string;
   issuer: string;
   secret: string;
-  authenticate(
-    request: Request,
-  ): Promise<{ subject: string; displayName: string } | null>;
+  authenticate(request: Request): Promise<{
+    subject: string;
+    displayName: string;
+    email?: string;
+    emailVerified?: boolean;
+  } | null>;
 }) {
   const app = new URL(options.applicationOrigin).origin;
   const portal = new URL(options.portalOrigin).origin;
@@ -66,6 +69,9 @@ export function createIdentityLoginHandler(options: {
         purpose: "feedbax-identity-v1",
         subject: user.subject,
         displayName: user.displayName,
+        ...(user.emailVerified === true && user.email
+          ? { email: user.email, emailVerified: true }
+          : {}),
         issuer: options.issuer,
         audience: portal,
         state,

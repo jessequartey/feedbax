@@ -121,6 +121,16 @@ function upsertComment(current: Pages, comment: CreatedComment): Pages {
   const publicComment = {
     id: comment.id,
     body: comment.body,
+    ...(comment.images?.length
+      ? {
+          images: comment.images.map((image) => ({
+            id: image.id,
+            src: image.src,
+            contentType: image.contentType,
+            bytes: image.bytes,
+          })),
+        }
+      : {}),
     createdAt: comment.createdAt,
     author:
       comment.author.kind === "participant"

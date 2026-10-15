@@ -1,3 +1,8 @@
+import { handleImageRequest } from "./images-runtime";
+import {
+  handleParticipationRequest,
+  synchronizeConnectedUpdates,
+} from "./participation-runtime";
 import { handleConnectedRequest } from "./connected-runtime";
 import { configuredTurnstileSecret } from "./turnstile-configuration";
 import { createPortalServerEntry } from "./portal-server-entry";
@@ -14,8 +19,11 @@ import {
   createPortalCommentRequestHandler,
 } from "./portal-comments";
 
-export default createPortalServerEntry({
-  connectedHandler: handleConnectedRequest,
+const application = createPortalServerEntry({
+  connectedHandler: async (request) =>
+    (await handleImageRequest(request)) ??
+    (await handleParticipationRequest(request)) ??
+    handleConnectedRequest(request),
   commentHandler: (request) => {
     const turnstileSecret = configuredTurnstileSecret(env.TURNSTILE_SECRET_KEY);
     return createPortalCommentRequestHandler({
@@ -111,3 +119,10 @@ export default createPortalServerEntry({
     }
   },
 });
+
+export default {
+  ...application,
+  async scheduled() {
+    await synchronizeConnectedUpdates();
+  },
+};

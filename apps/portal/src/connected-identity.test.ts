@@ -42,12 +42,19 @@ it("exchanges a browser-bound handoff once, keeps identity private, and revokes 
   try {
     const db = await runtime.getD1Database("DB");
     await db.exec(
-      await readFile(
+      (await readFile(
         existsSync("apps/portal/migrations/0001_connected.sql")
           ? "apps/portal/migrations/0001_connected.sql"
           : "migrations/0001_connected.sql",
         "utf8",
-      ),
+      )) +
+        "\n" +
+        (await readFile(
+          existsSync("apps/portal/migrations/0002_participation.sql")
+            ? "apps/portal/migrations/0002_participation.sql"
+            : "migrations/0002_participation.sql",
+          "utf8",
+        )),
     );
     const secret = "identity-test-secret-at-least-32-characters";
     const handler = createConnectedIdentityHandler({

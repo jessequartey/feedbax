@@ -22,12 +22,19 @@ it("requires a valid session and same-origin mutations, and ignores browser-supp
   try {
     const db = await runtime.getD1Database("DB");
     await db.exec(
-      await readFile(
+      (await readFile(
         existsSync("apps/portal/migrations/0001_connected.sql")
           ? "apps/portal/migrations/0001_connected.sql"
           : "migrations/0001_connected.sql",
         "utf8",
-      ),
+      )) +
+        "\n" +
+        (await readFile(
+          existsSync("apps/portal/migrations/0002_participation.sql")
+            ? "apps/portal/migrations/0002_participation.sql"
+            : "migrations/0002_participation.sql",
+          "utf8",
+        )),
     );
     const store = createConnectedStore(db);
     const participant = { subject: "alice", displayName: "Alice" };

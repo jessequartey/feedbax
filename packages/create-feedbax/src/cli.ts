@@ -53,7 +53,7 @@ try {
           .replace(/[^a-z0-9-]/g, "-"),
       );
       const connected = (await confirm(
-        "Enable Connected Profile using your application's sign-in and an existing dedicated D1 database?",
+        "Enable Connected Profile using your application's sign-in, a Workers Paid deployment, and an existing dedicated D1 database?",
         false,
       ))
         ? {
@@ -68,6 +68,45 @@ try {
             ),
           }
         : undefined;
+      let email:
+        | (import("@feedbax/config").EmailConfiguration & { secret?: string })
+        | undefined;
+      let imageBucket: string | undefined;
+      if (connected) {
+        const provider = await text(
+          "Email sender: cloudflare, resend, custom, or none",
+          "none",
+        );
+        if (provider !== "none") {
+          if (
+            provider !== "cloudflare" &&
+            provider !== "resend" &&
+            provider !== "custom"
+          )
+            throw new Error(
+              "Email sender must be cloudflare, resend, custom, or none.",
+            );
+          email = {
+            provider,
+            from: await text("Verified sender email address"),
+            ...(provider === "custom"
+              ? { endpoint: await text("Custom HTTPS delivery endpoint") }
+              : {}),
+            ...(provider !== "cloudflare"
+              ? { secret: await secret("Server-only email provider secret") }
+              : {}),
+          };
+        }
+        if (
+          await confirm(
+            "Enable Participant image attachments using an existing private R2 bucket?",
+            false,
+          )
+        )
+          imageBucket = await text(
+            "Dedicated private R2 bucket name (create it in Cloudflare first)",
+          );
+      }
       const themePreset = await text(
         "shadcn preset code, or lyra-neutral for the included preset",
         "lyra-neutral",
@@ -134,7 +173,13 @@ try {
         themePreset,
         workerName,
         commentProbePageId,
-        connected,
+        connected: connected
+          ? {
+              ...connected,
+              ...(email ? { email } : {}),
+              ...(imageBucket ? { imageBucket } : {}),
+            }
+          : undefined,
         features,
         feedbackSelection,
         changelogSelection,

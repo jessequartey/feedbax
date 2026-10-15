@@ -78,7 +78,7 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 
 ## Version 0.2.1 Connected Profile foundation
 
-The next release adds verified Participant identity through signed handoff from the Product Team’s existing application, D1 operational state managed through Drizzle, reliable unique voting, and verified Comment attribution. The Notion-only Profile remains the default and preserves its existing behavior. Following, notifications, Participant media, hosted billing, and additional deployment targets remain out of scope. See `docs/version-0.2.1-plan.md`. Adoption and custom domains are owner-led parallel work, not implementation prerequisites.
+The next release adds verified Participant identity through signed handoff from the Product Team’s existing application, D1 operational state managed through Drizzle, reliable unique voting, verified Comment attribution, explicit per-Post following, private in-app and opt-in email notifications, and image-only attachments on Posts and Comments. Cloudflare Email Service, Resend, and a custom HTTPS sender are supported email choices. The Notion-only Profile remains the default and preserves its existing behavior. Hosted billing, video, general file attachments, and additional deployment targets remain out of scope. See `docs/version-0.2.1-plan.md` and ADR-0030. Adoption and custom domains are owner-led parallel work, not implementation prerequisites.
 
 ## Feedback model
 

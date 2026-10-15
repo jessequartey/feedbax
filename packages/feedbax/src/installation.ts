@@ -62,6 +62,9 @@ export type WranglerConfiguration = {
     migrations_dir?: string;
   }[];
   ratelimits?: { name: string }[];
+  triggers?: { crons?: string[] };
+  send_email?: { name: string; allowed_sender_addresses?: string[] }[];
+  r2_buckets?: { binding: string; bucket_name: string }[];
 };
 export async function readWranglerConfiguration(
   cwd: string,

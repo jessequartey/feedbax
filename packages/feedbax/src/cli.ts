@@ -105,6 +105,7 @@ async function deploy() {
       "FEEDBAX_API_KEY_HASH",
       "PARTICIPATION_SIGNING_SECRET",
       "IDENTITY_HANDOFF_SECRET",
+      "EMAIL_PROVIDER_SECRET",
       "TURNSTILE_SECRET_KEY",
     ].flatMap((name) => (env[name] ? [[name, env[name]]] : [])),
   );

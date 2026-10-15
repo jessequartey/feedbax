@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestIP } from "@tanstack/react-start/server";
+import { getRequest, getRequestIP } from "@tanstack/react-start/server";
 
 import {
+  requestParticipant,
   createConfiguredFeedbackModule,
   feedbackSubmissionLimits,
 } from "./feedback-runtime";
@@ -24,9 +25,10 @@ export const submitPortalFeedback = createServerFn({ method: "POST" })
       environment: env,
       nodeEnv: import.meta.env.PROD ? "production" : "development",
     });
+    const participant = await requestParticipant(getRequest());
     return runSafePortalMutation(() =>
       createPortalFeedbackSubmission({
-        feedback: createConfiguredFeedbackModule(),
+        feedback: createConfiguredFeedbackModule(participant),
         limits: feedbackSubmissionLimits,
         ...createPortalSubmissionSecurity({
           environment: env,
@@ -40,9 +42,10 @@ export const submitPortalPost = createServerFn({ method: "POST" })
   .validator((input: unknown) => input)
   .handler(async ({ data }) => {
     const { env } = await import("cloudflare:workers");
+    const participant = await requestParticipant(getRequest());
     return runSafePortalMutation(() =>
       createPortalPostSubmission({
-        feedback: createConfiguredFeedbackModule(),
+        feedback: createConfiguredFeedbackModule(participant),
         limits: feedbackSubmissionLimits,
         ...createPortalSubmissionSecurity({
           environment: env,

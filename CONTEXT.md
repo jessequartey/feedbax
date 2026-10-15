@@ -122,6 +122,20 @@ _Avoid_: Session, login, Participant identity
 A Comment or reply presented publicly as authored by "Product Team" rather than by an individual Team Member.
 _Avoid_: Admin comment, staff reply
 
+## Following, notifications, and images
+
+**Follow**:
+A Verified Participant's explicit subscription to future Post Status changes and new Comments on one Published Post. A Follow may be removed and does not imply a Vote.
+_Avoid_: Vote, watch, automatic subscription
+
+**Notification**:
+A private update for a Verified Participant about a followed Post. Reading a Notification and receiving an email are independent; email delivery requires an eligible contact address and the Participant's consent.
+_Avoid_: Changelog Entry, announcement, guaranteed email delivery
+
+**Image Attachment**:
+A Participant-supplied image associated with a Post or Comment. Its visibility follows the associated content's publication and removal rules.
+_Avoid_: Changelog Image, file attachment, public upload
+
 ## Changelog
 
 **Changelog Entry**:

@@ -1,4 +1,4 @@
-import type { PortalFeatures } from "@feedbax/config";
+import type { EmailConfiguration, PortalFeatures } from "@feedbax/config";
 import { createHash, randomBytes } from "node:crypto";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { defineFeedbax } from "@feedbax/config";
@@ -53,6 +53,8 @@ export async function provisionGuidedInstallation({
     databaseId: string;
     databaseName: string;
     handoffSecret: string;
+    email?: EmailConfiguration & { secret?: string };
+    imageBucket?: string;
   };
   features: PortalFeatures;
   feedbackSelection: FeedbackStorageSelection;
@@ -92,6 +94,38 @@ export async function provisionGuidedInstallation({
           "Connected identity URLs must use HTTPS without credentials.",
         );
   }
+  if (connected?.email) {
+    const sender = connected.email;
+    if (
+      !["cloudflare", "resend", "custom"].includes(sender.provider) ||
+      !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(sender.from)
+    )
+      throw new Error(
+        "Choose cloudflare, resend, or custom and a plain sender email address.",
+      );
+    if (sender.provider !== "cloudflare" && !sender.secret?.trim())
+      throw new Error(
+        "Resend and custom delivery require a server-only email secret.",
+      );
+    if (
+      sender.provider === "custom" &&
+      (!sender.endpoint ||
+        new URL(sender.endpoint).protocol !== "https:" ||
+        new URL(sender.endpoint).username ||
+        new URL(sender.endpoint).password ||
+        new URL(sender.endpoint).hash)
+    )
+      throw new Error(
+        "Custom delivery requires an HTTPS endpoint without credentials or fragments.",
+      );
+  }
+  if (
+    connected?.imageBucket &&
+    !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(connected.imageBucket)
+  )
+    throw new Error(
+      "Use a dedicated private R2 bucket name of 3–63 lowercase letters, digits, or hyphens.",
+    );
   const targetName =
     workerName ??
     basename(destination)
@@ -168,6 +202,27 @@ export async function provisionGuidedInstallation({
         name: targetName,
         ...(connected
           ? {
+              triggers: { crons: ["*/5 * * * *"] },
+              ...(connected.email?.provider === "cloudflare"
+                ? {
+                    send_email: [
+                      {
+                        name: "FEEDBAX_EMAIL",
+                        allowed_sender_addresses: [connected.email.from],
+                      },
+                    ],
+                  }
+                : {}),
+              ...(connected.imageBucket
+                ? {
+                    r2_buckets: [
+                      {
+                        binding: "FEEDBAX_IMAGES",
+                        bucket_name: connected.imageBucket,
+                      },
+                    ],
+                  }
+                : {}),
               d1_databases: [
                 {
                   binding: "FEEDBAX_DB",
@@ -195,6 +250,9 @@ export async function provisionGuidedInstallation({
       .digest("base64url"),
     PARTICIPATION_SIGNING_SECRET: signingSecret,
     ...(connected ? { IDENTITY_HANDOFF_SECRET: connected.handoffSecret } : {}),
+    ...(connected?.email?.secret
+      ? { EMAIL_PROVIDER_SECRET: connected.email.secret }
+      : {}),
     FEEDBAX_VOTING_ENABLED: String(features.voting),
     FEEDBAX_COMMENTS_ENABLED: String(features.comments),
     FEEDBAX_CHANGELOG_ENABLED: String(features.changelog),
@@ -224,7 +282,22 @@ export async function provisionGuidedInstallation({
     theme: { preset: themePreset },
     ...(connected
       ? {
-          connected: { issuer: connected.issuer, loginUrl: connected.loginUrl },
+          connected: {
+            issuer: connected.issuer,
+            loginUrl: connected.loginUrl,
+            ...(connected.email
+              ? {
+                  email: {
+                    provider: connected.email.provider,
+                    from: connected.email.from,
+                    ...(connected.email.endpoint
+                      ? { endpoint: connected.email.endpoint }
+                      : {}),
+                  },
+                }
+              : {}),
+            ...(connected.imageBucket ? { images: true } : {}),
+          },
         }
       : {}),
     notion: {

@@ -35,6 +35,7 @@ export type PostStatus =
   "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
 
 export interface SubmitPostInput {
+  imageIds?: string[];
   title: string;
   description: string;
   type: PostType;
@@ -49,6 +50,7 @@ export interface SubmitTrustedPostInput extends SubmitPostInput {
 }
 
 export interface Post extends SubmitPostInput {
+  images?: import("./images").ImageAttachment[];
   id: string;
   slug: string;
   status: PostStatus;
@@ -90,6 +92,7 @@ export type PublicPost = Pick<
   voteCount?: number;
   teamResponse?: string;
   releaseNotesUrl?: string;
+  images?: import("./images").ImageAttachment[];
 };
 
 export interface ChangeVoteInput {
@@ -127,6 +130,7 @@ export type DraftPost = Pick<
   | "createdAt"
   | "updatedAt"
   | "submitter"
+  | "images"
 >;
 
 export type TrustedSubmittedPost = Omit<Post, "published" | "submitter">;
@@ -166,6 +170,7 @@ export type CommentAuthor =
   | { kind: "product-team"; displayName: "Product Team" };
 
 export interface Comment {
+  images?: import("./images").ImageAttachment[];
   id: string;
   body: string;
   author: CommentAuthor;
@@ -188,6 +193,7 @@ export interface ListCommentThreadsInput {
 }
 
 export interface CreateCommentInput {
+  imageIds?: string[];
   slug: string;
   body: string;
   displayName: string;
@@ -355,6 +361,9 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
 }
 
 export interface FeedbackModule {
+  getAttachmentPostState(
+    slug: string,
+  ): Promise<"published" | "draft" | "private" | undefined>;
   createComment(input: CreateCommentInput): Promise<CreatedComment>;
   replyToCommentThread(
     input: ReplyToCommentThreadInput,
@@ -432,6 +441,16 @@ export function createFeedbackModule(
   };
 
   return {
+    async getAttachmentPostState(slug) {
+      const post = await storage.findBySlug(slug);
+      return !post
+        ? undefined
+        : post.published
+          ? "published"
+          : post.status === "New"
+            ? "draft"
+            : "private";
+    },
     async createComment(input) {
       const { post, body, displayName } = await validateCommentCreation(
         input,
@@ -954,3 +973,23 @@ export {
 } from "./identity-handoff";
 
 export { createConnectedFeedbackModule } from "./connected-feedback";
+
+export {
+  createParticipationModule,
+  type ParticipantNotification,
+} from "./participation";
+export {
+  createEmailSender,
+  type EmailSender,
+  type NotificationEmail,
+  type CloudflareEmailBinding,
+} from "./email-delivery";
+
+export {
+  createImageModule,
+  ImageAttachmentError,
+  type ImageAttachment,
+} from "./images";
+
+export { createImageFeedbackModule } from "./image-feedback";
+export { createNotionImageReviewWriter } from "./notion-image-review";

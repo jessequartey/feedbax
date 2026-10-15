@@ -14,3 +14,5 @@ Complete the authentication and feedback block setup guides with tested server e
 Enforce theme colors, known Tailwind classes, and inspectable component classes through shadcn lint in the workspace and generated Installations. Improve Post dialog and full-page loading, move the Comment composer above a scrollable thread list, and replace large profile gates with compact shadcn Items.
 
 Show five uniform roadmap previews per column with incremental View more, use the shared type scale throughout the portal, simplify the changelog timeline, and add the GitHub-linked Feedbax footer. Include informative repository and owned-app setup instructions for people and agents.
+
+Add explicit per-Post following, private in-app and opt-in email notifications, Cloudflare Email Service/Resend/custom HTTPS sending, and private image attachments on new Posts and Comments. Include scheduled Notion synchronization, durable retries/unsubscribe, verified email assertions, image moderation links and cleanup, installation diagnostics, and complete setup guidance. Truncate Feedback list descriptions to two lines.

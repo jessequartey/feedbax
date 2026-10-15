@@ -38,7 +38,7 @@ Use the already accepted Feedback module, external adapter boundary, and Worker 
 
 ## Excluded
 
-Feedbax email/password sign-in, following, notifications, Participant media, hosted billing, additional frameworks, and additional deployment platforms.
+Feedbax email/password sign-in, video/general file attachments, hosted billing, additional frameworks, and additional deployment platforms.
 
 ## Post detail follow-up
 
@@ -47,3 +47,11 @@ Open the dialog shell immediately, match its loading layout to the final content
 Roadmap columns initially show five uniform cards, with two-line title and description previews and five more per View more action. Retain the backend cursor pages and total counts. Normalize portal headings to the shared shadcn type scale (24px page heading, 18px Post dialog title, 14px description), retain Geist and theme colors, and redesign Changelog as a readable release timeline with paragraph spacing and compact controls.
 
 The portal includes a bottom-right Powered by Feedbax footer linked to GitHub and removes the redundant Posts heading from Feedback. The repository and generated app include clear README/AGENTS setup instructions, including the supported --template-only path and distinct local/deployed completion checks.
+
+## Expanded Connected scope — owner approved 2026-10-15
+
+Add explicit per-Post following, private in-app and opt-in email notifications, and image-only attachments to new Posts and Comments. Cloudflare Email Service, Resend, and custom HTTPS sending are supported choices. D1 stores Follows, observations, deduplicated Notifications, delivery state, and image associations; private R2 stores image bytes. Bounded scheduled work observes direct Notion changes and retries email/cleanup. Optional verified email assertions extend existing signed handoffs without creating Feedbax email sign-in.
+
+Visual thesis: the same quiet shadcn workspace, with a small header bell, readable inbox rows, and compact image previews. Content plan: one Follow control per Post, one private inbox with read/email controls, and an image picker alongside each creation form. Interaction thesis: stable loading and error states, clear upload progress, and existing restrained dialog transitions. Feedback list descriptions use two-line previews; full descriptions remain in Post details.
+
+See ADR-0030 and the expanded sections of connected-profile.md for behavior, setup, limits, and acceptance. This scope reopens implementation and review; prior foundation acceptance does not prove the added capabilities.

@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export interface IdentityHandoff {
+  email?: string;
+  emailVerified?: boolean;
   subject: string;
   displayName: string;
   issuer: string;
@@ -72,7 +74,23 @@ export function verifyIdentityHandoff(
     expiresAt - issuedAt > 120
   )
     throw invalid();
+  if (
+    value.emailVerified !== undefined &&
+    typeof value.emailVerified !== "boolean"
+  )
+    throw invalid();
+  if (
+    value.email !== undefined &&
+    (typeof value.email !== "string" ||
+      value.email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email))
+  )
+    throw invalid();
+  if (value.emailVerified === true && !value.email) throw invalid();
   return {
+    ...(value.emailVerified === true
+      ? { email: String(value.email), emailVerified: true }
+      : {}),
     subject: String(value.subject),
     displayName: String(value.displayName),
     issuer: String(value.issuer),

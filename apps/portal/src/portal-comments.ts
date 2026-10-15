@@ -26,6 +26,7 @@ export interface PortalCommentResult {
 const commentCapabilityLifetime = 15 * 60 * 1_000;
 
 export interface PortalCommentRequest {
+  imageIds?: string[];
   slug: string;
   body: string;
   displayName: string;
@@ -90,6 +91,7 @@ export function createPortalCommentHandler(options: {
     }
 
     const command = {
+      ...(value.imageIds ? { imageIds: value.imageIds } : {}),
       slug: value.slug,
       body: value.body,
       displayName: value.displayName,
@@ -366,7 +368,17 @@ function validateCommentInput(
       "A Device Profile with a valid email is required before commenting.",
       "profile_required",
     );
+  if (
+    value.imageIds !== undefined &&
+    (!Array.isArray(value.imageIds) ||
+      value.imageIds.length > 4 ||
+      value.imageIds.some(
+        (id) => typeof id !== "string" || !/^[-a-f0-9]{36}$/.test(id),
+      ))
+  )
+    throw invalidCommentRequest();
   return {
+    ...(value.imageIds ? { imageIds: value.imageIds as string[] } : {}),
     slug: value.slug.trim(),
     body: value.body.trim(),
     displayName: value.displayName.trim(),

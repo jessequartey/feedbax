@@ -1,0 +1,327 @@
+import { afterEach, expect, it } from "vitest";
+import { Miniflare } from "miniflare";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { createConnectedStore } from "./connected";
+import { createFeedbackModule } from "./index";
+import { createParticipationModule } from "./participation";
+
+let runtime: Miniflare | undefined;
+afterEach(async () => {
+  const previous = runtime;
+  runtime = undefined;
+  await previous?.dispose();
+});
+const participant = { subject: "alice", displayName: "Alice" };
+async function setup() {
+  runtime = new Miniflare({
+    modules: true,
+    script: "export default {fetch(){return new Response('ok')}}",
+    compatibilityDate: "2026-07-30",
+    d1Databases: ["DB"],
+  });
+  const database = await runtime.getD1Database("DB");
+  for (const name of ["0001_connected.sql", "0002_participation.sql"])
+    await database.exec(
+      await readFile(
+        `${existsSync("apps/portal/migrations") ? "apps/portal/migrations" : "migrations"}/${name}`,
+        "utf8",
+      ),
+    );
+  await createConnectedStore(database).acceptIdentity({
+    ...participant,
+    nonce: "a",
+    sessionHash: "a",
+    expiresAt: 100000,
+  });
+  const feedback = createFeedbackModule({
+    initialItems: [
+      {
+        id: "public",
+        slug: "public",
+        title: "Public Post",
+        description: "Description",
+        type: "Feature Request",
+        status: "Planned",
+        published: true,
+        createdAt: new Date(1000),
+        updatedAt: new Date(1000),
+      },
+      {
+        id: "private",
+        slug: "private",
+        title: "Private Post",
+        description: "Private",
+        type: "Feature Request",
+        status: "New",
+        published: false,
+        createdAt: new Date(1000),
+        updatedAt: new Date(1000),
+      },
+    ],
+  });
+  return { database, feedback };
+}
+it("follows a Published Post once across browsers and rejects private Posts or unsigned Participants", async () => {
+  const options = await setup();
+  const first = createParticipationModule({
+    ...options,
+    participant,
+    now: () => 2000,
+  });
+  await Promise.all([
+    first.follow("public", true),
+    first.follow("public", true),
+  ]);
+  const second = createParticipationModule({ ...options, participant });
+  expect(await second.followState("public")).toEqual({ following: true });
+  await expect(first.follow("private", true)).rejects.toThrow("unavailable");
+  await expect(
+    createParticipationModule(options).follow("public", true),
+  ).rejects.toThrow("Sign in");
+  await second.follow("public", false);
+  expect(await first.followState("public")).toEqual({ following: false });
+  expect(await first.inbox()).toEqual({ items: [], unreadCount: 0 });
+});
+
+it("notifies only followers about later status changes and Comments, deduplicates synchronization, and keeps read state private", async () => {
+  const options = await setup();
+  const alice = createParticipationModule({
+    ...options,
+    participant,
+    now: () => 2000,
+  });
+  await alice.follow("public", true);
+  const changed = createFeedbackModule({
+    initialItems: [
+      {
+        id: "public",
+        slug: "public",
+        title: "Public Post",
+        description: "Description",
+        type: "Feature Request",
+        status: "Shipped",
+        published: true,
+        createdAt: new Date(1000),
+        updatedAt: new Date(3000),
+      },
+    ],
+  });
+  const sync = createParticipationModule({
+    ...options,
+    feedback: changed,
+    now: () => 4000,
+  });
+  await Promise.all([sync.synchronize(), sync.synchronize()]);
+  await sync.synchronize();
+  const inbox = await alice.inbox();
+  expect(inbox.items).toHaveLength(1);
+  expect(inbox.items[0]).toMatchObject({
+    slug: "public",
+    kind: "status",
+    message: "Status changed to Shipped.",
+    read: false,
+  });
+  expect(inbox.unreadCount).toBe(1);
+  expect(JSON.stringify(inbox)).not.toContain("alice");
+  const bob = createParticipationModule({
+    ...options,
+    participant: { subject: "bob", displayName: "Bob" },
+  });
+  expect(await bob.inbox()).toEqual({ items: [], unreadCount: 0 });
+  await bob.markRead(inbox.items[0]!.id);
+  expect((await alice.inbox()).unreadCount).toBe(1);
+  await alice.markRead(inbox.items[0]!.id);
+  expect((await alice.inbox()).unreadCount).toBe(0);
+  await changed.createComment({
+    slug: "public",
+    body: "Now available",
+    displayName: "Team",
+  });
+  await sync.synchronize();
+  expect((await alice.inbox()).items.map((item) => item.kind)).toEqual([
+    "comment",
+    "status",
+  ]);
+  const hidden = createParticipationModule({
+    ...options,
+    feedback: createFeedbackModule(),
+    participant,
+  });
+  expect(await hidden.inbox()).toEqual({ items: [], unreadCount: 0 });
+});
+
+it("emails only verified opted-in followers, retries with a stable delivery key, and honors unsubscribe", async () => {
+  const options = await setup();
+  const { createEmailSender } = await import("./email-delivery");
+  const calls: Request[] = [];
+  let fail = true;
+  const sender = createEmailSender({
+    provider: "resend",
+    token: "private-key",
+    request: async (input, init) => {
+      calls.push(new Request(input, init));
+      return new Response(
+        fail ? "unavailable" : JSON.stringify({ id: "sent" }),
+        { status: fail ? 503 : 200 },
+      );
+    },
+  });
+  let clock = 2000;
+  const email = {
+    sender,
+    from: "updates@example.com",
+    siteUrl: "https://feedback.example.com",
+    unsubscribeSecret: "x".repeat(32),
+  };
+  const alice = createParticipationModule({
+    ...options,
+    participant,
+    now: () => clock,
+    email,
+  });
+  await expect(alice.setEmailPreference(true)).rejects.toThrow("verified");
+  await createConnectedStore(options.database).acceptIdentity({
+    ...participant,
+    email: "alice@example.com",
+    nonce: "email-identity",
+    sessionHash: "email-identity",
+    expiresAt: 100000,
+  });
+  await alice.setEmailPreference(true);
+  await alice.follow("public", true);
+  const changed = createFeedbackModule({
+    initialItems: [
+      {
+        id: "public",
+        slug: "public",
+        title: "Public Post",
+        description: "Description",
+        type: "Feature Request",
+        status: "Shipped",
+        published: true,
+        createdAt: new Date(1000),
+        updatedAt: new Date(3000),
+      },
+    ],
+  });
+  const sync = createParticipationModule({
+    ...options,
+    feedback: changed,
+    now: () => clock,
+    email,
+  });
+  clock = 4000;
+  await sync.synchronize();
+  expect(await sync.deliverEmails()).toEqual({ sent: 0, failed: 1 });
+  fail = false;
+  clock += 61000;
+  expect(await sync.deliverEmails()).toEqual({ sent: 1, failed: 0 });
+  expect(calls[0]!.headers.get("Idempotency-Key")).toBe(
+    calls[1]!.headers.get("Idempotency-Key"),
+  );
+  expect(calls[1]!.headers.get("Authorization")).toBe("Bearer private-key");
+  const message = JSON.parse(await calls[1]!.text());
+  expect(message.to).toEqual(["alice@example.com"]);
+  const unsubscribe = new URL(message.headers["List-Unsubscribe"].slice(1, -1));
+  await sync.unsubscribe(unsubscribe.searchParams.get("token")!);
+  expect(await alice.preferences()).toEqual({
+    emailAvailable: true,
+    emailEnabled: false,
+  });
+  expect(await sync.deliverEmails()).toEqual({ sent: 0, failed: 0 });
+  expect(JSON.stringify(await alice.inbox())).not.toContain(
+    "alice@example.com",
+  );
+});
+
+it("rolls back an event and its notifications if the observation checkpoint fails", async () => {
+  const options = await setup();
+  const alice = createParticipationModule({
+    ...options,
+    participant,
+    now: () => 2000,
+  });
+  await alice.follow("public", true);
+  await options.database.exec(
+    "CREATE TRIGGER reject_checkpoint BEFORE UPDATE OF status ON post_observations WHEN NEW.status='Shipped' BEGIN SELECT RAISE(ABORT, 'checkpoint unavailable'); END;",
+  );
+  const changed = createFeedbackModule({
+    initialItems: [
+      {
+        id: "public",
+        slug: "public",
+        title: "Public Post",
+        description: "Description",
+        type: "Feature Request",
+        status: "Shipped",
+        published: true,
+        createdAt: new Date(1000),
+        updatedAt: new Date(3000),
+      },
+    ],
+  });
+  const sync = createParticipationModule({
+    ...options,
+    feedback: changed,
+    now: () => 4000,
+  });
+  expect((await sync.synchronize()).failed).toBe(1);
+  expect((await alice.inbox()).items).toHaveLength(0);
+  await options.database.exec("DROP TRIGGER reject_checkpoint;");
+  await sync.synchronize();
+  await sync.synchronize();
+  expect((await alice.inbox()).items).toHaveLength(1);
+  const hidden = createParticipationModule({
+    ...options,
+    feedback: createFeedbackModule(),
+    participant,
+  });
+  await hidden.follow("public", false);
+  expect(await alice.followState("public")).toEqual({ following: false });
+});
+
+it("supports Cloudflare structured sending and an authenticated custom HTTPS adapter without following redirects", async () => {
+  const { createEmailSender } = await import("./email-delivery");
+  const message = {
+    from: "updates@example.com",
+    to: ["recipient@example.com"],
+    subject: "An update",
+    text: "A Post changed.",
+    headers: {
+      "List-Unsubscribe": "<https://feedback.example.com/unsubscribe>",
+    },
+  };
+  let accepted: unknown;
+  await createEmailSender({
+    provider: "cloudflare",
+    binding: {
+      send: async (value) => {
+        accepted = value;
+      },
+    },
+  })(message, "delivery-1");
+  expect(accepted).toEqual(message);
+  let custom: Request | undefined;
+  await createEmailSender({
+    provider: "custom",
+    url: "https://app.example.com/email",
+    token: "private-adapter-key",
+    request: async (input, init) => {
+      custom = new Request(input, init);
+      return new Response(null, { status: 202 });
+    },
+  })(message, "delivery-2");
+  expect(custom?.headers.get("Idempotency-Key")).toBe("delivery-2");
+  expect(custom?.redirect).toBe("error");
+  expect(custom?.headers.get("Authorization")).toBe(
+    "Bearer private-adapter-key",
+  );
+  expect(() =>
+    createEmailSender({
+      provider: "custom",
+      url: "http://app.example.com/email",
+      token: "x",
+    }),
+  ).toThrow("HTTPS");
+});

@@ -52,3 +52,7 @@ Use the [feedback block guide](https://github.com/jessequartey/feedbax/blob/main
 Keep Comments and browser capabilities distinct from verified identity: Notion-only names/email are unverified, Votes are best-effort, and recent Comment editing uses short-lived browser capabilities. Connected adds signed identity, unique Votes, and durable attribution without moving content out of Notion.
 
 See `AGENTS.md` for the short agent workflow.
+
+## Connected social features
+
+For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, configure the scheduled trigger, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.

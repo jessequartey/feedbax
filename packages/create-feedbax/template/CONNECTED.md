@@ -98,9 +98,12 @@ export function createIdentityLoginHandler(options: {
   portalOrigin: string;
   issuer: string;
   secret: string;
-  authenticate(
-    request: Request,
-  ): Promise<{ subject: string; displayName: string } | null>;
+  authenticate(request: Request): Promise<{
+    subject: string;
+    displayName: string;
+    email?: string;
+    emailVerified?: boolean;
+  } | null>;
 }) {
   const app = new URL(options.applicationOrigin).origin;
   const portal = new URL(options.portalOrigin).origin;
@@ -159,6 +162,9 @@ export function createIdentityLoginHandler(options: {
         purpose: "feedbax-identity-v1",
         subject: user.subject,
         displayName: user.displayName,
+        ...(user.emailVerified === true && user.email
+          ? { email: user.email, emailVerified: true }
+          : {}),
         issuer: options.issuer,
         audience: portal,
         state,
@@ -243,3 +249,119 @@ export const GET = createIdentityLoginHandler({
 | `FEEDBAX_API_SECRET` / portal `FEEDBAX_API_KEY_HASH` | Plaintext on product server; hash on portal | Trusted Post submission from the feedback block or another integration. |
 
 Generate independent random values. Store production values through your platform's secret manager. When rotating the handoff secret, coordinate both servers; existing portal sessions require separate revocation if they must be ended immediately.
+
+## Following and notifications
+
+The scheduled Connected workload targets Workers Paid, whose larger per-invocation D1 allowance supports the bounded synchronization/delivery batches. Cloudflare Email Service also requires Workers Paid to send to arbitrary Participants. Resend/custom sending does not remove the scheduler's Worker resource requirement. The Notion-only Profile remains the lean default. Check [Cloudflare email pricing](https://developers.cloudflare.com/email-service/platform/pricing/) and [D1 invocation limits](https://developers.cloudflare.com/d1/platform/limits/) before provisioning.
+
+Connected Participants can explicitly Follow a Published Post from its detail view. Following is independent of voting; submitting, commenting, or voting does not silently subscribe a Participant. The header bell opens a private inbox with unread state, Mark read, Mark all read, pagination, and email preferences. Signing out hides these controls and private state is never publicly cached.
+
+A scheduled Worker observes status changes and new native Notion Comments on followed Posts. Add `"triggers": { "crons": ["*/5 * * * *"] }` to Wrangler configuration. Processing checks ten followed Posts per invocation, prioritizing the least recently checked. It reads one 50-Comment cursor page per observed Post per invocation and continues the next cursor on later invocations. This bounds Notion work; busy Installations and long Comment histories have longer notification latency. It observes current status, so intermediate status changes between polls may be coalesced. It does not claim an instantaneous audit history. Existing Comments/statuses from before a Follow are not notifications, and Participants do not receive notifications about Comments with their own recorded attribution.
+
+In-app notifications are deduplicated by event and Participant, survive browser changes, and retain independent read state. Notifications and outbound delivery recheck that the Post is still Published. Stop following from the same Post to stop future updates. Email is independently opt-in through the inbox switch and can be disabled there or through the unsubscribe link in each email. Unsubscribe links show a confirmation page on GET and accept a one-click POST from supporting mail clients. A link scanner's GET does not change preferences.
+
+### Verified delivery address
+
+Application identity and email ownership are separate assertions. To offer email notifications, derive both of these additional signed claims from your application's authenticated server record:
+
+```ts
+...(user.emailVerified === true
+  ? { email: user.email, emailVerified: true }
+  : {}),
+```
+
+Never accept these values from the browser or copy the unverified Device Profile. Feedbax ignores an email unless the signed `emailVerified` claim is true. The contact address is stored privately in D1, is refreshed at the next successful handoff, and never appears in public identity, Post, Comment, or notification responses. Existing handoff implementations without these optional claims keep working for in-app notifications. A subsequent handoff without a verified address removes email eligibility.
+
+### Choose one email sender
+
+All choices share notification content, opt-in, unsubscribe, the D1 delivery queue, and a stable `Idempotency-Key`. The sender address belongs to your verified sending domain. Do not use a Participant's address as the sender.
+
+**Cloudflare Email Service** uses the current structured Workers sending API. Onboard and verify your sending domain in Cloudflare Email Service, then configure:
+
+```ts
+connected: {
+  issuer: "https://app.example.com",
+  loginUrl: "https://app.example.com/feedbax-login",
+  email: { provider: "cloudflare", from: "updates@example.com" },
+},
+```
+
+```json
+{
+  "send_email": [
+    {
+      "name": "FEEDBAX_EMAIL",
+      "allowed_sender_addresses": ["updates@example.com"]
+    }
+  ]
+}
+```
+
+Use Email Service's outbound sending capability, not a restricted legacy inbound-routing destination. See [Workers sending API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/) and [domain setup](https://developers.cloudflare.com/email-service/configuration/domains/). Local Wrangler simulation does not deliver real messages. Do not enable a remote email binding during general local testing; it sends real mail.
+
+**Resend** requires a verified domain and a sending API key. Set `email: { provider: "resend", from: "updates@example.com" }` and store the key as `EMAIL_PROVIDER_SECRET` in `.dev.vars` and `pnpm exec wrangler secret put EMAIL_PROVIDER_SECRET`. No email binding is required. Feedbax posts to `https://api.resend.com/emails`, passing its stable delivery key in the `Idempotency-Key` header. See [Resend sending](https://resend.com/docs/api-reference/emails/send-email) and [idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys).
+
+**Custom HTTPS sender** connects your own backend or mail provider adapter:
+
+```ts
+email: {
+  provider: "custom",
+  from: "updates@example.com",
+  endpoint: "https://app.example.com/internal/feedbax-email",
+},
+```
+
+Store a dedicated shared bearer secret as `EMAIL_PROVIDER_SECRET`. Your endpoint must validate `Authorization: Bearer <secret>`, accept the following JSON, deliver or durably enqueue it, and return 2xx only after acceptance. It must persist `Idempotency-Key` uniqueness for at least 24 hours and return the same successful result for retries without sending again. Keep this endpoint private to the authenticated server contract; a browser must never receive the secret.
+
+```ts
+interface NotificationEmail {
+  from: string;
+  to: string[]; // exactly one recipient per Feedbax request
+  subject: string;
+  text: string;
+  headers: {
+    "List-Unsubscribe": string;
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click";
+  };
+}
+```
+
+Preserve the unsubscribe headers, disable tracking unless your Product Team has deliberately chosen it, and never return provider credentials or recipient details to the portal. Feedbax requires HTTPS, refuses redirects, and times out custom/Resend requests after ten seconds. This adapter can use SMTP or another provider behind your server; Feedbax does not require a general plugin system or expose SMTP passwords in application configuration.
+
+### Delivery limits and recovery
+
+Each scheduled invocation attempts at most twenty emails. D1 leases serialize workers, and failures use bounded exponential retry, starting at one minute and capped at six hours. Delivery is abandoned after eight failed attempts or 24 hours, whichever comes first. Resend's provider deduplication window is 24 hours; Cloudflare's documented binding has no equivalent idempotency parameter, so a crash or ambiguous timeout after acceptance can result in a duplicate email. Custom senders must supply their own durable deduplication. No adapter promises exactly-once inbox delivery, and provider acceptance does not prove final recipient delivery. In-app notifications remain available when email fails. Inspect provider suppression/bounce logs and the private D1 delivery state to investigate delivery failures; never publish these records.
+
+## Image attachments
+
+Set `connected.images: true` and bind a dedicated private R2 bucket:
+
+```json
+{
+  "r2_buckets": [
+    { "binding": "FEEDBAX_IMAGES", "bucket_name": "your-installation-images" }
+  ]
+}
+```
+
+Create the bucket with `pnpm exec wrangler r2 bucket create your-installation-images`. Keep its r2.dev endpoint and public custom-domain access disabled; only Feedbax serves its objects. Apply all included D1 migrations. `PARTICIPATION_SIGNING_SECRET` must contain at least 32 random characters; it already supports participation capabilities and also signs scoped image review and unsubscribe links using independent purposes.
+
+Verified Participants can add up to four JPEG, PNG, or WebP images to a new Post or Comment. Each image is at most 5 MiB. The server checks MIME type, image signatures, size, ownership, and association permissions; SVG, video, and general file attachments are rejected. The form shows upload progress, previews, and removal controls and waits for uploads before submission. Text is still required. Images can be added on creation; replacing attachments on an existing Post or Comment is not part of this release.
+
+Images attach to the newly created Notion content through D1 records. Pending uploads are private to their authenticated uploader and expire after 24 hours. Scheduled cleanup removes unused uploads and retries interrupted deletions. Public image requests recheck Post publication and, for Comment images, that the Comment still exists in an open Thread. The uploader can inspect pending images and their own existing Draft Post images privately; removing the associated content also removes uploader and review-link access. Unpublishing a Post or resolving/deleting a Comment stops public image access; downloads use no-store and cannot be embedded from another origin.
+
+For a Draft Post, Feedbax writes read-only image review links into its private Notion page body. Team Members use them to inspect attachments before publication. These links are bearer capabilities: keep the page body private, do not paste its review URLs into public Description or Team Response fields, and restrict Notion workspace access normally. Public Post projections contain only the ordinary visibility-checked image route, never the review token. Rotating `PARTICIPATION_SIGNING_SECRET` invalidates existing private review links and email unsubscribe links as well as older participation capabilities.
+
+Images retain their original bytes; Feedbax does not transcode them or strip EXIF. R2 and D1 need coordinated backups because the association records authorize access to the objects. Removing the R2 binding must be paired with disabling `connected.images`; missing storage fails closed. Images are not included in the stable trusted `/api/v1/posts` submission contract or the copied feedback block in this release.
+
+## Expanded production acceptance
+
+In a dedicated Installation, apply all D1 migrations, configure the scheduled trigger, verify the sender domain, and use a private R2 bucket. Run `feedbax doctor`, then verify:
+
+1. Sign in from two browsers through the real product app, including a verified email assertion. Follow/unfollow the same Published Post and check continuity. Confirm a Device Profile cannot substitute for identity.
+2. Change a followed Post's status and add a Product Team Comment directly in Notion. Run a scheduled invocation or wait for its trigger. Confirm exactly one in-app event per observed change, private read state across browsers, and no access from another Participant.
+3. Opt in to email for a test recipient, confirm provider acceptance and actual receipt, force a retry in the dedicated test adapter, and verify its documented deduplication behavior. Check unsubscribe GET is non-mutating and POST disables future email while retaining in-app updates.
+4. Upload an image to a Draft Post. Confirm only the uploader and private Notion review link can access it; publish the Post and confirm public display, then unpublish and confirm public access stops. Repeat for a Comment and resolve it in Notion.
+5. Reject a forged review link, wrong-owner image association, oversized/unsupported image, unsigned mutation, and cross-origin mutation. Check mobile previews, unread states, empty/error/retry states, and cleanup of abandoned uploads.
+
+These checks require your real application, sender, and infrastructure. Local tests and builds do not constitute production delivery or release evidence.

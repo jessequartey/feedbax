@@ -130,3 +130,7 @@ The shadcn lint checks theme colors, known Tailwind classes, and inspectable com
 ## License
 
 [Apache-2.0](LICENSE).
+
+### Connected following, notifications, and images (unreleased 0.2.1)
+
+The Connected Profile adds explicit per-Post following, a private inbox, opt-in email through Cloudflare Email Service, Resend, or a custom HTTPS sender, and image attachments on new Posts and Comments. Setup includes additional D1 migrations and a scheduled trigger; images require private R2. Signed application handoffs can optionally assert a verified contact address for email delivery. See [the complete Connected setup guide](docs/connected-profile.md#following-and-notifications) for provider setup, unsubscribe, limits, moderation, backups, and acceptance. These additions are not in the published 0.2.0 packages.

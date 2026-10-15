@@ -17,12 +17,19 @@ async function migratedDatabase() {
   });
   const binding = await runtime.getD1Database("DB");
   await binding.exec(
-    await readFile(
+    (await readFile(
       existsSync("apps/portal/migrations/0001_connected.sql")
         ? "apps/portal/migrations/0001_connected.sql"
         : "migrations/0001_connected.sql",
       "utf8",
-    ),
+    )) +
+      "\n" +
+      (await readFile(
+        existsSync("apps/portal/migrations/0002_participation.sql")
+          ? "apps/portal/migrations/0002_participation.sql"
+          : "migrations/0002_participation.sql",
+        "utf8",
+      )),
   );
   return binding;
 }

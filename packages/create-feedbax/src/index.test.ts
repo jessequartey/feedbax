@@ -390,7 +390,7 @@ describe("creator capability choices", () => {
   });
 });
 
-it.each([false, true])(
+it.each([false, true, "cloudflare", "resend", "custom"] as const)(
   "generates an independent Worker target, public settings, and private secrets (Connected: %s)",
   async (connectedEnabled) => {
     const parent = await mkdtemp(join(tmpdir(), "feedbax-guided-success-"));
@@ -407,6 +407,21 @@ it.each([false, true])(
                 databaseId: "11111111-2222-3333-4444-555555555555",
                 databaseName: "acme-connected",
                 handoffSecret: "test-identity-secret-at-least-32-characters",
+                ...(typeof connectedEnabled === "string"
+                  ? {
+                      imageBucket: "acme-private-images",
+                      email: {
+                        provider: connectedEnabled,
+                        from: "updates@acme.example",
+                        ...(connectedEnabled === "custom"
+                          ? { endpoint: "https://app.example.com/email" }
+                          : {}),
+                        ...(connectedEnabled !== "cloudflare"
+                          ? { secret: "test-provider-private-key" }
+                          : {}),
+                      },
+                    }
+                  : {}),
               },
             }
           : {}),
@@ -452,6 +467,18 @@ it.each([false, true])(
           await readFile(join(destination, "wrangler.jsonc"), "utf8"),
         );
         expect(wrangler.d1_databases[0].binding).toBe("FEEDBAX_DB");
+        expect(wrangler.triggers.crons).toEqual(["*/5 * * * *"]);
+        if (typeof connectedEnabled === "string") {
+          expect(wrangler.r2_buckets[0]).toEqual({
+            binding: "FEEDBAX_IMAGES",
+            bucket_name: "acme-private-images",
+          });
+          expect(configuration).toContain(`"provider": "${connectedEnabled}"`);
+          expect(configuration).not.toContain("test-provider-private-key");
+          if (connectedEnabled === "cloudflare")
+            expect(wrangler.send_email[0].name).toBe("FEEDBAX_EMAIL");
+          else expect(secrets).toContain("test-provider-private-key");
+        }
       }
       expect(configuration).toContain("test-public-site-key");
       expect(configuration).toContain('"enabled": true');

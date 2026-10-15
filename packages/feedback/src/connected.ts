@@ -17,6 +17,11 @@ const participants = sqliteTable("participants", {
   subject: text("subject").primaryKey(),
   displayName: text("display_name").notNull(),
 });
+const contacts = sqliteTable("participant_contacts", {
+  subject: text("subject").primaryKey(),
+  email: text("email"),
+  emailEnabled: integer("email_enabled").notNull().default(0),
+});
 const nonces = sqliteTable("identity_nonces", {
   nonce: text("nonce").primaryKey(),
   expiresAt: integer("expires_at").notNull(),
@@ -52,6 +57,7 @@ export function createConnectedStore(binding: D1Database) {
   return {
     async acceptIdentity(
       input: VerifiedParticipant & {
+        email?: string;
         nonce: string;
         challenge?: string;
         sessionHash: string;
@@ -77,6 +83,13 @@ export function createConnectedStore(binding: D1Database) {
           .onConflictDoUpdate({
             target: participants.subject,
             set: { displayName: input.displayName },
+          }),
+        db
+          .insert(contacts)
+          .values({ subject: input.subject, email: input.email ?? null })
+          .onConflictDoUpdate({
+            target: contacts.subject,
+            set: { email: input.email ?? null },
           }),
         db.insert(sessions).values({
           tokenHash: input.sessionHash,
@@ -161,6 +174,27 @@ export function createConnectedStore(binding: D1Database) {
         subject: participant.subject,
         displayName: participant.displayName,
       });
+    },
+    async commentAuthors(ids: string[]) {
+      const result = new Map<
+        string,
+        { kind: "participant"; displayName: string; verified: true }
+      >();
+      for (let offset = 0; offset < ids.length; offset += 80) {
+        const rows = await db
+          .select()
+          .from(attribution)
+          .where(
+            inArray(attribution.commentId, ids.slice(offset, offset + 80)),
+          );
+        for (const row of rows)
+          result.set(row.commentId, {
+            kind: "participant",
+            displayName: row.displayName,
+            verified: true,
+          });
+      }
+      return result;
     },
     async commentAuthor(commentId: string) {
       const row = await db

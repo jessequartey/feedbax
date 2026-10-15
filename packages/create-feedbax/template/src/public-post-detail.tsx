@@ -1,3 +1,5 @@
+import { ImageAttachments, ImageGallery } from "./components/image-attachments";
+import { FollowPostButton } from "./components/follow-post-button";
 import {
   useConnectedIdentity,
   ConnectedSignInPrompt,
@@ -41,6 +43,7 @@ export type ConfirmedPortalComment = CreatedComment & {
 export function PublicPostDetail({
   post,
   display = "page",
+  published = true,
   summaryActions,
   summaryMarker,
   features = feedbax.features,
@@ -55,6 +58,7 @@ export function PublicPostDetail({
 }: {
   post: PublicPost;
   display?: "overlay" | "page";
+  published?: boolean;
   summaryActions?: ReactNode;
   summaryMarker?: ReactNode;
   features?: PortalFeatures;
@@ -80,6 +84,11 @@ export function PublicPostDetail({
   const detailsHeadingId = `${id}-post-details-heading`;
   const [localComments, setLocalComments] = useState(comments.items);
   const [commentError, setCommentError] = useState<string>();
+  const [images, setImages] = useState<
+    import("@feedbax/feedback").ImageAttachment[]
+  >([]);
+  const [uploading, setUploading] = useState(false);
+  const [submittingComment, setSubmittingComment] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string>();
   const [editingComment, setEditingComment] = useState<{
     id: string;
@@ -183,7 +192,8 @@ export function PublicPostDetail({
       );
       return;
     }
-    if (!body) return;
+    if (!body || uploading || submittingComment) return;
+    setSubmittingComment(true);
     const optimisticId = `optimistic-${crypto.randomUUID()}`;
     const discussionId = replyingTo ?? optimisticId;
     const optimistic: CreatedComment = {
@@ -204,6 +214,7 @@ export function PublicPostDetail({
       const turnstileToken = form.get("cf-turnstile-response");
       const confirmed = await submitComment({
         slug: post.slug,
+        ...(images.length ? { imageIds: images.map((image) => image.id) } : {}),
         body,
         displayName: identity.enabled ? identity.displayName! : profile!.name,
         email: identity.enabled ? "" : profile!.email,
@@ -217,6 +228,7 @@ export function PublicPostDetail({
             }
           : {}),
       });
+      setImages([]);
       setLocalComments((current) =>
         replaceComment(current, optimisticId, confirmed),
       );
@@ -236,6 +248,8 @@ export function PublicPostDetail({
           ? error.message
           : "Comment could not be saved. Try again.",
       );
+    } finally {
+      setSubmittingComment(false);
     }
   }
 
@@ -300,6 +314,21 @@ export function PublicPostDetail({
           </div>
           <h1 id={headingId}>{post.title}</h1>
           <p className="feedback-detail-description">{post.description}</p>
+          {post.images?.length &&
+          !published &&
+          identity.enabled &&
+          !identity.displayName ? (
+            <Button
+              nativeButton={false}
+              render={<a href="/internal/identity/start" />}
+              variant="outline"
+              size="sm"
+            >
+              Sign in to view images
+            </Button>
+          ) : (
+            <ImageGallery images={post.images} />
+          )}
           {post.teamResponse ? (
             <section
               className="border-l-4 border-primary bg-muted/50 p-4"
@@ -320,11 +349,12 @@ export function PublicPostDetail({
           {summaryActions ? (
             <div className="post-detail-summary-actions">{summaryActions}</div>
           ) : null}
-          {features.voting && post.voteCount !== undefined ? (
-            <div className="post-detail-engagement">
+          <div className="post-detail-engagement flex flex-wrap items-center gap-3">
+            {features.voting && post.voteCount !== undefined ? (
               <VoteToggle post={post} />
-            </div>
-          ) : null}
+            ) : null}
+            {published ? <FollowPostButton slug={post.slug} /> : null}
+          </div>
           {features.comments ? (
             <section
               className="post-detail-comments"
@@ -378,9 +408,21 @@ export function PublicPostDetail({
                       data-sitekey={turnstileSiteKey}
                     />
                   ) : null}
+                  <ImageAttachments
+                    value={images}
+                    onChange={setImages}
+                    onUploadingChange={setUploading}
+                  />
                   <div className="comment-composer-actions">
-                    <Button type="submit">
-                      {replyingTo ? "Post reply" : "Post comment"}
+                    <Button
+                      type="submit"
+                      disabled={uploading || submittingComment}
+                    >
+                      {submittingComment
+                        ? "Posting…"
+                        : replyingTo
+                          ? "Post reply"
+                          : "Post comment"}
                     </Button>
                     {replyingTo ? (
                       <Button
@@ -488,7 +530,10 @@ export function PublicPostDetail({
                                   </div>
                                 </form>
                               ) : (
-                                <p className="comment-body">{comment.body}</p>
+                                <>
+                                  <p className="comment-body">{comment.body}</p>
+                                  <ImageGallery images={comment.images} />
+                                </>
                               )}
                               {canChange || canReply ? (
                                 <div

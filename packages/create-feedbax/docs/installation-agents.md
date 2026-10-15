@@ -7,3 +7,7 @@ This is a flat application, not the Feedbax development monorepo. Product settin
 Use the copied shadcn primitives in `src/components/ui`. Keep the configured Geist font and theme tokens. After changes, run `pnpm lint`, `pnpm type-check`, `pnpm test`, and `pnpm build`, fixing errors. Use `pnpm format:check` to check formatting.
 
 For setup, `pnpm exec feedbax doctor` must pass with real Notion credentials/mappings and enabled bindings. Run `pnpm deploy:dry-run` before deployment and verify the actual live URL after `pnpm exec feedbax deploy`. Distinguish copied source, configured local readiness, and a verified deployment in the result.
+
+## Connected social features
+
+For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, configure the scheduled trigger, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.

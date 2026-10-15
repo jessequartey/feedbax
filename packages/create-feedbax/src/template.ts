@@ -68,6 +68,14 @@ export async function assembleFlatTemplate(
       '@import "./components/ui/styles/globals.css";',
     ),
   );
+  const globals = join(target, "src/components/ui/styles/globals.css");
+  await writeFile(
+    globals,
+    (await readFile(globals, "utf8")).replace(
+      '@source "../../../../apps/**/*.{ts,tsx}";',
+      '@source "../../../**/*.{ts,tsx}";',
+    ),
+  );
   for (const name of ["vite.config.ts"])
     await copy(join(coreRoot, "apps/portal", name), join(target, name));
   const components = parse(

@@ -83,3 +83,7 @@ Finish with the installation directory, local/deployed URL as applicable, profil
 Read root `AGENTS.md`, `CONTEXT.md`, and `SPEC.md`, then relevant ADRs and `TESTING.md`. Run `pnpm install --frozen-lockfile`, `pnpm dev:portal`, or `pnpm dev:docs`. The repository uses a monorepo; generated installations are flat apps and do not need its workspace layout.
 
 After source changes, synchronize the owned-app template with `pnpm template:sync` and run the [README checks](../README.md#work-on-this-repository). UI work must keep the shadcn theme and Geist, use shared primitives, and pass the configured shadcn lint rules. Read [UI maintenance](shadcn-refresh-0.2.1.md) when refreshing components or changing lint contracts.
+
+## Connected social features
+
+For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, configure the scheduled trigger, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.

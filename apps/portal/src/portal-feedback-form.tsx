@@ -1,3 +1,4 @@
+import { ImageAttachments } from "./components/image-attachments";
 import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { Post, PostType, SubmittedPost } from "@feedbax/feedback";
 import { useForm } from "@tanstack/react-form";
@@ -120,6 +121,10 @@ export function PortalFeedbackForm({
 }) {
   const [draft, setDraft] = useState<StoredDraft | undefined>(initialDraft);
   const [pending, setPending] = useState(false);
+  const [images, setImages] = useState<
+    import("@feedbax/feedback").ImageAttachment[]
+  >([]);
+  const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string>();
   const [confirmingWithdrawal, setConfirmingWithdrawal] = useState(false);
   const turnstileToken = useRef<string | undefined>(undefined);
@@ -161,6 +166,9 @@ export function PortalFeedbackForm({
       const result = await mutations.submitPost({
         data: {
           ...values,
+          ...(images.length
+            ? { imageIds: images.map((image) => image.id) }
+            : {}),
           ...(turnstileToken.current
             ? { turnstileToken: turnstileToken.current }
             : {}),
@@ -408,9 +416,16 @@ export function PortalFeedbackForm({
               );
             }}
           />
+          {!draft ? (
+            <ImageAttachments
+              value={images}
+              onChange={setImages}
+              onUploadingChange={setUploading}
+            />
+          ) : null}
         </FieldGroup>
         <div className="feedback-submit-actions">
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || uploading}>
             {pending ? "Working…" : draft ? "Save changes" : "Create Post"}
           </Button>
           {display === "overlay" ? (
@@ -419,7 +434,7 @@ export function PortalFeedbackForm({
               variant="ghost"
               className="feedback-cancel"
               onClick={onCancel}
-              disabled={pending}
+              disabled={pending || uploading}
             >
               Cancel
             </Button>
@@ -430,7 +445,7 @@ export function PortalFeedbackForm({
               variant="destructive"
               className="feedback-withdraw"
               onClick={() => setConfirmingWithdrawal(true)}
-              disabled={pending}
+              disabled={pending || uploading}
             >
               Withdraw draft
             </Button>

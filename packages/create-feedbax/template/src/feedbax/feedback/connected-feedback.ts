@@ -177,6 +177,13 @@ export function createConnectedFeedbackModule(
     replyToCommentThread: create,
     async listCommentThreads(input) {
       const page = await base.listCommentThreads(input);
+      const authors = await store.commentAuthors(
+        page.items.flatMap((thread) =>
+          thread.comments
+            .filter((comment) => comment.author.kind !== "product-team")
+            .map((comment) => comment.id),
+        ),
+      );
       return {
         ...page,
         items: await Promise.all(
@@ -188,8 +195,7 @@ export function createConnectedFeedbackModule(
                 author:
                   comment.author.kind === "product-team"
                     ? comment.author
-                    : ((await store.commentAuthor(comment.id)) ??
-                      comment.author),
+                    : (authors.get(comment.id) ?? comment.author),
               })),
             ),
           })),

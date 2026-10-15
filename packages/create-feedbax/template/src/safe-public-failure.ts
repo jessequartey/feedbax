@@ -1,6 +1,7 @@
 import {
   BrowserCapabilityAuthorizationError,
   VoteEligibilityError,
+  ImageAttachmentError,
 } from "@feedbax/feedback";
 
 export async function runSafePublicRead<Value>(
@@ -32,7 +33,8 @@ export async function runSafePortalMutation<Value>(
     if (
       error instanceof ActionablePortalFailure ||
       error instanceof BrowserCapabilityAuthorizationError ||
-      error instanceof VoteEligibilityError
+      error instanceof VoteEligibilityError ||
+      error instanceof ImageAttachmentError
     ) {
       throw error;
     }
