@@ -16,6 +16,8 @@ import {
 } from "@tanstack/react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import userEvent from "@testing-library/user-event";
+
 import { capabilitiesKey } from "./browser-post-state";
 import { readCapabilities } from "./browser-post-state";
 import { AuthorizedDraftPost } from "./authorized-draft-post";
@@ -143,11 +145,12 @@ it("confirms withdrawal, removes visible state, and cleans up authority", async 
   renderDraft(client);
 
   const actions = await screen.findByRole("button", { name: "Draft actions" });
-  fireEvent.click(actions);
-  fireEvent.click(
+  const user = userEvent.setup();
+  await user.click(actions);
+  await user.click(
     await screen.findByRole("menuitem", { name: "Withdraw draft" }),
   );
-  fireEvent.click(
+  await user.click(
     await screen.findByRole("button", { name: "Withdraw Draft Post" }),
   );
 
@@ -164,11 +167,12 @@ it("keeps the draft visible and reports a withdrawal failure", async () => {
   renderDraft();
 
   const actions = await screen.findByRole("button", { name: "Draft actions" });
-  fireEvent.click(actions);
-  fireEvent.click(
+  const user = userEvent.setup();
+  await user.click(actions);
+  await user.click(
     await screen.findByRole("menuitem", { name: "Withdraw draft" }),
   );
-  fireEvent.click(
+  await user.click(
     await screen.findByRole("button", { name: "Withdraw Draft Post" }),
   );
 
