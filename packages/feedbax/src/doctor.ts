@@ -95,7 +95,7 @@ export async function diagnoseInstallation({
           "FEEDBAX_DB",
           "--remote",
           "--command",
-          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_id, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0;",
+          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_slug, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0;",
         ],
         cwd,
       );

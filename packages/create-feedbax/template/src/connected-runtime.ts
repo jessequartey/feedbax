@@ -1,3 +1,5 @@
+import { ActionablePortalFailure } from "./safe-public-failure";
+import { VoteEligibilityError } from "@feedbax/feedback";
 import type { FeedbaxConfig } from "@feedbax/config";
 import type {
   ConnectedStore,
@@ -58,9 +60,10 @@ export function createConnectedRequestHandler(options: {
       const siteUrl = feedbax.product.siteUrl!;
       if (identity) {
         if (
+          url.pathname !== "/internal/identity/session" &&
           !(
             await env.PORTAL_SUBMISSIONS_RATE_LIMITER.limit({
-              key: `identity:${request.headers.get("CF-Connecting-IP") ?? "unknown"}`,
+              key: `identity:${url.pathname}:${request.headers.get("CF-Connecting-IP") ?? "unknown"}`,
             })
           ).success
         )
@@ -105,6 +108,7 @@ export function createConnectedRequestHandler(options: {
         return json(await store.voteState(slug, participant.subject));
       }
       const security = createPortalSubmissionSecurity({
+        turnstile: feedbax.turnstile,
         environment: env,
         rateLimitKey:
           request.headers.get("CF-Connecting-IP") ?? "unknown-participant-ip",
@@ -122,21 +126,32 @@ export function createConnectedRequestHandler(options: {
           })(await request.json()),
         );
       if (url.pathname === "/internal/comments" && request.method === "POST")
-        return createPortalCommentRequestHandler({
-          ...mutationOptions,
-          verifiedParticipant: participant,
-          commentsEnabled: feedbax.features.comments,
-        })(request);
+        return noStore(
+          createPortalCommentRequestHandler({
+            ...mutationOptions,
+            verifiedParticipant: participant,
+            commentsEnabled: feedbax.features.comments,
+          })(request),
+        );
       if (
         url.pathname === "/internal/comments" &&
         (request.method === "PATCH" || request.method === "DELETE")
       )
-        return createPortalCommentMutationRequestHandler({
-          ...mutationOptions,
-          commentsEnabled: feedbax.features.comments,
-        })(request);
+        return noStore(
+          createPortalCommentMutationRequestHandler({
+            ...mutationOptions,
+            commentsEnabled: feedbax.features.comments,
+          })(request),
+        );
       return json({ error: "Method not allowed." }, 405);
-    } catch {
+    } catch (error) {
+      if (error instanceof ActionablePortalFailure)
+        return json(
+          { error: error.message, code: error.code ?? "action_failed" },
+          error.code === "rate_limited" ? 429 : 400,
+        );
+      if (error instanceof VoteEligibilityError)
+        return json({ error: error.message, code: "ineligible_post" }, 400);
       return json(
         {
           error:
@@ -153,3 +168,9 @@ export const handleConnectedRequest = createConnectedRequestHandler({
   getStore: getConnectedStore,
   getFeedback: createConfiguredFeedbackModule,
 });
+
+async function noStore(response: Promise<Response>) {
+  const result = await response;
+  result.headers.set("Cache-Control", "no-store");
+  return result;
+}

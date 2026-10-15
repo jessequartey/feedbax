@@ -365,6 +365,32 @@ describe("command palette", () => {
     await waitFor(() => expect(history.location.pathname).toBe("/roadmap"));
   });
 
+  it("keeps previous search results visible while a new term is loading", async () => {
+    let finish: ((page: PublicPostPage) => void) | undefined;
+    renderShell("/", {
+      searchPosts: (term) =>
+        term === "keyboard"
+          ? Promise.resolve({ items: [palettePost()] })
+          : new Promise((resolve) => {
+              finish = resolve;
+            }),
+    });
+    await screen.findByRole("link", { name: "Feedback" });
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const input = await screen.findByPlaceholderText("Search feedback…");
+    fireEvent.change(input, { target: { value: "keyboard" } });
+    await screen.findByText("Keyboard-first search");
+    fireEvent.change(input, { target: { value: "next search" } });
+    await waitFor(() => expect(finish).toBeTypeOf("function"));
+    expect(screen.getByText("Keyboard-first search")).toBeTruthy();
+    finish?.({ items: [] });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Search status" }).textContent,
+      ).toBe("No Posts match this search."),
+    );
+  });
+
   it("shows an empty state when no Posts match", async () => {
     renderShell("/");
 

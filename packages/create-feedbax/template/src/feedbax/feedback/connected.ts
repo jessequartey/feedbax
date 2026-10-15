@@ -31,12 +31,12 @@ const sessions = sqliteTable("participant_sessions", {
 const votes = sqliteTable(
   "participant_votes",
   {
-    postId: text("post_id").notNull(),
+    postSlug: text("post_slug").notNull(),
     subject: text("subject")
       .notNull()
       .references(() => participants.subject),
   },
-  (t) => [primaryKey({ columns: [t.postId, t.subject] })],
+  (t) => [primaryKey({ columns: [t.postSlug, t.subject] })],
 );
 const attribution = sqliteTable("comment_attribution", {
   commentId: text("comment_id").primaryKey(),
@@ -104,28 +104,28 @@ export function createConnectedStore(binding: D1Database) {
     async logout(tokenHash: string) {
       await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
     },
-    async setVote(postId: string, subject: string, voted: boolean) {
+    async setVote(postSlug: string, subject: string, voted: boolean) {
       if (voted)
         await db
           .insert(votes)
-          .values({ postId, subject })
+          .values({ postSlug, subject })
           .onConflictDoNothing();
       else
         await db
           .delete(votes)
-          .where(and(eq(votes.postId, postId), eq(votes.subject, subject)));
+          .where(and(eq(votes.postSlug, postSlug), eq(votes.subject, subject)));
     },
-    async voteState(postId: string, subject?: string) {
+    async voteState(postSlug: string, subject?: string) {
       const [total, own] = await db.batch([
         db
           .select({ value: count() })
           .from(votes)
-          .where(eq(votes.postId, postId)),
+          .where(eq(votes.postSlug, postSlug)),
         db
           .select({ subject: votes.subject })
           .from(votes)
           .where(
-            and(eq(votes.postId, postId), eq(votes.subject, subject ?? "")),
+            and(eq(votes.postSlug, postSlug), eq(votes.subject, subject ?? "")),
           )
           .limit(1),
       ]);
@@ -135,10 +135,10 @@ export function createConnectedStore(binding: D1Database) {
       const result = new Map<string, number>();
       for (let offset = 0; offset < slugs.length; offset += 80) {
         const rows = await db
-          .select({ slug: votes.postId, total: count() })
+          .select({ slug: votes.postSlug, total: count() })
           .from(votes)
-          .where(inArray(votes.postId, slugs.slice(offset, offset + 80)))
-          .groupBy(votes.postId);
+          .where(inArray(votes.postSlug, slugs.slice(offset, offset + 80)))
+          .groupBy(votes.postSlug);
         for (const row of rows) result.set(row.slug, row.total);
       }
       return result;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { PublicPostPage } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
@@ -58,6 +58,7 @@ export function CommandPalette({
       (search) => searchPosts(search.search ?? ""),
     ),
     enabled: open && deferredTerm.trim().length > 0,
+    placeholderData: keepPreviousData,
   });
   const posts = query.data?.pages.flatMap((page) => page.items) ?? [];
   const hasTerm = term.trim().length > 0;
@@ -155,13 +156,17 @@ export function CommandPalette({
           {searching ? (
             <div
               role="status"
-              className="flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground"
+              className={
+                posts.length
+                  ? "flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+                  : "flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground"
+              }
             >
               <Spinner aria-hidden="true" />
               Searching Posts…
             </div>
           ) : null}
-          {hasTerm && !searching && !query.isError && posts.length > 0 ? (
+          {hasTerm && !query.isError && posts.length > 0 ? (
             <CommandGroup heading="Posts">
               {posts.map((post) => (
                 <CommandItem

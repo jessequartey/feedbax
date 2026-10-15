@@ -10,6 +10,7 @@ interface PortalSubmissionEnvironment {
 }
 
 interface PortalSubmissionSecurityOptions {
+  turnstile?: FeedbaxConfig["turnstile"];
   environment: PortalSubmissionEnvironment;
   rateLimitKey: string;
 }
@@ -22,11 +23,13 @@ interface TurnstileWarningOptions {
 }
 
 export function createPortalSubmissionSecurity({
+  turnstile = feedbax.turnstile,
   environment,
   rateLimitKey,
 }: PortalSubmissionSecurityOptions) {
   const turnstileSecretKey = configuredTurnstileSecret(
     environment.TURNSTILE_SECRET_KEY,
+    turnstile,
   );
 
   return {

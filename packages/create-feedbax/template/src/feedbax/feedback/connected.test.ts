@@ -8,7 +8,7 @@ let runtime: Miniflare | undefined;
 afterEach(async () => {
   await runtime?.dispose();
 });
-it("persists one Vote per verified Participant across concurrent retries and browsers", async () => {
+async function migratedDatabase() {
   runtime = new Miniflare({
     modules: true,
     script: "export default {fetch(){return new Response('ok')}}",
@@ -24,6 +24,11 @@ it("persists one Vote per verified Participant across concurrent retries and bro
       "utf8",
     ),
   );
+  return binding;
+}
+
+it("persists one Vote per verified Participant across concurrent retries and browsers", async () => {
+  const binding = await migratedDatabase();
   const store = createConnectedStore(binding);
   await store.acceptIdentity({
     subject: "alice",
@@ -52,21 +57,7 @@ it("persists one Vote per verified Participant across concurrent retries and bro
   });
 });
 it("rejects replayed handoffs without replacing an existing Participant or creating a session", async () => {
-  runtime = new Miniflare({
-    modules: true,
-    script: "export default {fetch(){return new Response('ok')}}",
-    compatibilityDate: "2026-07-30",
-    d1Databases: ["DB"],
-  });
-  const binding = await runtime.getD1Database("DB");
-  await binding.exec(
-    await readFile(
-      existsSync("apps/portal/migrations/0001_connected.sql")
-        ? "apps/portal/migrations/0001_connected.sql"
-        : "migrations/0001_connected.sql",
-      "utf8",
-    ),
-  );
+  const binding = await migratedDatabase();
   const store = createConnectedStore(binding);
   const input = {
     subject: "alice",
@@ -94,21 +85,7 @@ it("rejects replayed handoffs without replacing an existing Participant or creat
 });
 
 it("ranks by verified Votes and attributes only Comments with identity evidence", async () => {
-  runtime = new Miniflare({
-    modules: true,
-    script: "export default {fetch(){return new Response('ok')}}",
-    compatibilityDate: "2026-07-30",
-    d1Databases: ["DB"],
-  });
-  const binding = await runtime.getD1Database("DB");
-  await binding.exec(
-    await readFile(
-      existsSync("apps/portal/migrations/0001_connected.sql")
-        ? "apps/portal/migrations/0001_connected.sql"
-        : "migrations/0001_connected.sql",
-      "utf8",
-    ),
-  );
+  const binding = await migratedDatabase();
   const store = createConnectedStore(binding);
   const alice = { subject: "alice", displayName: "Alice" };
   await store.acceptIdentity({
@@ -244,5 +221,45 @@ it("ranks by verified Votes and attributes only Comments with identity evidence"
   });
   await expect(
     other.editComment({ commentId: comment.id, body: "Impersonated" }),
+  ).rejects.toThrow();
+});
+
+it("keeps Top pagination at 25 Posts and binds cursors to their filters", async () => {
+  const store = createConnectedStore(await migratedDatabase());
+  const { createFeedbackModule, createConnectedFeedbackModule } =
+    await import("./index");
+  const base = createFeedbackModule({
+    initialItems: Array.from({ length: 26 }, (_, i) => ({
+      id: `id-${i}`,
+      slug: `post-${i}`,
+      title: `Post ${i}`,
+      description: "Description",
+      type: "Feature Request",
+      status: "Planned",
+      published: true,
+      createdAt: new Date(i * 1000),
+      updatedAt: new Date(i * 1000),
+      voteCount: 0,
+    })),
+  });
+  const feedback = createConnectedFeedbackModule(base, store);
+  const first = await feedback.listPublicPosts({ sort: "top" });
+  expect(first.items).toHaveLength(25);
+  expect(first.nextCursor).toBeTruthy();
+  const second = await feedback.listPublicPosts({
+    sort: "top",
+    cursor: first.nextCursor,
+  });
+  expect(second.items).toHaveLength(1);
+  expect(second.nextCursor).toBeUndefined();
+  expect(
+    new Set([...first.items, ...second.items].map((post) => post.slug)).size,
+  ).toBe(26);
+  await expect(
+    feedback.listPublicPosts({
+      sort: "top",
+      type: "Bug Report",
+      cursor: first.nextCursor,
+    }),
   ).rejects.toThrow();
 });

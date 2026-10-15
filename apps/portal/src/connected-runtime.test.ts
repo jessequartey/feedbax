@@ -1,3 +1,4 @@
+import { issueParticipationPass } from "./portal-voting";
 import { expect, it } from "vitest";
 import { Miniflare } from "miniflare";
 import { existsSync } from "node:fs";
@@ -134,6 +135,7 @@ it("requires a valid session and same-origin mutations, and ignores browser-supp
       }),
     );
     expect(comment?.status).toBe(200);
+    expect(comment?.headers.get("cache-control")).toBe("no-store");
     const result = await comment?.json();
     expect(result.comment.author).toEqual({
       kind: "participant",
@@ -163,6 +165,56 @@ it("requires a valid session and same-origin mutations, and ignores browser-supp
         )
       )?.status,
     ).not.toBe(200);
+    const verified = createConnectedRequestHandler({
+      ...options,
+      config: {
+        ...config,
+        turnstile: { enabled: true, siteKey: "test-site-key" },
+      },
+      environment: {
+        ...options.environment,
+        TURNSTILE_SECRET_KEY: "test-secret",
+      },
+    });
+    const expiredPass = issueParticipationPass(
+      options.environment.PARTICIPATION_SIGNING_SECRET,
+      Date.now() - 31 * 60 * 1000,
+    );
+    const expiredResponse = await verified(
+      request("/internal/votes", {
+        slug: "post",
+        intention: "add",
+        participationPass: expiredPass,
+      }),
+    );
+    expect(expiredResponse?.status).toBe(400);
+    expect(await expiredResponse?.json()).toMatchObject({
+      code: "verification_required",
+    });
+    const limited = createConnectedRequestHandler({
+      ...options,
+      environment: {
+        ...options.environment,
+        IDENTITY_HANDOFF_SECRET: "test-identity-secret-at-least-32-characters",
+        PORTAL_SUBMISSIONS_RATE_LIMITER: {
+          limit: async () => ({ success: false }),
+        },
+      },
+    });
+    const limitResponse = await limited(
+      request("/internal/votes", { slug: "post", intention: "add" }),
+    );
+    expect(limitResponse?.status).toBe(429);
+    expect(await limitResponse?.json()).toMatchObject({ code: "rate_limited" });
+    const sessionRead = await limited(
+      new Request("https://feedback.example/internal/identity/session", {
+        headers: { Cookie: "__Host-feedbax-session=opaque-token" },
+      }),
+    );
+    expect(sessionRead?.status).toBe(200);
+    expect(await sessionRead?.json()).toEqual({
+      participant: { displayName: "Alice" },
+    });
     const unavailable = createConnectedRequestHandler({
       ...options,
       getStore: () => {

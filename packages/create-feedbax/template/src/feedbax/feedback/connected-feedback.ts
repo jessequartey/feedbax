@@ -125,11 +125,11 @@ export function createConnectedFeedbackModule(
           b.slug.localeCompare(a.slug),
       );
       return {
-        items: all.slice(offset, offset + 20),
-        ...(offset + 20 < all.length
+        items: all.slice(offset, offset + 25),
+        ...(offset + 25 < all.length
           ? {
               nextCursor: Buffer.from(
-                JSON.stringify({ query: fingerprint, offset: offset + 20 }),
+                JSON.stringify({ query: fingerprint, offset: offset + 25 }),
               ).toString("base64url"),
             }
           : {}),
