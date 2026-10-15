@@ -89,3 +89,5 @@ After source changes, synchronize the owned-app template with `pnpm template:syn
 ## Connected social features
 
 For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, including the Follow baseline migration, configure the timer and dedicated processing queue for small mode, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.
+
+For an existing customized 0.2.1 Installation, use the [source upgrade guide](../apps/docs/content/docs/guides/upgrading.mdx) rather than scaffolding over it. Invoke the matching CLI outside the app manifest, inspect the private three-way diff, and keep source recovery separate from provider/D1/R2 backups and deployment. Full archive/isolated restore/provider migration remains pending acceptance.

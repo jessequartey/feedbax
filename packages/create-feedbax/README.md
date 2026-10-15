@@ -21,3 +21,5 @@ Observed History is an explicit `history: true` configuration with D1 and a time
 Documentation: [feedbax.dev/docs](https://feedbax.dev/docs). Core is Apache-2.0.
 
 [Integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) covers product-server intake, credential locations and production verification.
+
+Existing customized Installations use the separate development CLI [source upgrade flow](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/upgrading.mdx); do not generate a fresh template over an existing app. Full data restore/migration acceptance remains pending.

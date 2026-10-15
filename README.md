@@ -79,6 +79,8 @@ npx create-feedbax@0.2.1 my-feedback --template-only
 
 Template-only copies source without external provisioning or dependency installation. Follow [agent setup](docs/agent-setup.md), supply actual mappings/credentials, and verify the result. Test fixtures are not live configuration. Guided provisioning has no `--yes` flag.
 
+For a customized released Installation, follow the development [source upgrade guide](apps/docs/content/docs/guides/upgrading.mdx). Review its three-way diff before applying; the source journal supports resume and guarded rollback. Full data archive/restore and provider migration remain separate pending work.
+
 ## Work on this repository
 
 ```sh
@@ -120,4 +122,4 @@ pnpm deploy:docs:dry-run
 
 [Context](CONTEXT.md) · [Specification](SPEC.md) · [Testing](TESTING.md) · [Architecture decisions](docs/adr/) · [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md).
 
-Core is [Apache-2.0](LICENSE). New Team Member tools are deferred for 0.2.2; native provider workflow remains available. Upgrade/archive/restore/migration readiness is tracked in the acceptance record rather than presented as an available command before implementation.
+Core is [Apache-2.0](LICENSE). New Team Member tools are deferred for 0.2.2; native provider workflow remains available. Source upgrade commands are available in development source; full archive/restore/migration readiness remains tracked in the acceptance record.

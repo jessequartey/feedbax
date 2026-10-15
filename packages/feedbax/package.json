@@ -14,7 +14,7 @@
     "vitest": "5.0.4"
   },
   "scripts": {
-    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --external:esbuild --outfile=dist/cli.js --external:jsonc-parser",
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --external:esbuild --outfile=dist/cli.js --external:jsonc-parser && node scripts/package-upgrade-template.mjs",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "prepack": "pnpm build"

@@ -195,11 +195,11 @@ export async function assembleFlatTemplate(
   );
   await writeFile(
     join(target, ".gitignore.template"),
-    ".dev.vars\n.env*\ndist/\n.wrangler/\n*.log\nnode_modules/\n",
+    ".dev.vars\n.env*\n.feedbax/\ndist/\n.wrangler/\n*.log\nnode_modules/\n",
   );
   await writeFile(
     join(target, ".npmignore.template"),
-    ".dev.vars\n.env*\ndist/\n.wrangler/\n*.log\n",
+    ".dev.vars\n.env*\n.feedbax/\ndist/\n.wrangler/\n*.log\n",
   );
   await writeFile(
     join(target, ".prettierignore.template"),

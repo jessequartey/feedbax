@@ -39,3 +39,5 @@ The submission key authorizes service intake. A supplied name/email does not est
 6. If enabled, verify real email delivery/consent and private image authorization. Build success and local tests alone do not establish production authentication, sender delivery or storage privacy.
 
 Keep a protected record of deployment configuration and credentials. Use [troubleshooting](../apps/docs/content/docs/operations/troubleshooting.mdx) for pairing, publication and retry failures. No new Team Member login, moderation command or manual recovery tool is introduced in this scope; Deployer lifecycle tooling remains separately tracked.
+
+For an existing customized 0.2.1 Installation, follow the [source upgrade stages](../apps/docs/content/docs/guides/upgrading.mdx). Preview the private diff before applying and keep provider/D1/R2 backups separate from the source journal.
