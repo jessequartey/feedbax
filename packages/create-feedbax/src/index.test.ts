@@ -390,58 +390,85 @@ describe("creator capability choices", () => {
   });
 });
 
-it("generates an independent Worker target, typed public settings, and private secrets", async () => {
-  const parent = await mkdtemp(join(tmpdir(), "feedbax-guided-success-"));
-  const destination = join(parent, "acme");
-  try {
-    const result = await provisionGuidedInstallation({
-      destination,
-      workerName: "acme-two",
-      product: {
-        name: "Acme",
-        description: "Acme feedback",
-        siteUrl: "https://acme-two.example.workers.dev",
-      },
-      themePreset: "lyra-neutral",
-      features: { voting: true, comments: false, changelog: false },
-      feedbackSelection: {
-        kind: "existing",
-        configuration: {
-          databaseId: "feedback-database",
-          dataSourceId: "feedback-source",
-          propertyIds: feedbackPropertyIds,
+it.each([false, true])(
+  "generates an independent Worker target, public settings, and private secrets (Connected: %s)",
+  async (connectedEnabled) => {
+    const parent = await mkdtemp(join(tmpdir(), "feedbax-guided-success-"));
+    const destination = join(parent, "acme");
+    try {
+      const result = await provisionGuidedInstallation({
+        destination,
+        workerName: "acme-two",
+        ...(connectedEnabled
+          ? {
+              connected: {
+                issuer: "https://app.example",
+                loginUrl: "https://app.example/login",
+                databaseId: "11111111-2222-3333-4444-555555555555",
+                databaseName: "acme-connected",
+                handoffSecret: "test-identity-secret-at-least-32-characters",
+              },
+            }
+          : {}),
+        product: {
+          name: "Acme",
+          description: "Acme feedback",
+          siteUrl: "https://acme-two.example.workers.dev",
         },
-      },
-      notionToken: "test-notion-secret",
-      turnstile: {
-        siteKey: "test-public-site-key",
-        secretKey: "test-private-turnstile-secret",
-      },
-      preview: async () => true,
-      request: vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(Response.json(feedbackDataSource())),
-    });
-    const configuration = await readFile(
-      join(destination, "src/feedbax.ts"),
-      "utf8",
-    );
-    const secrets = await readFile(join(destination, ".dev.vars"), "utf8");
-    expect(configuration).toContain("test-public-site-key");
-    expect(configuration).toContain('"enabled": true');
-    expect(configuration).not.toContain("test-notion-secret");
-    expect(configuration).not.toContain("test-private-turnstile-secret");
-    expect(configuration).not.toContain(result.apiKey);
-    expect(secrets).toContain("test-notion-secret");
-    expect(secrets).not.toContain(result.apiKey);
-    expect(
-      JSON.parse(await readFile(join(destination, "wrangler.jsonc"), "utf8"))
-        .name,
-    ).toBe("acme-two");
-  } finally {
-    await rm(parent, { recursive: true, force: true });
-  }
-});
+        themePreset: "lyra-neutral",
+        features: { voting: true, comments: false, changelog: false },
+        feedbackSelection: {
+          kind: "existing",
+          configuration: {
+            databaseId: "feedback-database",
+            dataSourceId: "feedback-source",
+            propertyIds: feedbackPropertyIds,
+          },
+        },
+        notionToken: "test-notion-secret",
+        turnstile: {
+          siteKey: "test-public-site-key",
+          secretKey: "test-private-turnstile-secret",
+        },
+        preview: async () => true,
+        request: vi
+          .fn<typeof fetch>()
+          .mockResolvedValue(Response.json(feedbackDataSource())),
+      });
+      const configuration = await readFile(
+        join(destination, "src/feedbax.ts"),
+        "utf8",
+      );
+      const secrets = await readFile(join(destination, ".dev.vars"), "utf8");
+      if (connectedEnabled) {
+        expect(configuration).toContain('"connected"');
+        expect(configuration).not.toContain(
+          "test-identity-secret-at-least-32-characters",
+        );
+        expect(secrets).toContain(
+          "test-identity-secret-at-least-32-characters",
+        );
+        const wrangler = JSON.parse(
+          await readFile(join(destination, "wrangler.jsonc"), "utf8"),
+        );
+        expect(wrangler.d1_databases[0].binding).toBe("FEEDBAX_DB");
+      }
+      expect(configuration).toContain("test-public-site-key");
+      expect(configuration).toContain('"enabled": true');
+      expect(configuration).not.toContain("test-notion-secret");
+      expect(configuration).not.toContain("test-private-turnstile-secret");
+      expect(configuration).not.toContain(result.apiKey);
+      expect(secrets).toContain("test-notion-secret");
+      expect(secrets).not.toContain(result.apiKey);
+      expect(
+        JSON.parse(await readFile(join(destination, "wrangler.jsonc"), "utf8"))
+          .name,
+      ).toBe("acme-two");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
 
 it("refuses a non-empty destination before any Notion request", async () => {
   const destination = await mkdtemp(join(tmpdir(), "feedbax-nonempty-"));

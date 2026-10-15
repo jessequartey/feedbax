@@ -162,7 +162,7 @@ export interface PublicPostPage {
 }
 
 export type CommentAuthor =
-  | { kind: "participant"; displayName: string }
+  | { kind: "participant"; displayName: string; verified?: boolean }
   | { kind: "product-team"; displayName: "Product Team" };
 
 export interface Comment {
@@ -940,3 +940,17 @@ function isPublicPostRoadmapItem<Item extends Post>(
       item.status === "Shipped")
   );
 }
+
+export {
+  createConnectedStore,
+  type ConnectedStore,
+  type ConnectedDatabase,
+  type VerifiedParticipant,
+} from "./connected";
+export {
+  signIdentityHandoff,
+  verifyIdentityHandoff,
+  type IdentityHandoff,
+} from "./identity-handoff";
+
+export { createConnectedFeedbackModule } from "./connected-feedback";

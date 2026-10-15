@@ -154,13 +154,7 @@
 
 body {
   margin: 0;
-  background:
-    linear-gradient(
-      color-mix(in srgb, var(--foreground) 3.5%, transparent) 1px,
-      transparent 1px
-    ),
-    var(--portal-paper);
-  background-size: 100% 4rem;
+  background: var(--portal-paper);
   color: var(--portal-ink);
 }
 
@@ -179,6 +173,14 @@ input:focus-visible,
 textarea:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--portal-accent) 65%, transparent);
   outline-offset: 3px;
+}
+
+input[data-slot="command-input"]:focus-visible {
+  outline: none;
+}
+
+[data-slot="command-input-wrapper"]:focus-within {
+  box-shadow: inset 0 -1px 0 var(--ring);
 }
 
 .vote-toggle-button {
@@ -1041,47 +1043,8 @@ textarea:focus-visible {
   padding-top: 3rem;
 }
 
-.feedback-feed-skeleton .animate-pulse,
 .post-detail-skeleton .animate-pulse {
   border-radius: 0;
-}
-
-.feedback-skeleton-heading {
-  width: min(34rem, 80vw);
-  height: clamp(2.5rem, 7vw, 5.5rem);
-}
-
-.feedback-skeleton-deck {
-  width: min(32rem, 70vw);
-  height: 1.25rem;
-  margin-top: 1.25rem;
-}
-
-.feedback-skeleton-control {
-  width: 9rem;
-  height: 2.75rem;
-}
-
-.feedback-skeleton-section-heading,
-.feedback-skeleton-meta {
-  width: 8rem;
-  height: 0.75rem;
-}
-
-.feedback-skeleton-row {
-  display: grid;
-  gap: 0.8rem;
-  padding: clamp(1.5rem, 3vw, 2.4rem) 0;
-}
-
-.feedback-skeleton-title {
-  width: min(30rem, 70vw);
-  height: 2rem;
-}
-
-.feedback-skeleton-copy {
-  width: min(42rem, 80vw);
-  height: 1rem;
 }
 
 .post-detail-skeleton-back {
@@ -1882,18 +1845,7 @@ textarea:focus-visible {
 }
 
 .portal-loading {
-  display: flex;
-  min-height: calc(100svh - 4.5rem);
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  color: var(--muted-foreground);
-  font-size: 0.85rem;
-}
-
-.portal-loading svg {
-  width: 1.1rem;
-  animation: spin 900ms linear infinite;
+  width: 100%;
 }
 
 @keyframes page-in {

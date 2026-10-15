@@ -1,3 +1,4 @@
+import { handleConnectedRequest } from "./connected-runtime";
 import { configuredTurnstileSecret } from "./turnstile-configuration";
 import { createPortalServerEntry } from "./portal-server-entry";
 import { createConfiguredTrustedFeedbackHandler } from "./trusted-feedback-runtime";
@@ -14,6 +15,7 @@ import {
 } from "./portal-comments";
 
 export default createPortalServerEntry({
+  connectedHandler: handleConnectedRequest,
   commentHandler: (request) => {
     const turnstileSecret = configuredTurnstileSecret(env.TURNSTILE_SECRET_KEY);
     return createPortalCommentRequestHandler({

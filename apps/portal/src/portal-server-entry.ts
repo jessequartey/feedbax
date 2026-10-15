@@ -8,12 +8,14 @@ import {
 } from "./public-cache-policy";
 
 export function createPortalServerEntry({
+  connectedHandler,
   trustedFeedbackHandler,
   voteHandler,
   commentHandler,
   commentMutationHandler,
   applicationHandler = startHandler.fetch,
 }: {
+  connectedHandler?: (request: Request) => Promise<Response | undefined>;
   trustedFeedbackHandler: (request: Request) => Promise<Response>;
   voteHandler?: (request: Request) => Promise<Response>;
   commentHandler?: (request: Request) => Promise<Response>;
@@ -23,6 +25,8 @@ export function createPortalServerEntry({
   return createServerEntry({
     async fetch(request, options) {
       const url = new URL(request.url);
+      const connectedResponse = await connectedHandler?.(request);
+      if (connectedResponse) return connectedResponse;
       if (request.method === "GET" && url.pathname === "/health") {
         return Response.json(
           { status: "ok" },

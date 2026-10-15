@@ -3,18 +3,22 @@ title: Participation guarantees
 description: The honest identity, voting, and Comments guarantees of the Notion-only Profile.
 ---
 
-## What Feedbax provides
+## Notion-only Profile
 
 - A browser-held Device Profile for continuity on one browser.
 - Best-effort duplicate-vote resistance within that profile.
 - Public Comments with displayed participant names.
 - Server validation and configurable mutation rate limits.
 
-## What it does not provide
+## Notion-only limitations
 
 - Verified human identity.
 - Cross-device account continuity.
 - One-person-one-vote enforcement.
 - Proof that a displayed Comment author is who they claim to be.
 
-Verified identity, reliable unique voting, following, notifications, and Participant media belong to the planned Connected Profile. They are outside the supported 0.2.0 Notion-only Profile.
+## Connected Profile in 0.2.1
+
+The optional [Connected Profile](/docs/guides/connected-profile) adds identity asserted by your existing application, D1-backed unique Votes per application identity, cross-browser Vote state, and verified attribution for new native Notion Comments. Historical anonymous counts and Comments do not become verified. Verified application identity is not legal identity or one-account-per-human enforcement.
+
+Following, notifications, and Participant media remain deferred. Notion-only installations retain the limitations above.

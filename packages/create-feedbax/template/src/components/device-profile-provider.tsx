@@ -1,3 +1,4 @@
+import { ConnectedIdentityProvider } from "./connected-identity-provider";
 import {
   createContext,
   useContext,
@@ -101,7 +102,7 @@ export function DeviceProfileProvider({ children }: { children: ReactNode }) {
 
   return (
     <DeviceProfileContext.Provider value={value}>
-      {children}
+      <ConnectedIdentityProvider>{children}</ConnectedIdentityProvider>
       {setupOpen ? (
         <ProfileSetupDialog
           initialProfile={profile}

@@ -33,6 +33,7 @@ export async function provisionGuidedInstallation({
   themePreset,
   workerName,
   commentProbePageId,
+  connected,
   features,
   feedbackSelection,
   changelogSelection,
@@ -46,6 +47,13 @@ export async function provisionGuidedInstallation({
   themePreset: string;
   workerName?: string;
   commentProbePageId?: string;
+  connected?: {
+    issuer: string;
+    loginUrl: string;
+    databaseId: string;
+    databaseName: string;
+    handoffSecret: string;
+  };
   features: PortalFeatures;
   feedbackSelection: FeedbackStorageSelection;
   changelogSelection?: ChangelogStorageSelection;
@@ -64,6 +72,26 @@ export async function provisionGuidedInstallation({
   }
   if (product.siteUrl && new URL(product.siteUrl).protocol !== "https:")
     throw new Error("product.siteUrl must be an HTTPS URL.");
+  if (connected) {
+    if (
+      !product.siteUrl ||
+      connected.handoffSecret.length < 32 ||
+      !/^[0-9a-f-]{36}$/i.test(connected.databaseId) ||
+      !connected.databaseName.trim()
+    )
+      throw new Error(
+        "Connected setup requires a public site URL, dedicated D1 identifiers, and a handoff secret of at least 32 characters.",
+      );
+    for (const url of [connected.issuer, connected.loginUrl])
+      if (
+        new URL(url).protocol !== "https:" ||
+        new URL(url).username ||
+        new URL(url).password
+      )
+        throw new Error(
+          "Connected identity URLs must use HTTPS without credentials.",
+        );
+  }
   const targetName =
     workerName ??
     basename(destination)
@@ -134,7 +162,26 @@ export async function provisionGuidedInstallation({
   const wrangler = JSON.parse(await readFile(wranglerPath, "utf8"));
   await writeFile(
     wranglerPath,
-    JSON.stringify({ ...wrangler, name: targetName }, null, 2) + "\n",
+    JSON.stringify(
+      {
+        ...wrangler,
+        name: targetName,
+        ...(connected
+          ? {
+              d1_databases: [
+                {
+                  binding: "FEEDBAX_DB",
+                  database_id: connected.databaseId,
+                  database_name: connected.databaseName,
+                  migrations_dir: "migrations",
+                },
+              ],
+            }
+          : {}),
+      },
+      null,
+      2,
+    ) + "\n",
   );
   const apiKey = randomBytes(32).toString("base64url");
   const signingSecret = randomBytes(32).toString("base64url");
@@ -147,6 +194,7 @@ export async function provisionGuidedInstallation({
       .update(apiKey)
       .digest("base64url"),
     PARTICIPATION_SIGNING_SECRET: signingSecret,
+    ...(connected ? { IDENTITY_HANDOFF_SECRET: connected.handoffSecret } : {}),
     FEEDBAX_VOTING_ENABLED: String(features.voting),
     FEEDBAX_COMMENTS_ENABLED: String(features.comments),
     FEEDBAX_CHANGELOG_ENABLED: String(features.changelog),
@@ -174,6 +222,11 @@ export async function provisionGuidedInstallation({
   const configuration = defineFeedbax({
     product: { ...product, logo: "/feedbax-mark.svg" },
     theme: { preset: themePreset },
+    ...(connected
+      ? {
+          connected: { issuer: connected.issuer, loginUrl: connected.loginUrl },
+        }
+      : {}),
     notion: {
       databaseId: feedback.databaseId,
       dataSourceId: feedback.dataSourceId,

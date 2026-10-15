@@ -16,6 +16,14 @@ _Avoid_: Admin, staff user
 A product user who submits feedback or participates through voting, commenting, or following updates.
 _Avoid_: End user, customer, visitor
 
+**Verified Participant**:
+A Participant whose identity is asserted by a Product Team’s trusted application. Verification establishes continuity of that application identity, not legal identity or one account per human.
+_Avoid_: Verified Device Profile, verified email, anonymous identity
+
+**Identity Handoff**:
+A Product Team application’s assertion that an authenticated Participant may participate in its Feedbax Installation under a stable identity.
+_Avoid_: Device Profile, Browser Capability
+
 **Deployer**:
 The technical person who installs and configures Feedbax for a Product Team. A Deployer may also be a Team Member.
 _Avoid_: Installer, operator

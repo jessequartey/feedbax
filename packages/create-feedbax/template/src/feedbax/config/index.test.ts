@@ -109,3 +109,31 @@ it.each(["/portal", "//example.com", "http://example.com"])(
     ).toThrow("product.siteUrl must be an HTTPS URL");
   },
 );
+
+it("keeps Connected Profile opt-in and rejects secrets and unsafe handoff configuration", () => {
+  const connected = {
+    issuer: "https://app.example.com",
+    loginUrl: "https://app.example.com/login",
+  };
+  expect(defineFeedbax({ ...input, connected }).connected).toEqual(connected);
+  expect(defineFeedbax(input).connected).toBeUndefined();
+  expect(() =>
+    defineFeedbax({
+      ...input,
+      product: { ...input.product, siteUrl: undefined },
+      connected,
+    }),
+  ).toThrow("siteUrl");
+  expect(() =>
+    defineFeedbax({
+      ...input,
+      connected: { ...connected, loginUrl: "http://app.example.com/login" },
+    }),
+  ).toThrow("HTTPS");
+  expect(() =>
+    defineFeedbax({
+      ...input,
+      connected: { ...connected, secret: "never-public" },
+    } as unknown as FeedbaxConfig),
+  ).toThrow("Unknown connected key");
+});

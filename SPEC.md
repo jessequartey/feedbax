@@ -41,7 +41,7 @@ The Connected Profile is a capability distinction, not a paid or enterprise tier
 
 ## Version 0.2.0 replacement release
 
-The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile. Final `0.2.0` follows only after the generated portal, CLI, documentation, and replacement guidance are ready. The working proof should reach prospective design partners before work begins on the Connected Profile.
+The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile. Final `0.2.0` follows only after the generated portal, CLI, documentation, and replacement guidance are ready. The working proof has shipped. As of 2026-10-15, the owner is running adoption in parallel with the approved 0.2.1 Connected Profile foundation.
 
 ### Included
 
@@ -75,6 +75,10 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 - Linear, Jira, GitHub, and Slack connectors
 - Duplicate detection and AI
 - Billing and enterprise features
+
+## Version 0.2.1 Connected Profile foundation
+
+The next release adds verified Participant identity through signed handoff from the Product Team’s existing application, D1 operational state managed through Drizzle, reliable unique voting, and verified Comment attribution. The Notion-only Profile remains the default and preserves its existing behavior. Following, notifications, Participant media, hosted billing, and additional deployment targets remain out of scope. See `docs/version-0.2.1-plan.md`. Adoption and custom domains are owner-led parallel work, not implementation prerequisites.
 
 ## Feedback model
 
@@ -247,7 +251,7 @@ Implementation proceeds in this order:
 3. Verify submission, moderation, public rendering, Browser Capability editing, and Cloudflare deployment.
 4. Turn the proven setup and deployment steps into the CLI.
 5. Add the documentation application around the stable workflow.
-6. Build the Connected Profile after design-partner learning.
+6. Build the 0.2.1 Connected Profile foundation while the owner runs design-partner learning in parallel.
 7. Create hosted or proprietary code only after adoption justifies it.
 
 Connector folders are created only when an approved connector has implementation work; empty aspirational packages are excluded.

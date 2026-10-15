@@ -77,7 +77,7 @@ async function deploy() {
   }
   const config = await readWranglerConfiguration(process.cwd());
   console.log(
-    `Deployment target:\nAccount: ${config.account_id ?? "Wrangler default (shown by wrangler whoami)"}\nWorker: ${config.name}\nHostnames: ${config.routes?.map((route) => (typeof route === "string" ? route : route.pattern)).join(", ") || "workers.dev"}\nSecrets: NOTION_TOKEN, FEEDBAX_API_KEY_HASH, PARTICIPATION_SIGNING_SECRET, and enabled Turnstile secret. Values are never printed.`,
+    `Deployment target:\nAccount: ${config.account_id ?? "Wrangler default (shown by wrangler whoami)"}\nWorker: ${config.name}\nHostnames: ${config.routes?.map((route) => (typeof route === "string" ? route : route.pattern)).join(", ") || "workers.dev"}\nSecrets: NOTION_TOKEN, FEEDBAX_API_KEY_HASH, PARTICIPATION_SIGNING_SECRET, and enabled Connected Profile/Turnstile secrets. Values are never printed.`,
   );
   if (!flags.includes("--yes")) {
     const terminal = createInterface({
@@ -104,6 +104,7 @@ async function deploy() {
       "NOTION_TOKEN",
       "FEEDBAX_API_KEY_HASH",
       "PARTICIPATION_SIGNING_SECRET",
+      "IDENTITY_HANDOFF_SECRET",
       "TURNSTILE_SECRET_KEY",
     ].flatMap((name) => (env[name] ? [[name, env[name]]] : [])),
   );

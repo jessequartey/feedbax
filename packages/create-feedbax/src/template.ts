@@ -28,6 +28,14 @@ export async function assembleFlatTemplate(
   await copy(join(coreRoot, "apps/portal/src"), join(target, "src"));
   await copy(join(coreRoot, "apps/portal/public"), join(target, "public"));
   await copy(
+    join(coreRoot, "apps/portal/migrations"),
+    join(target, "migrations"),
+  );
+  await copy(
+    join(coreRoot, "docs/connected-profile.md"),
+    join(target, "CONNECTED.md"),
+  );
+  await copy(
     join(coreRoot, "packages/feedback/src"),
     join(target, "src/feedbax/feedback"),
   );
@@ -285,6 +293,7 @@ async function flatManifest(coreRoot: string) {
     devDependencies: {
       ...collect("devDependencies"),
       "@eslint/js": "10.0.1",
+      "@shadcn/lint": "0.2.1",
       "@types/node": "22.20.1",
       feedbax: JSON.parse(
         await readFile(join(coreRoot, "packages/feedbax/package.json"), "utf8"),

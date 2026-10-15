@@ -36,6 +36,7 @@ export interface PortalCommentRequest {
 }
 
 export function createPortalCommentHandler(options: {
+  verifiedParticipant?: { displayName: string };
   feedback: Pick<FeedbackModule, "createComment" | "replyToCommentThread">;
   commentsEnabled: boolean;
   rateLimiter: PortalSubmissionRateLimiter;
@@ -50,7 +51,7 @@ export function createPortalCommentHandler(options: {
         "Comments are disabled for this Installation.",
         "comments_disabled",
       );
-    const value = validateCommentInput(input);
+    const value = validateCommentInput(input, options.verifiedParticipant);
     const { success } = await options.rateLimiter.limit({
       key: `comment:${options.rateLimitKey}`,
     });
@@ -338,10 +339,16 @@ export function createPortalCommentMutationRequestHandler(
   };
 }
 
-function validateCommentInput(input: unknown): PortalCommentRequest {
+function validateCommentInput(
+  input: unknown,
+  participant?: { displayName: string },
+): PortalCommentRequest {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw invalidCommentRequest();
-  const value = input as Record<string, unknown>;
+  const value: Record<string, unknown> = {
+    ...(input as Record<string, unknown>),
+    ...(participant ? { displayName: participant.displayName } : {}),
+  };
   if (typeof value.slug !== "string" || !value.slug.trim())
     throw invalidCommentRequest();
   if (typeof value.body !== "string" || !value.body.trim())
@@ -354,7 +361,7 @@ function validateCommentInput(input: unknown): PortalCommentRequest {
       "Device Profile display name is required before commenting.",
       "profile_required",
     );
-  if (!isValidCommentEmail(value.email))
+  if (!participant && !isValidCommentEmail(value.email))
     throw new ActionablePortalFailure(
       "A Device Profile with a valid email is required before commenting.",
       "profile_required",
@@ -363,7 +370,7 @@ function validateCommentInput(input: unknown): PortalCommentRequest {
     slug: value.slug.trim(),
     body: value.body.trim(),
     displayName: value.displayName.trim(),
-    email: value.email.trim(),
+    email: typeof value.email === "string" ? value.email.trim() : "",
     ...(typeof value.discussionId === "string" && value.discussionId
       ? { discussionId: value.discussionId }
       : {}),

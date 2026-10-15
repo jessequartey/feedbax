@@ -1,3 +1,4 @@
+import { useConnectedIdentity } from "./connected-identity-provider";
 import { useTheme } from "next-themes";
 import { UserCircle } from "lucide-react";
 
@@ -20,8 +21,37 @@ import { useDeviceProfile } from "./device-profile-provider";
 export function ProfileMenu() {
   const { profile, openProfileSetup, clearProfile } = useDeviceProfile();
 
+  const identity = useConnectedIdentity();
+
   const initials = profile ? deriveDeviceProfileInitials(profile) : undefined;
 
+  if (identity.enabled)
+    return (
+      <div>
+        <Button variant="ghost" onClick={openProfileSetup}>
+          Contact profile
+        </Button>
+        {identity.displayName ? (
+          <>
+            <span>{identity.displayName}</span>
+            <Button variant="outline" onClick={() => void identity.signOut()}>
+              Sign out
+            </Button>
+          </>
+        ) : (
+          <Button
+            variant="outline"
+            disabled={!identity.ready}
+            onClick={() => {
+              window.location.href = "/internal/identity/start";
+            }}
+          >
+            Sign in
+          </Button>
+        )}
+        {identity.error ? <p role="alert">{identity.error}</p> : null}
+      </div>
+    );
   return profile ? (
     <DropdownMenu>
       <DropdownMenuTrigger

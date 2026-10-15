@@ -1,5 +1,10 @@
-import { createNotionFeedbackModule } from "@feedbax/feedback";
-import { cache } from "cloudflare:workers";
+import {
+  createConnectedStore,
+  createConnectedFeedbackModule,
+  type VerifiedParticipant,
+  createNotionFeedbackModule,
+} from "@feedbax/feedback";
+import { cache, env } from "cloudflare:workers";
 
 import {
   createInvalidatingFeedbackModule,
@@ -12,20 +17,29 @@ export const feedbackSubmissionLimits = {
   maxDescriptionLength: feedbax.submissions.maxDescriptionLength,
 } as const;
 
-export function createConfiguredFeedbackModule() {
-  configuredFeedback ??= createInvalidatingFeedbackModule({
-    feedback: createNotionFeedbackModule({
-      votingEnabled: feedbax.features.voting,
-      commentsEnabled: feedbax.features.comments,
-      token: requiredEnvironmentValue("NOTION_TOKEN"),
-      dataSourceId: feedbax.notion.dataSourceId,
-      propertyIds: feedbax.notion.properties,
-    }),
+export function createConfiguredFeedbackModule(
+  participant?: VerifiedParticipant,
+) {
+  configuredFeedback ??= createNotionFeedbackModule({
+    votingEnabled: feedbax.features.voting,
+    commentsEnabled: feedbax.features.comments,
+    token: requiredEnvironmentValue("NOTION_TOKEN"),
+    dataSourceId: feedbax.notion.dataSourceId,
+    propertyIds: feedbax.notion.properties,
+  });
+  const feedback = feedbax.connected
+    ? createConnectedFeedbackModule(
+        configuredFeedback,
+        getConnectedStore(),
+        participant,
+      )
+    : configuredFeedback;
+  return createInvalidatingFeedbackModule({
+    feedback,
     invalidator: createPublicCacheInvalidator({
       purge: (options) => cache.purge(options),
     }),
   });
-  return configuredFeedback;
 }
 
 let configuredFeedback:
@@ -35,4 +49,10 @@ export function requiredEnvironmentValue(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error("Feedback configuration is missing.");
   return value;
+}
+
+export function getConnectedStore() {
+  if (!feedbax.connected || !env.FEEDBAX_DB)
+    throw new Error("Connected Profile requires the FEEDBAX_DB D1 binding.");
+  return createConnectedStore(env.FEEDBAX_DB);
 }

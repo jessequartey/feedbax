@@ -1,3 +1,4 @@
+import { useConnectedIdentity } from "./components/connected-identity-provider";
 import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { PublicPost } from "@feedbax/feedback";
 import { ChevronUp } from "lucide-react";
@@ -27,10 +28,12 @@ export function VoteToggle({
   turnstileSiteKey?: string;
   requestTimeoutMs?: number;
 }) {
+  const identity = useConnectedIdentity();
   const queryClient = useContext(QueryClientContext);
   const [voted, setVoted] = useState(false);
   const [count, setCount] = useState(post.voteCount ?? 0);
   const [pending, setPending] = useState(false);
+  const [voteStateReady, setVoteStateReady] = useState(!identity.enabled);
   const [error, setError] = useState<string>();
   const [participationPass, setParticipationPass] = useState<string>();
   const form = useRef<HTMLFormElement>(null);
@@ -38,12 +41,34 @@ export function VoteToggle({
   const turnstileWidget = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    setVoted(readVotedPostSlugs(localStorage).has(post.slug));
+    if (!identity.enabled)
+      setVoted(readVotedPostSlugs(localStorage).has(post.slug));
     setCount(post.voteCount ?? 0);
     setParticipationPass(
       sessionStorage.getItem("feedbax:participation-pass") ?? undefined,
     );
-  }, [post.slug, post.voteCount]);
+  }, [post.slug, post.voteCount, identity.enabled]);
+  useEffect(() => {
+    if (!identity.enabled || !identity.displayName) return;
+    const controller = new AbortController();
+    setVoteStateReady(false);
+    fetch(`/internal/connected/votes?slug=${encodeURIComponent(post.slug)}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok)
+          throw new Error("Could not load your Vote. Refresh and try again.");
+        const state = await response.json();
+        setVoteStateReady(true);
+        setVoted(state.voted);
+        setCount(state.voteCount);
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted) setError(cause.message);
+      });
+    return () => controller.abort();
+  }, [identity.enabled, identity.displayName, post.slug]);
   useEffect(() => {
     const reconcile = (event: Event) => {
       const detail = (
@@ -95,6 +120,10 @@ export function VoteToggle({
   }, [participationPass, turnstileSiteKey]);
 
   async function toggle() {
+    if (identity.enabled && !identity.displayName) {
+      window.location.href = "/internal/identity/start";
+      return;
+    }
     const previous = { voted, count };
     const nextVoted = !voted;
     setVoted(nextVoted);
@@ -138,7 +167,8 @@ export function VoteToggle({
         throw new Error(result.error ?? "Vote failed. Try again.");
       }
       setCount(result.voteCount);
-      persistVotedPost(localStorage, post.slug, nextVoted);
+      if (!identity.enabled)
+        persistVotedPost(localStorage, post.slug, nextVoted);
       window.dispatchEvent(
         new CustomEvent(voteConfirmedEvent, {
           detail: {
@@ -187,7 +217,12 @@ export function VoteToggle({
         type="button"
         aria-pressed={voted}
         aria-label={`${voted ? "Remove Vote" : "Add Vote"}, ${count} Votes`}
-        disabled={pending}
+        disabled={
+          pending ||
+          (identity.enabled &&
+            (!identity.ready ||
+              (Boolean(identity.displayName) && !voteStateReady)))
+        }
         onClick={toggle}
       >
         <ChevronUp aria-hidden="true" /> {count}

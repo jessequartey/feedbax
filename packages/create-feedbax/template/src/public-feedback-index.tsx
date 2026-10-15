@@ -1,6 +1,6 @@
 import type { PublicPostQuery, PublicPostPage } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
-import { Skeleton } from "@feedbax/ui/components/skeleton";
+import Loader from "./components/loader";
 import { useAuthorizedDraftPosts } from "./draft-post-list";
 import {
   BoardNavigation,
@@ -89,36 +89,5 @@ export function PublicPostIndex({
 }
 
 export function PublicPostFeedSkeleton() {
-  return (
-    <main
-      className="feedback-index feedback-feed-skeleton"
-      aria-label="Loading Posts"
-      aria-busy="true"
-    >
-      <section className="feedback-intro" aria-hidden="true">
-        <Skeleton className="feedback-skeleton-heading" />
-        <Skeleton className="feedback-skeleton-deck" />
-      </section>
-      <div className="post-controls" aria-hidden="true">
-        <Skeleton className="feedback-skeleton-control" />
-        <Skeleton className="feedback-skeleton-control" />
-        <Skeleton className="feedback-skeleton-control" />
-      </div>
-      <section className="feedback-results" aria-hidden="true">
-        <Skeleton className="feedback-skeleton-section-heading" />
-        <ol className="feedback-list">
-          {Array.from({ length: 3 }, (_, index) => (
-            <li key={index} data-post-skeleton-row>
-              <div className="feedback-skeleton-row">
-                <Skeleton className="feedback-skeleton-meta" />
-                <Skeleton className="feedback-skeleton-title" />
-                <Skeleton className="feedback-skeleton-copy" />
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <span className="sr-only">Loading Posts…</span>
-    </main>
-  );
+  return <Loader label="Loading Posts" />;
 }

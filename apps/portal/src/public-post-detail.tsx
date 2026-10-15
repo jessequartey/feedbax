@@ -1,3 +1,7 @@
+import {
+  useConnectedIdentity,
+  ConnectedSignInPrompt,
+} from "./components/connected-identity-provider";
 import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { Comment, CommentThreadPage, PublicPost } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
@@ -86,6 +90,10 @@ export function PublicPostDetail({
   const turnstileContainer = useRef<HTMLDivElement>(null);
   const turnstileWidget = useRef<string | undefined>(undefined);
   const { completeProfile, ready: profileReady } = useDeviceProfile();
+  const identity = useConnectedIdentity();
+  const canComment = identity.enabled
+    ? Boolean(identity.displayName)
+    : Boolean(completeProfile);
 
   useEffect(() => {
     setLocalComments((current) =>
@@ -154,7 +162,10 @@ export function PublicPostDetail({
     const form = new FormData(event.currentTarget);
     const body = String(form.get("body") ?? "").trim();
     const profile = completeProfile;
-    if (!profile || !isValidCommentEmail(profile.email)) {
+    if (
+      !canComment ||
+      (!identity.enabled && (!profile || !isValidCommentEmail(profile.email)))
+    ) {
       setCommentError(
         "Add a display name and valid email to your Device Profile before commenting.",
       );
@@ -167,7 +178,10 @@ export function PublicPostDetail({
       id: optimisticId,
       discussionId,
       body,
-      author: { kind: "participant", displayName: profile.name },
+      author: {
+        kind: "participant",
+        displayName: identity.enabled ? identity.displayName! : profile!.name,
+      },
       createdAt: new Date(),
     };
     setCommentError(undefined);
@@ -179,8 +193,8 @@ export function PublicPostDetail({
       const confirmed = await submitComment({
         slug: post.slug,
         body,
-        displayName: profile.name,
-        email: profile.email,
+        displayName: identity.enabled ? identity.displayName! : profile!.name,
+        email: identity.enabled ? "" : profile!.email,
         ...(replyingTo ? { discussionId: replyingTo } : {}),
         ...(turnstileToken ? { turnstileToken: String(turnstileToken) } : {}),
         ...(sessionStorage.getItem("feedbax:participation-pass")
@@ -323,7 +337,7 @@ export function PublicPostDetail({
                           mutateComment && commentCapabilities[comment.id],
                         );
                         const canReply = Boolean(
-                          index === 0 && submitComment && completeProfile,
+                          index === 0 && submitComment && canComment,
                         );
                         return (
                           <div
@@ -335,7 +349,11 @@ export function PublicPostDetail({
                               <div className="comment-author">
                                 <strong>{comment.author.displayName}</strong>
                                 {comment.author.kind === "participant" ? (
-                                  <span>Unverified</span>
+                                  <span>
+                                    {comment.author.verified
+                                      ? "Verified"
+                                      : "Unverified"}
+                                  </span>
                                 ) : null}
                               </div>
                               <time dateTime={comment.createdAt.toISOString()}>
@@ -439,7 +457,9 @@ export function PublicPostDetail({
                   ))}
                 </div>
               )}
-              {submitComment && profileReady && completeProfile ? (
+              {submitComment &&
+              (identity.enabled ? identity.ready : profileReady) &&
+              canComment ? (
                 <form
                   className="comment-composer"
                   aria-label="Comment composer"
@@ -452,8 +472,9 @@ export function PublicPostDetail({
                     {replyingTo ? "Write a reply" : "Add a comment"}
                   </label>
                   <p className="comment-composer-hint">
-                    Your display name is public. Your email is used only to
-                    unlock commenting and is never shown.
+                    {identity.enabled
+                      ? "Your verified product identity is shown with your Comment."
+                      : "Your display name is public. Your email is used only to unlock commenting and is never shown."}
                   </p>
                   <Textarea
                     className="comment-composer-input"
@@ -497,6 +518,8 @@ export function PublicPostDetail({
                     ) : null}
                   </div>
                 </form>
+              ) : submitComment && identity.enabled ? (
+                <ConnectedSignInPrompt />
               ) : submitComment ? (
                 <DeviceProfilePrompt purpose="comment" />
               ) : null}

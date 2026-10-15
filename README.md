@@ -2,6 +2,10 @@
 
 Feedbax Core is an open-source feedback portal backed by Notion and deployed on Cloudflare Workers. Product Teams manage feedback, Comments, Roadmap, and Changelog in Notion.
 
+## Next release: 0.2.1
+
+The optional [Connected Profile](docs/connected-profile.md) adds signed identity handoff from your application, D1 operational state, unique voting per verified Participant, and verified Comment attribution. This is development-branch scope; the published installation command below remains 0.2.0 until release.
+
 ## Install 0.2.0
 
 Use Node.js 22.14 or newer and pnpm 10:

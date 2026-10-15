@@ -52,6 +52,22 @@ try {
           .toLowerCase()
           .replace(/[^a-z0-9-]/g, "-"),
       );
+      const connected = (await confirm(
+        "Enable Connected Profile using your application's sign-in and an existing dedicated D1 database?",
+        false,
+      ))
+        ? {
+            issuer: await text("Application identity issuer (HTTPS URL)"),
+            loginUrl: await text(
+              "Application signed-handoff login URL (HTTPS)",
+            ),
+            databaseId: await text("Dedicated Cloudflare D1 database ID"),
+            databaseName: await text("Dedicated Cloudflare D1 database name"),
+            handoffSecret: await secret(
+              "Shared server-only identity handoff secret (at least 32 characters)",
+            ),
+          }
+        : undefined;
       const themePreset = await text(
         "shadcn preset code, or lyra-neutral for the included preset",
         "lyra-neutral",
@@ -118,6 +134,7 @@ try {
         themePreset,
         workerName,
         commentProbePageId,
+        connected,
         features,
         feedbackSelection,
         changelogSelection,
@@ -146,6 +163,26 @@ try {
         "--write",
         "src/feedbax.ts",
       ]);
+      if (connected) {
+        if (
+          !(await confirm(
+            `Apply the included Connected schema migration to D1 ${connected.databaseName} (${connected.databaseId}) in your authenticated Cloudflare account?`,
+            false,
+          ))
+        )
+          throw new Error(
+            "Connected source is preserved. Apply the D1 migration described in CONNECTED.md before running doctor or deploying.",
+          );
+        await runIn(destination, "pnpm", [
+          "exec",
+          "wrangler",
+          "d1",
+          "migrations",
+          "apply",
+          "FEEDBAX_DB",
+          "--remote",
+        ]);
+      }
       await runIn(destination, "pnpm", ["exec", "feedbax", "doctor"]);
       if (
         await confirm(

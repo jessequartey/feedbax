@@ -65,6 +65,43 @@ export async function diagnoseInstallation({
         throw new Error(`Restore ${name} in wrangler.jsonc.`);
     return "Worker target and required rate-limit bindings are configured.";
   });
+  if (config?.connected) {
+    await check("Connected identity", async () => {
+      if (
+        !effectiveEnv.IDENTITY_HANDOFF_SECRET ||
+        effectiveEnv.IDENTITY_HANDOFF_SECRET.length < 32
+      )
+        throw new Error(
+          "Configure IDENTITY_HANDOFF_SECRET with at least 32 random characters in .dev.vars and the Worker secret store.",
+        );
+      return "Signed identity handoff is configured; the secret is not printed.";
+    });
+    await check("Connected D1 schema", async () => {
+      const wrangler = await readWranglerConfiguration(cwd);
+      const binding = wrangler.d1_databases?.find(
+        (item) => item.binding === "FEEDBAX_DB",
+      );
+      if (!binding?.database_id)
+        throw new Error(
+          "Bind a dedicated D1 database as FEEDBAX_DB in wrangler.jsonc and apply migrations/0001_connected.sql.",
+        );
+      await execute(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "FEEDBAX_DB",
+          "--remote",
+          "--command",
+          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_id, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0;",
+        ],
+        cwd,
+      );
+      return "The configured D1 schema is readable. No data was modified.";
+    });
+  }
   for (const name of [
     "NOTION_TOKEN",
     "FEEDBAX_API_KEY_HASH",
