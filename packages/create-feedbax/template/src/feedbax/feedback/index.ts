@@ -1128,6 +1128,11 @@ export { createNotionImageReviewWriter } from "./notion-image-review";
 
 export { createGitHubServiceAccess } from "./github-service-client";
 export {
+  createObservedHistoryModule,
+  type ObservedHistoryEvent,
+  type ObservedHistoryPage,
+} from "./observed-history";
+export {
   boundedBody,
   signIntegrationRequest,
   verifyIntegrationRequest,

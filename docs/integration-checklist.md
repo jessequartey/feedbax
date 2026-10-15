@@ -15,6 +15,8 @@ Released 0.2.1 supports Notion. This branch's GitHub and My feedback instruction
 
 Select exactly one Content Provider per Installation. GitHub does not require Participant GitHub accounts or a Notion token. Changelog is disabled for GitHub in 0.2.2. Existing Notion Installations do not acquire D1, identity, R2 or email merely by updating source.
 
+For an opt-in public progress timeline, see [Observed History](../apps/docs/content/docs/guides/progress-history.mdx). It requires explicit D1 and a timer for either provider; it does not enable identity.
+
 ## Put credentials in the right place
 
 | Location                                              | Values                                                                                                                           |

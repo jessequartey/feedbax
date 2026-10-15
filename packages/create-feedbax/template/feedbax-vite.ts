@@ -49,6 +49,7 @@ export function publicFeedbaxConfiguration(): Plugin {
         features: full.features,
         submissions: full.submissions,
         turnstile: full.turnstile,
+        history: full.history,
         ...(full.connected
           ? {
               connected: {

@@ -1,4 +1,5 @@
 import { createMyFeedbackRequestHandler } from "./my-feedback-runtime";
+import { createPublicHistoryRequestHandler } from "./history-runtime";
 import { handleImageRequest } from "./images-runtime";
 import {
   handleParticipationRequest,
@@ -11,6 +12,7 @@ import { createConfiguredTrustedFeedbackHandler } from "./trusted-feedback-runti
 import { env } from "cloudflare:workers";
 import {
   configuredIntegration,
+  configuredHistory,
   createConfiguredContentFeedbackModule,
   createConfiguredFeedbackModule,
   requestParticipant,
@@ -26,8 +28,18 @@ import {
 } from "./portal-comments";
 
 const application = createPortalServerEntry({
-  cachePublicReads: feedbax.provider !== "github",
+  cachePublicReads: feedbax.provider !== "github" && !feedbax.history,
   connectedHandler: async (request) =>
+    (await createPublicHistoryRequestHandler({
+      enabled: Boolean(feedbax.history),
+      history: feedbax.history ? configuredHistory() : undefined,
+      rateLimit: async (input) =>
+        (
+          await env.TRUSTED_SUBMISSIONS_RATE_LIMITER.limit({
+            key: `history:${input.headers.get("CF-Connecting-IP") ?? "unknown"}`,
+          })
+        ).success,
+    })(request)) ??
     (feedbax.connected &&
     env.FEEDBAX_DB &&
     request.url.includes("/internal/my-feedback")
@@ -151,6 +163,7 @@ const application = createPortalServerEntry({
 export default {
   ...application,
   async scheduled() {
+    if (feedbax.history) await configuredHistory().synchronize();
     if (feedbax.provider === "github")
       await configuredIntegration().reconcile(
         createConfiguredContentFeedbackModule(),

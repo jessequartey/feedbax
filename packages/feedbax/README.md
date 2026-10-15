@@ -12,6 +12,8 @@ pnpm exec feedbax info
 
 Use Node 24 LTS and pnpm 10. `doctor` validates typed configuration, selected-provider access, secrets, schema, enabled bindings, source checks and build. `deploy` previews the target and uploads only allowlisted secrets after confirmation. `--dry-run` performs no deployment or secret upload; `--yes` confirms an automated deployment. Keep the trusted submission key on your product server.
 
+If `history: true` is enabled, doctor also checks its explicit D1 binding, observed-history tables and timer. Apply every included migration before deploying updated source. History adds no verified identity; see the [history guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/progress-history.mdx).
+
 For GitHub, apply the included migrations to the dedicated D1 database, then bootstrap and pair:
 
 ```sh

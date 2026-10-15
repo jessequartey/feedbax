@@ -84,6 +84,8 @@ Connected identity remains independent: only verified application sessions get c
 
 The [integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) brings together provider setup, product-server intake, credential locations and authentication.
 
+For an observed public timeline, explicitly add root-level `history: true`, bind `FEEDBAX_DB`, apply all migrations including `0009_observed_history.sql`, and configure a timer. Reuse this Installation's existing GitHub/Connected D1 when present. The first public Post read establishes a baseline; later checks record public status and Team Response changes without backfilling private history. Follow the [history guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/progress-history.mdx). Omit the switch to preserve an existing Notion Installation's storage footprint.
+
 Before connecting your product, test a disposable submission from its server, retry with the same `Idempotency-Key`, and confirm one New, unpublished Post. Publish through the selected provider and check that only approved fields appear. Remove publication and verify the Post, Comments and images become unavailable.
 
 For Connected, verify two application accounts and two browsers: each account should see only its own My feedback and Notifications. Sign out, then check that private views clear. Test email and images only when enabled; a local build does not verify production sender delivery, identity handoff or private R2 access.

@@ -14,6 +14,8 @@ Notion setup needs an internal integration and shared parent page. GitHub setup 
 
 `--template-only` copies source without service calls or dependency installation. It does not provision or connect storage. Run `create-feedbax --help` for options; guided provisioning has no `--yes` flag.
 
+Observed History is an explicit `history: true` configuration with D1 and a timer, independent of Connected identity. It records public changes after a baseline rather than reconstructing private provider history; see the [history guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/progress-history.mdx).
+
 [GitHub setup and development-source instructions](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/getting-started/github.mdx) · [Agent setup](https://github.com/jessequartey/feedbax/blob/main/docs/agent-setup.md) · [Authentication](https://github.com/jessequartey/feedbax/blob/main/docs/connected-profile.md) · [Release acceptance](https://github.com/jessequartey/feedbax/blob/main/docs/version-0.2.2-acceptance.md).
 
 Documentation: [feedbax.dev/docs](https://feedbax.dev/docs). Core is Apache-2.0.

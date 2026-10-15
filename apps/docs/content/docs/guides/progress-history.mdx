@@ -1,0 +1,36 @@
+---
+title: Progress history
+description: Show public status changes and Product Team updates that Feedbax observes.
+---
+
+Observed History is an opt-in capability in 0.2.2 development source for either Content Provider. It requires explicitly provisioned D1; it does not establish Participant identity or require Connected sign-in. Existing Notion Installations keep their current storage footprint when it is omitted.
+
+## Enable it
+
+Add `history: true` at the root of `src/feedbax.ts`, alongside `product`, `features` and your provider configuration. Bind the Installation's dedicated database as `FEEDBAX_DB`, apply every included migration, including `0009_observed_history.sql`, and configure a scheduled trigger. Reuse the same Installation's GitHub/Connected database when one already exists; the App service database is separate.
+
+```sh
+pnpm exec wrangler d1 migrations apply FEEDBAX_DB --local
+pnpm exec wrangler d1 migrations apply FEEDBAX_DB --remote
+pnpm exec feedbax doctor
+```
+
+Use the matching development CLI until 0.2.2 is published. Diagnostics validate the schema, D1 binding and timer before deployment. For a Notion portal without D1, create and bind its own database explicitly before enabling history. Setting `history: false` or omitting it disables the timeline.
+
+With history enabled, public portal responses use `no-store` instead of Notion's stale-content cache policy. Purge any previously cached public pages when switching an existing deployment to this policy. An unavailable history read clears the open Post and Comment query data; a confirmed unpublication cannot keep using its earlier visible projection.
+
+## What the timeline means
+
+The first successful public Post read establishes a baseline. Later public reads and scheduled checks record observed changes to Post Status and explicitly public Team Response text. Each timer invocation checks at most one previously observed Post, in order of its last check. With many Posts, a full polling cycle spans multiple timer intervals. Posts that have never been viewed have no reconstructed history. Polling can miss intermediate changes.
+
+Timestamps mean **when Feedbax observed the public change**. They are not GitHub webhook time, private provider edit time, or proof of when work happened. Public history presents approved responses as Product Team updates and contains no private actors, contacts, engineering discussion or provider identifiers.
+
+Publishing establishes the current baseline and never backfills private draft text or earlier private transitions. Unpublication, removal and unavailable provider access hide the timeline on its next authoritative read. A later successful public observation starts a new baseline. Previously public events may remain in private storage and reappear when the Post is published again; hidden activity is not reconstructed.
+
+## Delivered updates
+
+Use the Post's Release Notes URL for an explicit HTTPS release page. For a local Changelog Entry, use `/changelog#ENTRY-SLUG`; Feedbax checks that the Entry is currently published. Other internal routes, unpublished targets, unsafe schemes and URLs containing credentials are suppressed. Changelog-disabled GitHub portals use an explicit external HTTPS release page. The check scans at most ten Changelog pages; a target outside that window is suppressed rather than assumed public.
+
+GitHub issue, PR and other engineering URLs are suppressed. A GitHub `/OWNER/REPOSITORY/releases/...` URL additionally requires a current unauthenticated public-repository check; a private repository or failed check suppresses it. No user token or extra App permissions are requested for this check.
+
+The current response/release link remains separate from the paginated timeline. Historical observation does not send a second set of Notifications; existing Connected Follow processing owns notification delivery. New privileged publishing tools and merge actions remain deferred.

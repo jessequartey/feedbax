@@ -70,6 +70,37 @@ export async function diagnoseInstallation({
         throw new Error(`Restore ${name} in wrangler.jsonc.`);
     return "Worker target and required rate-limit bindings are configured.";
   });
+  if (config?.history)
+    await check("Observed history", async () => {
+      const wrangler = await readWranglerConfiguration(cwd);
+      if (
+        !wrangler.d1_databases?.some(
+          (binding) => binding.binding === "FEEDBAX_DB" && binding.database_id,
+        )
+      )
+        throw Error(
+          "Bind FEEDBAX_DB explicitly and apply all included migrations before enabling history.",
+        );
+      if (!wrangler.triggers?.crons?.length)
+        throw Error(
+          "Configure a scheduled trigger to check observed history between public reads.",
+        );
+      await execute(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "FEEDBAX_DB",
+          "--remote",
+          "--command",
+          "SELECT post_slug,revision,projection,checked_at,lease_until,lease_token FROM public_post_observations LIMIT 0; SELECT id,post_slug,revision,kind,status,message,observed_at FROM public_post_history LIMIT 0;",
+        ],
+        cwd,
+      );
+      return "Observed-history schema and timer are configured. The first public observation is the baseline; private history is never backfilled.";
+    });
   if (config?.connected) {
     results.push({
       name: "Connected processing",

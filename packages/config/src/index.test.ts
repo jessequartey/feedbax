@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertRuntimeBindings,
   assertProductionConfiguration,
   defineFeedbax,
   type FeedbaxConfig,
 } from "./index";
+
+it("keeps observed history opt-in and requires explicitly provisioned D1 without enabling identity", () => {
+  expect(defineFeedbax(input).history).toBeUndefined();
+  const config = defineFeedbax({ ...input, history: true });
+  expect(config.connected).toBeUndefined();
+  expect(() => assertRuntimeBindings(config, {})).toThrow("FEEDBAX_DB");
+  expect(() => assertRuntimeBindings(config, { FEEDBAX_DB: {} })).not.toThrow();
+  expect(() =>
+    defineFeedbax({ ...input, history: "yes" } as unknown as FeedbaxConfig),
+  ).toThrow("history must be true or false");
+});
 
 const properties = Object.fromEntries(
   [

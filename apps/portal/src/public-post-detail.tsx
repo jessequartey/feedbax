@@ -1,4 +1,5 @@
 import { submissionIntent } from "./submission-intent";
+import { PostHistory } from "./components/post-history";
 import { ImageAttachments, ImageGallery } from "./components/image-attachments";
 import { FollowPostButton } from "./components/follow-post-button";
 import {
@@ -342,13 +343,15 @@ export function PublicPostDetail({
           ) : (
             <ImageGallery images={post.images} />
           )}
-          {post.teamResponse ? (
+          {post.teamResponse || post.releaseNotesUrl ? (
             <section
               className="border-l-4 border-primary bg-muted/50 p-4"
               aria-label="Product Team response"
             >
               <h2 className="text-sm font-semibold">Product Team response</h2>
-              <p className="mt-2 whitespace-pre-wrap">{post.teamResponse}</p>
+              {post.teamResponse ? (
+                <p className="mt-2 whitespace-pre-wrap">{post.teamResponse}</p>
+              ) : null}
               {post.releaseNotesUrl ? (
                 <a
                   className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
@@ -368,6 +371,9 @@ export function PublicPostDetail({
             ) : null}
             {published ? <FollowPostButton slug={post.slug} /> : null}
           </div>
+          {published && feedbax.history ? (
+            <PostHistory slug={post.slug} />
+          ) : null}
           {features.comments ? (
             <section
               className="post-detail-comments"

@@ -4,6 +4,7 @@ import {
   createNotionImageReviewWriter,
   createConnectedStore,
   createConnectedFeedbackModule,
+  createObservedHistoryModule,
   type VerifiedParticipant,
 } from "@feedbax/feedback";
 import { cache, env } from "cloudflare:workers";
@@ -15,6 +16,8 @@ import {
 import feedbax from "./feedbax";
 import { createContentFeedbackModule } from "./configured-feedback";
 import { createPortalIntegration } from "./integration-runtime";
+import { createPublicReleaseFeedbackModule } from "./public-release-links";
+import { createConfiguredChangelogModule } from "./changelog-runtime";
 
 export const feedbackSubmissionLimits = {
   maxTitleLength: feedbax.submissions.maxTitleLength,
@@ -45,7 +48,11 @@ export function createConfiguredContentFeedbackModule(
 export function createConfiguredFeedbackModule(
   participant?: VerifiedParticipant,
 ) {
-  const content = createConfiguredContentFeedbackModule(participant);
+  const source = createConfiguredContentFeedbackModule(participant);
+  const history = feedbax.history ? configuredHistory(source) : undefined;
+  const content = history
+    ? { ...source, getPublicPost: history.observe }
+    : source;
   const feedback = feedbax.connected
     ? createConnectedFeedbackModule(content, getConnectedStore(), participant)
     : content;
@@ -65,11 +72,27 @@ export function createConfiguredFeedbackModule(
       )
     : feedback;
   return createInvalidatingFeedbackModule({
-    feedback: withImages,
+    feedback: createPublicReleaseFeedbackModule({
+      feedback: withImages,
+      siteUrl: feedbax.product.siteUrl,
+      ...(feedbax.features.changelog && feedbax.changelog
+        ? { changelog: createConfiguredChangelogModule(true) }
+        : {}),
+    }),
     invalidator: createPublicCacheInvalidator({
       purge: (options) => cache.purge(options),
     }),
   });
+}
+
+export function configuredHistory(
+  feedback = createConfiguredContentFeedbackModule(),
+) {
+  if (!feedbax.history || !env.FEEDBAX_DB)
+    throw new Error(
+      "Observed history requires explicit history configuration and FEEDBAX_DB.",
+    );
+  return createObservedHistoryModule({ database: env.FEEDBAX_DB, feedback });
 }
 
 export function requiredEnvironmentValue(name: string): string {

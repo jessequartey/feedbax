@@ -74,6 +74,7 @@ export type GitHubConfiguration = {
   readonly botUserId: number;
 };
 type CommonConfiguration = {
+  readonly history?: boolean;
   readonly connected?: ConnectedConfiguration;
   readonly product: ProductConfiguration;
   readonly theme: { readonly preset: string };
@@ -102,6 +103,7 @@ export type FeedbaxConfig = CommonConfiguration &
   );
 
 const rootKeys = [
+  "history",
   "provider",
   "github",
   "connected",
@@ -149,6 +151,8 @@ export function defineFeedbax(config: FeedbaxConfig): FeedbaxConfig;
 export function defineFeedbax(config: unknown): FeedbaxConfig {
   const value = object(config, "Feedbax configuration");
   rejectUnknown(value, rootKeys, "Feedbax configuration");
+  if (value.history !== undefined && typeof value.history !== "boolean")
+    throw new Error("history must be true or false.");
   const product = object(value.product, "product");
   rejectUnknown(
     product,
@@ -313,6 +317,7 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
     throw new Error("Turnstile is enabled but turnstile.siteKey is missing.");
   return {
     product: validatedProduct,
+    ...(value.history !== undefined ? { history: value.history } : {}),
     ...(connected ? { connected } : {}),
     theme: { preset: text(theme.preset, "theme.preset") },
     ...content,
@@ -453,7 +458,7 @@ export function assertRuntimeBindings(
   bindings: { FEEDBAX_DB?: unknown },
 ) {
   if (
-    (config.provider === "github" || config.connected) &&
+    (config.provider === "github" || config.connected || config.history) &&
     !bindings.FEEDBAX_DB
   )
     throw new Error(

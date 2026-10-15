@@ -36,6 +36,8 @@ D1 alone never establishes verified identity. A Device Profile is unverified and
 
 Start with the [integration checklist](docs/integration-checklist.md) for the setup path, credential locations and end-to-end verification.
 
+For a public progress timeline in 0.2.2 development, explicitly enable root-level `history: true` with dedicated D1 and a timer. The [history guide](apps/docs/content/docs/guides/progress-history.mdx) explains its public baseline, observation timestamps, publication checks and release links. Existing Notion Installations keep their current storage requirements when history is omitted.
+
 The [feedback block guide](apps/docs/content/docs/integrations/feedback-block.mdx) covers the React/shadcn UI, server endpoint, validation, retries and abuse prevention:
 
 ```sh

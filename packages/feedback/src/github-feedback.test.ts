@@ -7,6 +7,7 @@ import { createConnectedStore } from "./connected";
 import { createConnectedFeedbackModule } from "./connected-feedback";
 import { createImageModule } from "./images";
 import { createImageFeedbackModule } from "./image-feedback";
+import { createObservedHistoryModule } from "./observed-history";
 
 let runtime: Miniflare | undefined;
 afterEach(async () => {
@@ -130,6 +131,60 @@ const submission = {
   type: "Feature Request" as const,
   submitter: { name: "Alice private", email: "private@example.com" },
 };
+
+it("fences an expired public-history reader after a newer GitHub observation revokes publication", async () => {
+  const { options, feedback, issues } = await setup();
+  await options.database.exec(
+    await readFile(
+      existsSync("apps/portal/migrations/0009_observed_history.sql")
+        ? "apps/portal/migrations/0009_observed_history.sql"
+        : "migrations/0009_observed_history.sql",
+      "utf8",
+    ),
+  );
+  const post = await feedback.submitPost(submission);
+  issues[0]!.labels = ["feedbax:planned", "feedbax:published"];
+  let time = 1000;
+  const current = createObservedHistoryModule({
+    database: options.database,
+    feedback,
+    now: () => time,
+  });
+  await current.observe(post.slug);
+  issues[0]!.labels = ["feedbax:in-progress", "feedbax:published"];
+  expect((await current.list({ slug: post.slug })).items).toHaveLength(1);
+  let resume!: (response: Response) => void;
+  let capturedResponse!: Response;
+  let captured!: () => void;
+  const capture = new Promise<void>((resolve) => {
+    captured = resolve;
+  });
+  const stale = createObservedHistoryModule({
+    database: options.database,
+    now: () => time,
+    feedback: createGitHubFeedbackModule({
+      ...options,
+      request: async (input, init) => {
+        const response = await options.request(input, init);
+        if (String(input).endsWith("/issues/1") && init?.method === "GET") {
+          capturedResponse = response;
+          captured();
+          return new Promise<Response>((resolve) => {
+            resume = resolve;
+          });
+        }
+        return response;
+      },
+    }),
+  });
+  const pending = stale.list({ slug: post.slug });
+  await capture;
+  time += 60001;
+  issues[0]!.labels = ["feedbax:in-progress"];
+  expect((await current.list({ slug: post.slug })).items).toEqual([]);
+  resume(capturedResponse);
+  expect((await pending).items).toEqual([]);
+});
 
 it("creates a moderated issue while keeping contacts and draft authority private across module restarts", async () => {
   const { feedback, options, writes } = await setup();
