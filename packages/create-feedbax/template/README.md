@@ -6,7 +6,7 @@ This is an application you own. Product Teams manage Posts, statuses, Comments, 
 
 ## Start locally
 
-Use Node.js 22.14+ and pnpm 10. Guided setup already installs dependencies and configures the app:
+Use Node.js 24.15+ (Node 24 LTS) and pnpm 10. The included `.nvmrc` pins the tested version; with nvm installed, run `nvm install` and `nvm use` before working on the Installation. Guided setup already installs dependencies and configures the app:
 
 ```sh
 pnpm dev

@@ -11,7 +11,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vitest": "4.1.11"
+    "vitest": "5.0.4"
   },
   "scripts": {
     "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --external:esbuild --outfile=dist/cli.js --external:jsonc-parser",
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "jsonc-parser": "3.3.1",
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.2"
   },
   "description": "Notion-native feedback portal lifecycle CLI",
   "license": "Apache-2.0",
@@ -35,7 +35,7 @@
     "url": "https://github.com/jessequartey/feedbax/issues"
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": "^24.15.0 || >=26.0.0"
   },
   "publishConfig": {
     "access": "public"

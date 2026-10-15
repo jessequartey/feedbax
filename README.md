@@ -6,7 +6,7 @@ An open-source feedback portal with your Product Team’s workflow in Notion. Co
 
 ## Create your portal
 
-You need Node.js **22.14+**, **pnpm 10**, a Notion workspace, and a Cloudflare account.
+You need Node.js **24.15+ (Node 24 LTS)**, **pnpm 10**, a Notion workspace, and a Cloudflare account.
 
 ```sh
 npx create-feedbax@0.2.0 my-feedback

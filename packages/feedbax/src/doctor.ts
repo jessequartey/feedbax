@@ -23,24 +23,24 @@ export async function diagnoseInstallation({
   env = process.env,
   request = fetch,
   execute = runCommand,
+  nodeVersion = process.versions.node,
 }: {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   request?: typeof fetch;
   execute?: Execute;
+  nodeVersion?: string;
 } = {}): Promise<Diagnostic[]> {
   const results: Diagnostic[] = [];
   const effectiveEnv = { ...(await readLocalEnvironment(cwd)), ...env };
-  const [nodeMajor = 0, nodeMinor = 0] = process.versions.node
-    .split(".")
-    .map(Number);
+  const [nodeMajor = 0, nodeMinor = 0] = nodeVersion.split(".").map(Number);
   results.push(
-    nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 14)
-      ? pass("Node.js", `Node ${process.versions.node} is supported.`)
+    nodeMajor >= 26 || (nodeMajor === 24 && nodeMinor >= 15)
+      ? pass("Node.js", `Node ${nodeVersion} is supported.`)
       : fail(
           "Node.js",
           "Unsupported Node version.",
-          "Install Node.js 22.14 or newer.",
+          "Install Node.js 24.15 or newer on the Node 24 LTS line, or Node 26+.",
         ),
   );
   await check("pnpm", async () => {

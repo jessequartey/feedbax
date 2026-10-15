@@ -102,6 +102,29 @@ const source = () => ({
   ),
 });
 describe("doctor diagnostics", () => {
+  it.each([
+    ["22.20.0", "fail"],
+    ["24.14.1", "fail"],
+    ["24.15.0", "pass"],
+    ["24.22.0", "pass"],
+    ["25.0.0", "fail"],
+    ["26.0.0", "pass"],
+  ])("checks the supported Node runtime (%s)", async (nodeVersion, status) => {
+    const results = await diagnoseInstallation({
+      cwd: await fixture(false),
+      env,
+      request: async () => Response.json(source()),
+      execute,
+      nodeVersion,
+    });
+    expect(results).toContainEqual(
+      expect.objectContaining({ name: "Node.js", status }),
+    );
+    if (status === "fail")
+      expect(results.find((result) => result.name === "Node.js")?.repair).toBe(
+        "Install Node.js 24.15 or newer on the Node 24 LTS line, or Node 26+.",
+      );
+  });
   it.each([false, true])(
     "requires a matching bounded queue for small processing (configured: %s)",
     async (configured) => {

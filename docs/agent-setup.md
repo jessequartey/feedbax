@@ -22,7 +22,7 @@ pnpm install
 
 Template-only output is intentionally unconfigured. Do not substitute test IDs or use `src/feedbax.test-fixture.ts` as a real installation configuration.
 
-For work on unreleased 0.2.1, use this repository and its workspace commands. The published 0.2.0 creator does not include Connected identity. `pnpm packages:check` verifies the development packages by packing both CLIs and using them in an independent application.
+For work on unreleased 0.2.2, use this repository with Node 24 LTS (24.15+; `.nvmrc` pins 24.22.0) and its workspace commands. Run `nvm install` and `nvm use` before installing dependencies. The published 0.2.0 creator does not include Connected identity. `pnpm packages:check` verifies the development packages by packing both CLIs and using them in an independent application.
 
 ## 2. Collect the required inputs
 

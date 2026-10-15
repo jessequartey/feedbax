@@ -17,10 +17,10 @@
     "prepack": "pnpm build"
   },
   "devDependencies": {
-    "esbuild": "0.28.1",
-    "tsx": "4.20.6",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
     "typescript": "catalog:",
-    "vitest": "4.1.11"
+    "vitest": "5.0.4"
   },
   "files": [
     "dist",
@@ -42,7 +42,7 @@
     "url": "https://github.com/jessequartey/feedbax/issues"
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": "^24.15.0 || >=26.0.0"
   },
   "publishConfig": {
     "access": "public"
