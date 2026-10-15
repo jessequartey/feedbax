@@ -1,6 +1,6 @@
 # Version 0.2.1 acceptance
 
-Status: implementation prepared for review; not released.
+Status: implementation PR #11 merged; dedicated production acceptance in progress; not released.
 
 ## Local engineering evidence — 2026-10-15
 
@@ -17,6 +17,8 @@ Status: implementation prepared for review; not released.
 - Separate Standards and Spec reviews are recorded in `docs/version-0.2.1-review.md`; all findings were addressed.
 
 ## Required before releasing 0.2.1
+
+The owner explicitly chose production validation before npm publication on 2026-10-15. Version PR #12 is draft. The selected authenticated application is Feedbax Docs and the selected sender is Resend. See [docs identity setup](docs-identity-acceptance.md) for the dedicated resources and sign-in flow. Do not merge the version PR, publish the Notion Changelog Entry, or close the release until the live checks below pass.
 
 Run the Connected Profile on a dedicated production Worker and D1 database with a real authenticated Product Team application. Complete the signed login/callback, a second browser, duplicate Vote add/remove, logout, and native Notion Comment attribution checks. The local D1/HTTP tests and unsigned public-portal browser inspection do not constitute this production evidence. Keep the Notion 0.2.1 Changelog Entry unpublished until release succeeds, then set its actual release date and publish it.
 

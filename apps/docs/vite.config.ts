@@ -5,14 +5,18 @@ import viteReact from "@vitejs/plugin-react";
 import { fumadocsMdx } from "fumadocs-mdx/vite";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   server: { port: 3002 },
   resolve: { tsconfigPaths: true },
   plugins: [
     fumadocsMdx(),
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    cloudflare({
+      configPath:
+        mode === "acceptance" ? "wrangler.acceptance.jsonc" : undefined,
+      viteEnvironment: { name: "ssr" },
+    }),
     tailwindcss(),
     tanstackStart({ server: { entry: "./server.ts" } }),
     viteReact(),
   ],
-});
+}));
