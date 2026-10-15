@@ -19,6 +19,8 @@ Use the matching development CLI until 0.2.2 is published. Diagnostics validate 
 
 With history enabled, public portal responses use `no-store` instead of Notion's stale-content cache policy. Purge any previously cached public pages when switching an existing deployment to this policy. An unavailable history read clears the open Post and Comment query data; a confirmed unpublication cannot keep using its earlier visible projection.
 
+On a published Post, **Comments** is the default tab and **Activities** shows the progress timeline. Switching tabs preserves an unfinished Comment. Arrow keys switch between the tabs. Follow controls appear after Connected sign-in. When Comments are disabled, Activities remains available on its own.
+
 ## What the timeline means
 
 The first successful public Post read establishes a baseline. Later public reads and scheduled checks record observed changes to Post Status and explicitly public Team Response text. Each timer invocation checks at most one previously observed Post, in order of its last check. With many Posts, a full polling cycle spans multiple timer intervals. Posts that have never been viewed have no reconstructed history. Polling can miss intermediate changes.

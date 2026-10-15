@@ -43,12 +43,8 @@ export function PostHistory({ slug }: { slug: string }) {
     ? []
     : (query.data?.pages.flatMap((page) => page.items) ?? []);
   return (
-    <section className="space-y-3" aria-label="Observed progress history">
-      <h2 className="text-sm font-semibold">Progress history</h2>
-      <p className="text-xs text-muted-foreground">
-        Changes Feedbax has observed while this Post is public. Updates between
-        checks may be missed.
-      </p>
+    <section className="space-y-3" aria-label="Activities">
+      <h2 className="sr-only">Activities</h2>
       {query.isPending ? (
         <Skeleton className="h-12 w-full" />
       ) : query.isError ? (
@@ -88,9 +84,7 @@ export function PostHistory({ slug }: { slug: string }) {
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          No progress changes observed yet.
-        </p>
+        <p className="text-sm text-muted-foreground">No activities yet.</p>
       )}
       {query.hasNextPage && !query.isError ? (
         <Button
