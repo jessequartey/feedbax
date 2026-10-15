@@ -20,6 +20,14 @@ Visual thesis: a quiet neutral workspace, clean surfaces, readable type, and gen
 Content plan: retain the feedback workspace and navigation; simplify the search field, result list, and keyboard footer; keep loading aligned to the content it replaces.
 Interaction thesis: a brief dialog entrance, stable search results while loading, and a subtle skeleton pulse honoring reduced motion.
 
+## Feedback discovery
+
+Unfiltered Top focuses on unshipped feedback. Exclude Shipped Posts before pagination, while retaining explicit Shipped status filtering, search, New ordering, and roadmap access. Version the public cache identity so old cached Top projections do not retain the previous inclusion policy.
+
+## Complete integration documentation
+
+Provide an end-to-end authentication guide with a tested signed-handoff application endpoint, real session-adapter contract, deployment, browser verification, secret rotation, and troubleshooting. Provide an end-to-end feedback-block guide with a released installation command, secure product-server handler, browser component wiring, retries/idempotency, moderation, and optional related-Post integration. Verify the server examples against the actual portal contracts.
+
 ## Ownership
 
 Jesse owns external adoption/design-partner interviews and custom domains in parallel. They are not prerequisites to this implementation. The unperformed human-authored Notion reply/resolve walkthrough remains an explicit adoption follow-up.

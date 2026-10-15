@@ -1,14 +1,156 @@
 ---
 title: Feedback block
-description: Install the copied-source feedback UI in your application.
+description: Install the feedback UI and connect it to a secure, working server submission flow.
 ---
 
-Install the registry block from your project root:
+The block adds a feedback button to your product. It opens a dialog on desktop and a drawer on mobile, validates the form, submits through your product server, and closes after success. Posts arrive in Notion as **New and unpublished** for Product Team moderation.
+
+It works with either Feedbax profile. Installing the block does not sign people in to the portal; [Connected authentication](/docs/guides/connected-profile) is a separate integration for verified Votes and Comments.
+
+## 1. Prerequisites
+
+- A deployed Feedbax portal and the plaintext trusted API key printed by `create-feedbax` or key rotation.
+- A React application with Tailwind v4, shadcn configured, and a server route or server-function boundary.
+- Base UI shadcn primitives. The copied block uses Base UI's `render` trigger composition. An existing Radix project needs reviewed component adaptations; do not reapply a preset over customized components.
+- Your product's existing authentication and server rate limiting. The example below is for signed-in product users. Anonymous public proxies need their own abuse protection and must not expose unrestricted access to the trusted key.
+
+## 2. Install the copied source
+
+From the product application root:
 
 ```bash title="Terminal"
-pnpm dlx shadcn@latest add https://feedbax.dev/r/feedbax-feedback.json
+pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.0
 ```
 
-The block submits through your server, never directly with the trusted secret. Review generated paths and adapt copy, routing, and styles to your product.
+The block was introduced in 0.2.0 and works with 0.2.1. The pinned GitHub source works while custom-domain attachment is being completed. After a new release, use its tag to adopt a reviewed version. You may also install from your verified documentation deployment's `/r/feedbax-feedback.json` endpoint.
 
-The copied `FeedbaxFeedback` component accepts an injected `onSubmit` callback and optional `findSimilar` callback. Implement submission in your server using the copied server-only client, and call that server handler from `onSubmit`. The browser component must never import the server client or receive the trusted API key.
+The CLI installs the required Button, Dialog, Drawer, Field, Input, Select, and Textarea primitives. Check the CLI output for the exact alias-resolved paths. The registry copies two files:
+
+- `components/feedbax-feedback.tsx`: the browser component, `FeedbaxFeedback`.
+- `lib/feedbax-client.server.ts`: the server helper, `createFeedbaxClient`.
+
+These files belong to your application. Review updates as source changes. In a monorepo, run the installer in the consuming app and use its shared UI aliases.
+
+## 3. Configure the product server
+
+```dotenv title="Product server environment — never frontend variables"
+FEEDBAX_API_BASE_URL=https://your-portal.example.com
+FEEDBAX_API_SECRET=the_plaintext_key_printed_by_setup
+```
+
+The product server uses the plaintext key. `FEEDBAX_API_KEY_HASH` belongs to the portal and will not work as the calling key. Do not use `VITE_`, `NEXT_PUBLIC_`, public runtime configuration, or browser storage for the secret. The identity handoff secret is a different credential.
+
+Keep the copied client in server-only code. For Next.js, add `import "server-only"` to the helper and import it only from a route/server action. For TanStack Start, keep it in the server module and call it from a server route or server function.
+
+## 4. Add the product's server endpoint
+
+Copy this factory into your server code. It validates the request and origin, requires your product session, applies your rate limiter, derives private submitter details from that session, and forwards only allowed fields. The 120-character title limit is conservative; align it with your Installation if you configure a different limit.
+
+<include>../../../examples/feedback-submission.server.ts</include>
+
+Wire it to `/api/feedback` with the copied helper:
+
+```ts title="Product application route"
+import { createFeedbaxClient } from "@/lib/feedbax-client.server";
+import { createFeedbackSubmissionHandler } from "@/server/feedback-submission";
+import {
+  readAuthenticatedAppUser,
+  allowFeedbackSubmission,
+} from "@/server/auth";
+
+export const POST = createFeedbackSubmissionHandler({
+  applicationOrigin: "https://app.example.com",
+  client: createFeedbaxClient({
+    apiBaseUrl: process.env.FEEDBAX_API_BASE_URL!,
+    apiSecret: process.env.FEEDBAX_API_SECRET!,
+  }),
+  authenticate: readAuthenticatedAppUser,
+  rateLimit: allowFeedbackSubmission,
+});
+```
+
+`readAuthenticatedAppUser(request)` must be your real server session lookup and return `{ id, name?, email? }` or `null`. `allowFeedbackSubmission(participantId)` must consult your deployed rate limiter and return a boolean. These two functions are application adapters, not Feedbax APIs or client-provided claims. On Next.js this `POST` export belongs in `app/api/feedback/route.ts`; on TanStack Start call it from the server route's POST handler. Use your framework's protected route and request-size controls as well.
+
+The endpoint uses an `Idempotency-Key` scoped to the authenticated product user. The portal's duplicate prevention is best-effort in Notion; do not send concurrent retries or treat it as a transactional event ledger.
+
+## 5. Render the block and submit
+
+```tsx title="components/product-feedback.tsx"
+"use client";
+
+import { useRef } from "react";
+import {
+  FeedbaxFeedback,
+  type FeedbackFormValues,
+} from "@/components/feedbax-feedback";
+
+export function ProductFeedback() {
+  const retry = useRef<{ payload: string; key: string } | null>(null);
+
+  async function submit(values: FeedbackFormValues) {
+    const payload = JSON.stringify({
+      title: values.title,
+      description: values.description,
+      type: values.type,
+    });
+    if (!retry.current || retry.current.payload !== payload) {
+      retry.current = { payload, key: crypto.randomUUID() };
+    }
+    const response = await fetch("/api/feedback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": retry.current.key,
+      },
+      body: payload,
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error ?? "Feedback could not be sent. Try again.");
+    }
+    retry.current = null;
+    return { slug: result.slug, title: result.title };
+  }
+
+  return <FeedbaxFeedback trigger="Send feedback" onSubmit={submit} />;
+}
+```
+
+Place `ProductFeedback` in your product header, help menu, or settings page. Failed submissions remain open with an error. Retrying the same unchanged payload reuses its key; changing the payload or succeeding starts a new event. The browser never receives the trusted key.
+
+The stock form includes optional name/email fields for integrations that collect contact information. The signed-in endpoint above uses the authenticated server profile, so you can remove those optional fields from your copied form to avoid redundant input. They do not verify portal identity or grant Browser Capabilities. Trusted API submissions do not return a browser draft-editing capability.
+
+## 6. Optional related-Post suggestions
+
+Omit `findSimilar` for a complete submission-only integration. If your application already has a public, allowlisted Post search adapter, pass:
+
+```tsx
+<FeedbaxFeedback
+  onSubmit={submit}
+  findSimilar={async (title) => searchYourPublishedPosts(title)}
+/>
+```
+
+That adapter returns `{ slug, title, url? }[]` for Published Posts only, with trusted HTTPS URLs. The block debounces input, ignores stale responses, and displays at most three suggestions. `searchYourPublishedPosts` is your adapter: Feedbax does not expose a stable public search endpoint in this release. Do not call private portal handlers as a supported external API.
+
+## 7. Verify before shipping
+
+1. Open the button on desktop and mobile; confirm the dialog/drawer, labels, keyboard focus, cancellation, and close behavior.
+2. Send a small Post while signed in. Confirm the success message, then find a New, unpublished Post in the correct Notion Feedback Data Source.
+3. Publish it from Notion and open its portal URL. It should be absent publicly until moderation approves publication.
+4. Force one failed request and retry unchanged data. Confirm the same key is used. Do not enable automatic parallel retries.
+5. Inspect the browser's request and built assets: only `/api/feedback` and safe form data should appear; no Bearer secret, Notion token, or handoff secret should be present.
+6. Check unsigned/cross-origin requests are rejected and your product's rate limiter returns 429.
+
+## Troubleshooting
+
+| Symptom                          | Repair                                                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Registry URL fails               | Use the pinned GitHub command above, verify the release tag, and run from the app with its `components.json`.                   |
+| Trigger/Select APIs do not match | Confirm Base UI primitives and correct aliases; a Radix app requires an explicit adaptation of the copied component.            |
+| Product route returns 401        | Complete product sign-in and verify its server session adapter.                                                                 |
+| Portal rejects the key           | Use the plaintext submission key on the product server, check the portal origin, and synchronize both sides after key rotation. |
+| Post is not visible publicly     | New submissions are unpublished. Publish the Post in Notion; retain moderation.                                                 |
+| Validation fails                 | Check Post Type spelling and the Installation's configured title/description limits.                                            |
+| Rate limit or network failure    | Keep the existing idempotency key, wait as directed, and retry the same event.                                                  |
+| Similar Posts are absent         | Suggestions are optional and require your own Published-Post adapter.                                                           |

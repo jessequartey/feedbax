@@ -75,7 +75,7 @@ describe("public portal cache policy", () => {
     );
 
     expect(first?.url).toBe(
-      "https://feedback.example.com/?types=%5B%22Bug+Report%22%5D&statuses=%5B%22New%22%5D&pageSize=25&sort=top&schema=1",
+      "https://feedback.example.com/?types=%5B%22Bug+Report%22%5D&statuses=%5B%22New%22%5D&pageSize=25&sort=top&schema=2",
     );
     expect(second?.url).toBe(first?.url);
   });
@@ -94,12 +94,12 @@ describe("public portal cache policy", () => {
         new Request("https://feedback.example.com/roadmap"),
       )?.url,
     ).toBe(
-      "https://feedback.example.com/roadmap?sort=updated-at-desc&schema=1",
+      "https://feedback.example.com/roadmap?sort=updated-at-desc&schema=2",
     );
     expect(
       canonicalPublicRequest(new Request("https://feedback.example.com/p/slug"))
         ?.url,
-    ).toBe("https://feedback.example.com/p/slug?schema=1");
+    ).toBe("https://feedback.example.com/p/slug?schema=2");
   });
 });
 
@@ -108,7 +108,7 @@ describe("feed URL normalization", () => {
     expect(
       canonicalPublicRequest(
         new Request(
-          "https://feedback.example.com/?pageSize=25&sort=new&schema=1",
+          "https://feedback.example.com/?pageSize=25&sort=new&schema=2",
         ),
       ),
     ).toBeUndefined();
@@ -138,4 +138,11 @@ describe("feed URL normalization", () => {
     expect(url.searchParams.get("sort")).toBe("new");
     expect(canonicalPublicRequest(first!)).toBeUndefined();
   });
+});
+
+it("moves pre-0.2.1 cached projections to a new schema identity", () => {
+  const request = canonicalPublicRequest(
+    new Request("https://feedback.example.com/?pageSize=25&sort=top&schema=1"),
+  );
+  expect(new URL(request!.url).searchParams.get("schema")).toBe("2");
 });

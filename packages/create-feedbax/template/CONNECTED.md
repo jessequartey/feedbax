@@ -83,3 +83,163 @@ Before enabling in production, test the real application's sign-in/callback, a s
 Connected Top ranking currently reads all matching Published Posts before ranking and pagination. This favors correct ranking for the initial small-team scope; measure larger installations before adoption. Public counts can be briefly cached under the existing public-read policy; private Vote state and identity endpoints are never publicly cached.
 
 Implementation references: [D1 database batches](https://developers.cloudflare.com/d1/worker-api/d1-database/) and [Drizzle D1 adapter](https://orm.drizzle.team/docs/sqlite/connect-cloudflare-d1).
+
+## Complete application endpoint
+
+Copy the following into your application's server code. It returns a standard Web `Response` and works behind a Node-compatible route handler. Configure the app's existing authentication middleware before this endpoint so an unauthenticated Participant is taken through normal app sign-in and returned to the same handoff URL. If your middleware does not redirect, the example returns an explicit 401; sign in to the product first and retry Feedbax.
+
+The only app-specific dependency is `authenticate(request)`: call the same trusted session lookup used by your protected app pages. Return a stable internal user ID as `subject` and its server-read display name. Never read these values from form input, query parameters, browser storage, or an unsigned header. Do not hardcode a demonstration user in production.
+
+```ts title="server/feedbax-login.ts"
+import { createHmac, randomBytes } from "node:crypto";
+
+export function createIdentityLoginHandler(options: {
+  applicationOrigin: string;
+  portalOrigin: string;
+  issuer: string;
+  secret: string;
+  authenticate(
+    request: Request,
+  ): Promise<{ subject: string; displayName: string } | null>;
+}) {
+  const app = new URL(options.applicationOrigin).origin;
+  const portal = new URL(options.portalOrigin).origin;
+  if (
+    ![app, portal, options.issuer].every(
+      (url) => new URL(url).protocol === "https:",
+    ) ||
+    options.secret.length < 32
+  )
+    throw new Error(
+      "Configure HTTPS origins and a server-only handoff secret of at least 32 characters.",
+    );
+  const headers = {
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+  };
+  return async (request: Request): Promise<Response> => {
+    const url = new URL(request.url);
+    if (request.method !== "GET")
+      return new Response("Method not allowed", { status: 405, headers });
+    const state = url.searchParams.get("state");
+    const callback = url.searchParams.get("callback");
+    if (
+      url.origin !== app ||
+      !state ||
+      !/^[A-Za-z0-9_-]{43}$/.test(state) ||
+      callback !== `${portal}/internal/identity/callback` ||
+      url.searchParams.getAll("state").length !== 1 ||
+      url.searchParams.getAll("callback").length !== 1
+    )
+      return new Response("Invalid Feedbax sign-in request", {
+        status: 400,
+        headers,
+      });
+    const user = await options.authenticate(request);
+    if (!user)
+      return new Response(
+        "Sign in to your product, then retry Feedbax sign-in.",
+        { status: 401, headers },
+      );
+    if (
+      ![user.subject, user.displayName].every(
+        (value) =>
+          typeof value === "string" &&
+          value.trim().length > 0 &&
+          value.length <= 512,
+      )
+    )
+      return new Response("Application identity is incomplete", {
+        status: 403,
+        headers,
+      });
+    const now = Math.floor(Date.now() / 1000);
+    const payload = Buffer.from(
+      JSON.stringify({
+        purpose: "feedbax-identity-v1",
+        subject: user.subject,
+        displayName: user.displayName,
+        issuer: options.issuer,
+        audience: portal,
+        state,
+        nonce: randomBytes(32).toString("base64url"),
+        issuedAt: now,
+        expiresAt: now + 120,
+      }),
+    ).toString("base64url");
+    const signature = createHmac("sha256", options.secret)
+      .update(`feedbax-identity-v1:${payload}`)
+      .digest("base64url");
+    const nonce = randomBytes(24).toString("base64url");
+    const html = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Continue to feedback</title><body><form method="post" action="${escapeHtml(callback)}"><input type="hidden" name="token" value="${payload}.${signature}"><button type="submit">Continue to feedback</button></form><script nonce="${nonce}">document.forms[0].requestSubmit()</script></body></html>`;
+    return new Response(html, {
+      headers: {
+        ...headers,
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": `default-src 'none'; form-action ${portal}; script-src 'nonce-${nonce}'; frame-ancestors 'none'`,
+      },
+    });
+  };
+}
+function escapeHtml(value: string) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ]!,
+  );
+}
+```
+
+Register the handler at the exact URL configured as `connected.loginUrl`. For a framework with Web route handlers, the wiring looks like this (adapt the import paths and session lookup to your application):
+
+```ts
+import { createIdentityLoginHandler } from "./server/feedbax-login";
+import { readAuthenticatedAppUser } from "./server/auth";
+
+export const GET = createIdentityLoginHandler({
+  applicationOrigin: "https://app.example.com",
+  portalOrigin: "https://feedback.example.com",
+  issuer: "https://app.example.com",
+  secret: process.env.IDENTITY_HANDOFF_SECRET!,
+  authenticate: async (request) => {
+    const user = await readAuthenticatedAppUser(request);
+    return user ? { subject: user.id, displayName: user.displayName } : null;
+  },
+});
+```
+
+`readAuthenticatedAppUser` is your existing application's authentication adapter, not a Feedbax API. On Next.js, the `GET` export belongs in `app/feedbax-login/route.ts`; keep the factory and session lookup in server-only modules. On TanStack Start, call the same handler from a server route's GET handler. Other frameworks can adapt their request/response objects to the Web API. Keep the route behind your current session middleware and rate limits; Feedbax does not create or manage the product's accounts.
+
+## Verify the entire sign-in loop
+
+1. Run `feedbax doctor`, build, and deploy the configured portal. Confirm its HTTPS origin exactly matches `product.siteUrl` and the application's configured audience/callback.
+2. Sign in to the product, open the portal, and choose Sign in. You should return with your server-provided display name. A handoff form never includes your API key or handoff secret.
+3. Add a Vote, reload, and sign in from another browser with the same product account. The Vote should still be selected. Repeated add requests must not increase it twice.
+4. Post a Comment and confirm Verified appears next to its app-provided name. A historical browser-only Comment still shows Unverified. Reply/resolve from Notion and confirm moderation is reflected after refresh.
+5. Sign out of Feedbax. Its session should stop authorizing Votes/Comments immediately. This signs out only the portal session; product sign-out is managed by the product. An already-issued portal session expires after seven days unless explicitly revoked sooner.
+6. Reuse a captured callback or change its state/audience/signature in a dedicated test environment. Feedbax must reject it. Do not copy production identity tokens into logs or issue reports.
+
+## Authentication troubleshooting
+
+| Symptom                                               | Check                                                                                                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product endpoint returns 401                          | Use your existing session middleware and complete the product's login first; the `authenticate` adapter must read that session.                                                                           |
+| Invalid sign-in request on the product                | Preserve the single `state` and `callback` parameters; allow only the configured exact callback. Do not rebuild the callback from arbitrary browser input.                                                |
+| Callback returns 403                                  | The form must POST directly from the configured login URL's origin. Check reverse-proxy origin handling and sandbox policies.                                                                             |
+| Callback returns 401                                  | Check identical handoff secrets, exact issuer/audience, current server clocks, a lifetime of at most 120 seconds, and an unused browser challenge. Start sign-in again after a failed or expired attempt. |
+| Challenge cookie absent                               | Use HTTPS and the same browser. The challenge uses Secure, HttpOnly, SameSite=None, and the `__Host-` prefix. Cookie-blocking policies may require a normal top-level product/portal flow.                |
+| Doctor or participation returns unavailable           | Check the dedicated `FEEDBAX_DB` binding, applied migration, remote account/database, and required Worker secrets. The profile fails closed.                                                              |
+| Name differs from the current app name                | A session reads the last server-asserted name; sign in again after a profile change. Old Comments retain their recorded attribution.                                                                      |
+| Anonymous vote totals differ after enabling Connected | Historical Notion counters are not verified Vote records; Connected counts only D1 Votes.                                                                                                                 |
+
+## Keep the three server secrets distinct
+
+| Secret                                               | Stored where                                | Purpose                                                                 |
+| ---------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------- |
+| `IDENTITY_HANDOFF_SECRET`                            | Product server and portal secret store      | Sign/verify identity handoffs.                                          |
+| `PARTICIPATION_SIGNING_SECRET`                       | Portal secret store                         | Participation Passes and short-lived Comment capabilities.              |
+| `FEEDBAX_API_SECRET` / portal `FEEDBAX_API_KEY_HASH` | Plaintext on product server; hash on portal | Trusted Post submission from the feedback block or another integration. |
+
+Generate independent random values. Store production values through your platform's secret manager. When rotating the handoff secret, coordinate both servers; existing portal sessions require separate revocation if they must be ended immediately.

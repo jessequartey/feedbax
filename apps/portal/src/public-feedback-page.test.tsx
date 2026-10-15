@@ -16,6 +16,71 @@ import { authorizedDraftPostsQueryKey } from "./authorized-draft-query";
 afterEach(cleanup);
 
 describe("public feedback home page", () => {
+  it("keeps Shipped Posts out of default Top before pagination while preserving explicit discovery", async () => {
+    const feedback = createFeedbackModule({
+      initialItems: [
+        ...Array.from({ length: 26 }, (_, index) => ({
+          id: `active-${index}`,
+          slug: `active-${index}`,
+          title: `Active ${index}`,
+          description: "Feedback",
+          type: "Feature Request" as const,
+          status: "Planned" as const,
+          published: true,
+          voteCount: index,
+          createdAt: new Date(index * 1000),
+          updatedAt: new Date(index * 1000),
+        })),
+        ...Array.from({ length: 27 }, (_, index) => ({
+          id: `shipped-${index}`,
+          slug: `shipped-${index}`,
+          title: `Shipped ${index}`,
+          description: "Feedback",
+          type: "Feature Request" as const,
+          status: "Shipped" as const,
+          published: true,
+          voteCount: 1000,
+          createdAt: new Date(100000 + index * 1000),
+          updatedAt: new Date(100000 + index * 1000),
+        })),
+      ],
+    });
+    const first = await loadPublicPostPage({
+      feedback,
+      search: { sort: "top" },
+    });
+    expect(first.items).toHaveLength(25);
+    expect(first.items.every((post) => post.status !== "Shipped")).toBe(true);
+    const second = await loadPublicPostPage({
+      feedback,
+      search: { sort: "top", cursor: first.nextCursor },
+    });
+    expect(second.items).toHaveLength(1);
+    const legacy = await loadPublicPostPage({
+      feedback,
+      search: { sort: "trending" },
+    });
+    expect(legacy.items.map((post) => post.slug)).toEqual(
+      first.items.map((post) => post.slug),
+    );
+    const shipped = await loadPublicPostPage({
+      feedback,
+      search: { sort: "top", statuses: ["Shipped"] },
+    });
+    expect(shipped.items).toHaveLength(25);
+    expect(shipped.items.every((post) => post.status === "Shipped")).toBe(true);
+    const search = await loadPublicPostPage({
+      feedback,
+      search: { sort: "top", search: "Shipped" },
+    });
+    expect(search.items[0]?.status).toBe("Shipped");
+    const newest = await loadPublicPostPage({
+      feedback,
+      search: { sort: "new" },
+    });
+    expect(newest.items[0]?.status).toBe("Shipped");
+  });
+
   it("loads 25 Published Posts and an opaque next-page cursor", async () => {
     const feedback = createFeedbackModule({
       initialItems: Array.from({ length: 26 }, (_, index) => ({

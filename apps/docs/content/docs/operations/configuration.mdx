@@ -8,3 +8,5 @@ The `defineFeedbax` call is the public configuration boundary. Keep it declarati
 <include>../../../examples/feedbax.config.ts</include>
 
 Run `feedbax doctor` after changing database or property mappings.
+
+For optional Connected Profile, add `connected.issuer` and `connected.loginUrl` with an absolute HTTPS `product.siteUrl`; keep the shared handoff secret in server environment configuration. The [authentication guide](/docs/guides/connected-profile) covers D1 provisioning, the application endpoint, and complete configuration.
