@@ -1,43 +1,10 @@
-import type { CommentAuthor } from "./index";
+import type { CommentStorage, StoredComment } from "./comment-storage";
+export type { CommentStorage, StoredComment } from "./comment-storage";
 import type { NotionFeedbackStorageOptions } from "./notion-feedback";
 import { requestNotion } from "./notion-request";
 
 const NOTION_API_URL = "https://api.notion.com/v1";
 const NOTION_API_VERSION = "2026-03-11";
-
-export interface StoredComment {
-  id: string;
-  postId: string;
-  discussionId: string;
-  body: string;
-  author: CommentAuthor;
-  createdAt: Date;
-  resolved: boolean;
-  scope?: "page" | "block";
-}
-
-export interface CommentStorage {
-  createPageComment(input: {
-    postId: string;
-    body: string;
-    displayName: string;
-  }): Promise<StoredComment>;
-  createDiscussionReply(input: {
-    postId: string;
-    discussionId: string;
-    body: string;
-    displayName: string;
-  }): Promise<StoredComment>;
-  listPageComments(
-    postId: string,
-    cursor?: string,
-  ): Promise<{
-    items: StoredComment[];
-    nextCursor?: string;
-  }>;
-  updateComment(commentId: string, body: string): Promise<StoredComment>;
-  deleteComment(commentId: string): Promise<void>;
-}
 
 export function createNotionCommentStorage({
   token,

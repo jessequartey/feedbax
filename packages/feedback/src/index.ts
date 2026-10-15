@@ -9,16 +9,18 @@ import {
   createNotionFeedbackStorage,
   type NotionFeedbackStorageOptions,
 } from "./notion-feedback";
+import {
+  createGitHubFeedbackStorage,
+  type GitHubFeedbackOptions,
+} from "./github-feedback";
+import { createGitHubCommentStorage } from "./github-comments";
+import type { CommentStorage, StoredComment } from "./comment-storage";
 import type {
   FeedbackStorage,
   NewStoredPost,
   StoredPost,
 } from "./feedback-storage";
-import {
-  createNotionCommentStorage,
-  type CommentStorage,
-  type StoredComment,
-} from "./notion-comments";
+import { createNotionCommentStorage } from "./notion-comments";
 
 export {
   createNotionFeedbackDataSource,
@@ -447,7 +449,7 @@ export function createFeedbackModule(
         ? undefined
         : post.published
           ? "published"
-          : post.status === "New"
+          : post.status === "New" && post.draftEditable !== false
             ? "draft"
             : "private";
     },
@@ -668,6 +670,20 @@ export function createNotionFeedbackModule(
     commentsEnabled: options.commentsEnabled,
   });
 }
+
+export function createGitHubFeedbackModule(
+  options: GitHubFeedbackOptions,
+): FeedbackModule {
+  const storage = createGitHubFeedbackStorage(options);
+  return createFeedbackModule({
+    storage,
+    commentStorage: createGitHubCommentStorage(options, storage),
+    votingEnabled: options.votingEnabled,
+    commentsEnabled: options.commentsEnabled,
+  });
+}
+
+export type { GitHubFeedbackOptions } from "./github-feedback";
 
 function createInMemoryCommentStorage(
   initialComments: StoredComment[] = [],
@@ -936,7 +952,12 @@ function authorizesDraft(
   item: StoredPost | undefined,
   browserCapability: BrowserCapability,
 ): item is StoredPost & { browserCapabilityHash: string } {
-  if (!item?.browserCapabilityHash || item.status !== "New" || item.published) {
+  if (
+    !item?.browserCapabilityHash ||
+    item.status !== "New" ||
+    item.published ||
+    item.draftEditable === false
+  ) {
     return false;
   }
 

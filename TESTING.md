@@ -10,6 +10,17 @@ Feedbax uses small red-green slices at pre-agreed seams. Tests describe observab
 - **Cloudflare Rate Limit binding:** limiter decisions at the external binding boundary
 - **Turnstile Siteverify HTTP boundary:** verification requests and responses
 
+## Approved 0.2.2 seams
+
+The owner-approved 0.2.2 plan adds the following concrete external seams without replacing the Feedback module interface:
+
+- **GitHub adapter HTTP boundary:** scoped issue/Comment/label requests and supported Project queries/mutations; explicit public projection, pagination, rate-limit responses and ambiguous/partial writes
+- **Integration-service HTTP handlers:** bounded raw webhook signature verification, authenticated Portal Binding setup, directional portal/service authentication, replay rejection and cross-Installation isolation
+- **Operational module interface with migrated D1/R2:** durable receipts, leases/checkpoints, bounded retries, payload expiry/reconciliation, visibility revocation and private attachment authorization; use real migrated storage through Miniflare rather than mocked SQL
+- **Lifecycle CLI filesystem/provider boundary:** three-way generated-source upgrade preview, conflict preservation, archive validation, isolated restore, writer fencing and reversible cutover
+
+Behavior cases are recorded in [the shared contract](docs/version-0.2.2-contract.md#acceptance-cases-and-evidence-ownership). Add tests one behavior at a time when implementing the corresponding ticket. Do not create tests for unavailable Team Member operation endpoints or report deferred capabilities as passing. Public/private GitHub, official/self-hosted service, account/Project support and migration acceptance require separate real evidence before release.
+
 ## Essential replacement-release tests
 
 - A submission becomes a New, unpublished Post with an immutable slug.

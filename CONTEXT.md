@@ -1,6 +1,6 @@
 # Feedbax Feedback Management
 
-Feedbax helps small product teams involve their users in product development while keeping the team's feedback workflow in Notion.
+Feedbax helps small product teams involve their users in product development while keeping the team's feedback workflow in its selected workspace.
 
 ## Language
 
@@ -32,6 +32,18 @@ _Avoid_: Installer, operator
 A deployed instance of Feedbax serving one Product Team and one product.
 _Avoid_: Tenant, account
 
+**Content Provider**:
+The selected workspace that holds an Installation's authoritative feedback content and Team workflow: Notion or GitHub.
+_Avoid_: Identity provider, operational storage, synchronized workspace
+
+**Feedback Repository**:
+The selected GitHub repository whose issues are the persistent feedback records for one Installation.
+_Avoid_: Development repository, issue tracker (when referring to the Feedbax workspace tracker)
+
+**Portal Binding**:
+The verified association between an Installation and the GitHub resources it is permitted to use.
+_Avoid_: GitHub installation, Participant session
+
 **Notion Workspace**:
 The Product Team's Notion environment containing its feedback content and product-planning data.
 _Avoid_: CRM
@@ -45,7 +57,7 @@ A Feedbax capability profile for public feedback browsing, submission, and expli
 _Avoid_: Lite mode, anonymous identity
 
 **Connected Profile**:
-A Feedbax capability profile that adds verified Participant identity and reliable social interactions, including unique voting, attributed commenting, following, notifications, and signed identity handoff.
+A Feedbax capability profile that adds verified Participant identity and reliable social interactions independently of the Content Provider, including unique voting, attributed commenting, following, notifications, and signed identity handoff.
 _Avoid_: Full mode, premium mode
 
 **Notion-native Participation**:
@@ -79,7 +91,7 @@ A Post a Team Member has approved for public display. Publication is independent
 _Avoid_: Public status, approved post
 
 **Draft Post**:
-A New, unpublished Post that may be edited from a browser holding its Browser Capability.
+A New, unpublished Post that may be edited through valid draft authority, held by its submitting browser or its Verified Participant owner.
 _Avoid_: Owned Post, private Post, user Post
 
 **Browser Capability**:
@@ -103,8 +115,8 @@ An expression of Participant support that may be added to or removed from a Publ
 _Avoid_: Support, applause, verified vote in the Notion-only Profile
 
 **Comment**:
-An unverified public message attached to a Published Post. A Comment may begin a Comment Thread or reply within one.
-_Avoid_: Reply (except within a comment thread), verified comment
+A public message attached to a Published Post, with attributed authorship under the Installation's participation guarantees. A Comment may begin a Comment Thread or reply within one; provider engineering discussion is separate.
+_Avoid_: Reply (except within a comment thread), engineering comment
 
 **Comment Thread**:
 A top-level Comment and its replies on a Published Post. Participants and the Product Team may contribute to the discussion.
@@ -121,6 +133,14 @@ _Avoid_: Session, login, Participant identity
 **Product Team Comment**:
 A Comment or reply presented publicly as authored by "Product Team" rather than by an individual Team Member.
 _Avoid_: Admin comment, staff reply
+
+**Canonical Post**:
+The surviving Post identity to which duplicate Posts refer without discarding their original submission context.
+_Avoid_: Parent Post, deleted duplicate
+
+**Observed History**:
+The public record of eligible progress changes and explicit updates Feedbax has observed for a Published Post. It is not a complete provider audit trail.
+_Avoid_: Complete history, engineering log
 
 ## Following, notifications, and images
 
