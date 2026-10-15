@@ -37,6 +37,7 @@ export function createImageModule(options: {
   };
   feedback: FeedbackModule;
   participant?: VerifiedParticipant;
+  processing?: "small" | "standard";
   reviewSecret: string;
   now?: () => number;
 }) {
@@ -278,7 +279,7 @@ export function createImageModule(options: {
     },
     async cleanup() {
       const rows = await db.all<ImageRow>(
-        sql`UPDATE image_attachments SET deleting=1 WHERE id IN(SELECT id FROM image_attachments WHERE deleting=1 OR (post_slug IS NULL AND created_at <= ${now() - 86400000}) LIMIT 50) RETURNING *`,
+        sql`UPDATE image_attachments SET deleting=1 WHERE id IN(SELECT id FROM image_attachments WHERE deleting=1 OR (post_slug IS NULL AND created_at <= ${now() - 86400000}) LIMIT ${options.processing === "small" ? 5 : 50}) RETURNING *`,
       );
       for (const image of rows) {
         await options.bucket.delete(image.object_key);

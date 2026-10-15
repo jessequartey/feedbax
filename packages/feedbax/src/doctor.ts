@@ -67,13 +67,25 @@ export async function diagnoseInstallation({
   });
   if (config?.connected) {
     results.push({
-      name: "Connected Worker plan",
-      status: "warn",
+      name: "Connected processing",
+      status: config.connected.processing === "standard" ? "warn" : "pass",
       message:
-        "The scheduled Connected workload targets Workers Paid; Free invocation limits are insufficient for a full batch.",
+        config.connected.processing === "standard"
+          ? "Standard processing targets Workers Paid; full batches exceed Free invocation limits."
+          : "Small processing enqueues one bounded job per timer tick. Its queue consumer observes one Post, attempts one email, and cleans up five images. Verify timer CPU and queue backlog on the target account.",
       repair:
-        "Verify the Installation uses Workers Paid. Cloudflare Email Service also requires Paid for arbitrary recipients.",
+        config.connected.processing === "standard"
+          ? "Use Workers Paid for standard processing, or choose connected.processing: small."
+          : undefined,
     });
+    if (config.connected.email?.provider === "cloudflare")
+      results.push({
+        name: "Cloudflare Email Service plan",
+        status: "warn",
+        message:
+          "Cloudflare Email Service requires Workers Paid for arbitrary recipients.",
+        repair: "Verify Workers Paid or use Resend/custom delivery.",
+      });
     await check("Connected identity", async () => {
       if (
         !effectiveEnv.IDENTITY_HANDOFF_SECRET ||
@@ -92,6 +104,44 @@ export async function diagnoseInstallation({
         );
       return "Scheduled Connected processing is configured.";
     });
+    if (config.connected.processing !== "standard")
+      await check("Connected processing queue", async () => {
+        const wrangler = await readWranglerConfiguration(cwd);
+        const producers =
+          wrangler.queues?.producers?.filter(
+            (p) => p.binding === "FEEDBAX_UPDATES",
+          ) ?? [];
+        const producer = producers[0];
+        const consumers =
+          wrangler.queues?.consumers?.filter(
+            (c) => c.queue === producer?.queue,
+          ) ?? [];
+        const consumer = consumers[0];
+        if (
+          producers.length !== 1 ||
+          !producer?.queue ||
+          consumers.length !== 1 ||
+          !consumer
+        )
+          throw new Error(
+            "Bind one existing Queue as FEEDBAX_UPDATES and configure its matching consumer in wrangler.jsonc; create it with pnpm exec wrangler queues create <queue-name>.",
+          );
+        if (
+          consumer.max_batch_size !== 1 ||
+          consumer.max_concurrency !== 1 ||
+          (consumer.max_retries ?? 3) > 3 ||
+          (consumer.retry_delay ?? 0) < 60
+        )
+          throw new Error(
+            "Set the processing queue consumer max_batch_size=1, max_concurrency=1, max_retries=3, and retry_delay=60 to bound work and retry pressure.",
+          );
+        await execute(
+          "pnpm",
+          ["exec", "wrangler", "queues", "info", producer.queue],
+          cwd,
+        );
+        return "The bounded processing queue exists. No messages were sent or changed.";
+      });
     if (config.connected.email)
       await check("Notification email", async () => {
         const sender = config!.connected!.email!;
@@ -155,7 +205,7 @@ export async function diagnoseInstallation({
           "FEEDBAX_DB",
           "--remote",
           "--command",
-          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_slug, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0; SELECT post_slug,subject,followed_at FROM post_follows LIMIT 0; SELECT subject,email,email_enabled FROM participant_contacts LIMIT 0; SELECT id,event_id,read_at,email_state FROM participant_notifications LIMIT 0; SELECT post_slug,status,comment_cursor FROM post_observations LIMIT 0; SELECT id,post_slug,created_at FROM post_events LIMIT 0;",
+          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_slug, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0; SELECT post_slug,subject,followed_at,observed_status,ready,baseline_cursor,baseline_token,baseline_lease_until,baseline_checked_at FROM post_follows LIMIT 0; SELECT event_id FROM follow_comment_baselines LIMIT 0; SELECT subject,email,email_enabled FROM participant_contacts LIMIT 0; SELECT id,event_id,read_at,email_state FROM participant_notifications LIMIT 0; SELECT post_slug,status,comment_cursor FROM post_observations LIMIT 0; SELECT id,post_slug,created_at,status FROM post_events LIMIT 0;",
         ],
         cwd,
       );

@@ -25,7 +25,7 @@ export function createIdentityLoginHandler(options: {
     );
   const headers = {
     "Cache-Control": "no-store",
-    "Referrer-Policy": "no-referrer",
+    "Referrer-Policy": "strict-origin",
   };
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);

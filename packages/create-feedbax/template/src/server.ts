@@ -123,6 +123,29 @@ const application = createPortalServerEntry({
 export default {
   ...application,
   async scheduled() {
-    await synchronizeConnectedUpdates();
+    if (!feedbax.connected) return;
+    if (feedbax.connected.processing === "standard") {
+      await synchronizeConnectedUpdates();
+      return;
+    }
+    if (!env.FEEDBAX_UPDATES)
+      throw new Error(
+        "Bind the Connected processing queue as FEEDBAX_UPDATES.",
+      );
+    await env.FEEDBAX_UPDATES.send("feedbax-connected-tick-v1");
+  },
+  async queue(
+    batch: import("@cloudflare/workers-types").MessageBatch<unknown>,
+  ) {
+    if (!feedbax.connected || feedbax.connected.processing === "standard")
+      throw new Error("Queue delivery requires small Connected processing.");
+    for (const message of batch.messages) {
+      if (message.body !== "feedbax-connected-tick-v1") {
+        message.ack();
+        continue;
+      }
+      await synchronizeConnectedUpdates();
+      message.ack();
+    }
   },
 };

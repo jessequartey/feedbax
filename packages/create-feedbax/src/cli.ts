@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
   collectFeatureSelection,
+  defaultProcessingQueueName,
   copyPackagedTemplate,
   provisionGuidedInstallation,
 } from "./index";
@@ -53,7 +54,7 @@ try {
           .replace(/[^a-z0-9-]/g, "-"),
       );
       const connected = (await confirm(
-        "Enable Connected Profile using your application's sign-in, a Workers Paid deployment, and an existing dedicated D1 database?",
+        "Enable Connected Profile using your application's sign-in, dedicated D1, and a processing queue? Small processing supports Workers Free with Resend/custom email.",
         false,
       ))
         ? {
@@ -63,6 +64,10 @@ try {
             ),
             databaseId: await text("Dedicated Cloudflare D1 database ID"),
             databaseName: await text("Dedicated Cloudflare D1 database name"),
+            queueName: await text(
+              "Dedicated Cloudflare Queue name (create it with wrangler queues create first)",
+              defaultProcessingQueueName(workerName),
+            ),
             handoffSecret: await secret(
               "Shared server-only identity handoff secret (at least 32 characters)",
             ),

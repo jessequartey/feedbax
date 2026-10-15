@@ -45,3 +45,23 @@ Final follow-up: no definite violations or substantial optional heuristics remai
 Initial findings identified the image claim/deletion race, cleanup after successful creation rollback, partial notification event/checkpoint writes, and inability to unfollow an unavailable Post. Atomic deletion states, rollback tombstones, transactional event/fanout/checkpoint batches, independent status observation, and unconditional own-state unfollow resolved these findings. A real D1 trigger failure regression proves that a failed checkpoint cannot leave a half-created Notification.
 
 Final follow-up: no new actionable findings remain. Following, in-app/email notifications, all three sender choices, image attachments, private routes/downloads, generated deployment wiring, draft controls, unsubscribe confirmation, and Feedback previews match the approved scope. Production acceptance remains pending and is documented separately.
+
+## Docs identity and small processing follow-up
+
+Independent Standards and Spec passes reviewed the follow-up from de41e3d through cb62e3c. Both found no authentication, privacy, replay, concurrency, or sender regressions. Standards identified one inconsistent creator prompt that still described Workers Paid as universally required; it now describes small processing on Workers Free with Resend/custom email. Spec found no actionable behavior finding. ADR-0031 records the owner's selected throughput tradeoff.
+
+The live docs deployment exposed a Workers fetch incompatibility with `redirect: "error"`, despite Node-based request mocks passing. The shared sender now uses manual redirects and rejects non-success responses. The docs sign-in flow reuses that sender, and a native Miniflare Worker regression verifies successful delivery requests and rejected redirects without credential forwarding. The source suite passes 336 tests; the clean packed application passes 274 tests. Real browser authentication, scheduled notifications, and image moderation remain separate pending production checks.
+
+The live browser flow also exposed a conflict between no-referrer and the portal's strict Origin check: cross-origin form POSTs used Origin null. The adapter and docs wrapper now preserve strict-origin on handoff HTML while other sign-in responses retain no-referrer. Both browser sessions completed the fixed handoff. Scheduled background reads now use the base Notion content module to avoid portal-only Vote, image, and author enrichment; the resulting Free CPU measurement remains a release gate.
+
+### Final handoff and scheduler recheck
+
+Standards: no definite violations or substantial heuristics. Spec: no actionable regressions. Both reviewers verified the unchanged publication/open-Comment rules, explicit D1 actor attribution, strict callback Origin validation, synchronized templates/guides, and retained small-mode bounds. Live optimized CPU remained 20 ms, so Workers Free capacity acceptance remains open.
+
+## Workers Free queue and notification precision review
+
+Independent Standards and Spec reviewers checked the small-mode queue dispatch, creator/doctor configuration, bounded history preparation, cancellation fencing, synchronized templates, and guides. Standards found no definite violations or substantial heuristics. Spec identified one migration gap that could notify existing Followers about historical Comments in the original Follow minute. Migration now prepares those Follows before activating updates. A migrated-D1 regression proves historical Comments produce no notice and a later same-minute Comment produces one. The final Spec recheck closed the finding; neither axis has an outstanding implementation finding.
+
+The source suite passes 343 tests across 59 files. The live installation doctor passes D1/Queue/schema reads, type checks, tests, and production build. Native timer and queue delivery measurements are recorded separately in the acceptance document; publication still requires completion of live acceptance.
+
+A final live Follow request measurement found 13–19 ms CPU while parsing the first Comment page. Small mode now defers every baseline page to the queue, and HTTP participation uses the base Notion content module without portal-only enrichment. The existing long-history test verifies that the first bounded job remains pending and the second activates the Follow. Standards and Spec independently rechecked this targeted change with no remaining findings.

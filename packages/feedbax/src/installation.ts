@@ -63,6 +63,16 @@ export type WranglerConfiguration = {
   }[];
   ratelimits?: { name: string }[];
   triggers?: { crons?: string[] };
+  queues?: {
+    producers?: { binding: string; queue: string }[];
+    consumers?: {
+      queue: string;
+      max_batch_size?: number;
+      max_concurrency?: number;
+      max_retries?: number;
+      retry_delay?: number;
+    }[];
+  };
   send_email?: { name: string; allowed_sender_addresses?: string[] }[];
   r2_buckets?: { binding: string; bucket_name: string }[];
 };

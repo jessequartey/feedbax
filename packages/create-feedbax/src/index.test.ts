@@ -390,7 +390,7 @@ describe("creator capability choices", () => {
   });
 });
 
-it.each([false, true, "cloudflare", "resend", "custom"] as const)(
+it.each([false, true, "cloudflare", "resend", "custom", "standard"] as const)(
   "generates an independent Worker target, public settings, and private secrets (Connected: %s)",
   async (connectedEnabled) => {
     const parent = await mkdtemp(join(tmpdir(), "feedbax-guided-success-"));
@@ -402,12 +402,16 @@ it.each([false, true, "cloudflare", "resend", "custom"] as const)(
         ...(connectedEnabled
           ? {
               connected: {
+                ...(connectedEnabled === "standard"
+                  ? { processing: "standard" }
+                  : {}),
                 issuer: "https://app.example",
                 loginUrl: "https://app.example/login",
                 databaseId: "11111111-2222-3333-4444-555555555555",
                 databaseName: "acme-connected",
                 handoffSecret: "test-identity-secret-at-least-32-characters",
-                ...(typeof connectedEnabled === "string"
+                ...(typeof connectedEnabled === "string" &&
+                connectedEnabled !== "standard"
                   ? {
                       imageBucket: "acme-private-images",
                       email: {
@@ -468,7 +472,28 @@ it.each([false, true, "cloudflare", "resend", "custom"] as const)(
         );
         expect(wrangler.d1_databases[0].binding).toBe("FEEDBAX_DB");
         expect(wrangler.triggers.crons).toEqual(["*/5 * * * *"]);
-        if (typeof connectedEnabled === "string") {
+        if (connectedEnabled === "standard")
+          expect(wrangler.queues).toBeUndefined();
+        else
+          expect(wrangler.queues).toEqual({
+            producers: [
+              { binding: "FEEDBAX_UPDATES", queue: "acme-two-updates" },
+            ],
+            consumers: [
+              {
+                queue: "acme-two-updates",
+                max_batch_size: 1,
+                max_batch_timeout: 1,
+                max_retries: 3,
+                max_concurrency: 1,
+                retry_delay: 60,
+              },
+            ],
+          });
+        if (
+          typeof connectedEnabled === "string" &&
+          connectedEnabled !== "standard"
+        ) {
           expect(wrangler.r2_buckets[0]).toEqual({
             binding: "FEEDBAX_IMAGES",
             bucket_name: "acme-private-images",

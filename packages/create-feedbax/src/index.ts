@@ -27,6 +27,12 @@ export type FeedbackStorageSelection =
   | { kind: "create"; parentPageId: string }
   | { kind: "existing"; configuration: FeedbackDataSourceConfiguration };
 
+export function defaultProcessingQueueName(workerName: string) {
+  return workerName.length <= 55
+    ? `${workerName}-updates`
+    : `${workerName.slice(0, 46)}-${createHash("sha256").update(workerName).digest("hex").slice(0, 8)}-updates`;
+}
+
 export async function provisionGuidedInstallation({
   destination,
   product,
@@ -48,6 +54,8 @@ export async function provisionGuidedInstallation({
   workerName?: string;
   commentProbePageId?: string;
   connected?: {
+    processing?: "small" | "standard";
+    queueName?: string;
     issuer: string;
     loginUrl: string;
     databaseId: string;
@@ -135,6 +143,14 @@ export async function provisionGuidedInstallation({
     throw new Error(
       "Worker name must contain 1–63 lowercase letters, numbers, or hyphens.",
     );
+  const processingQueue =
+    connected && connected.processing !== "standard"
+      ? (connected.queueName ?? defaultProcessingQueueName(targetName))
+      : undefined;
+  if (processingQueue && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(processingQueue))
+    throw new Error(
+      "Processing queue name must contain 1–63 lowercase letters, numbers, or hyphens.",
+    );
   const approved = await preview(
     feedbackSelection.kind === "create"
       ? `Create the canonical Feedback Data Source inside Notion page ${feedbackSelection.parentPageId}.`
@@ -203,6 +219,25 @@ export async function provisionGuidedInstallation({
         ...(connected
           ? {
               triggers: { crons: ["*/5 * * * *"] },
+              ...(processingQueue
+                ? {
+                    queues: {
+                      producers: [
+                        { binding: "FEEDBAX_UPDATES", queue: processingQueue },
+                      ],
+                      consumers: [
+                        {
+                          queue: processingQueue,
+                          max_batch_size: 1,
+                          max_batch_timeout: 1,
+                          max_retries: 3,
+                          max_concurrency: 1,
+                          retry_delay: 60,
+                        },
+                      ],
+                    },
+                  }
+                : {}),
               ...(connected.email?.provider === "cloudflare"
                 ? {
                     send_email: [
@@ -283,6 +318,7 @@ export async function provisionGuidedInstallation({
     ...(connected
       ? {
           connected: {
+            processing: connected.processing ?? "small",
             issuer: connected.issuer,
             loginUrl: connected.loginUrl,
             ...(connected.email
@@ -339,7 +375,7 @@ export async function provisionGuidedInstallation({
     `NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID=${JSON.stringify(probePage)}\n`,
     { flag: "a", mode: 0o600 },
   );
-  return { apiKey, feedback, changelog };
+  return { apiKey, feedback, changelog, processingQueue };
 }
 
 function prefixProperties(prefix: string, properties: object) {

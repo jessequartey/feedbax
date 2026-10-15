@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "build:acceptance": "vite build --mode acceptance",
     "check-types": "tsr generate && tsc --noEmit",
     "dev": "vite dev",
     "deploy": "pnpm build && wrangler deploy",
@@ -11,11 +12,16 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.8",
     "@feedbax/config": "workspace:*",
+    "@feedbax/feedback": "workspace:*",
     "@feedbax/ui": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-router": "1.170.31",
     "@tanstack/react-start": "1.168.48",
+    "better-auth": "1.7.8",
+    "drizzle-orm": "0.45.2",
     "flexsearch": "0.8.212",
     "fumadocs-core": "16.15.5",
     "fumadocs-mdx": "15.4.0",
@@ -24,15 +30,18 @@
     "next-themes": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "tailwindcss": "catalog:"
+    "tailwindcss": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.53.0",
+    "@cloudflare/workers-types": "5.20261014.1",
     "@tanstack/router-cli": "1.167.32",
     "@types/mdx": "2.0.13",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "6.1.0",
+    "miniflare": "4.20260730.0",
     "typescript": "catalog:",
     "vite": "8.2.2",
     "vitest": "4.1.11",

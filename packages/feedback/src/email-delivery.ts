@@ -47,7 +47,8 @@ export function createEmailSender(
   return async (message, deliveryKey) => {
     const response = await (options.request ?? fetch)(url, {
       method: "POST",
-      redirect: "error",
+      // Workers supports manual/follow; manual also prevents forwarding credentials.
+      redirect: "manual",
       signal: AbortSignal.timeout(10000),
       headers: {
         Authorization: `Bearer ${options.token}`,

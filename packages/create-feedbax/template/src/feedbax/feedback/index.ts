@@ -977,6 +977,7 @@ export { createConnectedFeedbackModule } from "./connected-feedback";
 export {
   createParticipationModule,
   type ParticipantNotification,
+  type FollowState,
 } from "./participation";
 export {
   createEmailSender,

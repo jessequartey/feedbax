@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "feedbax-docs-acceptance",
+  "compatibility_date": "2026-08-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/server.ts",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "DOCS_SITE_URL": "https://feedbax-docs-acceptance.jessefquartey.workers.dev",
+    "FEEDBAX_PORTAL_ORIGIN": "https://feedbax-connected-acceptance.jessefquartey.workers.dev",
+  },
+  "d1_databases": [
+    {
+      "binding": "DOCS_AUTH_DB",
+      "database_name": "feedbax-docs-acceptance",
+      "database_id": "c393cba4-3574-4c0e-a770-daa2e651d6fd",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "observability": { "enabled": true },
+}

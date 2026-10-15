@@ -1,5 +1,6 @@
 import { Bell, BellRing } from "lucide-react";
 import { useState } from "react";
+import type { FollowState } from "@feedbax/feedback";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@feedbax/ui/components/button";
 import { useConnectedIdentity } from "./connected-identity-provider";
@@ -35,10 +36,10 @@ function ConnectedFollowPostButton({ slug }: { slug: string }) {
     setPending(true);
     setError(undefined);
     try {
-      const result = await participationRequest<{ following: boolean }>(
-        "follow",
-        { slug, following: !state.data?.following },
-      );
+      const result = await participationRequest<FollowState>("follow", {
+        slug,
+        following: !state.data?.following,
+      });
       queryClient.setQueryData(followQuery(slug).queryKey, result);
     } catch (cause) {
       setError(
@@ -68,9 +69,16 @@ function ConnectedFollowPostButton({ slug }: { slug: string }) {
           : pending
             ? "Updating…"
             : following
-              ? "Following"
+              ? state.data?.initializing
+                ? "Cancel preparation"
+                : "Following"
               : "Follow updates"}
       </Button>
+      {state.data?.initializing ? (
+        <p className="text-xs text-muted-foreground">
+          Preparing updates for this Post…
+        </p>
+      ) : null}
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

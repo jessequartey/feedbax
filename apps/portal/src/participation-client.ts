@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { ParticipantNotification } from "@feedbax/feedback";
+import type { ParticipantNotification, FollowState } from "@feedbax/feedback";
 export interface NotificationPage {
   items: ParticipantNotification[];
   unreadCount: number;
@@ -36,11 +36,13 @@ export const followQuery = (slug: string) =>
   queryOptions({
     queryKey: ["participant-follow", slug],
     queryFn: () =>
-      participationRequest<{ following: boolean }>(
+      participationRequest<FollowState>(
         `follow?slug=${encodeURIComponent(slug)}`,
       ),
     staleTime: 0,
     retry: false,
+    refetchInterval: (query) =>
+      query.state.data?.initializing ? 15000 : false,
   });
 export const preferencesQuery = () =>
   queryOptions({

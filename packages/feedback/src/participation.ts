@@ -8,7 +8,7 @@ import type { D1Database } from "@cloudflare/workers-types";
 import { SQLiteAsyncDialect } from "drizzle-orm/sqlite-core";
 import { sql, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { FeedbackModule } from "./index";
+import type { FeedbackModule, CommentThreadPage } from "./index";
 import type { EmailSender } from "./email-delivery";
 import type { VerifiedParticipant } from "./connected";
 
@@ -16,6 +16,7 @@ export function createParticipationModule(options: {
   database: D1Database;
   feedback: FeedbackModule;
   participant?: VerifiedParticipant;
+  processing?: "small" | "standard";
   now?: () => number;
   email?: {
     sender: EmailSender;
@@ -36,6 +37,80 @@ export function createParticipationModule(options: {
     return post;
   };
   const visible = async (slug: string) => options.feedback.getPublicPost(slug);
+  const batch = async (statements: SQL[]) => {
+    const dialect = new SQLiteAsyncDialect();
+    await options.database.batch(
+      statements.map((statement) => {
+        const query = dialect.sqlToQuery(statement);
+        return options.database.prepare(query.sql).bind(...query.params);
+      }),
+    );
+  };
+  const projectFollow = (row?: { ready: number }): FollowState => ({
+    following: Boolean(row),
+    ...(row && !row.ready ? { initializing: true } : {}),
+  });
+  const readFollow = async (slug: string, subject: string) =>
+    db.get<{ ready: number }>(
+      sql`SELECT ready FROM post_follows WHERE post_slug=${slug} AND subject=${subject}`,
+    );
+  const baseline = (
+    slug: string,
+    subject: string,
+    token: string,
+    startedAt: number,
+    page: CommentThreadPage,
+  ) => {
+    const ids = JSON.stringify(
+      page.items
+        .flatMap((thread) => thread.comments)
+        .filter(
+          (comment) =>
+            comment.createdAt.getTime() >= startedAt - (startedAt % 60000),
+        )
+        .map((comment) => eventId(`comment:${slug}:${comment.id}`)),
+    );
+    return sql`INSERT INTO follow_comment_baselines(post_slug,subject,event_id) SELECT ${slug},${subject},value FROM json_each(${ids}) WHERE EXISTS(SELECT 1 FROM post_follows WHERE post_slug=${slug} AND subject=${subject} AND baseline_token=${token}) ON CONFLICT DO NOTHING`;
+  };
+  const initializeFollows = async () => {
+    const pending = await db.all<{ post_slug: string; subject: string }>(
+      sql`SELECT post_slug,subject FROM post_follows WHERE ready=0 AND baseline_lease_until <= ${now()} ORDER BY baseline_checked_at,followed_at LIMIT ${options.processing === "small" ? 1 : 10}`,
+    );
+    let failed = 0;
+    for (const follow of pending) {
+      const token = randomUUID();
+      const lease = await db.get<{
+        baseline_cursor: string | null;
+        followed_at: number;
+      }>(
+        sql`UPDATE post_follows SET baseline_token=${token},baseline_lease_until=${now() + 120000} WHERE post_slug=${follow.post_slug} AND subject=${follow.subject} AND ready=0 AND baseline_lease_until <= ${now()} RETURNING baseline_cursor,followed_at`,
+      );
+      if (!lease) continue;
+      try {
+        const page = await options.feedback.listCommentThreads({
+          slug: follow.post_slug,
+          cursor: lease.baseline_cursor ?? undefined,
+        });
+        const post = await published(follow.post_slug);
+        await batch([
+          baseline(
+            follow.post_slug,
+            follow.subject,
+            token,
+            lease.followed_at,
+            page,
+          ),
+          sql`UPDATE post_follows SET baseline_cursor=${page.nextCursor ?? null},ready=${page.nextCursor ? 0 : 1},observed_status=${post.status},followed_at=${page.nextCursor ? lease.followed_at : now()},baseline_lease_until=0,baseline_checked_at=${now()},baseline_token=NULL WHERE post_slug=${follow.post_slug} AND subject=${follow.subject} AND baseline_token=${token}`,
+        ]);
+      } catch {
+        failed++;
+        await db.run(
+          sql`UPDATE post_follows SET baseline_lease_until=${now() + 60000},baseline_checked_at=${now()},baseline_token=NULL WHERE post_slug=${follow.post_slug} AND subject=${follow.subject} AND baseline_token=${token}`,
+        );
+      }
+    }
+    return failed;
+  };
   type ObservedEvent = {
     id: string;
     slug: string;
@@ -44,6 +119,7 @@ export function createParticipationModule(options: {
     message: string;
     createdAt: number;
     actor?: string;
+    status?: string;
   };
   const record = async (
     events: ObservedEvent[],
@@ -58,30 +134,39 @@ export function createParticipationModule(options: {
     const payload = JSON.stringify(events);
     // JSON keeps a complete Comment page below D1's 100-bound-parameter limit.
     const statements: SQL[] = [
-      sql`INSERT INTO post_events(id,post_slug,kind,title,message,created_at,actor_subject) SELECT json_extract(value,'$.id'),json_extract(value,'$.slug'),json_extract(value,'$.kind'),json_extract(value,'$.title'),json_extract(value,'$.message'),json_extract(value,'$.createdAt'),json_extract(value,'$.actor') FROM json_each(${payload}) WHERE EXISTS(SELECT 1 FROM post_observations WHERE post_slug=${slug} AND lease_token=${leaseToken}) ON CONFLICT DO NOTHING`,
-      sql`INSERT INTO participant_notifications(id,event_id,subject,created_at,email_state) SELECT lower(hex(randomblob(16))),e.id,f.subject,e.created_at,CASE WHEN c.email IS NOT NULL AND c.email_enabled=1 THEN 'pending' ELSE 'skipped' END FROM post_events e JOIN post_follows f ON f.post_slug=e.post_slug LEFT JOIN participant_contacts c ON c.subject=f.subject WHERE e.id IN(SELECT json_extract(value,'$.id') FROM json_each(${payload})) AND f.followed_at < e.created_at AND f.subject != COALESCE(e.actor_subject,'') AND EXISTS(SELECT 1 FROM post_observations WHERE post_slug=${slug} AND lease_token=${leaseToken}) ON CONFLICT(event_id,subject) DO NOTHING`,
+      sql`INSERT INTO post_events(id,post_slug,kind,title,message,created_at,actor_subject,status) SELECT json_extract(value,'$.id'),json_extract(value,'$.slug'),json_extract(value,'$.kind'),json_extract(value,'$.title'),json_extract(value,'$.message'),json_extract(value,'$.createdAt'),json_extract(value,'$.actor'),json_extract(value,'$.status') FROM json_each(${payload}) WHERE EXISTS(SELECT 1 FROM post_observations WHERE post_slug=${slug} AND lease_token=${leaseToken}) ON CONFLICT DO NOTHING`,
+      sql`INSERT INTO participant_notifications(id,event_id,subject,created_at,email_state) SELECT lower(hex(randomblob(16))),e.id,f.subject,e.created_at,CASE WHEN c.email IS NOT NULL AND c.email_enabled=1 THEN 'pending' ELSE 'skipped' END FROM post_events e JOIN post_follows f ON f.post_slug=e.post_slug LEFT JOIN participant_contacts c ON c.subject=f.subject WHERE f.ready=1 AND e.id IN(SELECT json_extract(value,'$.id') FROM json_each(${payload})) AND ((e.kind='status' AND f.observed_status IS NOT e.status) OR (e.kind!='status' AND e.created_at >= f.followed_at - f.followed_at % 60000 AND NOT EXISTS(SELECT 1 FROM follow_comment_baselines b WHERE b.post_slug=f.post_slug AND b.subject=f.subject AND b.event_id=e.id))) AND f.subject != COALESCE(e.actor_subject,'') AND EXISTS(SELECT 1 FROM post_observations WHERE post_slug=${slug} AND lease_token=${leaseToken}) ON CONFLICT(event_id,subject) DO NOTHING`,
+      ...(events.some((event) => event.kind === "status")
+        ? [
+            sql`UPDATE post_follows SET observed_status=(SELECT json_extract(value,'$.status') FROM json_each(${payload}) WHERE json_extract(value,'$.kind')='status' LIMIT 1) WHERE post_slug=${slug} AND ready=1 AND EXISTS(SELECT 1 FROM post_observations WHERE post_slug=${slug} AND lease_token=${leaseToken})`,
+          ]
+        : []),
       checkpoint,
     ];
-    const dialect = new SQLiteAsyncDialect();
     // D1 batches are transactions; Drizzle compiles every bound parameter.
-    await options.database.batch(
-      statements.map((statement) => {
-        const query = dialect.sqlToQuery(statement);
-        return options.database.prepare(query.sql).bind(...query.params);
-      }),
-    );
+    await batch(statements);
   };
   return {
     async follow(slug: string, following: boolean) {
       const person = identity();
       if (following) {
         const post = await published(slug);
-        await db.run(
-          sql`INSERT INTO post_observations(post_slug,status,checked_at) VALUES(${slug},${post.status},${now()}) ON CONFLICT DO NOTHING`,
-        );
-        await db.run(
-          sql`INSERT INTO post_follows(post_slug,subject,followed_at) VALUES(${slug},${person.subject},${now()}) ON CONFLICT DO NOTHING`,
-        );
+        const existing = await readFollow(slug, person.subject);
+        if (existing) return projectFollow(existing);
+        const page =
+          options.processing === "small"
+            ? undefined
+            : await options.feedback.listCommentThreads({ slug });
+        const startedAt = now();
+        const token = randomUUID();
+        await batch([
+          sql`INSERT INTO post_observations(post_slug,status,checked_at) VALUES(${slug},${post.status},${startedAt}) ON CONFLICT DO NOTHING`,
+          sql`INSERT INTO post_follows(post_slug,subject,followed_at,observed_status,baseline_token,ready,baseline_cursor) VALUES(${slug},${person.subject},${startedAt},${post.status},${token},${!page || page.nextCursor ? 0 : 1},${page?.nextCursor ?? null}) ON CONFLICT DO NOTHING`,
+          ...(page
+            ? [baseline(slug, person.subject, token, startedAt, page)]
+            : []),
+        ]);
+        return projectFollow(await readFollow(slug, person.subject));
       } else
         await db.run(
           sql`DELETE FROM post_follows WHERE post_slug=${slug} AND subject=${person.subject}`,
@@ -91,10 +176,7 @@ export function createParticipationModule(options: {
     async followState(slug: string) {
       const person = identity();
       await published(slug);
-      const row = await db.get(
-        sql`SELECT 1 FROM post_follows WHERE post_slug=${slug} AND subject=${person.subject}`,
-      );
-      return { following: Boolean(row) };
+      return projectFollow(await readFollow(slug, person.subject));
     },
     async preferences() {
       const person = identity();
@@ -157,7 +239,7 @@ export function createParticipationModule(options: {
         attempts: number;
         created_at: number;
       }>(
-        sql`SELECT n.id,n.subject,e.post_slug,e.title,e.message,n.attempts,n.created_at FROM participant_notifications n JOIN post_events e ON n.event_id=e.id WHERE n.email_state='pending' AND n.next_attempt_at <= ${now()} AND n.lease_until <= ${now()} ORDER BY n.created_at,n.id LIMIT 20`,
+        sql`SELECT n.id,n.subject,e.post_slug,e.title,e.message,n.attempts,n.created_at FROM participant_notifications n JOIN post_events e ON n.event_id=e.id WHERE n.email_state='pending' AND n.next_attempt_at <= ${now()} AND n.lease_until <= ${now()} ORDER BY n.created_at,n.id LIMIT ${options.processing === "small" ? 1 : 20}`,
       );
       let sent = 0,
         failed = 0;
@@ -169,7 +251,7 @@ export function createParticipationModule(options: {
         if (!lease) continue;
         try {
           const contact = await db.get<{ email: string }>(
-            sql`SELECT c.email FROM participant_contacts c WHERE c.subject=${row.subject} AND c.email_enabled=1 AND c.email IS NOT NULL AND EXISTS(SELECT 1 FROM post_follows f WHERE f.subject=c.subject AND f.post_slug=${row.post_slug})`,
+            sql`SELECT c.email FROM participant_contacts c WHERE c.subject=${row.subject} AND c.email_enabled=1 AND c.email IS NOT NULL AND EXISTS(SELECT 1 FROM post_follows f WHERE f.subject=c.subject AND f.post_slug=${row.post_slug} AND f.ready=1)`,
           );
           if (
             !contact ||
@@ -301,15 +383,15 @@ export function createParticipationModule(options: {
       };
     },
     async synchronize() {
+      let failed = await initializeFollows();
       const posts = await db.all<{
         post_slug: string;
         status: string;
         comment_cursor: string | null;
       }>(
-        sql`SELECT post_slug,status,comment_cursor FROM post_observations o WHERE lease_until <= ${now()} AND EXISTS(SELECT 1 FROM post_follows f WHERE f.post_slug=o.post_slug) ORDER BY checked_at,post_slug LIMIT 10`,
+        sql`SELECT post_slug,status,comment_cursor FROM post_observations o WHERE lease_until <= ${now()} AND EXISTS(SELECT 1 FROM post_follows f WHERE f.post_slug=o.post_slug AND f.ready=1) ORDER BY checked_at,post_slug LIMIT ${options.processing === "small" ? 1 : 10}`,
       );
-      let checked = 0,
-        failed = 0;
+      let checked = 0;
       for (const observation of posts) {
         const leaseToken = randomUUID();
         const lease = await db.get<{
@@ -323,16 +405,19 @@ export function createParticipationModule(options: {
           const post = await visible(observation.post_slug);
           if (post) {
             const events: ObservedEvent[] = [];
-            if (post.status !== lease.status)
+            if (
+              await db.get(
+                sql`SELECT 1 FROM post_follows WHERE post_slug=${post.slug} AND ready=1 AND observed_status IS NOT ${post.status} LIMIT 1`,
+              )
+            )
               events.push({
-                id: eventId(
-                  `status:${post.slug}:${post.updatedAt.toISOString()}:${post.status}`,
-                ),
+                id: eventId(`status:${post.slug}:${leaseToken}`),
                 slug: post.slug,
                 kind: "status",
                 title: post.title,
                 message: `Status changed to ${post.status}.`,
-                createdAt: post.updatedAt.getTime(),
+                createdAt: now(),
+                status: post.status,
               });
             await record(
               events,
@@ -394,6 +479,10 @@ export interface ParticipantNotification {
   message: string;
   createdAt: number;
   read: boolean;
+}
+export interface FollowState {
+  following: boolean;
+  initializing?: boolean;
 }
 type NotificationRow = {
   id: string;

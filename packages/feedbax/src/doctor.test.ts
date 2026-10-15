@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -102,6 +102,55 @@ const source = () => ({
   ),
 });
 describe("doctor diagnostics", () => {
+  it.each([false, true])(
+    "requires a matching bounded queue for small processing (configured: %s)",
+    async (configured) => {
+      const cwd = await fixture(false);
+      const path = join(cwd, "src/feedbax.ts");
+      const config = JSON.parse(
+        (await readFile(path, "utf8")).replace("export default ", ""),
+      );
+      config.product.siteUrl = "https://feedback.example";
+      config.connected = {
+        issuer: "https://app.example",
+        loginUrl: "https://app.example/login",
+        processing: "small",
+      };
+      await writeFile(path, `export default ${JSON.stringify(config)}`);
+      const wranglerPath = join(cwd, "wrangler.jsonc");
+      const wrangler = JSON.parse(await readFile(wranglerPath, "utf8"));
+      wrangler.triggers = { crons: ["*/5 * * * *"] };
+      if (configured)
+        wrangler.queues = {
+          producers: [{ binding: "FEEDBAX_UPDATES", queue: "acme-updates" }],
+          consumers: [
+            {
+              queue: "acme-updates",
+              max_batch_size: 1,
+              max_concurrency: 1,
+              max_retries: 3,
+              retry_delay: 60,
+            },
+          ],
+        };
+      await writeFile(wranglerPath, JSON.stringify(wrangler));
+      const results = await diagnoseInstallation({
+        cwd,
+        env: {
+          ...env,
+          IDENTITY_HANDOFF_SECRET: "a-test-secret-at-least-32-characters",
+        },
+        request: async () => Response.json(source()),
+        execute,
+      });
+      expect(results).toContainEqual(
+        expect.objectContaining({
+          name: "Connected processing queue",
+          status: configured ? "pass" : "fail",
+        }),
+      );
+    },
+  );
   it("returns structured failures without making external changes when configuration is missing", async () => {
     const request = vi.fn<typeof fetch>();
     const results = await diagnoseInstallation({

@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { createConnectedStore } from "./connected";
 import { createFeedbackModule } from "./index";
 import { createParticipationModule } from "./participation";
+import type { StoredComment } from "./notion-comments";
 
 let runtime: Miniflare | undefined;
 afterEach(async () => {
@@ -13,7 +14,322 @@ afterEach(async () => {
   await previous?.dispose();
 });
 const participant = { subject: "alice", displayName: "Alice" };
-async function setup() {
+
+it("prepares migrated Follows without notifying about same-minute historical Comments", async () => {
+  const { database } = await setup(true);
+  const comments: StoredComment[] = [
+    "before-migration",
+    "after-preparation",
+  ].map((id) => ({
+    id,
+    discussionId: id,
+    postId: "public",
+    body: id,
+    author: { kind: "product-team", displayName: "Product Team" },
+    createdAt: new Date(60000),
+    resolved: false,
+    scope: "page",
+  }));
+  const snapshot = async (count: number) =>
+    createFeedbackModule({
+      initialItems: [
+        {
+          id: "public",
+          slug: "public",
+          title: "Public Post",
+          description: "Public",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt: new Date(1000),
+          updatedAt: new Date(60000),
+        },
+      ],
+      initialComments: comments.slice(0, count),
+    });
+  const follower = createParticipationModule({
+    database,
+    feedback: await snapshot(1),
+    participant,
+    now: () => 60020,
+    processing: "small",
+  });
+  expect(await follower.followState("public")).toEqual({
+    following: true,
+    initializing: true,
+  });
+  await follower.synchronize();
+  expect(await follower.followState("public")).toEqual({ following: true });
+  expect((await follower.inbox()).items).toHaveLength(0);
+  const worker = createParticipationModule({
+    database,
+    feedback: await snapshot(2),
+    now: () => 60030,
+    processing: "small",
+  });
+  await worker.synchronize();
+  expect((await follower.inbox()).items.map((item) => item.kind)).toEqual([
+    "comment",
+  ]);
+});
+
+it("prepares a longer Comment history across bounded runs before activating updates", async () => {
+  const { database } = await setup();
+  const comments: StoredComment[] = Array.from({ length: 52 }, (_, i) => ({
+    id: `c${i}`,
+    discussionId: `d${i}`,
+    postId: "history",
+    body: "History",
+    author: { kind: "product-team", displayName: "Product Team" },
+    createdAt: new Date(60000),
+    resolved: false,
+    scope: "page",
+  }));
+  const snapshot = (count: number) =>
+    createFeedbackModule({
+      initialItems: [
+        {
+          id: "history",
+          slug: "history",
+          title: "History",
+          description: "Public",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt: new Date(1000),
+          updatedAt: new Date(60000),
+        },
+      ],
+      initialComments: comments.slice(0, count),
+    });
+  const follower = createParticipationModule({
+    database,
+    feedback: snapshot(51),
+    participant,
+    now: () => 60010,
+    processing: "small",
+  });
+  expect(await follower.follow("history", true)).toEqual({
+    following: true,
+    initializing: true,
+  });
+  expect(await follower.followState("history")).toEqual({
+    following: true,
+    initializing: true,
+  });
+  const preparation = createParticipationModule({
+    database,
+    feedback: snapshot(51),
+    now: () => 60020,
+    processing: "small",
+  });
+  expect(await preparation.synchronize()).toEqual({ checked: 0, failed: 0 });
+  expect(await follower.followState("history")).toEqual({
+    following: true,
+    initializing: true,
+  });
+  await preparation.synchronize();
+  expect(await follower.followState("history")).toEqual({ following: true });
+  expect((await follower.inbox()).items).toHaveLength(0);
+  const worker = createParticipationModule({
+    database,
+    feedback: snapshot(52),
+    now: () => 60030,
+    processing: "small",
+  });
+  await worker.synchronize();
+  await worker.synchronize();
+  expect((await follower.inbox()).items.map((item) => item.kind)).toEqual([
+    "comment",
+  ]);
+  await follower.follow("history", false);
+  expect(await follower.follow("history", true)).toEqual({
+    following: true,
+    initializing: true,
+  });
+  await follower.follow("history", false);
+  expect(await preparation.synchronize()).toEqual({ checked: 0, failed: 0 });
+  expect(await follower.followState("history")).toEqual({ following: false });
+});
+
+it("distinguishes existing and new Comments within the same coarse Notion minute", async () => {
+  const { database } = await setup();
+  const comments: StoredComment[] = ["old", "new"].map((id) => ({
+    id,
+    discussionId: id,
+    postId: "precision",
+    body: id,
+    author: { kind: "product-team", displayName: "Product Team" },
+    createdAt: new Date(60000),
+    resolved: false,
+    scope: "page",
+  }));
+  const snapshot = (initialComments: StoredComment[]) =>
+    createFeedbackModule({
+      initialItems: [
+        {
+          id: "precision",
+          slug: "precision",
+          title: "Precision",
+          description: "Public",
+          type: "Feature Request",
+          status: "Planned",
+          published: true,
+          createdAt: new Date(1000),
+          updatedAt: new Date(60000),
+        },
+      ],
+      initialComments,
+    });
+  const follower = createParticipationModule({
+    database,
+    feedback: snapshot(comments.slice(0, 1)),
+    participant,
+    now: () => 60010,
+  });
+  await follower.follow("precision", true);
+  const worker = createParticipationModule({
+    database,
+    feedback: snapshot(comments),
+    now: () => 60030,
+  });
+  await createParticipationModule({
+    database,
+    feedback: snapshot(comments),
+    participant,
+    now: () => 60020,
+  }).follow("precision", true);
+  await worker.synchronize();
+  expect((await follower.inbox()).items.map((item) => item.kind)).toEqual([
+    "comment",
+  ]);
+  await worker.synchronize();
+  expect((await follower.inbox()).items).toHaveLength(1);
+});
+
+it("observes status transitions within Notion's timestamp precision without notifying a new follower about earlier changes", async () => {
+  const { database } = await setup();
+  const snapshot = (status: "Planned" | "In Progress") =>
+    createFeedbackModule({
+      initialItems: [
+        {
+          id: "precision",
+          slug: "precision",
+          title: "Status precision",
+          description: "Public",
+          type: "Feature Request",
+          status,
+          published: true,
+          createdAt: new Date(1000),
+          updatedAt: new Date(60000),
+        },
+      ],
+    });
+  const alice = createParticipationModule({
+    database,
+    feedback: snapshot("Planned"),
+    participant,
+    now: () => 60010,
+  });
+  await alice.follow("precision", true);
+  const bobIdentity = { subject: "bob", displayName: "Bob" };
+  await createConnectedStore(database).acceptIdentity({
+    ...bobIdentity,
+    nonce: "bob",
+    sessionHash: "bob",
+    expiresAt: 100000,
+  });
+  const bob = createParticipationModule({
+    database,
+    feedback: snapshot("In Progress"),
+    participant: bobIdentity,
+    now: () => 60020,
+  });
+  await bob.follow("precision", true);
+  let clock = 60030;
+  const worker = (status: "Planned" | "In Progress") =>
+    createParticipationModule({
+      database,
+      feedback: snapshot(status),
+      now: () => clock,
+    });
+  expect(await worker("In Progress").synchronize()).toEqual({
+    checked: 1,
+    failed: 0,
+  });
+  expect((await alice.inbox()).items).toHaveLength(1);
+  expect((await bob.inbox()).items).toHaveLength(0);
+  clock = 60040;
+  await worker("Planned").synchronize();
+  expect((await alice.inbox()).items).toHaveLength(2);
+  expect((await bob.inbox()).items).toHaveLength(1);
+  clock = 60050;
+  await worker("In Progress").synchronize();
+  expect((await alice.inbox()).items).toHaveLength(3);
+  expect((await bob.inbox()).items).toHaveLength(2);
+});
+
+it("small processing resumes one followed Post and one pending email per run", async () => {
+  const { database } = await setup();
+  const posts = (status: "Planned" | "In Progress", updatedAt: number) =>
+    createFeedbackModule({
+      initialItems: ["first", "second"].map((slug) => ({
+        id: slug,
+        slug,
+        title: slug,
+        description: "Public",
+        type: "Feature Request",
+        status,
+        published: true,
+        createdAt: new Date(1000),
+        updatedAt: new Date(updatedAt),
+      })),
+    });
+  await createConnectedStore(database).acceptIdentity({
+    ...participant,
+    email: "alice@example.com",
+    nonce: "email",
+    sessionHash: "email",
+    expiresAt: 100000,
+  });
+  const sent: string[] = [];
+  const email = {
+    sender: async (message: { subject: string }) => {
+      sent.push(message.subject);
+    },
+    from: "updates@example.com",
+    siteUrl: "https://feedback.example",
+    unsubscribeSecret: "test-unsubscribe-secret-at-least-32-characters",
+  };
+  const follower = createParticipationModule({
+    database,
+    feedback: posts("Planned", 1000),
+    participant,
+    now: () => 2000,
+    email,
+  });
+  await follower.follow("first", true);
+  await follower.follow("second", true);
+  await follower.setEmailPreference(true);
+  const worker = createParticipationModule({
+    database,
+    feedback: posts("In Progress", 3000),
+    participant,
+    now: () => 4000,
+    email,
+    processing: "small",
+  });
+  expect(await worker.synchronize()).toEqual({ checked: 1, failed: 0 });
+  expect((await worker.inbox()).items).toHaveLength(1);
+  expect(await worker.synchronize()).toEqual({ checked: 1, failed: 0 });
+  expect((await worker.inbox()).items).toHaveLength(2);
+  expect(await worker.deliverEmails()).toEqual({ sent: 1, failed: 0 });
+  expect(sent).toHaveLength(1);
+  expect(await worker.deliverEmails()).toEqual({ sent: 1, failed: 0 });
+  expect(sent).toHaveLength(2);
+  expect(await worker.deliverEmails()).toEqual({ sent: 0, failed: 0 });
+});
+async function setup(legacyFollow = false) {
   runtime = new Miniflare({
     modules: true,
     script: "export default {fetch(){return new Response('ok')}}",
@@ -34,6 +350,16 @@ async function setup() {
     sessionHash: "a",
     expiresAt: 100000,
   });
+  if (legacyFollow)
+    await database.exec(
+      "INSERT INTO post_observations (post_slug,status,checked_at) VALUES ('public','Planned',60000); INSERT INTO post_follows (post_slug,subject,followed_at) VALUES ('public','alice',60010);",
+    );
+  await database.exec(
+    await readFile(
+      `${existsSync("apps/portal/migrations") ? "apps/portal/migrations" : "migrations"}/0004_followed_status.sql`,
+      "utf8",
+    ),
+  );
   const feedback = createFeedbackModule({
     initialItems: [
       {
@@ -313,7 +639,7 @@ it("supports Cloudflare structured sending and an authenticated custom HTTPS ada
     },
   })(message, "delivery-2");
   expect(custom?.headers.get("Idempotency-Key")).toBe("delivery-2");
-  expect(custom?.redirect).toBe("error");
+  expect(custom?.redirect).toBe("manual");
   expect(custom?.headers.get("Authorization")).toBe(
     "Bearer private-adapter-key",
   );

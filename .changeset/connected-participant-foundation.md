@@ -16,3 +16,7 @@ Enforce theme colors, known Tailwind classes, and inspectable component classes 
 Show five uniform roadmap previews per column with incremental View more, use the shared type scale throughout the portal, simplify the changelog timeline, and add the GitHub-linked Feedbax footer. Include informative repository and owned-app setup instructions for people and agents.
 
 Add explicit per-Post following, private in-app and opt-in email notifications, Cloudflare Email Service/Resend/custom HTTPS sending, and private image attachments on new Posts and Comments. Include scheduled Notion synchronization, durable retries/unsubscribe, verified email assertions, image moderation links and cleanup, installation diagnostics, and complete setup guidance. Truncate Feedback list descriptions to two lines.
+
+Default Connected processing to small batches for Workers Free with Resend/custom email, and retain explicit standard batches for Workers Paid. Use Workers-compatible manual redirect handling so email requests work at the edge without forwarding provider credentials to redirected destinations.
+
+Dispatch small-mode scheduled processing through a dedicated Cloudflare Queue so the timer stays within Workers Free's CPU allowance. Include bounded queue configuration and diagnostics. Prepare existing Follow Comment history across background pages, expose cancellable preparation, and distinguish new Comments and status changes despite minute-rounded Notion timestamps. Apply every bundled D1 migration before deploying the updated Connected Worker.
