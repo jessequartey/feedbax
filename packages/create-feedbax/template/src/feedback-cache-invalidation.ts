@@ -47,6 +47,8 @@ export function createInvalidatingFeedbackModule({
   invalidator: PublicCacheInvalidator;
 }): FeedbackModule {
   return {
+    getParticipantPost: (id) => feedback.getParticipantPost(id),
+    claimDraftPost: (input) => feedback.claimDraftPost(input),
     getAttachmentPostState: (slug) => feedback.getAttachmentPostState(slug),
     editComment: (input) => feedback.editComment(input),
     deleteComment: (input) => feedback.deleteComment(input),

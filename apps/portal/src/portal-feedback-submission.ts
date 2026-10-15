@@ -157,7 +157,16 @@ function validateInput(
   )
     throw invalidSubmission();
 
+  if (
+    value.submissionKey !== undefined &&
+    (typeof value.submissionKey !== "string" ||
+      !/^[A-Za-z0-9_-]{43}$/.test(value.submissionKey))
+  )
+    throw invalidSubmission();
   return {
+    ...(value.submissionKey
+      ? { submissionKey: value.submissionKey as string }
+      : {}),
     ...(value.imageIds ? { imageIds: value.imageIds as string[] } : {}),
     title: value.title,
     description: value.description,

@@ -7,7 +7,7 @@ Changelog Entries use their own schema and Data Source, separate from feedback P
 
 Create an entry in Notion with Title, immutable Slug, Date, Summary, Body, Labels, and optional Image. Summary and Body are rich-text properties; the Notion page body is not published. Check Published when the entry is ready.
 
-The public timeline sorts by Date, newest first, and loads 20 entries at a time. Participants can filter Labels and link to entries through hash anchors. There is no separate Changelog detail route in 0.2.0.
+The public timeline sorts by Date, newest first, then by creation time, newest first. Entries with identical dates and creation times use immutable Slug order so pagination stays deterministic. It loads 20 entries at a time. Participants can filter Labels and link to entries through hash anchors. There is no separate Changelog detail route in 0.2.0.
 
 Manage zero or one image directly in Notion. Feedbax reads that file reference, refreshes or discards temporary URLs before expiry, and preserves text when an image is unavailable. It does not upload, resize, copy, or separately store images.
 

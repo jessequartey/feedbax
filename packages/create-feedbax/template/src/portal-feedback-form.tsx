@@ -1,3 +1,4 @@
+import { submissionIntent } from "./submission-intent";
 import { ImageAttachments } from "./components/image-attachments";
 import { configuredTurnstileSiteKey } from "./turnstile-configuration";
 import type { Post, PostType, SubmittedPost } from "@feedbax/feedback";
@@ -163,9 +164,15 @@ export function PortalFeedbackForm({
     setPending(true);
     setMessage(undefined);
     try {
+      const intent = await submissionIntent(window.sessionStorage, {
+        ...values,
+        imageIds: images.map((image) => image.id),
+        submitter: readDeviceProfile(window.localStorage),
+      });
       const result = await mutations.submitPost({
         data: {
           ...values,
+          submissionKey: intent.key,
           ...(images.length
             ? { imageIds: images.map((image) => image.id) }
             : {}),
@@ -178,9 +185,9 @@ export function PortalFeedbackForm({
       const storedDraft: StoredDraft = {
         id: result.id,
         browserCapability: result.browserCapability,
-        title: values.title,
-        description: values.description,
-        type: values.type,
+        title: result.title,
+        description: result.description,
+        type: result.type,
       };
       setDraft(storedDraft);
       try {
@@ -193,6 +200,7 @@ export function PortalFeedbackForm({
           draftStorageKey,
           JSON.stringify(storedDraft),
         );
+        intent.complete();
       } catch {
         setMessage(
           "Draft submitted, but this browser could not save access. Keep this page open to manage it.",

@@ -76,7 +76,7 @@ export async function assembleFlatTemplate(
       '@source "../../../**/*.{ts,tsx}";',
     ),
   );
-  for (const name of ["vite.config.ts"])
+  for (const name of ["vite.config.ts", "feedbax-vite.ts"])
     await copy(join(coreRoot, "apps/portal", name), join(target, name));
   const components = parse(
     await readFile(join(coreRoot, "apps/portal/components.json"), "utf8"),
@@ -98,6 +98,7 @@ export async function assembleFlatTemplate(
     JSON.stringify(wrangler, null, 2) + "\n",
   );
   await copy(join(coreRoot, "LICENSE"), join(target, "LICENSE"));
+  await copy(join(coreRoot, ".nvmrc"), join(target, ".nvmrc"));
   await copy(
     join(coreRoot, "eslint.config.mjs"),
     join(target, "eslint.config.mjs"),
@@ -194,11 +195,11 @@ export async function assembleFlatTemplate(
   );
   await writeFile(
     join(target, ".gitignore.template"),
-    ".dev.vars\n.env*\ndist/\n.wrangler/\n*.log\nnode_modules/\n",
+    ".dev.vars\n.env*\n.feedbax/\ndist/\n.wrangler/\n*.log\nnode_modules/\n",
   );
   await writeFile(
     join(target, ".npmignore.template"),
-    ".dev.vars\n.env*\ndist/\n.wrangler/\n*.log\n",
+    ".dev.vars\n.env*\n.feedbax/\ndist/\n.wrangler/\n*.log\n",
   );
   await writeFile(
     join(target, ".prettierignore.template"),
@@ -319,18 +320,18 @@ async function flatManifest(coreRoot: string) {
       ...collect("devDependencies"),
       "@eslint/js": "10.0.1",
       "@shadcn/lint": "0.2.1",
-      "@types/node": "22.20.1",
+      "@types/node": "24.19.2",
       feedbax: JSON.parse(
         await readFile(join(coreRoot, "packages/feedbax/package.json"), "utf8"),
       ).version,
-      eslint: "10.8.1",
-      globals: "17.11.0",
-      prettier: "3.9.6",
-      "typescript-eslint": "8.67.0",
-      vitest: "4.1.11",
+      eslint: "10.12.0",
+      globals: "17.13.0",
+      prettier: "3.9.10",
+      "typescript-eslint": "8.71.2",
+      vitest: "5.0.4",
     },
     pnpm: { onlyBuiltDependencies: ["esbuild"] },
-    engines: { node: ">=22.14.0" },
+    engines: { node: "^24.15.0 || >=26.0.0" },
     packageManager: "pnpm@10.29.3",
     license: "Apache-2.0",
   };

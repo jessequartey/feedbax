@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
 import {
   type FeedbackModule,
   type PublicPost,
   PublicPostCursorError,
   VoteEligibilityError,
+  recoverableComment,
+  CommentValidationError,
   roadmapStatuses,
   type PublicPostRoadmap,
 } from "./index";
@@ -48,30 +51,56 @@ export function createConnectedFeedbackModule(
     },
   ) => {
     const identity = requireParticipant();
-    const command = { ...input, displayName: identity.displayName };
+    if (
+      input.submissionKey !== undefined &&
+      !/^[A-Za-z0-9_-]{43}$/.test(input.submissionKey)
+    )
+      throw new CommentValidationError("Comment intent is invalid.");
+    const command = {
+      ...input,
+      displayName: identity.displayName,
+      ...(input.submissionKey
+        ? {
+            submissionKey: createHash("sha256")
+              .update(
+                JSON.stringify([
+                  "feedbax-verified-comment-v1",
+                  identity.subject,
+                  input.submissionKey,
+                ]),
+              )
+              .digest("base64url"),
+          }
+        : {}),
+    };
     const comment = input.discussionId
       ? await base.replyToCommentThread({
           ...command,
           discussionId: input.discussionId,
         })
       : await base.createComment(command);
-    // If attribution cannot be stored, remove the just-created Comment. Never claim verification without durable evidence.
+    // Stable provider intents retain their record for attribution recovery. Older adapters compensate best-effort; verification is returned only after the private write.
     try {
       await store.attributeComment(comment.id, identity);
     } catch (error) {
-      await base
-        .deleteComment({ commentId: comment.id })
-        .catch(() => undefined);
+      if (!comment[recoverableComment])
+        await base
+          .deleteComment({ commentId: comment.id })
+          .catch(() => undefined);
       throw error;
     }
-    return {
-      ...comment,
-      author: {
-        kind: "participant" as const,
-        displayName: identity.displayName,
-        verified: true,
+    return Object.defineProperty(
+      {
+        ...comment,
+        author: {
+          kind: "participant" as const,
+          displayName: identity.displayName,
+          verified: true,
+        },
       },
-    };
+      recoverableComment,
+      { value: comment[recoverableComment] },
+    );
   };
   const listPublicRoadmapPosts: FeedbackModule["listPublicRoadmapPosts"] =
     async (query) => {

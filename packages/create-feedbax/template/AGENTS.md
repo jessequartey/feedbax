@@ -6,7 +6,7 @@ This is a flat application, not the Feedbax development monorepo. Product settin
 
 Use the copied shadcn primitives in `src/components/ui`. Keep the configured Geist font and theme tokens. After changes, run `pnpm lint`, `pnpm type-check`, `pnpm test`, and `pnpm build`, fixing errors. Use `pnpm format:check` to check formatting.
 
-For setup, `pnpm exec feedbax doctor` must pass with real Notion credentials/mappings and enabled bindings. Run `pnpm deploy:dry-run` before deployment and verify the actual live URL after `pnpm exec feedbax deploy`. Distinguish copied source, configured local readiness, and a verified deployment in the result.
+For setup, `pnpm exec feedbax doctor` must pass with the selected provider’s real credentials/mappings and enabled bindings. For GitHub provisioning, pairing, native publication, public-repository exposure, or provider secrets, read the GitHub setup and publication section in README.md. GitHub requires dedicated D1 independently of Connected identity and disables Changelog. Bootstrap deployment remains unpaired until the GitHub authorization flow completes. Run `pnpm deploy:dry-run` before deployment and verify the actual live URL after `pnpm exec feedbax deploy`. Distinguish copied source, configured local readiness, and a verified deployment in the result.
 
 ## Connected social features
 

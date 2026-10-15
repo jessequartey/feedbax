@@ -6,6 +6,9 @@ declare module "cloudflare:workers" {
     }>;
   };
   export const env: {
+    GITHUB_SERVICE_SECRET?: string;
+    GITHUB_DELIVERY_SECRET?: string;
+    GITHUB_PAIRING_SECRET?: string;
     FEEDBAX_UPDATES?: import("@cloudflare/workers-types").Queue<string>;
     FEEDBAX_EMAIL?: import("@feedbax/feedback").CloudflareEmailBinding;
     EMAIL_PROVIDER_SECRET?: string;

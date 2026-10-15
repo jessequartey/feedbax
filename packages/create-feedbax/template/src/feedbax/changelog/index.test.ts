@@ -8,6 +8,41 @@ import {
 } from ".";
 
 describe("Changelog module", () => {
+  it("puts newer same-day entries first and uses Slug for exact ties", async () => {
+    const changelog = createChangelogModule({
+      storage: createInMemoryChangelogStorage([
+        entry({ id: "a", slug: "older-creation", date: "2026-10-15" }),
+        entry({
+          id: "z",
+          slug: "a-newer-creation",
+          date: "2026-10-15",
+          createdAt: new Date("2026-10-15T12:00:00Z"),
+        }),
+        entry({
+          id: "b",
+          slug: "z-newer-creation",
+          date: "2026-10-15",
+          createdAt: new Date("2026-10-15T12:00:00Z"),
+        }),
+        entry({
+          id: "c",
+          slug: "older-release-date",
+          date: "2026-10-14",
+          createdAt: new Date("2026-10-16T12:00:00Z"),
+        }),
+      ]),
+    });
+
+    expect(
+      (await changelog.listPublishedEntries()).items.map(({ slug }) => slug),
+    ).toEqual([
+      "a-newer-creation",
+      "z-newer-creation",
+      "older-creation",
+      "older-release-date",
+    ]);
+  });
+
   it("returns only Published Changelog Entries in deterministic Date order", async () => {
     const changelog = createChangelogModule({
       storage: createInMemoryChangelogStorage([

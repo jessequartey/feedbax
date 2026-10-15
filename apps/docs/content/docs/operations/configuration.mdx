@@ -1,12 +1,22 @@
 ---
 title: Configuration
-description: Configure portal identity, navigation, statuses, and Notion mappings.
+description: Configure the selected provider, product, features and independent Connected identity.
 ---
 
-The `defineFeedbax` call is the public configuration boundary. Keep it declarative and version controlled.
+The `defineFeedbax` call is the validated configuration boundary. Server configuration includes provider identifiers; the browser build receives only an explicit product/feature projection. Keep it declarative and version controlled.
 
 <include>../../../examples/feedbax.config.ts</include>
 
 Run `feedbax doctor` after changing database or property mappings.
 
 For optional Connected Profile, add `connected.issuer` and `connected.loginUrl` with an absolute HTTPS `product.siteUrl`; keep the shared handoff secret in server environment configuration. The [authentication guide](/docs/guides/connected-profile) covers D1 provisioning, the application endpoint, and complete configuration.
+
+## GitHub configuration in 0.2.2
+
+Set `provider: "github"` and `github.installationId`, `serviceUrl`, numeric repository ID/owner/name and bot user ID. Omit `notion` and set `features.changelog: false`. Bind a dedicated `FEEDBAX_DB` even if `connected` is omitted. Mixed providers, missing D1, unsupported fields and enabled GitHub Changelog fail validation. Existing files with no `provider` still select Notion and retain their shape.
+
+Follow [GitHub setup](/docs/getting-started/github) for a complete configuration and server-only pairing secret. A GitHub App installation ID is an external identity; it is not the stable Feedbax Installation ID. Keep the latter and existing Post slugs unchanged during subsequent lifecycle work.
+
+## Observed History in 0.2.2
+
+Set root-level `history: true` to enable the [public progress timeline](/docs/guides/progress-history). It requires explicitly provisioned `FEEDBAX_DB`, every migration and a timer; it works with either provider independently of Connected identity. Omission preserves existing storage requirements. The first public Post observation establishes a baseline; private history is never backfilled.

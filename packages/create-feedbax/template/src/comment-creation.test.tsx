@@ -111,12 +111,15 @@ describe("Comment creation", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
     expect(screen.getByText("Please add shortcuts.")).toBeTruthy();
-    expect(submitComment).toHaveBeenCalledWith({
-      slug: "roadmap-search",
-      body: "Please add shortcuts.",
-      displayName: "Ari",
-      email: "private@example.com",
-    });
+    await waitFor(() =>
+      expect(submitComment).toHaveBeenCalledWith({
+        slug: "roadmap-search",
+        body: "Please add shortcuts.",
+        displayName: "Ari",
+        email: "private@example.com",
+        submissionKey: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      }),
+    );
 
     confirm({
       id: "notion-comment",
@@ -182,6 +185,7 @@ describe("Comment creation", () => {
         />
       </DeviceProfileProvider>,
     );
+    await waitFor(() => expect(submitComment).toHaveBeenCalledTimes(1));
     finish(confirmed);
     await waitFor(() =>
       expect(screen.getAllByText("One comment")).toHaveLength(1),
@@ -205,6 +209,49 @@ describe("Comment creation", () => {
     await screen.findByRole("alert");
     expect(screen.queryByText("Temporary message")).toBeNull();
     expect(screen.getByRole("alert").textContent).toContain("Try again");
+    expect(
+      (screen.getByLabelText("Add a comment") as HTMLTextAreaElement).value,
+    ).toBe("Temporary message");
+  });
+
+  it("retries a lost Comment response with the same intent and preserves the composer", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ari",
+      email: "private@example.com",
+    });
+    const requests: Record<string, unknown>[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      if (requests.length === 1) throw new Error("Response lost. Try again.");
+      return Response.json({
+        comment: {
+          id: "recovered-comment",
+          discussionId: "recovered-thread",
+          body: "Keep this message",
+          author: { kind: "participant", displayName: "Ari" },
+          createdAt: "2026-08-25T01:00:00.000Z",
+        },
+      });
+    });
+    renderCommentDetail({ submitComment: submitPublicComment });
+    fireEvent.change(await screen.findByLabelText("Add a comment"), {
+      target: { value: "Keep this message" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
+    await screen.findByRole("alert");
+    expect(
+      (screen.getByLabelText("Add a comment") as HTMLTextAreaElement).value,
+    ).toBe("Keep this message");
+    fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("Add a comment") as HTMLTextAreaElement).value,
+      ).toBe(""),
+    );
+    expect(requests[0]?.submissionKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(requests[1]?.submissionKey).toBe(requests[0]?.submissionKey);
+    expect(screen.getAllByText("Keep this message")).toHaveLength(1);
   });
 
   it("renders a fresh Turnstile challenge after a stale Participation Pass is rejected", async () => {

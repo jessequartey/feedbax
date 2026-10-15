@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { signIntegrationRequest } from "../../feedback/src/integration-auth";
+import { createGitHubServiceAccess } from "../../feedback/src/github-service-client";
 import type { FeedbaxConfig } from "../../config/src/index";
 import {
   loadInstallationConfig,
@@ -16,6 +18,7 @@ type Execute = (
   command: string,
   args: string[],
   cwd: string,
+  options?: { privateOutput?: boolean },
 ) => Promise<{ stdout: string }>;
 
 export async function diagnoseInstallation({
@@ -23,24 +26,26 @@ export async function diagnoseInstallation({
   env = process.env,
   request = fetch,
   execute = runCommand,
+  nodeVersion = process.versions.node,
+  pairingBootstrap = false,
 }: {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   request?: typeof fetch;
   execute?: Execute;
+  nodeVersion?: string;
+  pairingBootstrap?: boolean;
 } = {}): Promise<Diagnostic[]> {
   const results: Diagnostic[] = [];
   const effectiveEnv = { ...(await readLocalEnvironment(cwd)), ...env };
-  const [nodeMajor = 0, nodeMinor = 0] = process.versions.node
-    .split(".")
-    .map(Number);
+  const [nodeMajor = 0, nodeMinor = 0] = nodeVersion.split(".").map(Number);
   results.push(
-    nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 14)
-      ? pass("Node.js", `Node ${process.versions.node} is supported.`)
+    nodeMajor >= 26 || (nodeMajor === 24 && nodeMinor >= 15)
+      ? pass("Node.js", `Node ${nodeVersion} is supported.`)
       : fail(
           "Node.js",
           "Unsupported Node version.",
-          "Install Node.js 22.14 or newer.",
+          "Install Node.js 24.15 or newer on the Node 24 LTS line, or Node 26+.",
         ),
   );
   await check("pnpm", async () => {
@@ -65,6 +70,37 @@ export async function diagnoseInstallation({
         throw new Error(`Restore ${name} in wrangler.jsonc.`);
     return "Worker target and required rate-limit bindings are configured.";
   });
+  if (config?.history)
+    await check("Observed history", async () => {
+      const wrangler = await readWranglerConfiguration(cwd);
+      if (
+        !wrangler.d1_databases?.some(
+          (binding) => binding.binding === "FEEDBAX_DB" && binding.database_id,
+        )
+      )
+        throw Error(
+          "Bind FEEDBAX_DB explicitly and apply all included migrations before enabling history.",
+        );
+      if (!wrangler.triggers?.crons?.length)
+        throw Error(
+          "Configure a scheduled trigger to check observed history between public reads.",
+        );
+      await execute(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "FEEDBAX_DB",
+          "--remote",
+          "--command",
+          "SELECT post_slug,revision,projection,checked_at,lease_until,lease_token FROM public_post_observations LIMIT 0; SELECT id,post_slug,revision,kind,status,message,observed_at FROM public_post_history LIMIT 0;",
+        ],
+        cwd,
+      );
+      return "Observed-history schema and timer are configured. The first public observation is the baseline; private history is never backfilled.";
+    });
   if (config?.connected) {
     results.push({
       name: "Connected processing",
@@ -205,7 +241,7 @@ export async function diagnoseInstallation({
           "FEEDBAX_DB",
           "--remote",
           "--command",
-          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_slug, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0; SELECT post_slug,subject,followed_at,observed_status,ready,baseline_cursor,baseline_token,baseline_lease_until,baseline_checked_at FROM post_follows LIMIT 0; SELECT event_id FROM follow_comment_baselines LIMIT 0; SELECT subject,email,email_enabled FROM participant_contacts LIMIT 0; SELECT id,event_id,read_at,email_state FROM participant_notifications LIMIT 0; SELECT post_slug,status,comment_cursor FROM post_observations LIMIT 0; SELECT id,post_slug,created_at,status FROM post_events LIMIT 0;",
+          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_slug, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0; SELECT post_id,post_slug,subject FROM post_ownership LIMIT 0; SELECT post_slug,subject,followed_at,observed_status,ready,baseline_cursor,baseline_token,baseline_lease_until,baseline_checked_at FROM post_follows LIMIT 0; SELECT event_id FROM follow_comment_baselines LIMIT 0; SELECT subject,email,email_enabled FROM participant_contacts LIMIT 0; SELECT id,event_id,read_at,email_state FROM participant_notifications LIMIT 0; SELECT post_slug,status,comment_cursor FROM post_observations LIMIT 0; SELECT id,post_slug,created_at,status FROM post_events LIMIT 0;",
         ],
         cwd,
       );
@@ -213,7 +249,7 @@ export async function diagnoseInstallation({
     });
   }
   for (const name of [
-    "NOTION_TOKEN",
+    ...(config?.provider === "github" ? [] : ["NOTION_TOKEN"]),
     "FEEDBAX_API_KEY_HASH",
     "PARTICIPATION_SIGNING_SECRET",
   ])
@@ -244,7 +280,131 @@ export async function diagnoseInstallation({
           ),
     );
 
-  if (config && effectiveEnv.NOTION_TOKEN) {
+  if (config?.provider === "github") {
+    const github = config.github;
+    await check("GitHub D1 storage", async () => {
+      const wrangler = await readWranglerConfiguration(cwd);
+      if (
+        !wrangler.d1_databases?.some(
+          (binding) => binding.binding === "FEEDBAX_DB",
+        )
+      )
+        throw new Error(
+          "Provision the FEEDBAX_DB D1 binding and apply the included migrations.",
+        );
+      if (!wrangler.triggers?.crons?.length)
+        throw new Error(
+          "Configure the five-minute reconciliation cron in wrangler.jsonc.",
+        );
+      await execute(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "FEEDBAX_DB",
+          "--remote",
+          "--command",
+          "SELECT installation_id,post_id,state FROM github_posts LIMIT 0; SELECT comment_id FROM github_comments LIMIT 0; SELECT installation_id,revoked FROM integration_credentials LIMIT 0; SELECT event_id,attempts,next_attempt,lease_token,lease_until FROM integration_receipts LIMIT 0;",
+        ],
+        cwd,
+      );
+      return "GitHub mappings, private metadata, and delivery schema are readable. Identity remains independently configured.";
+    });
+    if (!pairingBootstrap)
+      await check("GitHub Portal Binding", async () => {
+        let secret = effectiveEnv.GITHUB_SERVICE_SECRET;
+        if (!secret) {
+          const captured = await execute(
+            "pnpm",
+            [
+              "exec",
+              "wrangler",
+              "d1",
+              "execute",
+              "FEEDBAX_DB",
+              "--remote",
+              "--json",
+              "--command",
+              `SELECT portal_secret FROM integration_credentials WHERE installation_id='${github.installationId}' AND revoked=0;`,
+            ],
+            cwd,
+            { privateOutput: true },
+          );
+          try {
+            secret = JSON.parse(captured.stdout)[0]?.results?.[0]
+              ?.portal_secret;
+          } catch {
+            /* Report the safe repair below. */
+          }
+        }
+        if (!secret || secret.length < 32)
+          throw new Error(
+            "Pair this portal with its GitHub App service. No active Portal Binding credential is available.",
+          );
+        const statusResponse = await request(
+          signIntegrationRequest({
+            url: `${github.serviceUrl}/v1/status`,
+            installationId: github.installationId,
+            secret,
+            body: "{}",
+          }),
+        );
+        if (!statusResponse.ok)
+          throw new Error(
+            "GitHub Portal Binding is unavailable or revoked. Pair the Installation again.",
+          );
+        const status = (await statusResponse.json()) as {
+          active?: boolean;
+          lastDeliveryAt?: number;
+          pending?: number;
+          terminalFailures?: number;
+        };
+        if (!status.active)
+          throw new Error("GitHub Portal Binding is revoked.");
+        if (
+          !status.lastDeliveryAt ||
+          Date.now() - status.lastDeliveryAt > 900_000 ||
+          (status.terminalFailures ?? 0) > 0
+        )
+          results.push({
+            name: "GitHub synchronization",
+            status: "warn",
+            message: `Reconciliation needs attention: ${status.pending ?? 0} pending; ${status.terminalFailures ?? 0} terminal failures.`,
+            repair:
+              "Verify service and portal cron processing, permissions, and their most recent successful delivery.",
+          });
+        const token = await createGitHubServiceAccess({
+          config: github,
+          secret,
+          request,
+        })();
+        const repository = await request(
+          `https://api.github.com/repos/${github.repository.owner}/${github.repository.name}`,
+          {
+            redirect: "manual",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "User-Agent": "Feedbax",
+              Accept: "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2026-03-10",
+            },
+          },
+        );
+        if (
+          !repository.ok ||
+          ((await repository.json()) as { id?: number }).id !==
+            github.repository.id
+        )
+          throw new Error(
+            "Repository access is unavailable or mismatched. Check the App installation permissions.",
+          );
+        return "Authenticated binding and repository access are valid. No provider data was modified.";
+      });
+  }
+  if (config && config.provider !== "github" && effectiveEnv.NOTION_TOKEN) {
+    const notion = config.notion;
     const headers = {
       Authorization: `Bearer ${effectiveEnv.NOTION_TOKEN}`,
       "Notion-Version": "2026-03-11",
@@ -261,9 +421,9 @@ export async function diagnoseInstallation({
     };
     await check("Notion Feedback schema", async () => {
       const source = await get(
-        `data_sources/${encodeURIComponent(config!.notion.dataSourceId)}`,
+        `data_sources/${encodeURIComponent(notion.dataSourceId)}`,
       );
-      validateProperties(source, config!.notion.properties, feedbackTypes);
+      validateProperties(source, notion.properties, feedbackTypes);
       const byId = propertiesById(source);
       for (const [key, options] of Object.entries({
         type: ["Feature Request", "Bug Report", "General Feedback"],
@@ -278,8 +438,8 @@ export async function diagnoseInstallation({
         source: ["Portal", "API", "Team"],
       })) {
         const property = byId.get(
-          config!.notion.properties[
-            key as keyof FeedbaxConfig["notion"]["properties"]
+          notion.properties[
+            key as keyof NonNullable<FeedbaxConfig["notion"]>["properties"]
           ],
         );
         const available =
@@ -308,7 +468,7 @@ export async function diagnoseInstallation({
       let cursor: string | undefined;
       do {
         const list = await get(
-          `views?database_id=${encodeURIComponent(config!.notion.databaseId)}${cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : ""}`,
+          `views?database_id=${encodeURIComponent(notion.databaseId)}${cursor ? `&start_cursor=${encodeURIComponent(cursor)}` : ""}`,
         );
         if (!Array.isArray(list.results))
           throw new Error("Notion returned an invalid team-view list.");
@@ -319,7 +479,7 @@ export async function diagnoseInstallation({
           if (
             detail.name &&
             (!detail.data_source_id ||
-              detail.data_source_id === config!.notion.dataSourceId)
+              detail.data_source_id === notion.dataSourceId)
           )
             names.add(detail.name);
         }
@@ -349,7 +509,7 @@ export async function diagnoseInstallation({
     if (config.features.comments)
       await check("Notion Comments", async () => {
         await get(
-          `comments?block_id=${encodeURIComponent(effectiveEnv.NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID ?? config!.notion.databaseId)}&page_size=1`,
+          `comments?block_id=${encodeURIComponent(effectiveEnv.NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID ?? notion.databaseId)}&page_size=1`,
         );
         return "Read comments is available. Insert comments was verified during setup; doctor makes no writes.";
       });
@@ -477,17 +637,23 @@ const fail = (name: string, message: string, repair: string): Diagnostic => ({
   message,
   repair,
 });
-async function runCommand(command: string, args: string[], cwd: string) {
+async function runCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+  options?: { privateOutput?: boolean },
+) {
   return new Promise<{ stdout: string }>((resolve, reject) => {
     let stdout = "";
     const child = spawn(command, args, {
       cwd,
-      stdio: ["ignore", "pipe", "inherit"],
+      stdio: ["ignore", "pipe", options?.privateOutput ? "pipe" : "inherit"],
     });
-    child.stdout.on("data", (chunk) => {
+    child.stdout!.on("data", (chunk) => {
       stdout += String(chunk);
-      process.stdout.write(chunk);
+      if (!options?.privateOutput) process.stdout.write(chunk);
     });
+    if (options?.privateOutput) child.stderr?.on("data", () => {});
     child.on("error", reject);
     child.on("exit", (code) =>
       code === 0

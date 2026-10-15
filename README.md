@@ -1,24 +1,56 @@
 # Feedbax
 
-An open-source feedback portal with your Product Team’s workflow in Notion. Collect ideas and bug reports, publish a roadmap, discuss feedback, and share release notes. Deploy it to your own Cloudflare Worker and keep the source.
+An open-source feedback portal with Product Team workflow in Notion or GitHub. Collect ideas and bug reports, publish a roadmap, and discuss feedback. You own the application source and Cloudflare deployment.
 
-[Get started](https://feedbax-docs.jessefquartey.workers.dev/docs) · [Set up with an agent](docs/agent-setup.md) · [Authentication](docs/connected-profile.md) · [Feedback block](apps/docs/content/docs/integrations/feedback-block.mdx) · [Roadmap](ROADMAP.md)
+**Version 0.2.2** adds Issues-only GitHub integration, private My feedback, opt-in progress history and reviewed source upgrades while preserving Notion and optional Connected participation. [Release scope, evidence and follow-up work](docs/version-0.2.2-acceptance.md).
 
-## Create your portal
+[Documentation](https://feedbax-docs.jessefquartey.workers.dev/docs) · [Agent setup](docs/agent-setup.md) · [Existing-app authentication](docs/connected-profile.md) · [Feedback block](apps/docs/content/docs/integrations/feedback-block.mdx) · [Roadmap](ROADMAP.md)
 
-You need Node.js **22.14+**, **pnpm 10**, a Notion workspace, and a Cloudflare account.
+## Create a portal
+
+Use Node **24 LTS** and **pnpm 10**, a Cloudflare account, and the selected Content Provider. This repository pins Node 24.22.0 in `.nvmrc`.
+
+For the released Notion path:
 
 ```sh
-npx create-feedbax@0.2.0 my-feedback
+npx create-feedbax@0.2.2 my-feedback
 cd my-feedback
 pnpm dev
 ```
 
-Guided setup connects a Notion integration to a page you choose, creates or validates the Feedback and Changelog sources, copies an application you own, installs dependencies, and checks configuration. Open the local address printed by the development server. The setup flow also offers deployment.
+Have your product name, description, HTTPS portal URL, distinct Worker name, and Notion internal integration token ready. Share a parent page with the integration; enable read/insert Comments if needed. Guided setup previews schema changes, creates or validates storage, generates an application and private local secrets, installs dependencies, and checks readiness. It also offers deployment. Turnstile is optional and recommended for public intake.
 
-Before setup, have your product name, public description, intended portal URL, distinct Worker name, and Notion integration token ready. Share the target Notion page with the integration. If Comments are enabled, grant both read-comment and insert-comment access. Turnstile is optional; production setup recommends it.
+For the GitHub path, follow [GitHub setup](apps/docs/content/docs/getting-started/github.mdx). It requires dedicated D1 and a paired GitHub App service, uses no Notion credentials, and disables Changelog. The guide covers the released creator and lifecycle CLI.
 
-From the generated project:
+| Choice                     | Content and workflow                                                                                               | Participant identity                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Notion                     | Feedback Data Source, native publication, Comments and optional Changelog                                          | Browser capabilities by default; optional Connected                           |
+| GitHub, 0.2.2              | One Feedback Repository, explicit approved issue content, status/publication labels, portal Comments; dedicated D1 | Browser capabilities by default; optional Connected                           |
+| Connected, either provider | Unique Votes, verified Comment attribution, Follows, private Notifications, optional email/images                  | Your existing product signs an Identity Handoff; D1 stores revocable sessions |
+
+D1 alone never establishes verified identity. A Device Profile is unverified and is separate from draft authority. In 0.2.2, Connected also provides My feedback and cross-device ownership of new signed-in submissions; an old browser draft needs an explicit capability-backed claim.
+
+**Public GitHub repositories expose issue titles and bodies immediately.** Portal moderation cannot make a public GitHub issue confidential. Select a private repository for private intake.
+
+## Integrate your product
+
+Start with the [integration checklist](docs/integration-checklist.md) for the setup path, credential locations and end-to-end verification.
+
+For a public progress timeline in 0.2.2, explicitly enable root-level `history: true` with dedicated D1 and a timer. Post details open on Comments, with progress under Activities. Follow controls appear after sign-in. The [history guide](apps/docs/content/docs/guides/progress-history.mdx) explains its public baseline, observation timestamps, publication checks and release links. Existing Notion Installations keep their current storage requirements when history is omitted.
+
+The [feedback block guide](apps/docs/content/docs/integrations/feedback-block.mdx) covers the React/shadcn UI, server endpoint, validation, retries and abuse prevention:
+
+```sh
+pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.1
+```
+
+Your product server calls [`POST /api/v1/posts`](apps/docs/content/docs/integrations/submission-api.mdx) with its trusted API key and a stable `Idempotency-Key`. Posts start New and unpublished. Store the plaintext key only in the product server; Feedbax keeps its hash. This service intake does not manufacture verified Participant ownership.
+
+For verified Votes, Comments, Follows and ownership, separately implement [signed application authentication](docs/connected-profile.md). There is no Feedbax email login, and Participants need no GitHub account. Private images require R2; email is an independent opt-in capability.
+
+## Verify and deploy
+
+Run from the generated application:
 
 ```sh
 pnpm exec feedbax doctor
@@ -27,78 +59,40 @@ pnpm deploy:dry-run
 pnpm exec feedbax deploy
 ```
 
-`doctor` checks real configuration, permissions, and bindings. The final command deploys the selected Worker; a build or dry run alone does not publish it. Keep the plaintext trusted submission key printed during setup in your product server’s secret store.
+Diagnostics check the real selected provider, enabled features and bindings. Deployment previews the Worker and uploads allowlisted secrets. A build/dry-run is not a deployment; verify the live URL and a real submission afterward. GitHub initially uses `deploy --pairing-bootstrap`, then `pair-github`, GitHub authorization, and a full doctor check as described in its guide.
 
-## What you get
+| File                | Purpose                                                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `src/feedbax.ts`    | Product settings, features and selected provider mappings; client builds receive an allowlisted projection |
+| `.dev.vars`         | Ignored local credentials and signing secrets                                                              |
+| `wrangler.jsonc`    | Worker, rate limits, and explicitly enabled D1/R2/Queue/email bindings                                     |
+| `CONNECTED.md`      | Existing-application authentication and social capabilities                                                |
+| `src/components/ui` | Owned shadcn primitives, Geist typography and theme                                                        |
 
-- Moderated feedback: submissions start **New and unpublished**. Your Product Team publishes and manages them in Notion.
-- A public Feedback feed with Top/New sorting, search, and status/type filters.
-- A roadmap and Notion-backed changelog.
-- Optional Votes and native Notion Comment threads; resolved threads disappear from the portal.
-- A copied shadcn feedback block and server helper for adding feedback collection to your existing product.
-- Typed configuration, a diagnostic/deployment CLI, and a flat React/TanStack Start application you can customize.
+[Configuration](apps/docs/content/docs/operations/configuration.mdx) · [Environment](apps/docs/content/docs/operations/environment.mdx) · [Deployment](apps/docs/content/docs/getting-started/deploy.mdx) · [CLI](apps/docs/content/docs/operations/cli.mdx) · [Security](SECURITY.md).
 
-Notion remains the source of truth for Posts, statuses, moderation, Comments, and release content. Cloudflare hosts the application. You own both accounts and the copied code.
-
-## Choose a participation profile
-
-| Profile                              | Identity and participation                                                                                                                                                                                                                     |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Notion-only — available in 0.2.0** | No operational database. Display names and email are unverified; email stays private. Votes are browser-remembered and best-effort, with no reliable one-person-one-vote guarantee. Recent Comment changes use a 15-minute browser capability. |
-| **Connected — prepared for 0.2.1**   | Your existing app signs an identity handoff. A dedicated D1 database stores revocable sessions, unique Votes, and durable verified Comment attribution. Your app remains the sign-in provider.                                                 |
-
-**Published version: 0.2.0.** This branch prepares 0.2.1; Connected is not included in the published 0.2.0 command above. Its release still requires a production sign-in acceptance run with a real product application. See [0.2.1 acceptance](docs/version-0.2.1-acceptance.md).
-
-The [authentication guide](docs/connected-profile.md) covers the application endpoint, signing protocol, secrets, D1 migration, sessions, logout, verification, and troubleshooting. Adoption and custom domains are separate owner-led work.
-
-## Add feedback to your product
-
-Install the reviewed block from the released GitHub tag:
+## Use a coding agent
 
 ```sh
-pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.0
+npx create-feedbax@0.2.2 my-feedback --template-only
 ```
 
-The [complete feedback block guide](apps/docs/content/docs/integrations/feedback-block.mdx) covers React/Tailwind/Base UI requirements, copied files, server credentials, authenticated submission, retries, moderation, and verification. The trusted submission key belongs on your product server, never in a browser bundle. Installing the block and setting up Connected sign-in are independent integrations.
+Template-only copies source without external provisioning or dependency installation. Follow [agent setup](docs/agent-setup.md), supply actual mappings/credentials, and verify the result. Test fixtures are not live configuration. Guided provisioning has no `--yes` flag.
 
-## Setup with a coding agent
-
-The generator supports copying source without prompts or external service requests:
-
-```sh
-npx create-feedbax@0.2.0 my-feedback --template-only
-```
-
-This creates source, **not a configured installation**. Follow [the agent setup guide](docs/agent-setup.md) to supply real Notion mappings and local secrets, run diagnostics, and verify the result. Guided setup remains the quickest way to provision a new Notion schema. There is no `--yes` option for guided provisioning.
-
-A useful starting request for your agent is:
-
-> Set up Feedbax for my product. Read the repository’s agent setup guide, use the published release unless I request development source, collect the required product and Notion inputs, then verify the portal locally and report which checks passed. Distinguish local readiness from deployment.
-
-## Configuration and operations
-
-- Public settings, feature switches, and stable Notion property IDs: generated `src/feedbax.ts`.
-- Secrets: ignored `.dev.vars` locally and encrypted Worker secrets in production.
-- Infrastructure: `wrangler.jsonc`; Connected additionally uses a dedicated `FEEDBAX_DB` binding and the included migration.
-- Branding and shadcn components: the copied source; the standard portal includes a GitHub-linked Feedbax footer.
-- Diagnostics: `pnpm exec feedbax doctor`. Trusted key rotation: `pnpm exec feedbax rotate-api-key`.
-
-[Environment setup](apps/docs/content/docs/operations/environment.mdx) · [Deployment](apps/docs/content/docs/getting-started/deploy.mdx) · [Participation guarantees](docs/notion-native-participation.md) · [Security policy](SECURITY.md)
-
-Version 0.2.0 replaces the 0.1 architecture and requires a fresh installation. It does not import or mutate a legacy portal. Keep legacy content until you decide what to retain.
+For a customized released Installation, follow the [source upgrade guide](apps/docs/content/docs/guides/upgrading.mdx). Review its three-way diff before applying; the source journal supports resume and guarded rollback. Full data archive/restore and provider migration remain separate pending work.
 
 ## Work on this repository
 
 ```sh
+nvm install
+nvm use
 pnpm install --frozen-lockfile
 pnpm dev:portal
-# Or, in another terminal:
+# In another terminal:
 pnpm dev:docs
 ```
 
-These commands run the development source, including unreleased changes. The portal prints its local address (normally port 3001; another available port is used if occupied). Use a dedicated Notion test workspace and the configuration/environment guides above; a template-only checkout cannot read Notion until configured.
-
-Before submitting changes:
+Development source includes unreleased changes. Use dedicated provider test resources. Before submitting changes:
 
 ```sh
 pnpm template:sync
@@ -114,23 +108,18 @@ pnpm deploy:dry-run
 pnpm deploy:docs:dry-run
 ```
 
-The shadcn lint checks theme colors, known Tailwind classes, and inspectable component classes. Refresh individual shared components with `pnpm dlx shadcn@latest add <component> -c apps/portal`; do not reapply a full preset. See [the UI maintenance guide](docs/shadcn-refresh-0.2.1.md).
+`packages:check` packs both CLIs and checks an independent Notion Installation plus a configured GitHub build and client/source-map privacy. The [UI maintenance guide](docs/shadcn-refresh-0.2.1.md) covers shared primitives and theme checks.
 
-| Directory                                                    | Purpose                                            |
-| ------------------------------------------------------------ | -------------------------------------------------- |
-| `apps/portal`                                                | Public portal and Worker handlers                  |
-| `apps/docs`                                                  | Documentation site and tested integration examples |
-| `packages/feedback`, `packages/changelog`, `packages/config` | Domain behavior and typed configuration            |
-| `packages/ui`                                                | Shared shadcn primitives and theme                 |
-| `packages/create-feedbax`, `packages/feedbax`                | Generator, owned-app template, and lifecycle CLI   |
-| `registry`                                                   | Copied feedback block and server helper            |
+| Directory                                                    | Purpose                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `apps/portal`                                                | Portal, private Participant views and Worker handlers        |
+| `apps/github-integration`                                    | Shared or self-hosted GitHub App service; App keys stay here |
+| `apps/docs`                                                  | Documentation and tested integration examples                |
+| `packages/feedback`, `packages/changelog`, `packages/config` | Domain modules and configuration                             |
+| `packages/ui`                                                | Shared shadcn primitives and theme                           |
+| `packages/create-feedbax`, `packages/feedbax`                | Creator, synchronized flat template and lifecycle CLI        |
+| `registry`                                                   | Copied feedback block and server helper                      |
 
-[Context](CONTEXT.md) · [Specification](SPEC.md) · [Testing](TESTING.md) · [Architecture decisions](docs/adr/) · [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md) · [Code of conduct](CODE_OF_CONDUCT.md)
+[Context](CONTEXT.md) · [Specification](SPEC.md) · [Testing](TESTING.md) · [Architecture decisions](docs/adr/) · [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md).
 
-## License
-
-[Apache-2.0](LICENSE).
-
-### Connected following, notifications, and images (unreleased 0.2.1)
-
-The Connected Profile adds explicit per-Post following, a private inbox, opt-in email through Cloudflare Email Service, Resend, or a custom HTTPS sender, and image attachments on new Posts and Comments. Setup includes additional D1 migrations and a scheduled trigger; images require private R2. Signed application handoffs can optionally assert a verified contact address for email delivery. See [the complete Connected setup guide](docs/connected-profile.md#following-and-notifications) for provider setup, unsubscribe, limits, moderation, backups, and acceptance. These additions are not in the published 0.2.0 packages.
+Core is [Apache-2.0](LICENSE). New Team Member tools are deferred for 0.2.2; native provider workflow remains available. Source upgrade commands are included in 0.2.2; full archive/restore/migration readiness remains tracked in the acceptance record.

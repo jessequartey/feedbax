@@ -15,6 +15,10 @@ Send server-side requests to `POST /api/v1/posts` on your deployed portal origin
 
 The body requires `title`, `description`, and `type` (Feature Request, Bug Report, or General Feedback). Optional `submitter.name` and `submitter.email` remain private. New Posts are New and unpublished.
 
-Use the plaintext key printed by setup in the calling server's `FEEDBAX_API_SECRET` environment value. Never put it in browser code. Include a stable `Idempotency-Key` when retrying the same event; duplicate prevention is best-effort because Notion has no transactional uniqueness constraint.
+Use the plaintext key printed by setup in the calling server's `FEEDBAX_API_SECRET` environment value. Never put it in browser code. Include a stable `Idempotency-Key` when retrying the same event; Notion duplicate prevention is best-effort because the provider has no transactional uniqueness constraint. The GitHub adapter reserves the external key privately in D1 and reconciles ambiguous issue creation rather than blindly creating another issue; this is not an exactly-once delivery promise.
 
-This is the only stable versioned external mutation API in 0.2.0. Votes and Comments use internal portal handlers; the release does not expose a stable public search API.
+This is the only stable versioned external mutation API in Core 0.2. Votes and Comments use internal portal handlers; the release does not expose a stable public search API.
+
+The same API works with either selected Content Provider. GitHub support is in 0.2.2; use its setup guide for 0.2.2. On a public Feedback Repository, issue content is publicly visible on GitHub immediately even though the portal Post is unpublished. Contact metadata remains private.
+
+This key authorizes service intake. Names/email addresses in the body do not create verified ownership or consent. Use the separate signed application handoff for Participant identity; never forward an unvalidated browser subject into a trusted request.

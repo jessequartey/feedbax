@@ -11,8 +11,16 @@ description: Verify and deploy a Feedbax portal to Cloudflare Workers.
 
 ## Production secrets
 
-The lifecycle deploy command uploads the Notion token, trusted API-key **hash**, participation signing secret, enabled Turnstile secret, and enabled Connected identity handoff secret after confirmation. The plaintext trusted API key belongs only in the calling product. Do not put secrets in `src/feedbax.ts` or `wrangler.jsonc`.
+The lifecycle deploy command uploads the selected provider/pairing credentials, trusted API-key **hash**, participation signing secret, and enabled Turnstile/identity/email secrets after confirmation. The plaintext trusted API key belongs only in the calling product. Do not put secrets in `src/feedbax.ts` or `wrangler.jsonc`.
 
 After deployment, verify the Worker preview hostname before attaching a custom domain.
 
-Connected Installations also require their dedicated D1 binding and applied migration before deployment. Follow the [authentication guide](/docs/guides/connected-profile) and verify the real application handoff in a dedicated environment before enabling it for Participants.
+Connected Installations also require their dedicated D1 binding and all included migrations before deployment. Follow the [authentication guide](/docs/guides/connected-profile) and verify the real application handoff in a dedicated environment before enabling it for Participants.
+
+## GitHub in 0.2.2
+
+GitHub requires a dedicated D1 binding and every included migration independently of Participant sign-in. Both portal and App service need exact configured origins and appropriate Worker-to-Worker routing. The [GitHub guide](/docs/getting-started/github) walks through bootstrap deployment, authorization and full diagnostics. App keys stay in the service; only per-portal credentials are stored in portal D1.
+
+Deploy once with `feedbax deploy --pairing-bootstrap`, run `feedbax pair-github GITHUB_APP_INSTALLATION_ID`, complete authorization and run full diagnostics. Then verify a real Post, approved publication, a Comment and unpublication on the deployed portal. Local development has its own database and requires a separate binding; production pairing does not populate local D1.
+
+Published 0.2.1 has no GitHub pairing commands; use the matching 0.2.2 CLI. Keep a protected copy of configuration and required credentials. For a customized existing Installation, use the [source upgrade guide](/docs/guides/upgrading) and finish its separate configuration/dependency/D1 stages before deploying. Full archive/restore/migration readiness remains recorded in release acceptance.

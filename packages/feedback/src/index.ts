@@ -1,3 +1,4 @@
+import type { PostOwnership } from "./ownership";
 import {
   createHash,
   randomBytes,
@@ -9,16 +10,18 @@ import {
   createNotionFeedbackStorage,
   type NotionFeedbackStorageOptions,
 } from "./notion-feedback";
+import {
+  createGitHubFeedbackStorage,
+  type GitHubFeedbackOptions,
+} from "./github-feedback";
+import { createGitHubCommentStorage } from "./github-comments";
+import type { CommentStorage, StoredComment } from "./comment-storage";
 import type {
   FeedbackStorage,
   NewStoredPost,
   StoredPost,
 } from "./feedback-storage";
-import {
-  createNotionCommentStorage,
-  type CommentStorage,
-  type StoredComment,
-} from "./notion-comments";
+import { createNotionCommentStorage } from "./notion-comments";
 
 export {
   createNotionFeedbackDataSource,
@@ -35,6 +38,7 @@ export type PostStatus =
   "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
 
 export interface SubmitPostInput {
+  submissionKey?: string;
   imageIds?: string[];
   title: string;
   description: string;
@@ -137,7 +141,7 @@ export type TrustedSubmittedPost = Omit<Post, "published" | "submitter">;
 
 export interface EditDraftPostInput {
   id: string;
-  browserCapability: BrowserCapability;
+  browserCapability?: BrowserCapability;
   title?: string;
   description?: string;
   type?: PostType;
@@ -145,7 +149,7 @@ export interface EditDraftPostInput {
 
 export interface WithdrawDraftPostInput {
   id: string;
-  browserCapability: BrowserCapability;
+  browserCapability?: BrowserCapability;
 }
 
 export type GetDraftPostInput = WithdrawDraftPostInput;
@@ -193,6 +197,9 @@ export interface ListCommentThreadsInput {
 }
 
 export interface CreateCommentInput {
+  submissionKey?: string;
+  /** Internal recovery precondition; it never grants Comment authority. */
+  recoveryCommentId?: string;
   imageIds?: string[];
   slug: string;
   body: string;
@@ -203,7 +210,9 @@ export interface ReplyToCommentThreadInput extends CreateCommentInput {
   discussionId: string;
 }
 
+export const recoverableComment = Symbol("recoverable-comment");
 export interface CreatedComment extends Comment {
+  [recoverableComment]?: boolean;
   discussionId: string;
 }
 
@@ -360,7 +369,24 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
   }
 }
 
+export type ParticipantPost = Pick<
+  Post,
+  | "id"
+  | "slug"
+  | "title"
+  | "description"
+  | "type"
+  | "status"
+  | "published"
+  | "createdAt"
+  | "updatedAt"
+> & { editable: boolean };
+
 export interface FeedbackModule {
+  getParticipantPost(id: string): Promise<ParticipantPost | undefined>;
+  claimDraftPost(
+    input: GetDraftPostInput,
+  ): Promise<ParticipantPost | undefined>;
   getAttachmentPostState(
     slug: string,
   ): Promise<"published" | "draft" | "private" | undefined>;
@@ -393,6 +419,7 @@ export type FeedbackMutationModule = Pick<
 >;
 
 interface CreateFeedbackModuleOptions {
+  ownership?: PostOwnership;
   initialItems?: StoredPost[];
   storage?: FeedbackStorage;
   votingEnabled?: boolean;
@@ -412,10 +439,39 @@ export function createFeedbackModule(
     options.commentStorage ??
     createInMemoryCommentStorage(options.initialComments);
   const voteQueues = new Map<string, Promise<void>>();
+  const authorizedDraft = async (
+    item: StoredPost | undefined,
+    capability?: BrowserCapability,
+  ): Promise<boolean> =>
+    Boolean(
+      item &&
+      isEditableDraft(item) &&
+      (authorizesDraft(item, capability) ||
+        (await options.ownership?.owns(item.id))),
+    );
+  const participantPost = async (
+    id: string,
+  ): Promise<ParticipantPost | undefined> => {
+    if (!(await options.ownership?.owns(id))) return;
+    const item = await storage.find(id);
+    if (!item) return;
+    return {
+      id: item.id,
+      slug: item.slug,
+      title: item.title,
+      description: item.description,
+      type: item.type,
+      status: item.status,
+      published: item.published,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      editable: isEditableDraft(item),
+    };
+  };
   const editStoredDraft = async (input: EditDraftPostInput) => {
     const item = await storage.find(input.id);
 
-    if (!authorizesDraft(item, input.browserCapability)) {
+    if (!item || !(await authorizedDraft(item, input.browserCapability))) {
       throw new BrowserCapabilityAuthorizationError();
     }
 
@@ -441,17 +497,29 @@ export function createFeedbackModule(
   };
 
   return {
+    getParticipantPost: participantPost,
+    async claimDraftPost(input) {
+      const item = await storage.find(input.id);
+      if (!options.ownership || !authorizesDraft(item, input.browserCapability))
+        throw new BrowserCapabilityAuthorizationError();
+      await options.ownership.register(toPost(item));
+      return participantPost(item.id);
+    },
     async getAttachmentPostState(slug) {
       const post = await storage.findBySlug(slug);
       return !post
         ? undefined
         : post.published
           ? "published"
-          : post.status === "New"
+          : post.status === "New" && post.draftEditable !== false
             ? "draft"
             : "private";
     },
     async createComment(input) {
+      if (input.recoveryCommentId && !commentStorage.supportsIntentRecovery)
+        throw new CommentValidationError(
+          "Attached Comment recovery is unavailable.",
+        );
       const { post, body, displayName } = await validateCommentCreation(
         input,
         storage,
@@ -459,12 +527,22 @@ export function createFeedbackModule(
       return toCreatedComment(
         await commentStorage.createPageComment({
           postId: post.id,
+          ...(input.recoveryCommentId
+            ? { recoveryCommentId: input.recoveryCommentId }
+            : {}),
+          ...(input.submissionKey
+            ? { submissionKey: input.submissionKey }
+            : {}),
           body,
           displayName,
         }),
       );
     },
     async replyToCommentThread(input) {
+      if (input.recoveryCommentId && !commentStorage.supportsIntentRecovery)
+        throw new CommentValidationError(
+          "Attached Comment recovery is unavailable.",
+        );
       const { post, body, displayName } = await validateCommentCreation(
         input,
         storage,
@@ -491,6 +569,12 @@ export function createFeedbackModule(
         await commentStorage.createDiscussionReply({
           postId: post.id,
           discussionId: input.discussionId,
+          ...(input.recoveryCommentId
+            ? { recoveryCommentId: input.recoveryCommentId }
+            : {}),
+          ...(input.submissionKey
+            ? { submissionKey: input.submissionKey }
+            : {}),
           body,
           displayName,
         }),
@@ -555,10 +639,29 @@ export function createFeedbackModule(
     submitPost(input) {
       const submission = postCreationQueue.then(async () => {
         const now = new Date();
-        const browserCapability = createBrowserCapability();
+        const { submissionKey, ...content } = input;
+        if (
+          submissionKey !== undefined &&
+          !/^[A-Za-z0-9_-]{43}$/.test(submissionKey)
+        )
+          throw new Error("Submission intent is invalid.");
+        const browserCapability = submissionKey
+          ? (submissionKey as BrowserCapability)
+          : createBrowserCapability();
+        const externalId = submissionKey
+          ? `portal:${hashBrowserCapability(browserCapability)}`
+          : undefined;
+        if (externalId) {
+          const previous = await storage.findByExternalId(externalId);
+          if (previous) {
+            await options.ownership?.register(toPost(previous));
+            return { ...toPost(previous), browserCapability };
+          }
+        }
         const slug = await createUniqueSlug(input.title, storage);
         const item = await storage.create({
-          ...input,
+          ...content,
+          ...(externalId ? { externalId } : {}),
           slug,
           status: "New",
           published: false,
@@ -568,6 +671,7 @@ export function createFeedbackModule(
           voteCount: 0,
         });
 
+        await options.ownership?.register(toPost(item));
         return {
           ...toPost(item),
           browserCapability,
@@ -590,7 +694,7 @@ export function createFeedbackModule(
     },
     async getDraftPost(input) {
       const item = await storage.find(input.id);
-      if (!authorizesDraft(item, input.browserCapability)) {
+      if (!item || !(await authorizedDraft(item, input.browserCapability))) {
         throw new BrowserCapabilityAuthorizationError();
       }
       return toDraftPost(toPost(item));
@@ -638,11 +742,12 @@ export function createFeedbackModule(
     async withdrawDraftPost(input) {
       const item = await storage.find(input.id);
 
-      if (!authorizesDraft(item, input.browserCapability)) {
+      if (!item || !(await authorizedDraft(item, input.browserCapability))) {
         throw new BrowserCapabilityAuthorizationError();
       }
 
       await storage.remove(item.id);
+      await options.ownership?.withdrawn(item.id);
     },
     async getPublicPostRoadmap() {
       const pages = await Promise.all(
@@ -659,15 +764,32 @@ export function createNotionFeedbackModule(
   options: NotionFeedbackStorageOptions & {
     votingEnabled?: boolean;
     commentsEnabled?: boolean;
+    ownership?: PostOwnership;
   },
 ): FeedbackModule {
   return createFeedbackModule({
+    ownership: options.ownership,
     storage: createNotionFeedbackStorage(options),
     commentStorage: createNotionCommentStorage(options),
     votingEnabled: options.votingEnabled,
     commentsEnabled: options.commentsEnabled,
   });
 }
+
+export function createGitHubFeedbackModule(
+  options: GitHubFeedbackOptions & { ownership?: PostOwnership },
+): FeedbackModule {
+  const storage = createGitHubFeedbackStorage(options);
+  return createFeedbackModule({
+    storage,
+    ownership: options.ownership,
+    commentStorage: createGitHubCommentStorage(options, storage),
+    votingEnabled: options.votingEnabled,
+    commentsEnabled: options.commentsEnabled,
+  });
+}
+
+export type { GitHubFeedbackOptions } from "./github-feedback";
 
 function createInMemoryCommentStorage(
   initialComments: StoredComment[] = [],
@@ -762,13 +884,16 @@ async function validateCommentCreation(
 }
 
 function toCreatedComment(comment: StoredComment): CreatedComment {
-  return {
+  const result: CreatedComment = {
     id: comment.id,
     discussionId: comment.discussionId,
     body: comment.body,
     author: comment.author,
     createdAt: comment.createdAt,
   };
+  if (comment.recoverable)
+    Object.defineProperty(result, recoverableComment, { value: true });
+  return result;
 }
 
 function encodePublicPostCursor(
@@ -934,9 +1059,15 @@ function hashBrowserCapability(browserCapability: BrowserCapability): string {
 
 function authorizesDraft(
   item: StoredPost | undefined,
-  browserCapability: BrowserCapability,
+  browserCapability: BrowserCapability | undefined,
 ): item is StoredPost & { browserCapabilityHash: string } {
-  if (!item?.browserCapabilityHash || item.status !== "New" || item.published) {
+  if (
+    !browserCapability ||
+    !item?.browserCapabilityHash ||
+    item.status !== "New" ||
+    item.published ||
+    item.draftEditable === false
+  ) {
     return false;
   }
 
@@ -994,3 +1125,28 @@ export {
 
 export { createImageFeedbackModule } from "./image-feedback";
 export { createNotionImageReviewWriter } from "./notion-image-review";
+
+export { createGitHubServiceAccess } from "./github-service-client";
+export {
+  createObservedHistoryModule,
+  type ObservedHistoryEvent,
+  type ObservedHistoryPage,
+} from "./observed-history";
+export {
+  boundedBody,
+  signIntegrationRequest,
+  verifyIntegrationRequest,
+} from "./integration-auth";
+
+function isEditableDraft(item: StoredPost) {
+  return (
+    item.status === "New" && !item.published && item.draftEditable !== false
+  );
+}
+export {
+  createPostOwnership,
+  createMyFeedbackModule,
+  type MyFeedbackFilter,
+  type MyFeedbackItem,
+  type MyFeedbackPage,
+} from "./ownership";

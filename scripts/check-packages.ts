@@ -88,7 +88,67 @@ try {
   ])
     run("pnpm", [script], app);
   run("pnpm", ["exec", "feedbax", "--version"], app);
-  console.log(`Clean packed installation passed: ${app}`);
+  console.log(`Clean packed Notion installation passed: ${app}`);
+  // Exercise the other supported provider from the actual npm archives. Private
+  // identifiers must stay out of every browser asset, including source maps.
+  const githubMarkers = [
+    "private-feedback-repository-sentinel",
+    "private-binding-sentinel",
+    "private-service-sentinel",
+    "PRIVATE_RUNTIME_SECRET_SENTINEL",
+  ];
+  await writeFile(
+    join(app, "src/feedbax.ts"),
+    `import {defineFeedbax} from "@feedbax/config"; export default defineFeedbax(${JSON.stringify(
+      {
+        provider: "github",
+        product: {
+          name: "Packed GitHub portal",
+          description: "Acceptance fixture",
+          logo: "/feedbax-mark.svg",
+          siteUrl: "https://portal.account.workers.dev",
+        },
+        github: {
+          installationId: githubMarkers[1],
+          serviceUrl: `https://${githubMarkers[2]}.example`,
+          repository: { id: 123, owner: "acme", name: githubMarkers[0] },
+          botUserId: 456,
+        },
+        theme: { preset: "lyra-neutral" },
+        features: { voting: true, comments: true, changelog: false },
+        submissions: {
+          moderation: "required",
+          maxTitleLength: 160,
+          maxDescriptionLength: 5000,
+        },
+        turnstile: { enabled: false },
+      },
+    )});\n`,
+  );
+  await writeFile(
+    join(app, ".dev.vars"),
+    "GITHUB_PAIRING_SECRET=PRIVATE_RUNTIME_SECRET_SENTINEL\n",
+    { mode: 0o600 },
+  );
+  run("pnpm", ["type-check"], app);
+  run("pnpm", ["build"], app);
+  const inspectBrowserAssets = async (directory: string) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const file = join(directory, entry.name);
+      if (entry.isDirectory()) await inspectBrowserAssets(file);
+      else {
+        const bytes = await readFile(file);
+        if (githubMarkers.some((marker) => bytes.includes(Buffer.from(marker))))
+          throw new Error(
+            `GitHub private configuration leaked in browser asset: ${file}`,
+          );
+      }
+    }
+  };
+  await inspectBrowserAssets(join(app, "dist/client"));
+  console.log(
+    "Packed GitHub installation built; browser assets/source maps exclude private configuration.",
+  );
 } finally {
   if (!keep) await rm(temp, { recursive: true, force: true });
   else console.log(`Retained package evidence in ${temp}`);

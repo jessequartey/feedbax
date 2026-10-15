@@ -1,0 +1,83 @@
+---
+title: Upgrade a customized Installation
+description: Review generated-source changes, preserve local edits, and recover an interrupted source upgrade.
+---
+
+The source-upgrade commands below are included in **0.2.2**. Published `feedbax@0.2.1` does not contain them. They upgrade source from the exact released 0.2.1 baseline; full data backup, isolated restore and provider migration are follow-up work.
+
+## Prepare a recovery point
+
+Keep your Installation's current source and dependency lockfile in private version control or a protected local backup. Separately back up provider content, D1 and private R2 objects when used. Inventory credentials without copying their values into a portable archive. The source journal is a rollback aid for changed generated files, **not** a complete data backup.
+
+Use Node 24 LTS, pnpm 10 and Git. Run the matching upgraded CLI from outside the Installation's dependency manifest so installing the tool does not create a conflicting `package.json` edit. Use the released CLI without first modifying your Installation manifest:
+
+```sh
+pnpm dlx feedbax@0.2.2 upgrade --from 0.2.1
+```
+
+For a reviewed source checkout, the equivalent commands are:
+
+```sh
+# In the reviewed Core checkout:
+pnpm template:check
+pnpm --filter feedbax build
+
+# In the existing generated Installation:
+node /absolute/path/to/core/packages/feedbax/dist/cli.js upgrade --from 0.2.1
+```
+
+The commands below show the source-checkout invocation. With the released package, use the same flags after `pnpm dlx feedbax@0.2.2 upgrade`.
+
+## Review and apply source
+
+The CLI downloads **exactly** `create-feedbax@0.2.1` from npm, checks its pinned SHA-512 integrity, and compares that released template with your current files and the target bundled with the new CLI. It never substitutes current main for the released baseline. The preview lists changed files and conflicts and writes private review material to a temporary directory: `review.diff`, before/after source, conflict previews, and a manifest of baseline/local/target hashes. Delete that review directory after use; it can contain your customized source.
+
+Independent edits merge through Git's three-way merge. Any conflicting source, binary change, add/delete conflict or unsafe path stops application before source writes. Review the conflicting files manually, retain your intended customization, and preview again. Files added only by your Product Team remain in place.
+
+`src/feedbax.ts` and `wrangler.jsonc` are preserved for explicit configuration review. Credentials, `.env*`, `.dev.vars*`, key files, dependencies, build outputs and local Cloudflare state are excluded. The CLI does not silently select another provider or provision D1/R2.
+
+After inspecting the private diff, apply using the same CLI:
+
+```sh
+node /absolute/path/to/core/packages/feedbax/dist/cli.js upgrade --from 0.2.1 --apply
+node /absolute/path/to/core/packages/feedbax/dist/cli.js upgrade --status
+```
+
+Application rechecks local file hashes, saves original source in `.feedbax/source-upgrade.json`, then writes files atomically. Recovery state has restrictive permissions and is ignored by Git/npm. The journal is bound to that exact Installation path. Keep it private; moving the Installation requires reviewing its recovery plan rather than replaying a journal from another path.
+
+## Finish the remaining stages
+
+Source application is one stage. The following stages remain explicit Deployer work; `--status` reports the source journal, not proof that these stages completed.
+
+1. **Configuration:** compare the target configuration requirements with your preserved `src/feedbax.ts` and `wrangler.jsonc`. Existing Notion configuration continues to resolve to Notion. Omitted Connected/history switches do not provision operational resources. Enable GitHub, identity or history only after their setup requirements are met.
+2. **Dependencies:** install the target manifest with pnpm, review the resulting lockfile and retain its old version for rollback. Avoid changing package names, branding or custom dependency requirements unnecessarily when resolving conflicts.
+3. **D1:** when the Installation already uses D1 or you explicitly enable a capability requiring it, snapshot that database and apply the included migrations locally first, then to its dedicated remote database. A Notion-only Installation without operational capabilities does not need D1 merely to upgrade source.
+4. **Credentials:** retain existing valid credentials. If enabling GitHub, complete App pairing. If enabling Connected, configure trusted Identity Handoff. Keep secret values in ignored local/deployment configuration. Source upgrade does not rotate keys or reconnect services automatically.
+5. **Verification and deployment:** run `pnpm type-check`, `pnpm lint`, `pnpm test`, `pnpm build`, the matching CLI's `doctor`, and deployment dry run. Verify private/public content and enabled participation against dedicated resources before deploying. Keep the old deployment and backups until live verification passes.
+
+See [configuration](/docs/operations/configuration), [deployment](/docs/getting-started/deploy), [GitHub setup](/docs/getting-started/github) and [Connected setup](/docs/guides/connected-profile).
+
+## Resume or roll back source
+
+Use the same matching CLI:
+
+```sh
+node /absolute/path/to/core/packages/feedbax/dist/cli.js upgrade --resume
+# Or restore the original source of the latest operation:
+node /absolute/path/to/core/packages/feedbax/dist/cli.js upgrade --rollback
+```
+
+An interrupted application accepts only files that still match its original or intended bytes. A rollback also checks for later source changes and stops to preserve them. Interrupted rollback is resumable. Rolling back a partially applied source operation is supported. Completed recovery journals are archived privately when another source operation starts; `--rollback` addresses the latest operation only.
+
+Concurrent source operations are refused. A process killed without cleanup may leave `.feedbax/source-upgrade.lock`. First verify that its recorded process has ended; only then remove that lock and resume or roll back. The tool never breaks an apparently active lock automatically. Do not remove the recovery journal to get past an error.
+
+| Stage                          | Rollback boundary                                                                                                                                                                                                                                                            |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Generated source               | Guarded source rollback restores preimages; the `.feedbax/` ignore rule remains so recovery data stays private.                                                                                                                                                              |
+| Configuration                  | Restore your reviewed prior configuration separately. Source rollback deliberately preserves these files.                                                                                                                                                                    |
+| Dependencies                   | Restore the prior dependency lockfile and run pnpm installation for the restored manifest. Source rollback does not replace installed dependencies.                                                                                                                          |
+| Portal D1 migrations 0005–0009 | These add tables/columns. Keep them when returning to 0.2.1 source; do not attempt destructive down-migrations. Re-enable the prior Notion configuration and verify it against a cloned database before a production rollback. Older source cannot operate a GitHub binding. |
+| GitHub App service migrations  | The service is independently deployed and versioned. Portal source rollback does not undo its database or binding. Revoke/fence the old writer before a separate authority cutover.                                                                                          |
+| Deployment/data changes        | Restore a compatible previous Worker/configuration and separately verified data backup when required. The source journal cannot reverse provider edits or D1/R2 changes.                                                                                                     |
+
+Isolated data restore, full archive validation, both provider migration directions and their live rollback acceptance remain required release work. Do not infer those guarantees from a successful source upgrade.

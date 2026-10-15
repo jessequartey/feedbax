@@ -3,7 +3,7 @@ import { Button } from "@feedbax/ui/components/button";
 export function PublicPortalError({
   reset,
 }: {
-  error: Error;
+  error: unknown;
   reset: () => void;
 }) {
   return (

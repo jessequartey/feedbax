@@ -1304,6 +1304,12 @@ input[data-slot="command-input"]:focus-visible {
   border-top: 1px solid var(--portal-rule);
 }
 
+.post-detail-comments-tab {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .post-detail-comments > h2,
 .post-detail-sidebar > h2 {
   margin: 0;

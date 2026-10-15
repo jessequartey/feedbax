@@ -1,0 +1,134 @@
+---
+title: Connect GitHub
+description: Prepare a Feedback Repository, private D1 state, and a paired GitHub App service.
+---
+
+GitHub is the alternative Content Provider in the **0.2.2**. It is not included in 0.2.1. The dedicated acceptance service is not a generally available hosted service. Deploy your own service using the same Apache-2.0 source.
+
+GitHub requires a dedicated D1 database even without sign-in. Participant GitHub accounts are unnecessary. Changelog must be disabled; Connected authentication, unique Votes, Follows, Notifications and images remain independent options.
+
+## 1. Prepare the resources
+
+Use Node 24 LTS, pnpm 10, a Cloudflare account and a GitHub.com repository where you have write permission. Choose a distinct Worker name and HTTPS portal origin. Each active Installation uses its own Feedback Repository and private D1 database.
+
+**Public repositories expose issue titles and bodies immediately**, including submissions waiting for portal moderation. Choose a private repository for confidential intake. Feedbax publishes only explicit approved sections, but cannot make public GitHub issues private.
+
+Deploy the [GitHub integration service](https://github.com/jessequartey/feedbax/blob/main/apps/github-integration/README.md). That guide covers the separate service database, exact trusted portal origins, App registration, selected-repository installation, secret storage and webhook processing. Keep the App key only in the service. Add the intended portal origin to its trusted destinations before pairing.
+
+Record the repository's numeric ID, App bot user ID from the service's `/v1/info`, and external GitHub App installation ID from its installation settings. These differ from the stable Feedbax Installation ID that you generate for the portal.
+
+Issues-only is the implemented workflow in this slice. Optional organization Projects and PR automation remain under development; personal Projects use the Issues-only fallback. Do not add PATs or broader App permissions to work around an unsupported path.
+
+## 2. Create with matching released packages
+
+```sh
+npx create-feedbax@0.2.2 my-feedback
+cd my-feedback
+```
+
+Choose GitHub in guided setup and provide the resources above. The creator collects the connection values, generates configuration and private local secrets, and installs the matching `feedbax@0.2.2` CLI. For a manual setup, `npx create-feedbax@0.2.2 my-feedback --template-only` copies source without external requests or dependency installation; configure the following values and install dependencies yourself. Published 0.2.1 lacks GitHub pairing commands.
+
+Maintainers can instead build the creator and CLI from the same reviewed checkout with `pnpm template:check`, `pnpm --filter create-feedbax build` and `pnpm --filter feedbax build`. Keep those source versions aligned.
+
+## 3. Configure the portal
+
+Create D1 using your Cloudflare account:
+
+```sh
+pnpm exec wrangler login
+pnpm exec wrangler d1 create acme-feedback
+```
+
+Use the returned database ID/name in `wrangler.jsonc`. Keep the template's main entry, assets and rate-limit settings. Set its distinct Worker name and add:
+
+```json
+{
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "d1_databases": [
+    {
+      "binding": "FEEDBAX_DB",
+      "database_id": "YOUR_D1_UUID",
+      "database_name": "acme-feedback",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": { "crons": ["*/5 * * * *"] }
+}
+```
+
+The public-fetch flag supports same-account Worker calls. Custom portal domains need an operator-configured Service Binding on the integration service rather than arbitrary DNS delivery; see the service guide.
+
+Replace `src/feedbax.ts` with actual values:
+
+```ts
+import { defineFeedbax } from "@feedbax/config";
+
+export default defineFeedbax({
+  provider: "github",
+  product: {
+    name: "Acme",
+    description: "Help improve Acme.",
+    logo: "/feedbax-mark.svg",
+    siteUrl: "https://acme-feedback.YOUR_ACCOUNT.workers.dev",
+  },
+  theme: { preset: "lyra-neutral" },
+  github: {
+    installationId: "YOUR_UNIQUE_FEEDBAX_INSTALLATION_ID",
+    serviceUrl: "https://YOUR_SERVICE.YOUR_ACCOUNT.workers.dev",
+    repository: { id: 123, owner: "YOUR_OWNER", name: "YOUR_REPOSITORY" },
+    botUserId: 456,
+  },
+  features: { voting: true, comments: true, changelog: false },
+  submissions: {
+    moderation: "required",
+    maxTitleLength: 160,
+    maxDescriptionLength: 5000,
+  },
+  turnstile: { enabled: false },
+});
+```
+
+Repository/bot numeric values above are placeholders. Generate the stable Installation ID from random bytes, keep it unchanged, and use only letters, numbers, underscores and hyphens. Provider mappings stay server-side in the client build; credentials never belong in this file.
+
+For a fresh template without `.dev.vars`, generate private secrets and print the trusted calling key once:
+
+```sh
+node --input-type=module <<'NODE'
+import { randomBytes, createHash } from "node:crypto";
+import { writeFileSync } from "node:fs";
+const key = randomBytes(32).toString("base64url");
+const values = {
+  FEEDBAX_API_KEY_HASH: createHash("sha256").update(key).digest("base64url"),
+  PARTICIPATION_SIGNING_SECRET: randomBytes(32).toString("base64url"),
+  GITHUB_PAIRING_SECRET: randomBytes(32).toString("base64url"),
+};
+writeFileSync(".dev.vars", Object.entries(values).map(([k,v]) => `${k}=${JSON.stringify(v)}`).join("\n")+"\n", { flag: "wx", mode: 0o600 });
+console.log("Store this trusted key only on your product server:", key);
+NODE
+```
+
+The command refuses to overwrite an existing secret file. Retain the calling key privately; the portal stores only its hash. Turnstile can be added independently using a site key in configuration and secret in `.dev.vars`.
+
+## 4. Deploy, authorize and verify
+
+```sh
+pnpm exec wrangler d1 migrations apply FEEDBAX_DB --remote
+pnpm exec feedbax deploy --pairing-bootstrap
+pnpm exec feedbax pair-github YOUR_GITHUB_APP_INSTALLATION_ID
+```
+
+Open the printed GitHub authorization link while signed into an account with repository write access. The service verifies repository access and portal control before activating a binding. Credentials are exchanged server-to-server and stored privately in the portal D1 database; the browser receives only pairing success.
+
+```sh
+pnpm exec feedbax doctor
+```
+
+Check the deployed portal, submit a disposable Post and verify the App-created issue. It should be New and unpublished. Follow the [native GitHub workflow](/docs/guides/github-workflow) to publish it, then verify public reading, Comments and removal of publication. A build, health response or pairing success alone does not establish all acceptance criteria.
+
+`pnpm dev` uses local D1, while the pairing callback above writes credentials to the deployed portal's remote D1. Apply migrations locally with `pnpm exec wrangler d1 migrations apply FEEDBAX_DB --local`, but do not expect that to copy remote pairing credentials. Use a separately configured development Installation, origin and repository for local GitHub writes; the service must trust and verify that destination too. Never copy production directional credentials into source or a second Installation.
+
+## 5. Integrate your existing application
+
+The [trusted submission API](/docs/integrations/submission-api) and [copied feedback block](/docs/integrations/feedback-block) use the same product-server boundary for either provider. Keep the trusted key off the browser. A trusted API submission is service intake and does not infer verified ownership from a name or email.
+
+For cross-device identity, add [Connected authentication](/docs/guides/connected-profile) using this portal's existing D1 database. Configure the signed handoff independently; do not create another identity from GitHub or a Device Profile. My feedback then shows verified submissions, Supported and Following views. Private R2 is needed only when images are enabled; email and small-mode Queues are separately configured capabilities.

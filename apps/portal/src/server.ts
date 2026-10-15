@@ -1,3 +1,5 @@
+import { createMyFeedbackRequestHandler } from "./my-feedback-runtime";
+import { createPublicHistoryRequestHandler } from "./history-runtime";
 import { handleImageRequest } from "./images-runtime";
 import {
   handleParticipationRequest,
@@ -8,7 +10,13 @@ import { configuredTurnstileSecret } from "./turnstile-configuration";
 import { createPortalServerEntry } from "./portal-server-entry";
 import { createConfiguredTrustedFeedbackHandler } from "./trusted-feedback-runtime";
 import { env } from "cloudflare:workers";
-import { createConfiguredFeedbackModule } from "./feedback-runtime";
+import {
+  configuredIntegration,
+  configuredHistory,
+  createConfiguredContentFeedbackModule,
+  createConfiguredFeedbackModule,
+  requestParticipant,
+} from "./feedback-runtime";
 import { createPortalVoteHandler } from "./portal-voting";
 import { createCloudflareTurnstileVerifier } from "./cloudflare-turnstile";
 import feedbax from "./feedbax";
@@ -20,7 +28,39 @@ import {
 } from "./portal-comments";
 
 const application = createPortalServerEntry({
+  cachePublicReads: feedbax.provider !== "github" && !feedbax.history,
   connectedHandler: async (request) =>
+    (await createPublicHistoryRequestHandler({
+      enabled: Boolean(feedbax.history),
+      history: feedbax.history ? configuredHistory() : undefined,
+      rateLimit: async (input) =>
+        (
+          await env.TRUSTED_SUBMISSIONS_RATE_LIMITER.limit({
+            key: `history:${input.headers.get("CF-Connecting-IP") ?? "unknown"}`,
+          })
+        ).success,
+    })(request)) ??
+    (feedbax.connected &&
+    env.FEEDBAX_DB &&
+    request.url.includes("/internal/my-feedback")
+      ? await createMyFeedbackRequestHandler({
+          enabled: true,
+          siteUrl: feedbax.product.siteUrl!,
+          database: env.FEEDBAX_DB,
+          getParticipant: requestParticipant,
+          getFeedback: createConfiguredFeedbackModule,
+          rateLimit: async (input) =>
+            (
+              await env.TRUSTED_SUBMISSIONS_RATE_LIMITER.limit({
+                key: `my-feedback:${input.headers.get("CF-Connecting-IP") ?? "unknown"}`,
+              })
+            ).success,
+          limits: feedbax.submissions,
+        })(request)
+      : undefined) ??
+    (feedbax.provider === "github"
+      ? await configuredIntegration().handle(request)
+      : undefined) ??
     (await handleImageRequest(request)) ??
     (await handleParticipationRequest(request)) ??
     handleConnectedRequest(request),
@@ -123,6 +163,11 @@ const application = createPortalServerEntry({
 export default {
   ...application,
   async scheduled() {
+    if (feedbax.history) await configuredHistory().synchronize();
+    if (feedbax.provider === "github")
+      await configuredIntegration().reconcile(
+        createConfiguredContentFeedbackModule(),
+      );
     if (!feedbax.connected) return;
     if (feedbax.connected.processing === "standard") {
       await synchronizeConnectedUpdates();

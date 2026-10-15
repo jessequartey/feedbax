@@ -4,42 +4,44 @@ Use this guide when a person or coding agent is creating a portal, configuring c
 
 ## 1. Choose the source
 
-For the published release, use Node.js 22.14+ and pnpm 10:
+For version 0.2.2, use Node 24 LTS and pnpm 10:
 
 ```sh
-npx create-feedbax@0.2.0 my-feedback
+npx create-feedbax@0.2.2 my-feedback
 ```
 
-The guided creator provisions or validates Notion sources, copies the app, generates local secrets, installs dependencies, and runs diagnostics. It has no non-interactive provisioning `--yes` flag.
+The guided creator collects provider-specific resources, provisions or validates the selected connection, copies the app, generates local secrets, installs dependencies, and runs diagnostics. It has no non-interactive provisioning `--yes` flag.
 
 For source copying without prompts, external service calls, or dependency installation:
 
 ```sh
-npx create-feedbax@0.2.0 my-feedback --template-only
+npx create-feedbax@0.2.2 my-feedback --template-only
 cd my-feedback
 pnpm install
 ```
 
 Template-only output is intentionally unconfigured. Do not substitute test IDs or use `src/feedbax.test-fixture.ts` as a real installation configuration.
 
-For work on unreleased 0.2.1, use this repository and its workspace commands. The published 0.2.0 creator does not include Connected identity. `pnpm packages:check` verifies the development packages by packing both CLIs and using them in an independent application.
+For work on 0.2.2, use this repository with Node 24 LTS (24.15+; `.nvmrc` pins 24.22.0) and its workspace commands. Run `nvm install` and `nvm use` before installing dependencies. The published 0.2.1 creator includes Connected identity and social capabilities; GitHub commands require the matching 0.2.2 creator/CLI. `pnpm packages:check` verifies the development packages by packing both CLIs and using them in an independent application.
 
 ## 2. Collect the required inputs
 
 - Product name, description, portal HTTPS origin, and a distinct Cloudflare Worker name.
-- Notion internal integration token and a parent page shared with that integration; enable read/update/insert content, plus read/insert Comments when Comments are enabled.
+- For Notion: internal integration token and a parent page shared with that integration; enable read/update/insert content, plus read/insert Comments when Comments are enabled.
 - Which independent capabilities are enabled: voting, Comments, and Changelog.
 - For existing Notion sources: database IDs, data source IDs, and stable property IDs matching the canonical schema. Use [Notion setup](../apps/docs/content/docs/getting-started/notion.mdx); do not infer IDs from column titles.
 - If Turnstile is enabled: the public site key and private secret.
 - For Connected: the product application’s HTTPS origin/issuer, signed login endpoint, dedicated D1 database ID/name, a dedicated Cloudflare Queue for small processing, and an independent shared handoff secret. Follow [authentication setup](connected-profile.md).
 
-Credentials belong in ignored local files or secret stores. Public product settings and Notion IDs belong in `src/feedbax.ts`. Do not send the Notion token or signing keys to browser code.
+Credentials belong in ignored local files or secret stores. Product settings and selected provider identifiers belong in `src/feedbax.ts`. Do not send the Notion token or signing keys to browser code.
+
+For GitHub 0.2.2, first read [GitHub setup](../apps/docs/content/docs/getting-started/github.mdx). Collect the service origin, exact portal origin, distinct Feedbax Installation ID, repository numeric ID/owner/name, App bot ID, external GitHub App installation ID and explicitly provisioned D1 ID/name. Select `provider: "github"`, omit Notion configuration and disable Changelog. Keep the App key only in the separate service. Use the guide's matching 0.2.2 CLI instructions; a published 0.2.1 CLI lacks pairing commands.
 
 ## 3. Configure the owned application
 
 After guided setup, check the generated `src/feedbax.ts`, `wrangler.jsonc`, and ignored `.dev.vars`. The printed trusted submission key belongs in the calling product’s server environment; the portal keeps only its SHA-256 base64url hash.
 
-After template-only copying, configure those same files using the [configuration](../apps/docs/content/docs/operations/configuration.mdx) and [environment](../apps/docs/content/docs/operations/environment.mdx) guides. Supply real source/property IDs, a Notion token, the trusted API-key hash, and a participation signing secret. Generate independent random secrets rather than copying the examples. Keep the required rate-limit bindings in Wrangler configuration.
+After template-only copying, configure those same files using the [configuration](../apps/docs/content/docs/operations/configuration.mdx) and [environment](../apps/docs/content/docs/operations/environment.mdx) guides. For Notion, supply real source/property IDs and its token. For GitHub, follow its guide for binding identifiers and bootstrap pairing credentials. Both paths need the trusted API-key hash and participation signing secret. Generate independent random secrets rather than copying the examples. Keep the required rate-limit bindings in Wrangler configuration.
 
 For new Notion schemas, guided setup is the simplest supported path. Advanced automation can import the creator’s exported `provisionGuidedInstallation` function; its typed options are in [`packages/create-feedbax/src/index.ts`](../packages/create-feedbax/src/index.ts). It returns the plaintext trusted key once and previews external mutations. Template copying alone never provisions a schema.
 
@@ -60,7 +62,7 @@ pnpm deploy:dry-run
 pnpm dev
 ```
 
-Open the address printed by the server. Verify enabled Feedback, Roadmap, Changelog, search, and Post detail views. Use a dedicated test workspace for submissions: new Posts must be unpublished until moderated in Notion. Check Comment read/reply/resolve behavior when enabled. Connected additionally needs the login/callback, second-browser Vote, logout, and verified attribution checks in the authentication guide.
+Open the address printed by the server. Verify enabled Feedback, Roadmap, Changelog, search, and Post detail views. Use a dedicated test workspace for submissions: new Posts must be unpublished until approved through the selected provider. Public GitHub issues remain public at their source even before portal publication. Check Comment read/reply/resolve behavior when enabled. Connected additionally needs the login/callback, second-browser Vote, logout, and verified attribution checks in the authentication guide.
 
 If `doctor` fails, use its named repair instruction and rerun it. A successful build does not prove credentials or Notion permissions work. Report the failed check and missing input accurately if it cannot be supplied.
 
@@ -87,3 +89,5 @@ After source changes, synchronize the owned-app template with `pnpm template:syn
 ## Connected social features
 
 For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, including the Follow baseline migration, configure the timer and dedicated processing queue for small mode, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.
+
+For an existing customized 0.2.1 Installation, use the [source upgrade guide](../apps/docs/content/docs/guides/upgrading.mdx) rather than scaffolding over it. Invoke the matching CLI outside the app manifest, inspect the private three-way diff, and keep source recovery separate from provider/D1/R2 backups and deployment. Full archive/isolated restore/provider migration remains pending acceptance.

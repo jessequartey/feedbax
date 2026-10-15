@@ -26,6 +26,7 @@ export interface PortalCommentResult {
 const commentCapabilityLifetime = 15 * 60 * 1_000;
 
 export interface PortalCommentRequest {
+  submissionKey?: string;
   imageIds?: string[];
   slug: string;
   body: string;
@@ -92,6 +93,7 @@ export function createPortalCommentHandler(options: {
 
     const command = {
       ...(value.imageIds ? { imageIds: value.imageIds } : {}),
+      ...(value.submissionKey ? { submissionKey: value.submissionKey } : {}),
       slug: value.slug,
       body: value.body,
       displayName: value.displayName,
@@ -377,7 +379,16 @@ function validateCommentInput(
       ))
   )
     throw invalidCommentRequest();
+  if (
+    value.submissionKey !== undefined &&
+    (typeof value.submissionKey !== "string" ||
+      !/^[A-Za-z0-9_-]{43}$/.test(value.submissionKey))
+  )
+    throw invalidCommentRequest();
   return {
+    ...(typeof value.submissionKey === "string"
+      ? { submissionKey: value.submissionKey }
+      : {}),
     ...(value.imageIds ? { imageIds: value.imageIds as string[] } : {}),
     slug: value.slug.trim(),
     body: value.body.trim(),

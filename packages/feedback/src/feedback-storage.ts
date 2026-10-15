@@ -7,6 +7,7 @@ export type StoredPost = Post &
     browserCapabilityHash: string;
     source: PostSource;
     externalId: string;
+    draftEditable: boolean;
   }> &
   Record<string, unknown>;
 

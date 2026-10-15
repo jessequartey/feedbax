@@ -183,7 +183,7 @@ describe("Notion Changelog query contract", () => {
       },
       sorts: [
         { property: propertyIds.date, direction: "descending" },
-        { timestamp: "created_time", direction: "ascending" },
+        { timestamp: "created_time", direction: "descending" },
         { property: propertyIds.slug, direction: "ascending" },
       ],
     });

@@ -8,7 +8,7 @@ import { followQuery, participationRequest } from "../participation-client";
 
 export function FollowPostButton({ slug }: { slug: string }) {
   const identity = useConnectedIdentity();
-  if (!identity.enabled) return null;
+  if (!identity.enabled || !identity.displayName) return null;
   return <ConnectedFollowPostButton slug={slug} />;
 }
 function ConnectedFollowPostButton({ slug }: { slug: string }) {
@@ -20,18 +20,7 @@ function ConnectedFollowPostButton({ slug }: { slug: string }) {
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
-  if (!identity.enabled) return null;
-  if (!identity.displayName)
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        nativeButton={false}
-        render={<a href="/internal/identity/start" />}
-      >
-        Sign in to follow
-      </Button>
-    );
+  if (!identity.enabled || !identity.displayName) return null;
   async function toggle() {
     setPending(true);
     setError(undefined);

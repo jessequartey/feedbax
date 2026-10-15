@@ -8,7 +8,8 @@ import { requiredEnvironmentValue } from "./feedback-runtime";
 
 let configuredChangelog: ReturnType<typeof createChangelogModule> | undefined;
 
-export function createConfiguredChangelogModule() {
+export function createConfiguredChangelogModule(fresh = false) {
+  if (fresh) return buildConfiguredChangelogModule();
   configuredChangelog ??= buildConfiguredChangelogModule();
   return configuredChangelog;
 }

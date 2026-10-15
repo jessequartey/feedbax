@@ -3,6 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { publicFeedbaxConfiguration } from "./feedbax-vite";
 
 export default defineConfig({
   server: {
@@ -12,6 +13,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   plugins: [
+    publicFeedbaxConfiguration(),
     cloudflare({ viteEnvironment: { name: "ssr" } }),
     tailwindcss(),
     tanstackStart({ server: { entry: "./server.ts" } }),

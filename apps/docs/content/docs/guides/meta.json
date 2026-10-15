@@ -2,9 +2,12 @@
   "title": "Guides",
   "pages": [
     "notion-workflow",
+    "github-workflow",
+    "progress-history",
     "comments-and-voting",
     "changelog",
     "customization",
-    "connected-profile"
+    "connected-profile",
+    "upgrading"
   ]
 }

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "feedbax-github-integration-example",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "vars": {
+    "SERVICE_ORIGIN": "https://feedbax-github-integration-example.your-account.workers.dev",
+    "TRUSTED_PORTAL_ORIGINS": "[]",
+  },
+  "d1_databases": [
+    {
+      "binding": "FEEDBAX_APP_DB",
+      "database_name": "feedbax-github-integration-example",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "PAIRING_RATE_LIMITER",
+      "namespace_id": "3001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
+  "triggers": { "crons": ["* * * * *"] },
+  "observability": { "enabled": false },
+}

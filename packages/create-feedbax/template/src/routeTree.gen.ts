@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as EmailPreferencesRouteImport } from './routes/email-preferences'
+import { Route as MyFeedbackRouteImport } from './routes/my-feedback'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as PSlugRouteImport } from './routes/p.$slug'
@@ -29,6 +30,11 @@ const ChangelogRoute = ChangelogRouteImport.update({
 const EmailPreferencesRoute = EmailPreferencesRouteImport.update({
   id: '/email-preferences',
   path: '/email-preferences',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyFeedbackRoute = MyFeedbackRouteImport.update({
+  id: '/my-feedback',
+  path: '/my-feedback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoadmapRoute = RoadmapRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/changelog': typeof ChangelogRoute
   '/email-preferences': typeof EmailPreferencesRoute
+  '/my-feedback': typeof MyFeedbackRoute
   '/roadmap': typeof RoadmapRoute
   '/submit': typeof SubmitRoute
   '/p/$slug': typeof PSlugRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/changelog': typeof ChangelogRoute
   '/email-preferences': typeof EmailPreferencesRoute
+  '/my-feedback': typeof MyFeedbackRoute
   '/roadmap': typeof RoadmapRoute
   '/submit': typeof SubmitRoute
   '/p/$slug': typeof PSlugRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/changelog': typeof ChangelogRoute
   '/email-preferences': typeof EmailPreferencesRoute
+  '/my-feedback': typeof MyFeedbackRoute
   '/roadmap': typeof RoadmapRoute
   '/submit': typeof SubmitRoute
   '/p/$slug': typeof PSlugRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/changelog'
     | '/email-preferences'
+    | '/my-feedback'
     | '/roadmap'
     | '/submit'
     | '/p/$slug'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/changelog'
     | '/email-preferences'
+    | '/my-feedback'
     | '/roadmap'
     | '/submit'
     | '/p/$slug'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/changelog'
     | '/email-preferences'
+    | '/my-feedback'
     | '/roadmap'
     | '/submit'
     | '/p/$slug'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChangelogRoute: typeof ChangelogRoute
   EmailPreferencesRoute: typeof EmailPreferencesRoute
+  MyFeedbackRoute: typeof MyFeedbackRoute
   RoadmapRoute: typeof RoadmapRoute
   SubmitRoute: typeof SubmitRoute
   PSlugRoute: typeof PSlugRoute
@@ -129,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/email-preferences'
       fullPath: '/email-preferences'
       preLoaderRoute: typeof EmailPreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-feedback': {
+      id: '/my-feedback'
+      path: '/my-feedback'
+      fullPath: '/my-feedback'
+      preLoaderRoute: typeof MyFeedbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/roadmap': {
@@ -159,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChangelogRoute: ChangelogRoute,
   EmailPreferencesRoute: EmailPreferencesRoute,
+  MyFeedbackRoute: MyFeedbackRoute,
   RoadmapRoute: RoadmapRoute,
   SubmitRoute: SubmitRoute,
   PSlugRoute: PSlugRoute,

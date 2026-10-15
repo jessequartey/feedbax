@@ -1,6 +1,6 @@
-# Connected Profile in 0.2.1
+# Connected Profile
 
-Connected Profile is optional. Omit `connected` to retain Notion-only behavior. A Connected Installation requires a dedicated D1 database and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in. Small processing also uses a dedicated Cloudflare Queue for background work.
+Connected Profile is optional. Omit `connected` to retain the selected provider’s unsigned participation behavior. Published 0.2.1 uses Notion; 0.2.2 also supports GitHub. A Connected Installation requires a dedicated D1 database (reuse the Installation’s required provider D1 for GitHub) and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in. Small processing also uses a dedicated Cloudflare Queue for background work.
 
 ## Configure an Installation
 
@@ -402,3 +402,17 @@ In a dedicated Installation, apply all D1 migrations, configure the timer and pr
 5. Reject a forged review link, wrong-owner image association, oversized/unsupported image, unsigned mutation, and cross-origin mutation. Check mobile previews, unread states, empty/error/retry states, and cleanup of abandoned uploads.
 
 These checks require your real application, sender, and infrastructure. Local tests and builds do not constitute production delivery or release evidence.
+
+## GitHub and My feedback in 0.2.2
+
+Provider setup and Participant authentication are separate. Complete the GitHub App service pairing and use the same Installation D1 database for Connected; GitHub needs no Notion token and disables Changelog. The existing issuer/subject trust pair, signed handoff, consent and session revocation rules remain unchanged. GitHub Participants need no GitHub account. Follow the GitHub setup guide before adding Connected bindings and secrets.
+
+My feedback provides private Submitted, Supported and Following views with bounded pagination. New submissions from a server-verified portal session gain ownership independently of their Device Profile. The owner can view eligible pending context and edit or withdraw a New, unpublished draft from another verified device. Publication or advancement beyond New ends edit authority.
+
+An older unsigned draft is not automatically owned. While its lifecycle remains eligible, sign in on the browser that still holds its capability, open My feedback, and explicitly link the draft. Both proofs are required. Matching names/email, browser storage alone without verified identity, and public URLs do not establish ownership. Existing ownership cannot be transferred by another Participant's claim.
+
+Private owner responses use an explicit projection and `no-store`; no provider handles, contacts, capability hashes or identity subjects are returned. The browser resets private lists and editors before a session refresh, using an opaque session key rather than a display name to separate cached views. Sign-out revokes the session and reloads the page.
+
+Apply every included D1 migration before enabling the new views, including `0007_ownership.sql`; GitHub also needs the integration/recovery migrations. These additions do not create ownership for historical Posts or send historical Notifications. Existing 0.2.1 Comment editing limits remain; the new cross-device authority concerns eligible owned Post drafts, not arbitrary provider moderation.
+
+GitHub Comments use explicit App-created public records and private attribution mappings. Private image access still follows current publication and Comment visibility. GitHub issues contain no private review links; native Notion's private page-body review links remain specific to Notion. The selected Content Provider stays authoritative for feedback content and publication, and D1 stays authoritative for verified participation.

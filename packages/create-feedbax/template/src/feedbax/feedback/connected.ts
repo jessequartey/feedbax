@@ -169,11 +169,21 @@ export function createConnectedStore(binding: D1Database) {
       commentId: string,
       participant: VerifiedParticipant,
     ) {
-      await db.insert(attribution).values({
-        commentId,
-        subject: participant.subject,
-        displayName: participant.displayName,
-      });
+      await db
+        .insert(attribution)
+        .values({
+          commentId,
+          subject: participant.subject,
+          displayName: participant.displayName,
+        })
+        .onConflictDoNothing();
+      const owner = await db
+        .select({ subject: attribution.subject })
+        .from(attribution)
+        .where(eq(attribution.commentId, commentId))
+        .get();
+      if (owner?.subject !== participant.subject)
+        throw new Error("Comment attribution is unavailable.");
     },
     async commentAuthors(ids: string[]) {
       const result = new Map<

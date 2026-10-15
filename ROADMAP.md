@@ -29,9 +29,9 @@ Published `feedbax@0.2.0` and `create-feedbax@0.2.0`; release acceptance is reco
 - Framework-neutral shadcn feedback registry block with server-only trusted client helper
 - Dogfooded Feedbax feedback portal
 
-## Version 0.2.1 — Connected Profile foundation
+## Version 0.2.1 — shipped 2026-10-15
 
-In development. The owner selected this scope on 2026-10-15; adoption runs in parallel and is no longer a prerequisite to implementation.
+Published `feedbax@0.2.1` and `create-feedbax@0.2.1`; production acceptance and release evidence are recorded in [0.2.1 acceptance](docs/version-0.2.1-acceptance.md). Adoption remains owner-led parallel work.
 
 - Verified Participant identity through signed handoff from the Product Team’s existing application
 - D1 operational state managed through Drizzle
@@ -39,6 +39,20 @@ In development. The owner selected this scope on 2026-10-15; adoption runs in pa
 - Verified Comment attribution backed by durable identity mappings
 - Optional Connected Profile; existing Notion-only Installations retain their behavior
 - Generated installation, diagnostics, documentation, and release verification for both profiles
+- Per-Post following, private in-app and opt-in email Notifications, and private R2 Image Attachments
+
+## Version 0.2.2 — GitHub integration and feedback operations
+
+Implementation contract established after the 0.2.1 release. See [the complete 0.2.2 implementation handoff](docs/version-0.2.2-plan.md) and [shared contract](docs/version-0.2.2-contract.md) for requirements, sequencing, compatibility, and acceptance cases. The owner deferred new Team Member tools; tool-dependent merge, moderation, and manual recovery execution remains deferred unless a safe native provider workflow meets its criteria. The bullets below retain the original workstreams and do not imply delivery.
+
+- GitHub as an alternative to Notion, with one configurable Feedbax GitHub App, an open-source self-hosted path, optional Projects, and explicit public/private visibility
+- Merge duplicate Posts while preserving links, attribution, Votes, and Follows
+- Private cross-device My feedback for Verified Participants
+- Public decisions and observed progress history with release links
+- Safe customized upgrades, backup, and restore
+- Integration health, recovery, and reconciliation
+- Reporting, Participant restrictions, and batch moderation
+- Portable import/export and Notion/GitHub provider migration
 
 ## Owner-led adoption and operations
 
@@ -47,10 +61,8 @@ In development. The owner selected this scope on 2026-10-15; adoption runs in pa
 - Official custom domains
 - Production-derived fixes informed by adoption
 
-## Later Connected Profile capabilities
+## Later Connected Profile work
 
-- Following and notifications
-- Participant media storage in R2
 - Abuse controls and synchronization hardening
 - Reconsider Effect only for workflows whose complexity justifies it
 

@@ -639,3 +639,5 @@ export async function doctorInstallation({
     request,
   });
 }
+
+export { provisionGitHubInstallation } from "./github";

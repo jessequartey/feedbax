@@ -1,11 +1,11 @@
 ---
 title: Getting started
-description: Create a Feedbax portal, connect Notion, and run it locally.
+description: Choose a Content Provider, create a portal, and connect your existing application.
 ---
 
 ## Prerequisites
 
-Use Node.js 22.14 or newer, pnpm 10, a Notion workspace, and a Cloudflare account.
+Use Node.js 24.15 or newer on the Node 24 LTS line, pnpm 10, and a Cloudflare account. The released Notion path below also needs a Notion workspace; the separate GitHub guide lists its repository, App service and D1 requirements.
 
 ## Create the portal
 
@@ -25,3 +25,9 @@ Open the local URL, then check the Feedback, Roadmap, Changelog, Post submission
   Never commit the Notion token or trusted-submission secret. Use `.dev.vars`
   locally and Worker secrets in production.
 </Callout>
+
+## Choose your provider and integration
+
+Published 0.2.1 supports Notion and optional Connected participation. Version 0.2.2 adds [GitHub setup](/docs/getting-started/github), with its own D1 database and paired App service. GitHub setup never needs a Notion token and disables Changelog. Use the guide's matching 0.2.2 CLI for 0.2.2.
+
+Use the [trusted API](/docs/integrations/submission-api) or [feedback block](/docs/integrations/feedback-block) to collect feedback through your product server. Separately add [Connected authentication](/docs/guides/connected-profile) for cross-device participation. Content Provider, D1 storage and verified identity are independent choices.

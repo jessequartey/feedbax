@@ -1,3 +1,5 @@
+import { submissionIntent } from "./submission-intent";
+import { PostHistory } from "./components/post-history";
 import { ImageAttachments, ImageGallery } from "./components/image-attachments";
 import { FollowPostButton } from "./components/follow-post-button";
 import {
@@ -10,6 +12,12 @@ import type { PortalFeatures } from "@feedbax/config";
 import { Skeleton } from "@feedbax/ui/components/skeleton";
 import { Button } from "@feedbax/ui/components/button";
 import { Textarea } from "@feedbax/ui/components/textarea";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@feedbax/ui/components/tabs";
 import { ArrowLeft } from "lucide-react";
 import {
   type FormEvent,
@@ -180,7 +188,8 @@ export function PublicPostDetail({
   async function createComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!submitComment) return;
-    const form = new FormData(event.currentTarget);
+    const composer = event.currentTarget;
+    const form = new FormData(composer);
     const body = String(form.get("body") ?? "").trim();
     const profile = completeProfile;
     if (
@@ -208,11 +217,19 @@ export function PublicPostDetail({
     };
     setCommentError(undefined);
     setLocalComments((current) => addComment(current, optimistic));
-    event.currentTarget.reset();
-    setReplyingTo(undefined);
     try {
       const turnstileToken = form.get("cf-turnstile-response");
+      const intent = await submissionIntent(sessionStorage, {
+        kind: "comment",
+        slug: post.slug,
+        discussionId: replyingTo ?? null,
+        body,
+        imageIds: images.map((image) => image.id),
+        session: identity.sessionKey ?? "browser",
+        displayName: identity.enabled ? identity.displayName : profile?.name,
+      });
       const confirmed = await submitComment({
+        submissionKey: intent.key,
         slug: post.slug,
         ...(images.length ? { imageIds: images.map((image) => image.id) } : {}),
         body,
@@ -228,10 +245,6 @@ export function PublicPostDetail({
             }
           : {}),
       });
-      setImages([]);
-      setLocalComments((current) =>
-        replaceComment(current, optimisticId, confirmed),
-      );
       if (confirmed.commentCapability && confirmed.commentCapabilityExpiresAt)
         setCommentCapabilities(
           saveCommentCapability(
@@ -241,6 +254,13 @@ export function PublicPostDetail({
             confirmed.commentCapabilityExpiresAt,
           ),
         );
+      intent.complete();
+      composer.reset();
+      setReplyingTo(undefined);
+      setImages([]);
+      setLocalComments((current) =>
+        replaceComment(current, optimisticId, confirmed),
+      );
     } catch (error) {
       setLocalComments((current) => removeComment(current, optimisticId));
       setCommentError(
@@ -329,13 +349,15 @@ export function PublicPostDetail({
           ) : (
             <ImageGallery images={post.images} />
           )}
-          {post.teamResponse ? (
+          {post.teamResponse || post.releaseNotesUrl ? (
             <section
               className="border-l-4 border-primary bg-muted/50 p-4"
               aria-label="Product Team response"
             >
               <h2 className="text-sm font-semibold">Product Team response</h2>
-              <p className="mt-2 whitespace-pre-wrap">{post.teamResponse}</p>
+              {post.teamResponse ? (
+                <p className="mt-2 whitespace-pre-wrap">{post.teamResponse}</p>
+              ) : null}
               {post.releaseNotesUrl ? (
                 <a
                   className="mt-3 inline-block text-sm font-medium underline underline-offset-4"
@@ -355,275 +377,329 @@ export function PublicPostDetail({
             ) : null}
             {published ? <FollowPostButton slug={post.slug} /> : null}
           </div>
-          {features.comments ? (
-            <section
-              className="post-detail-comments"
-              aria-labelledby={commentsHeadingId}
-            >
-              <h2 id={commentsHeadingId}>Comments</h2>
-              {submitComment &&
-              (identity.enabled ? identity.ready : profileReady) &&
-              canComment ? (
-                <form
-                  className="comment-composer"
-                  aria-label="Comment composer"
-                  onSubmit={createComment}
-                >
-                  <label
-                    className="comment-composer-label"
-                    htmlFor={`${id}-comment-body`}
-                  >
-                    {replyingTo ? "Write a reply" : "Add a comment"}
-                  </label>
-                  <p className="comment-composer-hint">
-                    {identity.enabled
-                      ? `Posting as ${identity.displayName}.`
-                      : "Your name is public. Your email stays private."}
-                  </p>
-                  <Textarea
-                    ref={composerInput}
-                    className="comment-composer-input"
-                    id={`${id}-comment-body`}
-                    name="body"
-                    rows={3}
-                    placeholder="Share context, an example, or a question…"
-                    required
-                  />
-                  {turnstileSiteKey &&
-                  !sessionStorage.getItem("feedbax:participation-pass") ? (
-                    <div
-                      ref={(element) => {
-                        turnstileContainer.current = element;
-                        if (
-                          element &&
-                          window.turnstile &&
-                          !turnstileWidget.current
-                        )
-                          turnstileWidget.current = window.turnstile.render(
-                            element,
-                            { sitekey: turnstileSiteKey },
-                          );
-                      }}
-                      className="cf-turnstile"
-                      data-sitekey={turnstileSiteKey}
-                    />
-                  ) : null}
-                  <ImageAttachments
-                    value={images}
-                    onChange={setImages}
-                    onUploadingChange={setUploading}
-                  />
-                  <div className="comment-composer-actions">
-                    <Button
-                      type="submit"
-                      disabled={uploading || submittingComment}
-                    >
-                      {submittingComment
-                        ? "Posting…"
-                        : replyingTo
-                          ? "Post reply"
-                          : "Post comment"}
-                    </Button>
-                    {replyingTo ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setReplyingTo(undefined)}
-                      >
-                        Cancel reply
-                      </Button>
-                    ) : null}
-                  </div>
-                </form>
-              ) : submitComment && identity.enabled ? (
-                <ConnectedSignInPrompt />
-              ) : submitComment ? (
-                <DeviceProfilePrompt purpose="comment" />
-              ) : null}
-              {commentError ? <p role="alert">{commentError}</p> : null}
-              <div
-                className="post-detail-thread-list"
-                role="region"
-                aria-label="Comment threads"
-                tabIndex={localComments.length ? 0 : undefined}
+          <Tabs
+            defaultValue={features.comments ? "comments" : "activities"}
+            className="gap-5"
+          >
+            {published && feedbax.history ? (
+              <TabsList
+                variant="line"
+                activateOnFocus
+                aria-label="Post discussion"
+                className="h-10 gap-4 border-b p-0"
               >
-                {commentsLoading && localComments.length === 0 ? (
-                  <PostCommentsSkeleton />
-                ) : commentsLoadError &&
-                  localComments.length === 0 ? null : localComments.length ===
-                  0 ? (
-                  <p className="py-5 text-sm text-muted-foreground">
-                    No comments yet
-                  </p>
-                ) : (
-                  <div className="comment-threads">
-                    {localComments.map((thread) => (
-                      <article className="comment-thread" key={thread.id}>
-                        {thread.comments.map((comment, index) => {
-                          const canChange = Boolean(
-                            mutateComment && commentCapabilities[comment.id],
-                          );
-                          const canReply = Boolean(
-                            index === 0 && submitComment && canComment,
-                          );
-                          return (
-                            <div
-                              className="comment"
-                              data-reply={index > 0 || undefined}
-                              key={comment.id}
-                            >
-                              <header className="comment-header">
-                                <div className="comment-author">
-                                  <strong>{comment.author.displayName}</strong>
-                                  {comment.author.kind === "participant" ? (
-                                    <span>
-                                      {comment.author.verified
-                                        ? "Verified"
-                                        : "Unverified"}
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <time
-                                  dateTime={comment.createdAt.toISOString()}
-                                >
-                                  {formatPublicDate(comment.createdAt, "long")}
-                                </time>
-                              </header>
-                              {editingComment?.id === comment.id ? (
-                                <form
-                                  className="mt-3 space-y-2"
-                                  aria-label="Edit Comment"
-                                  onSubmit={(event) => {
-                                    event.preventDefault();
-                                    void changeComment(
-                                      "edit",
-                                      { ...comment, discussionId: thread.id },
-                                      editingComment.body,
-                                    );
-                                  }}
-                                >
-                                  <Textarea
-                                    aria-label="Comment text"
-                                    value={editingComment.body}
-                                    onChange={(event) =>
-                                      setEditingComment({
-                                        id: comment.id,
-                                        body: event.target.value,
-                                      })
-                                    }
-                                    required
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button size="sm" type="submit">
-                                      Save
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      type="button"
-                                      variant="ghost"
-                                      onClick={() =>
-                                        setEditingComment(undefined)
-                                      }
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </div>
-                                </form>
-                              ) : (
-                                <>
-                                  <p className="comment-body">{comment.body}</p>
-                                  <ImageGallery images={comment.images} />
-                                </>
-                              )}
-                              {canChange || canReply ? (
+                {features.comments ? (
+                  <TabsTrigger value="comments" className="px-1 text-sm">
+                    Comments
+                  </TabsTrigger>
+                ) : null}
+                <TabsTrigger value="activities" className="px-1 text-sm">
+                  Activities
+                </TabsTrigger>
+              </TabsList>
+            ) : null}
+            {features.comments ? (
+              <TabsContent value="comments" keepMounted>
+                <section
+                  className={
+                    published && feedbax.history
+                      ? "post-detail-comments post-detail-comments-tab"
+                      : "post-detail-comments"
+                  }
+                  aria-labelledby={commentsHeadingId}
+                >
+                  <h2
+                    id={commentsHeadingId}
+                    className={
+                      published && feedbax.history ? "sr-only" : undefined
+                    }
+                  >
+                    Comments
+                  </h2>
+                  {submitComment &&
+                  (identity.enabled ? identity.ready : profileReady) &&
+                  canComment ? (
+                    <form
+                      className="comment-composer"
+                      aria-label="Comment composer"
+                      onSubmit={createComment}
+                    >
+                      <label
+                        className="comment-composer-label"
+                        htmlFor={`${id}-comment-body`}
+                      >
+                        {replyingTo ? "Write a reply" : "Add a comment"}
+                      </label>
+                      <p className="comment-composer-hint">
+                        {identity.enabled
+                          ? `Posting as ${identity.displayName}.`
+                          : "Your name is public. Your email stays private."}
+                      </p>
+                      <Textarea
+                        ref={composerInput}
+                        className="comment-composer-input"
+                        id={`${id}-comment-body`}
+                        name="body"
+                        rows={3}
+                        placeholder="Share context, an example, or a question…"
+                        required
+                      />
+                      {turnstileSiteKey &&
+                      !sessionStorage.getItem("feedbax:participation-pass") ? (
+                        <div
+                          ref={(element) => {
+                            turnstileContainer.current = element;
+                            if (
+                              element &&
+                              window.turnstile &&
+                              !turnstileWidget.current
+                            )
+                              turnstileWidget.current = window.turnstile.render(
+                                element,
+                                { sitekey: turnstileSiteKey },
+                              );
+                          }}
+                          className="cf-turnstile"
+                          data-sitekey={turnstileSiteKey}
+                        />
+                      ) : null}
+                      <ImageAttachments
+                        value={images}
+                        onChange={setImages}
+                        onUploadingChange={setUploading}
+                      />
+                      <div className="comment-composer-actions">
+                        <Button
+                          type="submit"
+                          disabled={uploading || submittingComment}
+                        >
+                          {submittingComment
+                            ? "Posting…"
+                            : replyingTo
+                              ? "Post reply"
+                              : "Post comment"}
+                        </Button>
+                        {replyingTo ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setReplyingTo(undefined)}
+                          >
+                            Cancel reply
+                          </Button>
+                        ) : null}
+                      </div>
+                    </form>
+                  ) : submitComment && identity.enabled ? (
+                    <ConnectedSignInPrompt />
+                  ) : submitComment ? (
+                    <DeviceProfilePrompt purpose="comment" />
+                  ) : null}
+                  {commentError ? <p role="alert">{commentError}</p> : null}
+                  <div
+                    className="post-detail-thread-list"
+                    role="region"
+                    aria-label="Comment threads"
+                    tabIndex={localComments.length ? 0 : undefined}
+                  >
+                    {commentsLoading && localComments.length === 0 ? (
+                      <PostCommentsSkeleton />
+                    ) : commentsLoadError &&
+                      localComments.length ===
+                        0 ? null : localComments.length === 0 ? (
+                      <p className="py-5 text-sm text-muted-foreground">
+                        No comments yet
+                      </p>
+                    ) : (
+                      <div className="comment-threads">
+                        {localComments.map((thread) => (
+                          <article className="comment-thread" key={thread.id}>
+                            {thread.comments.map((comment, index) => {
+                              const canChange = Boolean(
+                                mutateComment &&
+                                commentCapabilities[comment.id],
+                              );
+                              const canReply = Boolean(
+                                index === 0 && submitComment && canComment,
+                              );
+                              return (
                                 <div
-                                  className="comment-actions"
-                                  role="group"
-                                  aria-label={`Comment actions by ${comment.author.displayName}`}
+                                  className="comment"
+                                  data-reply={index > 0 || undefined}
+                                  key={comment.id}
                                 >
-                                  {canReply ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setReplyingTo(thread.id);
-                                        composerInput.current?.focus();
-                                      }}
+                                  <header className="comment-header">
+                                    <div className="comment-author">
+                                      <strong>
+                                        {comment.author.displayName}
+                                      </strong>
+                                      {comment.author.kind === "participant" ? (
+                                        <span>
+                                          {comment.author.verified
+                                            ? "Verified"
+                                            : "Unverified"}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <time
+                                      dateTime={comment.createdAt.toISOString()}
                                     >
-                                      Reply
-                                    </Button>
-                                  ) : null}
-                                  {canChange ? (
-                                    <>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() =>
-                                          setEditingComment({
-                                            id: comment.id,
-                                            body: comment.body,
-                                          })
-                                        }
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        className="text-destructive hover:text-destructive"
-                                        onClick={() =>
-                                          void changeComment("delete", {
+                                      {formatPublicDate(
+                                        comment.createdAt,
+                                        "long",
+                                      )}
+                                    </time>
+                                  </header>
+                                  {editingComment?.id === comment.id ? (
+                                    <form
+                                      className="mt-3 space-y-2"
+                                      aria-label="Edit Comment"
+                                      onSubmit={(event) => {
+                                        event.preventDefault();
+                                        void changeComment(
+                                          "edit",
+                                          {
                                             ...comment,
                                             discussionId: thread.id,
+                                          },
+                                          editingComment.body,
+                                        );
+                                      }}
+                                    >
+                                      <Textarea
+                                        aria-label="Comment text"
+                                        value={editingComment.body}
+                                        onChange={(event) =>
+                                          setEditingComment({
+                                            id: comment.id,
+                                            body: event.target.value,
                                           })
                                         }
-                                      >
-                                        Delete
-                                      </Button>
+                                        required
+                                      />
+                                      <div className="flex gap-2">
+                                        <Button size="sm" type="submit">
+                                          Save
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          type="button"
+                                          variant="ghost"
+                                          onClick={() =>
+                                            setEditingComment(undefined)
+                                          }
+                                        >
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </form>
+                                  ) : (
+                                    <>
+                                      <p className="comment-body">
+                                        {comment.body}
+                                      </p>
+                                      <ImageGallery images={comment.images} />
                                     </>
+                                  )}
+                                  {canChange || canReply ? (
+                                    <div
+                                      className="comment-actions"
+                                      role="group"
+                                      aria-label={`Comment actions by ${comment.author.displayName}`}
+                                    >
+                                      {canReply ? (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setReplyingTo(thread.id);
+                                            composerInput.current?.focus();
+                                          }}
+                                        >
+                                          Reply
+                                        </Button>
+                                      ) : null}
+                                      {canChange ? (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() =>
+                                              setEditingComment({
+                                                id: comment.id,
+                                                body: comment.body,
+                                              })
+                                            }
+                                          >
+                                            Edit
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            className="text-destructive hover:text-destructive"
+                                            onClick={() =>
+                                              void changeComment("delete", {
+                                                ...comment,
+                                                discussionId: thread.id,
+                                              })
+                                            }
+                                          >
+                                            Delete
+                                          </Button>
+                                        </>
+                                      ) : null}
+                                    </div>
                                   ) : null}
                                 </div>
-                              ) : null}
-                            </div>
-                          );
-                        })}
-                      </article>
-                    ))}
-                  </div>
-                )}
-                {commentsLoadError ? (
-                  <div className="space-y-3 py-4">
-                    <p role="alert" className="text-sm text-muted-foreground">
-                      Comments could not be loaded.
-                    </p>
-                    {retryComments ? (
+                              );
+                            })}
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                    {commentsLoadError ? (
+                      <div className="space-y-3 py-4">
+                        <p
+                          role="alert"
+                          className="text-sm text-muted-foreground"
+                        >
+                          Comments could not be loaded.
+                        </p>
+                        {retryComments ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={retryComments}
+                          >
+                            Retry Comments
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {loadMore ? (
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
-                        onClick={retryComments}
+                        disabled={commentsLoading}
+                        onClick={() => void loadMore()}
                       >
-                        Retry Comments
+                        {commentsLoading ? "Loading Comments…" : "Load more"}
                       </Button>
                     ) : null}
                   </div>
-                ) : null}
-                {loadMore ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={commentsLoading}
-                    onClick={() => void loadMore()}
-                  >
-                    {commentsLoading ? "Loading Comments…" : "Load more"}
-                  </Button>
-                ) : null}
-              </div>
-            </section>
-          ) : null}
+                </section>
+              </TabsContent>
+            ) : null}
+            {published && feedbax.history ? (
+              <TabsContent value="activities" keepMounted>
+                <PostHistory slug={post.slug} />
+              </TabsContent>
+            ) : null}
+          </Tabs>
         </div>
         <aside
           className="post-detail-sidebar"

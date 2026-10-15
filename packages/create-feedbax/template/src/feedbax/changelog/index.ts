@@ -160,7 +160,11 @@ function compareEntries(
   left: StoredChangelogEntry,
   right: StoredChangelogEntry,
 ): number {
-  return right.date.localeCompare(left.date) || left.id.localeCompare(right.id);
+  return (
+    right.date.localeCompare(left.date) ||
+    right.createdAt.getTime() - left.createdAt.getTime() ||
+    left.slug.localeCompare(right.slug)
+  );
 }
 
 function toPublicEntry(entry: StoredChangelogEntry): PublicChangelogEntry {

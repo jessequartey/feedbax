@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted implementation contract for the Feedbax Core 0.2.0 replacement. Changes to settled decisions are recorded through public ADRs.
+Accepted implementation contract for Feedbax Core. The 0.2.0/0.2.1 sections describe the released baseline. The 0.2.2 contract below extends that baseline; it is an implementation target, not a claim that planned capabilities are already available. Changes to settled decisions are recorded through public ADRs.
 
 ## Product thesis
 
@@ -148,7 +148,7 @@ API submissions require an `Idempotency-Key` header, stored as External ID. Retr
 
 Posts and Changelog Entries never share a data source. A mixed schema would require a discriminator, irrelevant empty properties, cross-content filters, and unnecessary leakage risk between workflows. Always placing them in different databases would add setup and access-management overhead, so sibling data sources in one Feedbax Database are the default.
 
-The Changelog Data Source contains Title, immutable Slug, Date, Summary, Body, open-ended Labels, zero or one Image file, Published, Created At, and Updated At. Only Published entries appear publicly, ordered by Date descending with a deterministic tie-breaker and loaded 20 at a time. The timeline retains Changelog Label filtering and hash-based entry navigation; version 0.2.0 has no separate Changelog detail route.
+The Changelog Data Source contains Title, immutable Slug, Date, Summary, Body, open-ended Labels, zero or one Image file, Published, Created At, and Updated At. Only Published entries appear publicly, ordered by Date descending, then Created At descending, then immutable Slug ascending, before cursor pagination in batches of 20. The timeline retains Changelog Label filtering and hash-based entry navigation; version 0.2.0 has no separate Changelog detail route.
 
 Team Members manage Changelog Entries and their optional image directly in Notion. Feedbax does not upload, transform, or separately store Changelog media. Because Notion-hosted download URLs expire, cached public projections refresh or discard image references before expiry and never serve a known-expired URL. New Changelog Data Sources start empty.
 
@@ -390,3 +390,15 @@ Contributions require no CLA. Issues are reserved for reproducible bugs, while f
 ### 0.2.1 portal presentation refinements
 
 Roadmap columns show five Posts initially and reveal five more per View more action; this presentation window does not change backend cursor page sizes or total counts. Card titles and descriptions use two-line previews of uniform height. Post dialogs open their loading shell immediately; dialog and canonical pages render Post content without waiting for Comments. The Comment composer or compact profile/sign-in prompt precedes a separately scrollable thread list with loading and retry feedback. The redundant full-page toolbar is absent. Portal page headings and Post dialog titles/descriptions use the shared shadcn type scale, and Changelog uses a compact release timeline with readable paragraphs.
+
+## Version 0.2.2 implementation contract
+
+The owner-approved [release plan](docs/version-0.2.2-plan.md), its dated amendments, and the [shared implementation contract](docs/version-0.2.2-contract.md) define the design target and accepted 0.2.2 release cut. The [accepted inventory](docs/version-0.2.2-acceptance.md#accepted-release-cut) records delivered scope and follow-up work. The amendments take precedence over the original handoff; the shared contract governs provider selection, identity, publication, durable operations, and archive behavior. ADR-0034 extends the Notion-specific decisions without changing existing Installations implicitly. ADR-0035 records the official/self-hosted integration model; ADR-0036 records the deferred Team Member tools.
+
+One Installation selects Notion or GitHub as its authoritative Content Provider. Content Provider selection does not establish Participant identity. Existing Notion-only Installations retain their footprint; GitHub requires explicit D1 provisioning, and all reliable participation features retain Connected Profile requirements. GitHub-only Installations must explicitly disable Changelog for this release and require no Notion credentials. Notion-backed Changelog remains supported for Notion Installations.
+
+All eight original workstreams remain traceable: GitHub integration, duplicate Posts, My feedback, public observed history, upgrades/backup/restore, integration health/recovery, moderation, and portable archives/provider migration. New Team Member tools are deferred. Native provider workflows remain supported; tool-dependent merge/moderation/manual recovery actions remain explicitly deferred and cannot be reported as delivered. Deployer lifecycle tooling is distinct from Team Member runtime authority. Participant sessions, submission keys, labels, names, and caller-supplied Installation IDs never grant Team Member authority.
+
+The six Post Status values, independent publication, immutable slugs, private contact/capability/identity data, signed Identity Handoff, and private R2 download authorization remain invariant. The Feedback module owns provider-independent Post and Comment behavior; provider adapters own external requests and native workflow translation. Routes select a configured module once and never branch over provider payloads. The Changelog module remains separate.
+
+Implementation and release acceptance are separate. Package versions stay on 0.2.1 until Changesets advances the fixed group. GitHub account/Project combinations remain candidates until setup probes and real acceptance pass; unsupported combinations have an explicit Issues-only fallback. No official service, GitHub integration, upgrade, migration, or moderation capability is claimed shipped from this contract document.

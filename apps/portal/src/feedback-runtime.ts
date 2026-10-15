@@ -4,8 +4,8 @@ import {
   createNotionImageReviewWriter,
   createConnectedStore,
   createConnectedFeedbackModule,
+  createObservedHistoryModule,
   type VerifiedParticipant,
-  createNotionFeedbackModule,
 } from "@feedbax/feedback";
 import { cache, env } from "cloudflare:workers";
 
@@ -14,27 +14,45 @@ import {
   createPublicCacheInvalidator,
 } from "./feedback-cache-invalidation";
 import feedbax from "./feedbax";
+import { createContentFeedbackModule } from "./configured-feedback";
+import { createPortalIntegration } from "./integration-runtime";
+import { createPublicReleaseFeedbackModule } from "./public-release-links";
+import { createConfiguredChangelogModule } from "./changelog-runtime";
 
 export const feedbackSubmissionLimits = {
   maxTitleLength: feedbax.submissions.maxTitleLength,
   maxDescriptionLength: feedbax.submissions.maxDescriptionLength,
 } as const;
 
-export function createConfiguredNotionFeedbackModule() {
-  configuredFeedback ??= createNotionFeedbackModule({
-    votingEnabled: feedbax.features.voting,
-    commentsEnabled: feedbax.features.comments,
-    token: requiredEnvironmentValue("NOTION_TOKEN"),
-    dataSourceId: feedbax.notion.dataSourceId,
-    propertyIds: feedbax.notion.properties,
-  });
-  return configuredFeedback;
+export function createConfiguredContentFeedbackModule(
+  participant?: VerifiedParticipant,
+) {
+  return createContentFeedbackModule(
+    feedbax,
+    {
+      FEEDBAX_DB: env.FEEDBAX_DB,
+      NOTION_TOKEN: process.env.NOTION_TOKEN,
+      GITHUB_SERVICE_SECRET: env.GITHUB_SERVICE_SECRET,
+      ...(feedbax.provider === "github" && env.FEEDBAX_DB
+        ? {
+            getGitHubServiceSecret: () =>
+              configuredIntegration().portalSecret(),
+          }
+        : {}),
+    },
+    fetch,
+    participant,
+  );
 }
 
 export function createConfiguredFeedbackModule(
   participant?: VerifiedParticipant,
 ) {
-  const content = createConfiguredNotionFeedbackModule();
+  const source = createConfiguredContentFeedbackModule(participant);
+  const history = feedbax.history ? configuredHistory(source) : undefined;
+  const content = history
+    ? { ...source, getPublicPost: history.observe }
+    : source;
   const feedback = feedbax.connected
     ? createConnectedFeedbackModule(content, getConnectedStore(), participant)
     : content;
@@ -45,22 +63,37 @@ export function createConfiguredFeedbackModule(
     ? createImageFeedbackModule(
         feedback,
         images,
-        createNotionImageReviewWriter({
-          token: requiredEnvironmentValue("NOTION_TOKEN"),
-          reviewUrl: (id) => images.reviewUrl(id, feedbax.product.siteUrl!),
-        }),
+        feedbax.provider === "github"
+          ? undefined
+          : createNotionImageReviewWriter({
+              token: requiredEnvironmentValue("NOTION_TOKEN"),
+              reviewUrl: (id) => images.reviewUrl(id, feedbax.product.siteUrl!),
+            }),
       )
     : feedback;
   return createInvalidatingFeedbackModule({
-    feedback: withImages,
+    feedback: createPublicReleaseFeedbackModule({
+      feedback: withImages,
+      siteUrl: feedbax.product.siteUrl,
+      ...(feedbax.features.changelog && feedbax.changelog
+        ? { changelog: createConfiguredChangelogModule(true) }
+        : {}),
+    }),
     invalidator: createPublicCacheInvalidator({
       purge: (options) => cache.purge(options),
     }),
   });
 }
 
-let configuredFeedback:
-  ReturnType<typeof createInvalidatingFeedbackModule> | undefined;
+export function configuredHistory(
+  feedback = createConfiguredContentFeedbackModule(),
+) {
+  if (!feedbax.history || !env.FEEDBAX_DB)
+    throw new Error(
+      "Observed history requires explicit history configuration and FEEDBAX_DB.",
+    );
+  return createObservedHistoryModule({ database: env.FEEDBAX_DB, feedback });
+}
 
 export function requiredEnvironmentValue(name: string): string {
   const value = process.env[name];
@@ -102,4 +135,14 @@ export async function requestParticipant(request: Request) {
     await import("./connected-identity");
   const token = readSessionToken(request);
   return token ? getConnectedStore().session(sessionHash(token)) : undefined;
+}
+
+export function configuredIntegration() {
+  if (!env.FEEDBAX_DB)
+    throw new Error("GitHub requires the FEEDBAX_DB D1 binding.");
+  return createPortalIntegration({
+    config: feedbax,
+    database: env.FEEDBAX_DB,
+    pairingSecret: env.GITHUB_PAIRING_SECRET,
+  });
 }

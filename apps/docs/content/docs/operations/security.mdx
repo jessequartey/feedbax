@@ -3,11 +3,19 @@ title: Security
 description: Operate Feedbax without exposing secrets or sensitive workspace data.
 ---
 
-- Keep Notion and trusted-submission secrets server-only.
+- Keep provider, signing and trusted-submission secrets server-only.
 - Publish only explicitly mapped properties.
 - Apply rate limits to public mutations.
 - Validate payloads and cap user-provided text.
-- Review dependencies and Worker logs routinely.
+- Review dependencies and use sanitized diagnostics; exclude credentials, authorization callback URLs and raw webhook bodies from logs.
 - Do not place participant emails, private research, or API keys in docs or screenshots.
 
 Report vulnerabilities through the repository [security policy](https://github.com/jessequartey/feedbax/blob/main/SECURITY.md).
+
+## Provider and identity boundaries
+
+For GitHub, private repositories protect intake at the source. Public repositories expose full issue titles/bodies regardless of portal moderation. Public output uses only the approved content section and mapped portal Comments, never arbitrary engineering discussion. Provider mappings and contact/identity/capability metadata remain server-side.
+
+The App service authenticates bounded raw webhooks before parsing and queues opaque references. It never persists or forwards raw bodies. Directional binding credentials, timestamps and nonces protect deliveries; Participant sessions and trusted-submission keys grant no integration authority. Keep service observability disabled for credential-bearing callbacks, and enforce retention and secret exclusions in any additional logs or backups.
+
+Private My feedback responses are `no-store`. The client uses an opaque session key and clears private views before refreshing a changed session. Browser-held draft authority and verified ownership remain separate; neither contact equality nor a public URL is sufficient to claim a draft. Keep R2 private and preserve per-request publication/ownership checks on image downloads.

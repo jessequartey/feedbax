@@ -14,6 +14,7 @@ export function createPortalServerEntry({
   commentHandler,
   commentMutationHandler,
   applicationHandler = startHandler.fetch,
+  cachePublicReads = true,
 }: {
   connectedHandler?: (request: Request) => Promise<Response | undefined>;
   trustedFeedbackHandler: (request: Request) => Promise<Response>;
@@ -21,6 +22,7 @@ export function createPortalServerEntry({
   commentHandler?: (request: Request) => Promise<Response>;
   commentMutationHandler?: (request: Request) => Promise<Response>;
   applicationHandler?: typeof startHandler.fetch;
+  cachePublicReads?: boolean;
 }) {
   return createServerEntry({
     async fetch(request, options) {
@@ -62,6 +64,13 @@ export function createPortalServerEntry({
         return Response.redirect(canonicalRequest.url, 308);
       }
       const response = await applicationHandler(request, options);
+      if (!cachePublicReads) {
+        const privateResponse = new Response(response.body, response);
+        privateResponse.headers.set("Cache-Control", "no-store");
+        privateResponse.headers.delete("Cloudflare-CDN-Cache-Control");
+        privateResponse.headers.delete("Cache-Tag");
+        return privateResponse;
+      }
       return applyPublicCachePolicy(request, response);
     },
   });

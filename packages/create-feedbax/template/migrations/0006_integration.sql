@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS integration_credentials (installation_id TEXT PRIMARY KEY, portal_secret TEXT NOT NULL, delivery_secret TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0, paired_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS portal_integration_nonces (installation_id TEXT NOT NULL, nonce TEXT NOT NULL, expires_at INTEGER NOT NULL, PRIMARY KEY(installation_id,nonce));
+CREATE TABLE IF NOT EXISTS integration_receipts (installation_id TEXT NOT NULL, event_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', received_at INTEGER NOT NULL, cursor TEXT NOT NULL DEFAULT '', last_checked_at INTEGER, failure_code TEXT, PRIMARY KEY(installation_id,event_id));

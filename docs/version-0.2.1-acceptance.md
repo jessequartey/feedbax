@@ -1,6 +1,10 @@
 # Version 0.2.1 acceptance
 
-Status: production acceptance passed on Workers Free; release CI and npm publication pending.
+Status: production acceptance passed on Workers Free; 0.2.1 released on 2026-10-15.
+
+## Release completion — 2026-10-15
+
+The earlier pending/draft statements below describe the pre-release sequence. PR #12 merged as `371d18e`, tag `v0.2.1` points to that commit, and the [GitHub release](https://github.com/jessequartey/feedbax/releases/tag/v0.2.1) was published at 07:09:33 UTC. Read-only npm checks resolve both `feedbax@0.2.1` and `create-feedbax@0.2.1`. The 0.2.2 production-acceptance and published-release start gate is satisfied. This does not assert that the separate Notion Changelog Entry has been published.
 
 ## Local engineering evidence — 2026-10-15
 

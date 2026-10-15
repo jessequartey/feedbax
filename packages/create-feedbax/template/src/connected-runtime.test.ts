@@ -219,8 +219,11 @@ it("requires a valid session and same-origin mutations, and ignores browser-supp
       }),
     );
     expect(sessionRead?.status).toBe(200);
-    expect(await sessionRead?.json()).toEqual({
-      participant: { displayName: "Alice" },
+    expect(await sessionRead?.json()).toMatchObject({
+      participant: {
+        displayName: "Alice",
+        sessionKey: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+      },
     });
     const unavailable = createConnectedRequestHandler({
       ...options,

@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS public_post_observations (post_slug TEXT PRIMARY KEY, revision INTEGER NOT NULL DEFAULT 0, projection TEXT, checked_at INTEGER NOT NULL DEFAULT 0, lease_until INTEGER NOT NULL DEFAULT 0, lease_token TEXT);
+CREATE TABLE IF NOT EXISTS public_post_history (id TEXT PRIMARY KEY, post_slug TEXT NOT NULL REFERENCES public_post_observations(post_slug), revision INTEGER NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('status','update')), status TEXT, message TEXT, observed_at INTEGER NOT NULL, UNIQUE(post_slug,revision,kind));
+CREATE INDEX IF NOT EXISTS public_post_history_order ON public_post_history(post_slug,observed_at,revision,kind);

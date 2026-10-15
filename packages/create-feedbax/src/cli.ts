@@ -8,6 +8,7 @@ import {
   defaultProcessingQueueName,
   copyPackagedTemplate,
   provisionGuidedInstallation,
+  provisionGitHubInstallation,
 } from "./index";
 import type { FeedbackDataSourceConfiguration } from "@feedbax/feedback";
 import type { ChangelogPropertyIds } from "@feedbax/changelog";
@@ -16,7 +17,7 @@ try {
   const args = process.argv.slice(2);
   if (args.includes("--help") || args.includes("-h")) {
     console.log(
-      "Usage: create-feedbax [directory] [--template-only]\nGuided setup prompts for a destination, product, Notion connection, features, and deployment.\n--template-only copies source without external requests or installing dependencies.",
+      "Usage: create-feedbax [directory] [--template-only]\nGuided setup prompts for a destination, product, Notion or GitHub connection, features, and deployment.\n--template-only copies source without external requests or installing dependencies.",
     );
   } else if (args.includes("--version")) {
     console.log(
@@ -53,197 +54,216 @@ try {
           .toLowerCase()
           .replace(/[^a-z0-9-]/g, "-"),
       );
-      const connected = (await confirm(
-        "Enable Connected Profile using your application's sign-in, dedicated D1, and a processing queue? Small processing supports Workers Free with Resend/custom email.",
-        false,
-      ))
-        ? {
-            issuer: await text("Application identity issuer (HTTPS URL)"),
-            loginUrl: await text(
-              "Application signed-handoff login URL (HTTPS)",
-            ),
-            databaseId: await text("Dedicated Cloudflare D1 database ID"),
-            databaseName: await text("Dedicated Cloudflare D1 database name"),
-            queueName: await text(
-              "Dedicated Cloudflare Queue name (create it with wrangler queues create first)",
-              defaultProcessingQueueName(workerName),
-            ),
-            handoffSecret: await secret(
-              "Shared server-only identity handoff secret (at least 32 characters)",
-            ),
-          }
-        : undefined;
-      let email:
-        | (import("@feedbax/config").EmailConfiguration & { secret?: string })
-        | undefined;
-      let imageBucket: string | undefined;
-      if (connected) {
-        const provider = await text(
-          "Email sender: cloudflare, resend, custom, or none",
-          "none",
-        );
-        if (provider !== "none") {
-          if (
-            provider !== "cloudflare" &&
-            provider !== "resend" &&
-            provider !== "custom"
-          )
-            throw new Error(
-              "Email sender must be cloudflare, resend, custom, or none.",
-            );
-          email = {
-            provider,
-            from: await text("Verified sender email address"),
-            ...(provider === "custom"
-              ? { endpoint: await text("Custom HTTPS delivery endpoint") }
-              : {}),
-            ...(provider !== "cloudflare"
-              ? { secret: await secret("Server-only email provider secret") }
-              : {}),
-          };
-        }
-        if (
-          await confirm(
-            "Enable Participant image attachments using an existing private R2 bucket?",
-            false,
-          )
-        )
-          imageBucket = await text(
-            "Dedicated private R2 bucket name (create it in Cloudflare first)",
-          );
-      }
-      const themePreset = await text(
-        "shadcn preset code, or lyra-neutral for the included preset",
-        "lyra-neutral",
+      const provider = checked(
+        await prompt.select({
+          message: "Content Provider",
+          options: [
+            { value: "notion", label: "Notion" },
+            { value: "github", label: "GitHub" },
+          ],
+        }),
       );
-      const notionToken =
-        process.env.NOTION_TOKEN?.trim() ||
-        (await secret("Notion internal integration token"));
-      const existing = await confirm(
-        "Use an existing compatible Feedback Data Source?",
-        false,
-      );
-      const feedbackSelection = existing
-        ? { kind: "existing" as const, configuration: await existingFeedback() }
-        : {
-            kind: "create" as const,
-            parentPageId: await text(
-              "Notion parent page ID (share it with the integration)",
-            ),
-          };
-      const features = await collectFeatureSelection({
-        confirm: ({ message, initialValue }) => confirm(message, initialValue),
-      });
-      const commentProbePageId =
-        existing && features.comments
-          ? await text("Shared Notion page ID for checking Comment permissions")
-          : undefined;
-      const changelogSelection =
-        features.changelog &&
-        (await confirm(
-          "Use an existing compatible Changelog Data Source?",
+      if (provider === "github") {
+        await githubSetup(destination, product, workerName);
+      } else {
+        const connected = (await confirm(
+          "Enable Connected Profile using your application's sign-in, dedicated D1, and a processing queue? Small processing supports Workers Free with Resend/custom email.",
           false,
         ))
           ? {
-              kind: "existing" as const,
-              dataSourceId: await text("Changelog Data Source ID"),
-              propertyIds: (await propertyIds([
-                "title",
-                "slug",
-                "date",
-                "summary",
-                "body",
-                "labels",
-                "image",
-                "published",
-                "createdAt",
-                "updatedAt",
-              ])) as ChangelogPropertyIds,
+              issuer: await text("Application identity issuer (HTTPS URL)"),
+              loginUrl: await text(
+                "Application signed-handoff login URL (HTTPS)",
+              ),
+              databaseId: await text("Dedicated Cloudflare D1 database ID"),
+              databaseName: await text("Dedicated Cloudflare D1 database name"),
+              queueName: await text(
+                "Dedicated Cloudflare Queue name (create it with wrangler queues create first)",
+                defaultProcessingQueueName(workerName),
+              ),
+              handoffSecret: await secret(
+                "Shared server-only identity handoff secret (at least 32 characters)",
+              ),
             }
           : undefined;
-      const turnstile = (await confirm(
-        "Enable Cloudflare Turnstile? Recommended for production.",
-        true,
-      ))
-        ? {
-            siteKey: await text("Turnstile site key"),
-            secretKey:
-              process.env.TURNSTILE_SECRET_KEY ||
-              (await secret("Turnstile secret key")),
+        let email:
+          | (import("@feedbax/config").EmailConfiguration & { secret?: string })
+          | undefined;
+        let imageBucket: string | undefined;
+        if (connected) {
+          const provider = await text(
+            "Email sender: cloudflare, resend, custom, or none",
+            "none",
+          );
+          if (provider !== "none") {
+            if (
+              provider !== "cloudflare" &&
+              provider !== "resend" &&
+              provider !== "custom"
+            )
+              throw new Error(
+                "Email sender must be cloudflare, resend, custom, or none.",
+              );
+            email = {
+              provider,
+              from: await text("Verified sender email address"),
+              ...(provider === "custom"
+                ? { endpoint: await text("Custom HTTPS delivery endpoint") }
+                : {}),
+              ...(provider !== "cloudflare"
+                ? { secret: await secret("Server-only email provider secret") }
+                : {}),
+            };
           }
-        : {};
-      const result = await provisionGuidedInstallation({
-        destination,
-        product,
-        themePreset,
-        workerName,
-        commentProbePageId,
-        connected: connected
+          if (
+            await confirm(
+              "Enable Participant image attachments using an existing private R2 bucket?",
+              false,
+            )
+          )
+            imageBucket = await text(
+              "Dedicated private R2 bucket name (create it in Cloudflare first)",
+            );
+        }
+        const themePreset = await text(
+          "shadcn preset code, or lyra-neutral for the included preset",
+          "lyra-neutral",
+        );
+        const notionToken =
+          process.env.NOTION_TOKEN?.trim() ||
+          (await secret("Notion internal integration token"));
+        const existing = await confirm(
+          "Use an existing compatible Feedback Data Source?",
+          false,
+        );
+        const feedbackSelection = existing
           ? {
-              ...connected,
-              ...(email ? { email } : {}),
-              ...(imageBucket ? { imageBucket } : {}),
+              kind: "existing" as const,
+              configuration: await existingFeedback(),
             }
-          : undefined,
-        features,
-        feedbackSelection,
-        changelogSelection,
-        notionToken,
-        turnstile,
-        preview: (message) => confirm(message, false),
-      });
-      console.log(
-        `Created ${destination}.\nTrusted API key — copy it now; plaintext is not stored:\n${result.apiKey}`,
-      );
-      await runIn(destination, "pnpm", ["install"]);
-      // The included Lyra/neutral preset is already applied to the copied source.
-      if (themePreset !== "lyra-neutral")
-        await runIn(destination, "pnpm", [
-          "dlx",
-          "shadcn@latest",
-          "init",
-          "--preset",
-          themePreset,
-          "--yes",
-          "--force",
-        ]);
-      await runIn(destination, "pnpm", [
-        "exec",
-        "prettier",
-        "--write",
-        "src/feedbax.ts",
-      ]);
-      if (connected) {
-        if (
-          !(await confirm(
-            `Apply the included Connected schema migration to D1 ${connected.databaseName} (${connected.databaseId}) in your authenticated Cloudflare account?`,
+          : {
+              kind: "create" as const,
+              parentPageId: await text(
+                "Notion parent page ID (share it with the integration)",
+              ),
+            };
+        const features = await collectFeatureSelection({
+          confirm: ({ message, initialValue }) =>
+            confirm(message, initialValue),
+        });
+        const commentProbePageId =
+          existing && features.comments
+            ? await text(
+                "Shared Notion page ID for checking Comment permissions",
+              )
+            : undefined;
+        const changelogSelection =
+          features.changelog &&
+          (await confirm(
+            "Use an existing compatible Changelog Data Source?",
             false,
           ))
-        )
-          throw new Error(
-            "Connected source is preserved. Apply the D1 migration described in CONNECTED.md before running doctor or deploying.",
-          );
+            ? {
+                kind: "existing" as const,
+                dataSourceId: await text("Changelog Data Source ID"),
+                propertyIds: (await propertyIds([
+                  "title",
+                  "slug",
+                  "date",
+                  "summary",
+                  "body",
+                  "labels",
+                  "image",
+                  "published",
+                  "createdAt",
+                  "updatedAt",
+                ])) as ChangelogPropertyIds,
+              }
+            : undefined;
+        const turnstile = (await confirm(
+          "Enable Cloudflare Turnstile? Recommended for production.",
+          true,
+        ))
+          ? {
+              siteKey: await text("Turnstile site key"),
+              secretKey:
+                process.env.TURNSTILE_SECRET_KEY ||
+                (await secret("Turnstile secret key")),
+            }
+          : {};
+        const result = await provisionGuidedInstallation({
+          destination,
+          product,
+          themePreset,
+          workerName,
+          commentProbePageId,
+          connected: connected
+            ? {
+                ...connected,
+                ...(email ? { email } : {}),
+                ...(imageBucket ? { imageBucket } : {}),
+              }
+            : undefined,
+          features,
+          feedbackSelection,
+          changelogSelection,
+          notionToken,
+          turnstile,
+          preview: (message) => confirm(message, false),
+        });
+        console.log(
+          `Created ${destination}.\nTrusted API key — copy it now; plaintext is not stored:\n${result.apiKey}`,
+        );
+        await runIn(destination, "pnpm", ["install"]);
+        // The included Lyra/neutral preset is already applied to the copied source.
+        if (themePreset !== "lyra-neutral")
+          await runIn(destination, "pnpm", [
+            "dlx",
+            "shadcn@latest",
+            "init",
+            "--preset",
+            themePreset,
+            "--yes",
+            "--force",
+          ]);
         await runIn(destination, "pnpm", [
           "exec",
-          "wrangler",
-          "d1",
-          "migrations",
-          "apply",
-          "FEEDBAX_DB",
-          "--remote",
+          "prettier",
+          "--write",
+          "src/feedbax.ts",
         ]);
+        if (connected) {
+          if (
+            !(await confirm(
+              `Apply the included Connected schema migration to D1 ${connected.databaseName} (${connected.databaseId}) in your authenticated Cloudflare account?`,
+              false,
+            ))
+          )
+            throw new Error(
+              "Connected source is preserved. Apply the D1 migration described in CONNECTED.md before running doctor or deploying.",
+            );
+          await runIn(destination, "pnpm", [
+            "exec",
+            "wrangler",
+            "d1",
+            "migrations",
+            "apply",
+            "FEEDBAX_DB",
+            "--remote",
+          ]);
+        }
+        await runIn(destination, "pnpm", ["exec", "feedbax", "doctor"]);
+        if (
+          await confirm(
+            "Authenticate with Cloudflare and deploy this portal?",
+            false,
+          )
+        ) {
+          await runIn(destination, "pnpm", ["exec", "wrangler", "login"]);
+          await runIn(destination, "pnpm", ["exec", "feedbax", "deploy"]);
+        }
+        prompt.outro(`Your portal source is ready in ${destination}.`);
       }
-      await runIn(destination, "pnpm", ["exec", "feedbax", "doctor"]);
-      if (
-        await confirm(
-          "Authenticate with Cloudflare and deploy this portal?",
-          false,
-        )
-      ) {
-        await runIn(destination, "pnpm", ["exec", "wrangler", "login"]);
-        await runIn(destination, "pnpm", ["exec", "feedbax", "deploy"]);
-      }
-      prompt.outro(`Your portal source is ready in ${destination}.`);
     }
   }
 } catch (error) {
@@ -325,4 +345,111 @@ function runIn(cwd: string, command: string, args: string[]) {
           ),
     );
   });
+}
+
+async function githubSetup(
+  destination: string,
+  product: { name: string; description: string; siteUrl: string },
+  workerName: string,
+) {
+  const serviceUrl = await text(
+    "GitHub App service HTTPS origin (official or your self-hosted service)",
+  );
+  const infoResponse = await fetch(`${serviceUrl}/v1/info`, {
+    redirect: "manual",
+  });
+  if (!infoResponse.ok)
+    throw new Error(
+      "The App service is unavailable. Configure it before portal setup.",
+    );
+  const info = (await infoResponse.json()) as {
+    botUserId?: number;
+    appSlug?: string;
+  };
+  if (!Number.isSafeInteger(info.botUserId))
+    throw new Error("The service did not return a valid App identity.");
+  const database = {
+    id: await text(
+      "Dedicated Cloudflare D1 database ID (required independently of sign-in)",
+    ),
+    name: await text("Dedicated D1 database name"),
+  };
+  const result = await provisionGitHubInstallation({
+    destination,
+    product,
+    workerName,
+    database,
+    github: {
+      serviceUrl,
+      installationId: await text("Stable Feedbax Installation ID", workerName),
+      repository: {
+        id: Number(
+          await text(
+            "Feedback Repository numeric ID (gh api repos/OWNER/NAME --jq .id)",
+          ),
+        ),
+        owner: await text("Repository owner"),
+        name: await text("Repository name"),
+      },
+      botUserId: info.botUserId!,
+    },
+    features: {
+      voting: await confirm("Enable best-effort browser voting?", true),
+      comments: await confirm("Enable portal Comments?", true),
+      changelog: false,
+    },
+    turnstile: (await confirm("Enable Cloudflare Turnstile?", true))
+      ? {
+          siteKey: await text("Turnstile site key"),
+          secretKey: await secret("Turnstile secret key"),
+        }
+      : {},
+    preview: (message) => confirm(message, false),
+  });
+  console.log(
+    `Created ${destination}. Trusted API key — copy it now; plaintext is not stored:\n${result.apiKey}`,
+  );
+  await runIn(destination, "pnpm", ["install"]);
+  await runIn(destination, "pnpm", [
+    "exec",
+    "prettier",
+    "--write",
+    "src/feedbax.ts",
+  ]);
+  if (
+    await confirm(
+      `Apply included additive migrations to D1 ${database.name}?`,
+      false,
+    )
+  )
+    await runIn(destination, "pnpm", [
+      "exec",
+      "wrangler",
+      "d1",
+      "migrations",
+      "apply",
+      "FEEDBAX_DB",
+      "--remote",
+    ]);
+  if (
+    await confirm("Deploy the unpaired portal for GitHub authorization?", false)
+  )
+    await runIn(destination, "pnpm", [
+      "exec",
+      "feedbax",
+      "deploy",
+      "--pairing-bootstrap",
+    ]);
+  const installationId = await text(
+    "GitHub App installation ID from the App installation page",
+  );
+  await runIn(destination, "pnpm", [
+    "exec",
+    "feedbax",
+    "pair-github",
+    installationId,
+  ]);
+  prompt.outro(
+    "Finish the GitHub authorization, then run feedbax doctor. Connected identity can be configured independently using CONNECTED.md.",
+  );
 }

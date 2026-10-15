@@ -3,7 +3,7 @@ title: Feedback block
 description: Install the feedback UI and connect it to a secure, working server submission flow.
 ---
 
-The block adds a feedback button to your product. It opens a dialog on desktop and a drawer on mobile, validates the form, submits through your product server, and closes after success. Posts arrive in Notion as **New and unpublished** for Product Team moderation.
+The block adds a feedback button to your product. It opens a dialog on desktop and a drawer on mobile, validates the form, submits through your product server, and closes after success. Posts arrive in the selected Content Provider as **New and unpublished** for Product Team moderation.
 
 It works with either Feedbax profile. Installing the block does not sign people in to the portal; [Connected authentication](/docs/guides/connected-profile) is a separate integration for verified Votes and Comments.
 
@@ -19,10 +19,10 @@ It works with either Feedbax profile. Installing the block does not sign people 
 From the product application root:
 
 ```bash title="Terminal"
-pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.0
+pnpm dlx shadcn@latest add jessequartey/feedbax/feedbax-feedback#v0.2.1
 ```
 
-The block was introduced in 0.2.0 and works with 0.2.1. The pinned GitHub source works while custom-domain attachment is being completed. After a new release, use its tag to adopt a reviewed version. You may also install from your verified documentation deployment's `/r/feedbax-feedback.json` endpoint.
+The block was introduced in 0.2.0 and works with the 0.2.1 API. The same server submission contract is used by GitHub in 0.2.2. The pinned GitHub source works while custom-domain attachment is being completed. After a new release, use its tag to adopt a reviewed version. You may also install from your verified documentation deployment's `/r/feedbax-feedback.json` endpoint.
 
 The CLI installs the required Button, Dialog, Drawer, Field, Input, Select, and Textarea primitives. Check the CLI output for the exact alias-resolved paths. The registry copies two files:
 
@@ -154,3 +154,9 @@ That adapter returns `{ slug, title, url? }[]` for Published Posts only, with tr
 | Validation fails                 | Check Post Type spelling and the Installation's configured title/description limits.                                            |
 | Rate limit or network failure    | Keep the existing idempotency key, wait as directed, and retry the same event.                                                  |
 | Similar Posts are absent         | Suggestions are optional and require your own Published-Post adapter.                                                           |
+
+## GitHub and verified ownership
+
+The block needs no GitHub token or provider-specific browser code. Keep its server helper pointed at the Feedbax portal and use that portal's trusted API key. Public GitHub repositories expose issue content immediately; portal moderation does not make those issues confidential.
+
+A trusted block submission is service intake, even when your application endpoint is signed in. It does not establish Feedbax Participant ownership from its name/email. Configure [Connected handoff](/docs/guides/connected-profile) separately for verified portal participation. My feedback in 0.2.2 binds ownership only from a verified portal session or an explicit eligible draft claim.
