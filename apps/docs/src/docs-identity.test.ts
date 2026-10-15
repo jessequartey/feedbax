@@ -85,6 +85,7 @@ it("authenticates email ownership before handing the docs identity to Feedbax", 
     );
     expect(signed.status).toBe(200);
     expect(signed.headers.get("cache-control")).toBe("no-store");
+    expect(signed.headers.get("referrer-policy")).toBe("strict-origin");
     const html = await signed.text();
     const token = /name="token" value="([^"]+)"/.exec(html)?.[1];
     const identity = verifyIdentityHandoff(token!, secret, {

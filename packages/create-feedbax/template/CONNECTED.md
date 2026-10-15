@@ -37,7 +37,7 @@ Generate at least 32 random bytes for `IDENTITY_HANDOFF_SECRET`. Store the same 
 1. Feedbax's Sign in action visits `/internal/identity/start`, sets a five-minute browser challenge cookie, and redirects to the configured login URL with `state` and `callback` query parameters.
 2. The Product Team application authenticates the current user. It must allow only the exact configured Feedbax callback, retain the supplied state, and derive the stable subject and display name from its authenticated server session. Never sign identity fields supplied by a browser.
 3. Sign the payload below on the application server with HMAC-SHA256. Times are Unix seconds; the token lifetime must be at most 120 seconds. Use an unpredictable nonce. The audience must exactly equal the Feedbax origin and the issuer must exactly equal the configured issuer.
-4. Return an HTML form which posts one `token` field to the allowlisted callback. Use `application/x-www-form-urlencoded` and `Referrer-Policy: no-referrer`. Do not put the token in a redirect URL. HTML-escape interpolated values.
+4. Return an HTML form which posts one `token` field to the allowlisted callback. Use `application/x-www-form-urlencoded` and `Referrer-Policy: strict-origin`. Do not put the token in a redirect URL. HTML-escape interpolated values. The form must retain its application Origin: `no-referrer` makes browser cross-origin form POSTs send `Origin: null`, which the portal rejects. `strict-origin` shares only the application origin, without its path or query.
 5. Feedbax validates the signature, origin, browser challenge, audience, issuer, and expiry, consumes the token nonce and browser challenge once, and creates an opaque seven-day HttpOnly session. Sign out revokes that session in D1. No identity token is stored in browser JavaScript storage.
 
 ```js
@@ -118,7 +118,7 @@ export function createIdentityLoginHandler(options: {
     );
   const headers = {
     "Cache-Control": "no-store",
-    "Referrer-Policy": "no-referrer",
+    "Referrer-Policy": "strict-origin",
   };
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);

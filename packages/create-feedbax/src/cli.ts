@@ -53,7 +53,7 @@ try {
           .replace(/[^a-z0-9-]/g, "-"),
       );
       const connected = (await confirm(
-        "Enable Connected Profile using your application's sign-in, a Workers Paid deployment, and an existing dedicated D1 database?",
+        "Enable Connected Profile using your application's sign-in and a dedicated D1 database? Small processing supports Workers Free with Resend/custom email.",
         false,
       ))
         ? {

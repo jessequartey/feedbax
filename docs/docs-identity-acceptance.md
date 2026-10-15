@@ -29,7 +29,7 @@ The portal begins its normal browser-bound handoff. An unauthenticated docs sess
 
 The server exposes only the required sign-in/sign-out operations and a small private session projection containing the display name. Requests and responses are private/no-store. Mutation origins, bounded request bodies, local return paths, and the exact portal callback are checked. Database-backed rate limiting uses Cloudflare's connecting IP. A new link for an existing email retains the same stable application identity. Sign-out revokes the docs session; signing out of Feedbax independently revokes the portal session.
 
-Open the email in the browser that began Feedbax sign-in, then confirm. The portal challenge expires after five minutes; if it expires while reading email, start Feedbax sign-in again. The docs session will already be available. Cookie sessions and email links must never be copied into release evidence.
+Open the email in the browser that began Feedbax sign-in, then confirm. The portal challenge expires after five minutes; if it expires while reading email, start Feedbax sign-in again. The docs session will already be available. Cookie sessions and email links must never be copied into release evidence. The handoff HTML uses `Referrer-Policy: strict-origin` so browser form POSTs retain their Origin while sharing no path or query. Other sign-in responses use no-referrer.
 
 ## Verification record
 

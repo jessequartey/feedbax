@@ -32,6 +32,7 @@ it("the documented application endpoint issues a browser-bound handoff understoo
   const response = await handle(request());
   expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(response.headers.get("referrer-policy")).toBe("strict-origin");
   const html = await response.text();
   const token = /name="token" value="([^"]+)"/.exec(html)?.[1];
   expect(token).toBeTruthy();

@@ -8,6 +8,7 @@ import feedbax from "./feedbax";
 import {
   configuredImages,
   createConfiguredFeedbackModule,
+  createConfiguredNotionFeedbackModule,
   getConnectedStore,
 } from "./feedback-runtime";
 import {
@@ -174,6 +175,16 @@ export function createParticipationRequestHandler(options: {
 }
 
 export function configuredParticipation(participant?: VerifiedParticipant) {
+  return createConfiguredParticipation(
+    createConfiguredFeedbackModule(),
+    participant,
+  );
+}
+
+function createConfiguredParticipation(
+  feedback: import("@feedbax/feedback").FeedbackModule,
+  participant?: VerifiedParticipant,
+) {
   if (!feedbax.connected || !env.FEEDBAX_DB)
     throw new Error("Connected database is missing.");
   const config = feedbax.connected.email;
@@ -204,7 +215,7 @@ export function configuredParticipation(participant?: VerifiedParticipant) {
   }
   return createParticipationModule({
     database: env.FEEDBAX_DB,
-    feedback: createConfiguredFeedbackModule(),
+    feedback,
     participant,
     processing: feedbax.connected.processing ?? "small",
     email,
@@ -231,11 +242,11 @@ export const handleParticipationRequest = createParticipationRequestHandler({
 });
 export async function synchronizeConnectedUpdates() {
   if (!feedbax.connected) return;
-  const module = configuredParticipation();
+  const content = createConfiguredNotionFeedbackModule();
+  const module = createConfiguredParticipation(content);
   const observation = await module.synchronize();
   const email = await module.deliverEmails();
-  if (feedbax.connected.images)
-    await configuredImages(createConfiguredFeedbackModule()).cleanup();
+  if (feedbax.connected.images) await configuredImages(content).cleanup();
   // Counts only: never log identities, addresses, provider responses, or message bodies.
   if (observation.failed || email.failed)
     console.warn("Connected update processing will retry", {

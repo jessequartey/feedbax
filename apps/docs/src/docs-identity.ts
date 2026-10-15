@@ -215,7 +215,8 @@ export function createDocsIdentityApplication(options: {
     } else response = new Response("Not found.", { status: 404 });
     const headers = new Headers(response.headers);
     headers.set("Cache-Control", "no-store");
-    headers.set("Referrer-Policy", "no-referrer");
+    if (!headers.has("Referrer-Policy"))
+      headers.set("Referrer-Policy", "no-referrer");
     headers.set("X-Content-Type-Options", "nosniff");
     return new Response(response.body, { status: response.status, headers });
   };

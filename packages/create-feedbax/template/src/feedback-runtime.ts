@@ -20,9 +20,7 @@ export const feedbackSubmissionLimits = {
   maxDescriptionLength: feedbax.submissions.maxDescriptionLength,
 } as const;
 
-export function createConfiguredFeedbackModule(
-  participant?: VerifiedParticipant,
-) {
+export function createConfiguredNotionFeedbackModule() {
   configuredFeedback ??= createNotionFeedbackModule({
     votingEnabled: feedbax.features.voting,
     commentsEnabled: feedbax.features.comments,
@@ -30,13 +28,16 @@ export function createConfiguredFeedbackModule(
     dataSourceId: feedbax.notion.dataSourceId,
     propertyIds: feedbax.notion.properties,
   });
+  return configuredFeedback;
+}
+
+export function createConfiguredFeedbackModule(
+  participant?: VerifiedParticipant,
+) {
+  const content = createConfiguredNotionFeedbackModule();
   const feedback = feedbax.connected
-    ? createConnectedFeedbackModule(
-        configuredFeedback,
-        getConnectedStore(),
-        participant,
-      )
-    : configuredFeedback;
+    ? createConnectedFeedbackModule(content, getConnectedStore(), participant)
+    : content;
   const images = feedbax.connected?.images
     ? configuredImages(feedback, participant)
     : undefined;
