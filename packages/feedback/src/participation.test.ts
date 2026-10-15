@@ -107,6 +107,7 @@ it("prepares a longer Comment history across bounded runs before activating upda
     feedback: snapshot(51),
     participant,
     now: () => 60010,
+    processing: "small",
   });
   expect(await follower.follow("history", true)).toEqual({
     following: true,
@@ -121,6 +122,11 @@ it("prepares a longer Comment history across bounded runs before activating upda
     feedback: snapshot(51),
     now: () => 60020,
     processing: "small",
+  });
+  expect(await preparation.synchronize()).toEqual({ checked: 0, failed: 0 });
+  expect(await follower.followState("history")).toEqual({
+    following: true,
+    initializing: true,
   });
   await preparation.synchronize();
   expect(await follower.followState("history")).toEqual({ following: true });

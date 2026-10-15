@@ -7,7 +7,6 @@ import { env } from "cloudflare:workers";
 import feedbax from "./feedbax";
 import {
   configuredImages,
-  createConfiguredFeedbackModule,
   createConfiguredNotionFeedbackModule,
   getConnectedStore,
 } from "./feedback-runtime";
@@ -176,7 +175,7 @@ export function createParticipationRequestHandler(options: {
 
 export function configuredParticipation(participant?: VerifiedParticipant) {
   return createConfiguredParticipation(
-    createConfiguredFeedbackModule(),
+    createConfiguredNotionFeedbackModule(),
     participant,
   );
 }

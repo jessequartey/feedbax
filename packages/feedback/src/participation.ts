@@ -153,13 +153,18 @@ export function createParticipationModule(options: {
         const post = await published(slug);
         const existing = await readFollow(slug, person.subject);
         if (existing) return projectFollow(existing);
-        const page = await options.feedback.listCommentThreads({ slug });
+        const page =
+          options.processing === "small"
+            ? undefined
+            : await options.feedback.listCommentThreads({ slug });
         const startedAt = now();
         const token = randomUUID();
         await batch([
           sql`INSERT INTO post_observations(post_slug,status,checked_at) VALUES(${slug},${post.status},${startedAt}) ON CONFLICT DO NOTHING`,
-          sql`INSERT INTO post_follows(post_slug,subject,followed_at,observed_status,baseline_token,ready,baseline_cursor) VALUES(${slug},${person.subject},${startedAt},${post.status},${token},${page.nextCursor ? 0 : 1},${page.nextCursor ?? null}) ON CONFLICT DO NOTHING`,
-          baseline(slug, person.subject, token, startedAt, page),
+          sql`INSERT INTO post_follows(post_slug,subject,followed_at,observed_status,baseline_token,ready,baseline_cursor) VALUES(${slug},${person.subject},${startedAt},${post.status},${token},${!page || page.nextCursor ? 0 : 1},${page?.nextCursor ?? null}) ON CONFLICT DO NOTHING`,
+          ...(page
+            ? [baseline(slug, person.subject, token, startedAt, page)]
+            : []),
         ]);
         return projectFollow(await readFollow(slug, person.subject));
       } else
