@@ -1,3 +1,4 @@
+import type { PostOwnership } from "./ownership";
 import {
   createHash,
   randomBytes,
@@ -37,6 +38,7 @@ export type PostStatus =
   "New" | "Reviewing" | "Planned" | "In Progress" | "Shipped" | "Closed";
 
 export interface SubmitPostInput {
+  submissionKey?: string;
   imageIds?: string[];
   title: string;
   description: string;
@@ -139,7 +141,7 @@ export type TrustedSubmittedPost = Omit<Post, "published" | "submitter">;
 
 export interface EditDraftPostInput {
   id: string;
-  browserCapability: BrowserCapability;
+  browserCapability?: BrowserCapability;
   title?: string;
   description?: string;
   type?: PostType;
@@ -147,7 +149,7 @@ export interface EditDraftPostInput {
 
 export interface WithdrawDraftPostInput {
   id: string;
-  browserCapability: BrowserCapability;
+  browserCapability?: BrowserCapability;
 }
 
 export type GetDraftPostInput = WithdrawDraftPostInput;
@@ -362,7 +364,24 @@ class InMemoryFeedbackStorage implements FeedbackStorage {
   }
 }
 
+export type ParticipantPost = Pick<
+  Post,
+  | "id"
+  | "slug"
+  | "title"
+  | "description"
+  | "type"
+  | "status"
+  | "published"
+  | "createdAt"
+  | "updatedAt"
+> & { editable: boolean };
+
 export interface FeedbackModule {
+  getParticipantPost(id: string): Promise<ParticipantPost | undefined>;
+  claimDraftPost(
+    input: GetDraftPostInput,
+  ): Promise<ParticipantPost | undefined>;
   getAttachmentPostState(
     slug: string,
   ): Promise<"published" | "draft" | "private" | undefined>;
@@ -395,6 +414,7 @@ export type FeedbackMutationModule = Pick<
 >;
 
 interface CreateFeedbackModuleOptions {
+  ownership?: PostOwnership;
   initialItems?: StoredPost[];
   storage?: FeedbackStorage;
   votingEnabled?: boolean;
@@ -414,10 +434,39 @@ export function createFeedbackModule(
     options.commentStorage ??
     createInMemoryCommentStorage(options.initialComments);
   const voteQueues = new Map<string, Promise<void>>();
+  const authorizedDraft = async (
+    item: StoredPost | undefined,
+    capability?: BrowserCapability,
+  ): Promise<boolean> =>
+    Boolean(
+      item &&
+      isEditableDraft(item) &&
+      (authorizesDraft(item, capability) ||
+        (await options.ownership?.owns(item.id))),
+    );
+  const participantPost = async (
+    id: string,
+  ): Promise<ParticipantPost | undefined> => {
+    if (!(await options.ownership?.owns(id))) return;
+    const item = await storage.find(id);
+    if (!item) return;
+    return {
+      id: item.id,
+      slug: item.slug,
+      title: item.title,
+      description: item.description,
+      type: item.type,
+      status: item.status,
+      published: item.published,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      editable: isEditableDraft(item),
+    };
+  };
   const editStoredDraft = async (input: EditDraftPostInput) => {
     const item = await storage.find(input.id);
 
-    if (!authorizesDraft(item, input.browserCapability)) {
+    if (!item || !(await authorizedDraft(item, input.browserCapability))) {
       throw new BrowserCapabilityAuthorizationError();
     }
 
@@ -443,6 +492,14 @@ export function createFeedbackModule(
   };
 
   return {
+    getParticipantPost: participantPost,
+    async claimDraftPost(input) {
+      const item = await storage.find(input.id);
+      if (!options.ownership || !authorizesDraft(item, input.browserCapability))
+        throw new BrowserCapabilityAuthorizationError();
+      await options.ownership.register(toPost(item));
+      return participantPost(item.id);
+    },
     async getAttachmentPostState(slug) {
       const post = await storage.findBySlug(slug);
       return !post
@@ -557,10 +614,29 @@ export function createFeedbackModule(
     submitPost(input) {
       const submission = postCreationQueue.then(async () => {
         const now = new Date();
-        const browserCapability = createBrowserCapability();
+        const { submissionKey, ...content } = input;
+        if (
+          submissionKey !== undefined &&
+          !/^[A-Za-z0-9_-]{43}$/.test(submissionKey)
+        )
+          throw new Error("Submission intent is invalid.");
+        const browserCapability = submissionKey
+          ? (submissionKey as BrowserCapability)
+          : createBrowserCapability();
+        const externalId = submissionKey
+          ? `portal:${hashBrowserCapability(browserCapability)}`
+          : undefined;
+        if (externalId) {
+          const previous = await storage.findByExternalId(externalId);
+          if (previous) {
+            await options.ownership?.register(toPost(previous));
+            return { ...toPost(previous), browserCapability };
+          }
+        }
         const slug = await createUniqueSlug(input.title, storage);
         const item = await storage.create({
-          ...input,
+          ...content,
+          ...(externalId ? { externalId } : {}),
           slug,
           status: "New",
           published: false,
@@ -570,6 +646,7 @@ export function createFeedbackModule(
           voteCount: 0,
         });
 
+        await options.ownership?.register(toPost(item));
         return {
           ...toPost(item),
           browserCapability,
@@ -592,7 +669,7 @@ export function createFeedbackModule(
     },
     async getDraftPost(input) {
       const item = await storage.find(input.id);
-      if (!authorizesDraft(item, input.browserCapability)) {
+      if (!item || !(await authorizedDraft(item, input.browserCapability))) {
         throw new BrowserCapabilityAuthorizationError();
       }
       return toDraftPost(toPost(item));
@@ -640,11 +717,12 @@ export function createFeedbackModule(
     async withdrawDraftPost(input) {
       const item = await storage.find(input.id);
 
-      if (!authorizesDraft(item, input.browserCapability)) {
+      if (!item || !(await authorizedDraft(item, input.browserCapability))) {
         throw new BrowserCapabilityAuthorizationError();
       }
 
       await storage.remove(item.id);
+      await options.ownership?.withdrawn(item.id);
     },
     async getPublicPostRoadmap() {
       const pages = await Promise.all(
@@ -661,9 +739,11 @@ export function createNotionFeedbackModule(
   options: NotionFeedbackStorageOptions & {
     votingEnabled?: boolean;
     commentsEnabled?: boolean;
+    ownership?: PostOwnership;
   },
 ): FeedbackModule {
   return createFeedbackModule({
+    ownership: options.ownership,
     storage: createNotionFeedbackStorage(options),
     commentStorage: createNotionCommentStorage(options),
     votingEnabled: options.votingEnabled,
@@ -672,11 +752,12 @@ export function createNotionFeedbackModule(
 }
 
 export function createGitHubFeedbackModule(
-  options: GitHubFeedbackOptions,
+  options: GitHubFeedbackOptions & { ownership?: PostOwnership },
 ): FeedbackModule {
   const storage = createGitHubFeedbackStorage(options);
   return createFeedbackModule({
     storage,
+    ownership: options.ownership,
     commentStorage: createGitHubCommentStorage(options, storage),
     votingEnabled: options.votingEnabled,
     commentsEnabled: options.commentsEnabled,
@@ -950,9 +1031,10 @@ function hashBrowserCapability(browserCapability: BrowserCapability): string {
 
 function authorizesDraft(
   item: StoredPost | undefined,
-  browserCapability: BrowserCapability,
+  browserCapability: BrowserCapability | undefined,
 ): item is StoredPost & { browserCapabilityHash: string } {
   if (
+    !browserCapability ||
     !item?.browserCapabilityHash ||
     item.status !== "New" ||
     item.published ||
@@ -1015,3 +1097,23 @@ export {
 
 export { createImageFeedbackModule } from "./image-feedback";
 export { createNotionImageReviewWriter } from "./notion-image-review";
+
+export { createGitHubServiceAccess } from "./github-service-client";
+export {
+  boundedBody,
+  signIntegrationRequest,
+  verifyIntegrationRequest,
+} from "./integration-auth";
+
+function isEditableDraft(item: StoredPost) {
+  return (
+    item.status === "New" && !item.published && item.draftEditable !== false
+  );
+}
+export {
+  createPostOwnership,
+  createMyFeedbackModule,
+  type MyFeedbackFilter,
+  type MyFeedbackItem,
+  type MyFeedbackPage,
+} from "./ownership";

@@ -76,7 +76,7 @@ export async function assembleFlatTemplate(
       '@source "../../../**/*.{ts,tsx}";',
     ),
   );
-  for (const name of ["vite.config.ts"])
+  for (const name of ["vite.config.ts", "feedbax-vite.ts"])
     await copy(join(coreRoot, "apps/portal", name), join(target, name));
   const components = parse(
     await readFile(join(coreRoot, "apps/portal/components.json"), "utf8"),

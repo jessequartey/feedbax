@@ -2,6 +2,7 @@
   "title": "Guides",
   "pages": [
     "notion-workflow",
+    "github-workflow",
     "comments-and-voting",
     "changelog",
     "customization",

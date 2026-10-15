@@ -24,7 +24,7 @@ const properties = Object.fromEntries(
     "createdAt",
     "updatedAt",
   ].map((key) => [key, `${key}-id`]),
-) as FeedbaxConfig["notion"]["properties"];
+) as NonNullable<FeedbaxConfig["notion"]>["properties"];
 const changelogProperties = Object.fromEntries(
   [
     "title",
@@ -63,6 +63,38 @@ const input: FeedbaxConfig = {
 };
 
 describe("Feedbax configuration", () => {
+  it("selects GitHub without Notion or verified identity and rejects mixed providers", () => {
+    const github = {
+      installationId: "portal-acme",
+      serviceUrl: "https://app.feedbax.example",
+      repository: { id: 123, owner: "acme", name: "feedback" },
+      botUserId: 456,
+    };
+    const configuration = {
+      ...input,
+      provider: "github",
+      notion: undefined,
+      changelog: undefined,
+      features: { ...input.features, changelog: false },
+      github,
+    };
+    const parsed = defineFeedbax(configuration as unknown as FeedbaxConfig);
+    expect(parsed).toMatchObject({ provider: "github", github });
+    expect(parsed.notion).toBeUndefined();
+    expect(parsed.connected).toBeUndefined();
+    expect(() =>
+      defineFeedbax({
+        ...configuration,
+        notion: input.notion,
+      } as unknown as FeedbaxConfig),
+    ).toThrow("one Content Provider");
+    expect(() =>
+      defineFeedbax({
+        ...configuration,
+        features: input.features,
+      } as unknown as FeedbaxConfig),
+    ).toThrow("disable Changelog");
+  });
   it("accepts the complete generated contract", () =>
     expect(defineFeedbax(input)).toEqual(input));
   it("requires enabled capability dependencies", () =>

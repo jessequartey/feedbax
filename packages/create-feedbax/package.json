@@ -10,7 +10,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "vitest run src/index.test.ts src/template.test.ts",
+    "test": "vitest run src",
     "template:sync": "tsx ../../scripts/assemble-template.ts",
     "template:check": "tsx ../../scripts/assemble-template.ts --check",
     "build": "esbuild src/cli.ts src/index.ts --bundle --platform=node --format=esm --alias:@feedbax/config=../config/src/index.ts --alias:@feedbax/feedback=../feedback/src/index.ts --alias:@feedbax/changelog=../changelog/src/index.ts --outdir=dist --external:jsonc-parser --external:@clack/prompts",
@@ -30,7 +30,7 @@
     "@clack/prompts": "^1.8.1",
     "jsonc-parser": "3.3.1"
   },
-  "description": "Create a self-hosted Notion-native feedback portal",
+  "description": "Create a self-hosted feedback portal with Notion or GitHub",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

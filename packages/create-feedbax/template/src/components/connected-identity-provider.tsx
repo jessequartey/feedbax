@@ -19,6 +19,7 @@ type IdentityState = {
   enabled: boolean;
   ready: boolean;
   displayName?: string;
+  sessionKey?: string;
   error?: string;
   signOut: () => Promise<void>;
 };
@@ -38,28 +39,54 @@ export function ConnectedIdentityProvider({
   const [state, setState] = useState<{
     ready: boolean;
     displayName?: string;
+    sessionKey?: string;
     error?: string;
   }>({ ready: !feedbax.connected });
   useEffect(() => {
     if (!feedbax.connected) return;
-    const controller = new AbortController();
-    fetch("/internal/identity/session", {
-      signal: controller.signal,
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
-        const value = await response.json();
-        setState({ ready: true, displayName: value.participant?.displayName });
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      controller?.abort();
+      const active = new AbortController();
+      controller = active;
+      // Unmount private views before fetching a possibly different session.
+      setState({ ready: false });
+      fetch("/internal/identity/session", {
+        signal: active.signal,
+        cache: "no-store",
       })
-      .catch(() => {
-        if (!controller.signal.aborted)
-          setState({
-            ready: true,
-            error: "Sign-in is temporarily unavailable.",
-          });
-      });
-    return () => controller.abort();
+        .then(async (response) => {
+          if (!response.ok) throw new Error();
+          const value = await response.json();
+          if (!active.signal.aborted)
+            setState({
+              ready: true,
+              displayName: value.participant?.displayName,
+              sessionKey: value.participant?.sessionKey,
+            });
+        })
+        .catch(() => {
+          if (!active.signal.aborted)
+            setState({
+              ready: true,
+              error: "Sign-in is temporarily unavailable.",
+            });
+        });
+    };
+    const visibility = () => {
+      if (document.visibilityState === "hidden") {
+        controller?.abort();
+        setState({ ready: false });
+      } else refresh();
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      controller?.abort();
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", visibility);
+    };
   }, []);
   async function signOut() {
     const response = await fetch("/internal/identity/logout", {

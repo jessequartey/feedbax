@@ -1,0 +1,18 @@
+{
+  "name": "@feedbax/github-integration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --config wrangler.example.jsonc --outdir dist",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261015.1",
+    "@feedbax/config": "workspace:*",
+    "miniflare": "4.20260730.0",
+    "typescript": "catalog:",
+    "vitest": "5.0.4",
+    "wrangler": "4.151.0"
+  }
+}

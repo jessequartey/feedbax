@@ -714,3 +714,163 @@ it("does not treat a retained New status as draft editing authority while workfl
     "did not authorize",
   );
 });
+
+it("recovers a browser submission and its draft authority after a lost create response without storing or publishing the secret intent", async () => {
+  const { options, issues, writes } = await setup();
+  let lost = false;
+  const first = createGitHubFeedbackModule({
+    ...options,
+    request: async (input, init) => {
+      const response = await options.request(input, init);
+      if (init?.method === "POST" && !lost) {
+        lost = true;
+        throw new Error("Browser response lost");
+      }
+      return response;
+    },
+  });
+  const command = { ...submission, submissionKey: "k".repeat(43) };
+  await expect(first.submitPost(command)).rejects.toThrow("response lost");
+  const restarted = createGitHubFeedbackModule(options);
+  const recovered = await restarted.submitPost(command);
+  expect(issues).toHaveLength(1);
+  expect(writes).toHaveLength(1);
+  expect(writes[0]!.body).not.toContain(command.submissionKey);
+  expect(recovered.slug).toBe("export-reports");
+  expect(
+    await restarted.getDraftPost({
+      id: recovered.id,
+      browserCapability: recovered.browserCapability,
+    }),
+  ).toMatchObject({ title: submission.title });
+  expect(
+    (await restarted.submitPost({ ...command, title: "Changed retry" })).id,
+  ).toBe(recovered.id);
+});
+
+it("keeps verified ownership private across devices and permits only eligible owner draft changes", async () => {
+  const { createPostOwnership, createMyFeedbackModule } =
+    await import("./ownership");
+  const { options, issues } = await setup();
+  await options.database.exec(
+    await readFile(
+      existsSync("apps/portal/migrations/0007_ownership.sql")
+        ? "apps/portal/migrations/0007_ownership.sql"
+        : "migrations/0007_ownership.sql",
+      "utf8",
+    ),
+  );
+  const alice = { subject: "application:alice", displayName: "Alice" };
+  const bob = { subject: "application:bob", displayName: "Bob" };
+  const first = createGitHubFeedbackModule({
+    ...options,
+    ownership: createPostOwnership(options.database, alice),
+  });
+  const post = await first.submitPost({
+    ...submission,
+    submissionKey: "o".repeat(43),
+  });
+  const otherDevice = createGitHubFeedbackModule({
+    ...options,
+    ownership: createPostOwnership(options.database, alice),
+  });
+  expect(await otherDevice.getDraftPost({ id: post.id })).toMatchObject({
+    title: submission.title,
+  });
+  await otherDevice.editDraftPost({
+    id: post.id,
+    title: "Owner edit from another device",
+  });
+  const ownerView = createMyFeedbackModule({
+    database: options.database,
+    feedback: otherDevice,
+    participant: alice,
+  });
+  expect(
+    (await ownerView.list({ filter: "submitted" })).items[0],
+  ).toMatchObject({ title: "Owner edit from another device", editable: true });
+  const otherParticipant = createGitHubFeedbackModule({
+    ...options,
+    ownership: createPostOwnership(options.database, bob),
+  });
+  await expect(otherParticipant.getDraftPost({ id: post.id })).rejects.toThrow(
+    "authorize",
+  );
+  expect(await otherParticipant.getParticipantPost(post.id)).toBeUndefined();
+  expect(
+    (
+      await createMyFeedbackModule({
+        database: options.database,
+        feedback: otherParticipant,
+        participant: bob,
+      }).list({ filter: "submitted" })
+    ).items,
+  ).toEqual([]);
+  issues[0]!.labels = ["feedbax:published", "feedbax:planned"];
+  await expect(
+    otherDevice.editDraftPost({ id: post.id, title: "Forbidden" }),
+  ).rejects.toThrow("authorize");
+  expect(
+    (await ownerView.list({ filter: "submitted" })).items[0],
+  ).toMatchObject({ status: "Planned", editable: false });
+  expect(JSON.stringify(issues)).not.toContain(alice.subject);
+});
+
+it("links an unsigned old draft only with both verified identity and its browser capability, without transferring an existing owner", async () => {
+  const { createPostOwnership, createMyFeedbackModule } =
+    await import("./ownership");
+  const { options, feedback } = await setup();
+  await options.database.exec(
+    await readFile(
+      existsSync("apps/portal/migrations/0007_ownership.sql")
+        ? "apps/portal/migrations/0007_ownership.sql"
+        : "migrations/0007_ownership.sql",
+      "utf8",
+    ),
+  );
+  const draft = await feedback.submitPost(submission);
+  const alice = { subject: "issuer:alice", displayName: "Alice" };
+  const bob = { subject: "issuer:bob", displayName: "Bob" };
+  const owned = createGitHubFeedbackModule({
+    ...options,
+    ownership: createPostOwnership(options.database, alice),
+  });
+  await expect(
+    owned.claimDraftPost({
+      id: draft.id,
+      browserCapability: "forged" as import("./index").BrowserCapability,
+    }),
+  ).rejects.toThrow("authorize");
+  await expect(
+    feedback.claimDraftPost({
+      id: draft.id,
+      browserCapability: draft.browserCapability,
+    }),
+  ).rejects.toThrow("authorize");
+  expect(
+    await owned.claimDraftPost({
+      id: draft.id,
+      browserCapability: draft.browserCapability,
+    }),
+  ).toMatchObject({ id: draft.id, editable: true });
+  const attacker = createGitHubFeedbackModule({
+    ...options,
+    ownership: createPostOwnership(options.database, bob),
+  });
+  await expect(
+    attacker.claimDraftPost({
+      id: draft.id,
+      browserCapability: draft.browserCapability,
+    }),
+  ).rejects.toThrow("authorize");
+  expect(await attacker.getParticipantPost(draft.id)).toBeUndefined();
+  expect(
+    (
+      await createMyFeedbackModule({
+        database: options.database,
+        feedback: owned,
+        participant: alice,
+      }).list({ filter: "submitted" })
+    ).items,
+  ).toHaveLength(1);
+});

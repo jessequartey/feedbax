@@ -89,7 +89,12 @@ export function createConnectedIdentityHandler(options: {
           : undefined;
         return json({
           participant: participant
-            ? { displayName: participant.displayName }
+            ? {
+                displayName: participant.displayName,
+                sessionKey: createHash("sha256")
+                  .update(`feedbax-ui-session-v1:${token}`)
+                  .digest("base64url"),
+              }
             : null,
         });
       }

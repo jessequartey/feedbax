@@ -63,11 +63,20 @@ export type ConnectedConfiguration = {
   readonly issuer: string;
   readonly loginUrl: string;
 };
-export type FeedbaxConfig = {
+export type GitHubConfiguration = {
+  readonly installationId: string;
+  readonly serviceUrl: string;
+  readonly repository: {
+    readonly id: number;
+    readonly owner: string;
+    readonly name: string;
+  };
+  readonly botUserId: number;
+};
+type CommonConfiguration = {
   readonly connected?: ConnectedConfiguration;
   readonly product: ProductConfiguration;
   readonly theme: { readonly preset: string };
-  readonly notion: NotionConfiguration;
   readonly changelog?: ChangelogConfiguration;
   readonly features: PortalFeatures;
   readonly submissions: {
@@ -78,7 +87,23 @@ export type FeedbaxConfig = {
   readonly turnstile: { readonly enabled: boolean; readonly siteKey?: string };
 };
 
+export type FeedbaxConfig = CommonConfiguration &
+  (
+    | {
+        readonly provider?: "notion";
+        readonly notion: NotionConfiguration;
+        readonly github?: never;
+      }
+    | {
+        readonly provider: "github";
+        readonly github: GitHubConfiguration;
+        readonly notion?: never;
+      }
+  );
+
 const rootKeys = [
+  "provider",
+  "github",
   "connected",
   "product",
   "theme",
@@ -218,11 +243,28 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
   }
   const theme = object(value.theme, "theme");
   rejectUnknown(theme, ["preset"], "theme");
-  const notion = storage(
-    value.notion,
-    feedbackPropertyKeys,
-    "notion",
-  ) as NotionConfiguration;
+  if (
+    value.provider !== undefined &&
+    !["notion", "github"].includes(String(value.provider))
+  )
+    throw new Error("provider must be notion or github.");
+  const githubMode = value.provider === "github";
+  if (
+    (githubMode && value.notion !== undefined) ||
+    (!githubMode && value.github !== undefined)
+  )
+    throw new Error("Select exactly one Content Provider: notion or github.");
+  const content: Pick<FeedbaxConfig, "provider" | "notion" | "github"> =
+    githubMode
+      ? { provider: "github", github: githubConfiguration(value.github) }
+      : {
+          ...(value.provider ? { provider: "notion" as const } : {}),
+          notion: storage(
+            value.notion,
+            feedbackPropertyKeys,
+            "notion",
+          ) as NotionConfiguration,
+        };
   const features = object(value.features, "features");
   rejectUnknown(features, featureKeys, "features");
   const validatedFeatures = Object.fromEntries(
@@ -232,6 +274,13 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
       return [key, features[key]];
     }),
   ) as PortalFeatures;
+  if (
+    githubMode &&
+    (validatedFeatures.changelog || value.changelog !== undefined)
+  )
+    throw new Error(
+      "GitHub Installations must disable Changelog (features.changelog: false) and remove Notion Changelog configuration.",
+    );
   const changelog =
     value.changelog === undefined
       ? undefined
@@ -266,7 +315,7 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
     product: validatedProduct,
     ...(connected ? { connected } : {}),
     theme: { preset: text(theme.preset, "theme.preset") },
-    notion,
+    ...content,
     ...(changelog ? { changelog } : {}),
     features: validatedFeatures,
     submissions: {
@@ -281,7 +330,7 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
       ),
     },
     turnstile: { enabled: turnstile.enabled, ...(siteKey ? { siteKey } : {}) },
-  };
+  } as FeedbaxConfig;
 }
 
 export function assertProductionConfiguration(
@@ -361,4 +410,53 @@ function publicUrl(
   throw new Error(
     `${label} must be ${allowRelative ? "root-relative or " : ""}an HTTPS URL.`,
   );
+}
+
+function githubConfiguration(value: unknown): GitHubConfiguration {
+  const input = object(value, "github");
+  rejectUnknown(
+    input,
+    ["installationId", "serviceUrl", "repository", "botUserId"],
+    "github",
+  );
+  const installationId = text(input.installationId, "github.installationId");
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(installationId))
+    throw new Error(
+      "github.installationId must be a stable Installation identifier.",
+    );
+  const serviceUrl = publicUrl(input.serviceUrl, "github.serviceUrl", false);
+  const url = new URL(serviceUrl);
+  if (url.origin !== serviceUrl || url.username || url.password)
+    throw new Error(
+      "github.serviceUrl must be an HTTPS origin without a path or credentials.",
+    );
+  const repository = object(input.repository, "github.repository");
+  rejectUnknown(repository, ["id", "owner", "name"], "github.repository");
+  const owner = text(repository.owner, "github.repository.owner");
+  const name = text(repository.name, "github.repository.name");
+  if (!/^[A-Za-z0-9-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(name))
+    throw new Error("Use a valid GitHub repository owner and name.");
+  return {
+    installationId,
+    serviceUrl,
+    repository: {
+      id: positiveInteger(repository.id, "github.repository.id"),
+      owner,
+      name,
+    },
+    botUserId: positiveInteger(input.botUserId, "github.botUserId"),
+  };
+}
+
+export function assertRuntimeBindings(
+  config: FeedbaxConfig,
+  bindings: { FEEDBAX_DB?: unknown },
+) {
+  if (
+    (config.provider === "github" || config.connected) &&
+    !bindings.FEEDBAX_DB
+  )
+    throw new Error(
+      "This Installation requires the FEEDBAX_DB D1 binding. Provision D1 and apply the included migrations; D1 does not enable verified identity.",
+    );
 }

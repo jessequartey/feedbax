@@ -1,18 +1,31 @@
 ---
-title: Deploy
-description: Verify and deploy a Feedbax portal to Cloudflare Workers.
+title: CLI
+description: Use Feedbax lifecycle commands for setup, validation, and deployment.
 ---
 
-## Preflight
+| Command                    | Purpose                                                         |
+| -------------------------- | --------------------------------------------------------------- |
+| `create-feedbax`           | Scaffold a new portal.                                          |
+| `feedbax doctor`           | Validate configuration, environment, and external connectivity. |
+| `feedbax deploy --dry-run` | Build and validate the Worker bundle.                           |
+| `feedbax deploy`           | Publish the configured Worker.                                  |
 
-<include>../../../examples/deploy.sh</include>
+`feedbax info` prints the installed version and configured product. `feedbax rotate-api-key` rotates the trusted submission key and prints its plaintext once; update the calling product immediately. The local `.dev.vars` hash is synchronized after successful rotation.
 
-`doctor` validates configuration and connectivity. The dry run catches bundling and Worker configuration errors without publishing.
+`doctor` reads the authoritative `src/feedbax.ts`, checks mapped property IDs even when properties are renamed, and uses read-only provider probes. Missing private workflow properties produce repair guidance. Enabled Comment reads must succeed; Notion access errors never count as a pass.
 
-## Production secrets
+`deploy` runs diagnostics and the production build, previews the Worker target, and asks for confirmation before uploading. It sends only the allowlisted provider/pairing credentials, API-key hash, signing secrets and independently enabled Turnstile/identity/email secrets to Cloudflare's encrypted secret store. `--dry-run` performs no deployment or secret upload; `--yes` explicitly confirms a deployment for automated operation.
 
-The lifecycle deploy command uploads the Notion token, trusted API-key **hash**, participation signing secret, enabled Turnstile secret, and enabled Connected identity handoff secret after confirmation. The plaintext trusted API key belongs only in the calling product. Do not put secrets in `src/feedbax.ts` or `wrangler.jsonc`.
+The lifecycle command documentation always lives at `https://feedbax.dev/docs`.
 
-After deployment, verify the Worker preview hostname before attaching a custom domain.
+## GitHub commands in 0.2.2 development
 
-Connected Installations also require their dedicated D1 binding and applied migration before deployment. Follow the [authentication guide](/docs/guides/connected-profile) and verify the real application handoff in a dedicated environment before enabling it for Participants.
+After configuring a dedicated D1 database and applying every included migration, run `feedbax deploy --pairing-bootstrap`, then `feedbax pair-github GITHUB_APP_INSTALLATION_ID`. Open the printed GitHub authorization link and run a full `feedbax doctor` afterward. Bootstrap skips only the unavailable binding check; content remains unavailable until authorization finishes.
+
+GitHub doctor checks mapping/recovery schema, active binding status, a repository-scoped token and the actual repository identity. It reads private credentials without printing them. Participant cookies and trusted-submission keys are not integration credentials.
+
+Published 0.2.1 does not contain these GitHub commands. Use the matching built CLI described in [GitHub setup](/docs/getting-started/github) while 0.2.2 is under development. New Team Member commands remain deferred. Upgrade, archive, restore, import and migration commands will be documented only when their implementation and acceptance are available.
+
+## GitHub in 0.2.2 development
+
+GitHub requires a dedicated D1 binding and every included migration independently of Participant sign-in. Both portal and App service need exact configured origins and appropriate Worker-to-Worker routing. The [GitHub guide](/docs/getting-started/github) walks through bootstrap deployment, authorization and full diagnostics. App keys stay in the service; only per-portal credentials are stored in portal D1. Do not claim setup complete from health/pairing alone: verify a real Post, approved publication, a Comment and unpublication.

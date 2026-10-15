@@ -33,6 +33,13 @@ export function ProfileMenu() {
         </Button>
         {identity.displayName ? (
           <>
+            <Button
+              nativeButton={false}
+              variant="ghost"
+              render={<a href="/my-feedback" />}
+            >
+              My feedback
+            </Button>
             <span>{identity.displayName}</span>
             <Button variant="outline" onClick={() => void identity.signOut()}>
               Sign out

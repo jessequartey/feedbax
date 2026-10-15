@@ -112,9 +112,13 @@ it("exchanges a browser-bound handoff once, keeps identity private, and revokes 
       });
     const response = await handler(sessionRequest());
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({
-      participant: { displayName: "Alice" },
-    });
+    const identity = (await response.json()) as {
+      participant: { displayName: string; sessionKey: string };
+    };
+    expect(identity.participant.displayName).toBe("Alice");
+    expect(identity.participant.sessionKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(JSON.stringify(identity)).not.toContain("private-subject");
+    expect(JSON.stringify(identity)).not.toContain(session.split("=")[1]);
     expect(
       (
         await handler(

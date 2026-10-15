@@ -1,0 +1,49 @@
+---
+title: Native GitHub workflow
+description: Manage approved portal content and status without publishing engineering discussion.
+---
+
+This guide covers the Issues-only implementation in 0.2.2 development source. Product Teams work in GitHub; there is no new Feedbax Team Member login or moderation command.
+
+## Approve content and publish independently
+
+Each mapped Post has an App-created issue. Its body contains one exact section:
+
+```text
+<!-- feedbax:public:v1 -->
+{"slug":"export-reports","title":"Export reports","description":"Export a report to CSV.","type":"Feature Request"}
+<!-- /feedbax:public -->
+```
+
+Keep the immutable slug. Edit title, description and type inside this section to change portal content. Optional `teamResponse` and a safe HTTPS or root-relative `releaseNotesUrl` are public too. Missing, duplicate, malformed or slug-changing sections are unavailable rather than falling back to engineering text.
+
+Issue titles, notes outside this section, private contacts, capability hashes and arbitrary engineering comments are not portal output. A copied marker on an unrelated issue does not create a Feedbax Post. Public repositories still expose their entire issue content on GitHub itself.
+
+Use exactly one status label:
+
+| Label                 | Post Status |
+| --------------------- | ----------- |
+| `feedbax:new`         | New         |
+| `feedbax:reviewing`   | Reviewing   |
+| `feedbax:planned`     | Planned     |
+| `feedbax:in-progress` | In Progress |
+| `feedbax:shipped`     | Shipped     |
+| `feedbax:closed`      | Closed      |
+
+Add **`feedbax:published` separately** to make the approved content visible in Feedbax. Remove it to hide the Post, Comments and associated downloads on the next authoritative read. Issue closure does not imply Shipped or Closed. A conflicting/missing status label may retain the last valid displayed status, but blocks draft changes; it cannot override removal of publication.
+
+A status label can be created when first applied, depending on repository permissions. Setup and doctor should validate the intended workflow before production use. Organization Projects and optional PR automation are separate pending implementation/acceptance paths; merging a PR never means the feature has shipped automatically.
+
+## Drafts and participation
+
+New submissions are New and unpublished in the portal. Browser-held capabilities allow limited title/description/type edits or withdrawal only while that lifecycle remains eligible. Verified owners in Connected can use another device. Names and email addresses never establish ownership; an old unsigned draft needs both verified identity and its Browser Capability to link it.
+
+Portal Comments are explicitly marked App-created GitHub comments with private mappings and attribution. Ordinary developer discussion is excluded. Use the portal's existing Comment controls for Participant edits/replies; no engineering-comment publication tool is added in this release.
+
+Connected unique Votes and Follows live in private D1 rather than GitHub reactions. The default GitHub profile without signed identity provides only best-effort participation. D1 does not turn an unsigned Participant into a verified one.
+
+## Recovery and limits
+
+The App service verifies webhook signatures and persists opaque work before acknowledgment. Duplicate/reordered events trigger current provider reads. The initial polling interval is five minutes, with bounded per-pass work and durable retries. GitHub portal content uses `no-store` and fails closed when access or publication is unavailable.
+
+Run `feedbax doctor` after configuration or permission changes. Re-pair after a revoked binding or directional-key rotation as instructed by diagnostics. Preserve the private D1 mappings and App service credentials in appropriately protected recovery systems. Portable archive, upgrade and provider migration commands remain under development; follow the acceptance inventory before relying on them.

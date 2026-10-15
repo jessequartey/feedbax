@@ -3,7 +3,7 @@ title: Environment
 description: Keep installation secrets separate from typed public configuration.
 ---
 
-Guided setup writes these values to the ignored `.dev.vars` file. Keep the generated values; the examples below are placeholders.
+Notion guided setup writes these values to the ignored `.dev.vars` file. Keep the generated values; the examples below are placeholders.
 
 ```dotenv title=".dev.vars"
 NOTION_TOKEN=replace_with_your_internal_integration_token
@@ -24,3 +24,11 @@ The trusted submission key printed by the creator belongs in the **calling produ
 Rotating `PARTICIPATION_SIGNING_SECRET` invalidates outstanding Participation Passes and Comment Capabilities. `feedbax rotate-api-key` rotates the trusted submission key and synchronizes its local hash; update the calling product with the newly printed key.
 
 For Connected Profile, add the dedicated `FEEDBAX_DB` D1 binding to Wrangler configuration and apply its migration. The binding is infrastructure configuration, not a plaintext secret. See the [complete authentication guide](/docs/guides/connected-profile) for application setup, secrets, sessions, verification, and troubleshooting.
+
+## GitHub secrets in 0.2.2 development
+
+A GitHub portal uses `GITHUB_PAIRING_SECRET`, `FEEDBAX_API_KEY_HASH` and `PARTICIPATION_SIGNING_SECRET`, plus independently enabled Turnstile/Connected/email secrets. It needs no `NOTION_TOKEN`. Pairing stores separate portal-to-service and service-to-portal credentials in its private D1 database. Keep the bootstrap secret private and use the pairing flow for rotation/reconnection.
+
+Only the integration service holds `GITHUB_APP_ID`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` and its independent `INTEGRATION_SIGNING_SECRET`. A portal never receives the App key. The [service README](https://github.com/jessequartey/feedbax/blob/main/apps/github-integration/README.md) covers registration and deployment.
+
+Keep private identifiers and secrets out of public build variables. GitHub client assets/source maps are checked against configuration sentinels during packed-package validation. App callback URLs and raw webhook bodies must stay out of routine logs and exported diagnostics.

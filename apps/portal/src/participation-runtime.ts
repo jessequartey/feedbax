@@ -7,7 +7,7 @@ import { env } from "cloudflare:workers";
 import feedbax from "./feedbax";
 import {
   configuredImages,
-  createConfiguredNotionFeedbackModule,
+  createConfiguredContentFeedbackModule,
   getConnectedStore,
 } from "./feedback-runtime";
 import {
@@ -175,7 +175,7 @@ export function createParticipationRequestHandler(options: {
 
 export function configuredParticipation(participant?: VerifiedParticipant) {
   return createConfiguredParticipation(
-    createConfiguredNotionFeedbackModule(),
+    createConfiguredContentFeedbackModule(),
     participant,
   );
 }
@@ -241,7 +241,7 @@ export const handleParticipationRequest = createParticipationRequestHandler({
 });
 export async function synchronizeConnectedUpdates() {
   if (!feedbax.connected) return;
-  const content = createConfiguredNotionFeedbackModule();
+  const content = createConfiguredContentFeedbackModule();
   const module = createConfiguredParticipation(content);
   const observation = await module.synchronize();
   const email = await module.deliverEmails();
