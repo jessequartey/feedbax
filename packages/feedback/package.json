@@ -10,8 +10,13 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261014.1",
     "@feedbax/config": "workspace:*",
+    "miniflare": "4.20260730.0",
     "typescript": "catalog:",
     "vitest": "4.1.11"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
   }
 }

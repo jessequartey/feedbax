@@ -1,0 +1,367 @@
+# Connected Profile in 0.2.1
+
+Connected Profile is optional. Omit `connected` to retain Notion-only behavior. A Connected Installation requires a dedicated D1 database and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in.
+
+## Configure an Installation
+
+Create a D1 database using `pnpm exec wrangler d1 create <installation-name>`. Review the target account and add the returned identifiers to `wrangler.jsonc`:
+
+```json
+{
+  "d1_databases": [
+    {
+      "binding": "FEEDBAX_DB",
+      "database_name": "your-installation",
+      "database_id": "your-database-id",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
+```
+
+Apply the included migration using `pnpm exec wrangler d1 migrations apply FEEDBAX_DB --remote` (and `--local` for local testing). Never share this database between Installations. Configure HTTPS for local sign-in testing because identity cookies require Secure.
+
+Add the following to `src/feedbax.ts`, alongside an absolute HTTPS `product.siteUrl`:
+
+```ts
+connected: {
+  issuer: "https://app.example.com",
+  loginUrl: "https://app.example.com/feedbax-login",
+},
+```
+
+Generate at least 32 random bytes for `IDENTITY_HANDOFF_SECRET`. Store the same secret only on the Product Team application's server and in the portal's `.dev.vars` / encrypted Worker secrets. Never place it in `feedbax.ts`, frontend code, a query string, or logs. The lifecycle CLI deploys this secret alongside the other configured secrets. `feedbax doctor` checks the configuration and reads the remote D1 schema without changing it.
+
+## Product application handoff
+
+1. Feedbax's Sign in action visits `/internal/identity/start`, sets a five-minute browser challenge cookie, and redirects to the configured login URL with `state` and `callback` query parameters.
+2. The Product Team application authenticates the current user. It must allow only the exact configured Feedbax callback, retain the supplied state, and derive the stable subject and display name from its authenticated server session. Never sign identity fields supplied by a browser.
+3. Sign the payload below on the application server with HMAC-SHA256. Times are Unix seconds; the token lifetime must be at most 120 seconds. Use an unpredictable nonce. The audience must exactly equal the Feedbax origin and the issuer must exactly equal the configured issuer.
+4. Return an HTML form which posts one `token` field to the allowlisted callback. Use `application/x-www-form-urlencoded` and `Referrer-Policy: no-referrer`. Do not put the token in a redirect URL. HTML-escape interpolated values.
+5. Feedbax validates the signature, origin, browser challenge, audience, issuer, and expiry, consumes the token nonce and browser challenge once, and creates an opaque seven-day HttpOnly session. Sign out revokes that session in D1. No identity token is stored in browser JavaScript storage.
+
+```js
+import { createHmac, randomBytes } from "node:crypto";
+
+// All identity values come from the application's authenticated server session.
+const now = Math.floor(Date.now() / 1000);
+const payload = Buffer.from(
+  JSON.stringify({
+    purpose: "feedbax-identity-v1",
+    subject: authenticatedUser.id,
+    displayName: authenticatedUser.displayName,
+    issuer: "https://app.example.com",
+    audience: "https://feedback.example.com",
+    state: validatedBrowserState,
+    nonce: randomBytes(32).toString("base64url"),
+    issuedAt: now,
+    expiresAt: now + 120,
+  }),
+).toString("base64url");
+const signature = createHmac("sha256", process.env.IDENTITY_HANDOFF_SECRET)
+  .update(`feedbax-identity-v1:${payload}`)
+  .digest("base64url");
+const token = `${payload}.${signature}`;
+```
+
+The application must use the same stable subject across browsers; never use display name or an unverified email as the subject. “Verified” means asserted by that trusted application, not legal identity or a guarantee of one account per human. The stored identity is scoped to the configured issuer and subject. Changing the issuer or subject scheme requires deliberate identity migration; do not repurpose identifiers for other people. Secret rotation blocks old handoffs; existing opaque sessions remain valid until expiry, logout, or explicit database revocation.
+
+## Data ownership and compatibility
+
+Notion remains authoritative for Posts, publication, Team workflow, and Comment content. D1 owns identity, sessions, unique Votes, and verified Comment attribution. A unique database key enforces one Vote per subject and Post; repeated add/remove requests are idempotent. Counts and Top ordering in Connected Profile use D1, including across browsers. Anonymous historical Notion counts are preserved in Notion but excluded from verified counts; they cannot be migrated into verified Votes without identity evidence. The Notion Vote Count property remains the legacy Notion-only counter, not a synchronized Connected counter.
+
+Native Comments receive the signed display name on the server. Only Comments with durable D1 attribution are labeled Verified; historical Comments remain Unverified. Notion-authored Comments retain the Product Team label. Resolving/deleting a Comment in Notion still removes it from public reads. Browser-held fifteen-minute Comment capabilities and unpublished Post draft capabilities retain their existing scope; this release does not add cross-device Comment editing or recover draft capabilities. Post submission still uses a private contact Device Profile, editable through Contact profile; it does not gain an identity-verification badge.
+
+If D1 is unavailable, Connected operations fail closed. They never fall back to anonymous voting or trust a browser-provided name. Attribution failures reject creation and attempt to remove the just-created Notion Comment; if external cleanup also fails, any surviving Comment remains unverified. The portal does not automatically retry Comment creation, since Notion offers no creation idempotency guarantee.
+
+Back up the database and use Cloudflare D1 recovery before destructive changes. Disabling `connected` retains D1 data but switches visible Vote counts back to Notion-only history. Expired sessions/nonces may be purged during maintenance after their expiry; never delete active rows to reset Votes.
+
+## Verification and operating limits
+
+Before enabling in production, test the real application's sign-in/callback, a second browser, duplicate Votes, sign out, invalid/expired/replayed tokens, and a native Notion Comment with verified attribution. Use the dedicated acceptance Installation; do not turn on the dogfood portal until a real application login endpoint is configured.
+
+Connected Top ranking currently reads all matching Published Posts before ranking and pagination. This favors correct ranking for the initial small-team scope; measure larger installations before adoption. Public counts can be briefly cached under the existing public-read policy; private Vote state and identity endpoints are never publicly cached.
+
+Implementation references: [D1 database batches](https://developers.cloudflare.com/d1/worker-api/d1-database/) and [Drizzle D1 adapter](https://orm.drizzle.team/docs/sqlite/connect-cloudflare-d1).
+
+## Complete application endpoint
+
+Copy the following into your application's server code. It returns a standard Web `Response` and works behind a Node-compatible route handler. Configure the app's existing authentication middleware before this endpoint so an unauthenticated Participant is taken through normal app sign-in and returned to the same handoff URL. If your middleware does not redirect, the example returns an explicit 401; sign in to the product first and retry Feedbax.
+
+The only app-specific dependency is `authenticate(request)`: call the same trusted session lookup used by your protected app pages. Return a stable internal user ID as `subject` and its server-read display name. Never read these values from form input, query parameters, browser storage, or an unsigned header. Do not hardcode a demonstration user in production.
+
+```ts title="server/feedbax-login.ts"
+import { createHmac, randomBytes } from "node:crypto";
+
+export function createIdentityLoginHandler(options: {
+  applicationOrigin: string;
+  portalOrigin: string;
+  issuer: string;
+  secret: string;
+  authenticate(request: Request): Promise<{
+    subject: string;
+    displayName: string;
+    email?: string;
+    emailVerified?: boolean;
+  } | null>;
+}) {
+  const app = new URL(options.applicationOrigin).origin;
+  const portal = new URL(options.portalOrigin).origin;
+  if (
+    ![app, portal, options.issuer].every(
+      (url) => new URL(url).protocol === "https:",
+    ) ||
+    options.secret.length < 32
+  )
+    throw new Error(
+      "Configure HTTPS origins and a server-only handoff secret of at least 32 characters.",
+    );
+  const headers = {
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+  };
+  return async (request: Request): Promise<Response> => {
+    const url = new URL(request.url);
+    if (request.method !== "GET")
+      return new Response("Method not allowed", { status: 405, headers });
+    const state = url.searchParams.get("state");
+    const callback = url.searchParams.get("callback");
+    if (
+      url.origin !== app ||
+      !state ||
+      !/^[A-Za-z0-9_-]{43}$/.test(state) ||
+      callback !== `${portal}/internal/identity/callback` ||
+      url.searchParams.getAll("state").length !== 1 ||
+      url.searchParams.getAll("callback").length !== 1
+    )
+      return new Response("Invalid Feedbax sign-in request", {
+        status: 400,
+        headers,
+      });
+    const user = await options.authenticate(request);
+    if (!user)
+      return new Response(
+        "Sign in to your product, then retry Feedbax sign-in.",
+        { status: 401, headers },
+      );
+    if (
+      ![user.subject, user.displayName].every(
+        (value) =>
+          typeof value === "string" &&
+          value.trim().length > 0 &&
+          value.length <= 512,
+      )
+    )
+      return new Response("Application identity is incomplete", {
+        status: 403,
+        headers,
+      });
+    const now = Math.floor(Date.now() / 1000);
+    const payload = Buffer.from(
+      JSON.stringify({
+        purpose: "feedbax-identity-v1",
+        subject: user.subject,
+        displayName: user.displayName,
+        ...(user.emailVerified === true && user.email
+          ? { email: user.email, emailVerified: true }
+          : {}),
+        issuer: options.issuer,
+        audience: portal,
+        state,
+        nonce: randomBytes(32).toString("base64url"),
+        issuedAt: now,
+        expiresAt: now + 120,
+      }),
+    ).toString("base64url");
+    const signature = createHmac("sha256", options.secret)
+      .update(`feedbax-identity-v1:${payload}`)
+      .digest("base64url");
+    const nonce = randomBytes(24).toString("base64url");
+    const html = `<!doctype html><html lang="en"><meta charset="utf-8"><title>Continue to feedback</title><body><form method="post" action="${escapeHtml(callback)}"><input type="hidden" name="token" value="${payload}.${signature}"><button type="submit">Continue to feedback</button></form><script nonce="${nonce}">document.forms[0].requestSubmit()</script></body></html>`;
+    return new Response(html, {
+      headers: {
+        ...headers,
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": `default-src 'none'; form-action ${portal}; script-src 'nonce-${nonce}'; frame-ancestors 'none'`,
+      },
+    });
+  };
+}
+function escapeHtml(value: string) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ]!,
+  );
+}
+```
+
+Register the handler at the exact URL configured as `connected.loginUrl`. For a framework with Web route handlers, the wiring looks like this (adapt the import paths and session lookup to your application):
+
+```ts
+import { createIdentityLoginHandler } from "./server/feedbax-login";
+import { readAuthenticatedAppUser } from "./server/auth";
+
+export const GET = createIdentityLoginHandler({
+  applicationOrigin: "https://app.example.com",
+  portalOrigin: "https://feedback.example.com",
+  issuer: "https://app.example.com",
+  secret: process.env.IDENTITY_HANDOFF_SECRET!,
+  authenticate: async (request) => {
+    const user = await readAuthenticatedAppUser(request);
+    return user ? { subject: user.id, displayName: user.displayName } : null;
+  },
+});
+```
+
+`readAuthenticatedAppUser` is your existing application's authentication adapter, not a Feedbax API. On Next.js, the `GET` export belongs in `app/feedbax-login/route.ts`; keep the factory and session lookup in server-only modules. On TanStack Start, call the same handler from a server route's GET handler. Other frameworks can adapt their request/response objects to the Web API. Keep the route behind your current session middleware and rate limits; Feedbax does not create or manage the product's accounts.
+
+## Verify the entire sign-in loop
+
+1. Run `feedbax doctor`, build, and deploy the configured portal. Confirm its HTTPS origin exactly matches `product.siteUrl` and the application's configured audience/callback.
+2. Sign in to the product, open the portal, and choose Sign in. You should return with your server-provided display name. A handoff form never includes your API key or handoff secret.
+3. Add a Vote, reload, and sign in from another browser with the same product account. The Vote should still be selected. Repeated add requests must not increase it twice.
+4. Post a Comment and confirm Verified appears next to its app-provided name. A historical browser-only Comment still shows Unverified. Reply/resolve from Notion and confirm moderation is reflected after refresh.
+5. Sign out of Feedbax. Its session should stop authorizing Votes/Comments immediately. This signs out only the portal session; product sign-out is managed by the product. An already-issued portal session expires after seven days unless explicitly revoked sooner.
+6. Reuse a captured callback or change its state/audience/signature in a dedicated test environment. Feedbax must reject it. Do not copy production identity tokens into logs or issue reports.
+
+## Authentication troubleshooting
+
+| Symptom                                               | Check                                                                                                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product endpoint returns 401                          | Use your existing session middleware and complete the product's login first; the `authenticate` adapter must read that session.                                                                           |
+| Invalid sign-in request on the product                | Preserve the single `state` and `callback` parameters; allow only the configured exact callback. Do not rebuild the callback from arbitrary browser input.                                                |
+| Callback returns 403                                  | The form must POST directly from the configured login URL's origin. Check reverse-proxy origin handling and sandbox policies.                                                                             |
+| Callback returns 401                                  | Check identical handoff secrets, exact issuer/audience, current server clocks, a lifetime of at most 120 seconds, and an unused browser challenge. Start sign-in again after a failed or expired attempt. |
+| Challenge cookie absent                               | Use HTTPS and the same browser. The challenge uses Secure, HttpOnly, SameSite=None, and the `__Host-` prefix. Cookie-blocking policies may require a normal top-level product/portal flow.                |
+| Doctor or participation returns unavailable           | Check the dedicated `FEEDBAX_DB` binding, applied migration, remote account/database, and required Worker secrets. The profile fails closed.                                                              |
+| Name differs from the current app name                | A session reads the last server-asserted name; sign in again after a profile change. Old Comments retain their recorded attribution.                                                                      |
+| Anonymous vote totals differ after enabling Connected | Historical Notion counters are not verified Vote records; Connected counts only D1 Votes.                                                                                                                 |
+
+## Keep the three server secrets distinct
+
+| Secret                                               | Stored where                                | Purpose                                                                 |
+| ---------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------- |
+| `IDENTITY_HANDOFF_SECRET`                            | Product server and portal secret store      | Sign/verify identity handoffs.                                          |
+| `PARTICIPATION_SIGNING_SECRET`                       | Portal secret store                         | Participation Passes and short-lived Comment capabilities.              |
+| `FEEDBAX_API_SECRET` / portal `FEEDBAX_API_KEY_HASH` | Plaintext on product server; hash on portal | Trusted Post submission from the feedback block or another integration. |
+
+Generate independent random values. Store production values through your platform's secret manager. When rotating the handoff secret, coordinate both servers; existing portal sessions require separate revocation if they must be ended immediately.
+
+## Following and notifications
+
+The scheduled Connected workload targets Workers Paid, whose larger per-invocation D1 allowance supports the bounded synchronization/delivery batches. Cloudflare Email Service also requires Workers Paid to send to arbitrary Participants. Resend/custom sending does not remove the scheduler's Worker resource requirement. The Notion-only Profile remains the lean default. Check [Cloudflare email pricing](https://developers.cloudflare.com/email-service/platform/pricing/) and [D1 invocation limits](https://developers.cloudflare.com/d1/platform/limits/) before provisioning.
+
+Connected Participants can explicitly Follow a Published Post from its detail view. Following is independent of voting; submitting, commenting, or voting does not silently subscribe a Participant. The header bell opens a private inbox with unread state, Mark read, Mark all read, pagination, and email preferences. Signing out hides these controls and private state is never publicly cached.
+
+A scheduled Worker observes status changes and new native Notion Comments on followed Posts. Add `"triggers": { "crons": ["*/5 * * * *"] }` to Wrangler configuration. Processing checks ten followed Posts per invocation, prioritizing the least recently checked. It reads one 50-Comment cursor page per observed Post per invocation and continues the next cursor on later invocations. This bounds Notion work; busy Installations and long Comment histories have longer notification latency. It observes current status, so intermediate status changes between polls may be coalesced. It does not claim an instantaneous audit history. Existing Comments/statuses from before a Follow are not notifications, and Participants do not receive notifications about Comments with their own recorded attribution.
+
+In-app notifications are deduplicated by event and Participant, survive browser changes, and retain independent read state. Notifications and outbound delivery recheck that the Post is still Published. Stop following from the same Post to stop future updates. Email is independently opt-in through the inbox switch and can be disabled there or through the unsubscribe link in each email. Unsubscribe links show a confirmation page on GET and accept a one-click POST from supporting mail clients. A link scanner's GET does not change preferences.
+
+### Verified delivery address
+
+Application identity and email ownership are separate assertions. To offer email notifications, derive both of these additional signed claims from your application's authenticated server record:
+
+```ts
+...(user.emailVerified === true
+  ? { email: user.email, emailVerified: true }
+  : {}),
+```
+
+Never accept these values from the browser or copy the unverified Device Profile. Feedbax ignores an email unless the signed `emailVerified` claim is true. The contact address is stored privately in D1, is refreshed at the next successful handoff, and never appears in public identity, Post, Comment, or notification responses. Existing handoff implementations without these optional claims keep working for in-app notifications. A subsequent handoff without a verified address removes email eligibility.
+
+### Choose one email sender
+
+All choices share notification content, opt-in, unsubscribe, the D1 delivery queue, and a stable `Idempotency-Key`. The sender address belongs to your verified sending domain. Do not use a Participant's address as the sender.
+
+**Cloudflare Email Service** uses the current structured Workers sending API. Onboard and verify your sending domain in Cloudflare Email Service, then configure:
+
+```ts
+connected: {
+  issuer: "https://app.example.com",
+  loginUrl: "https://app.example.com/feedbax-login",
+  email: { provider: "cloudflare", from: "updates@example.com" },
+},
+```
+
+```json
+{
+  "send_email": [
+    {
+      "name": "FEEDBAX_EMAIL",
+      "allowed_sender_addresses": ["updates@example.com"]
+    }
+  ]
+}
+```
+
+Use Email Service's outbound sending capability, not a restricted legacy inbound-routing destination. See [Workers sending API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/) and [domain setup](https://developers.cloudflare.com/email-service/configuration/domains/). Local Wrangler simulation does not deliver real messages. Do not enable a remote email binding during general local testing; it sends real mail.
+
+**Resend** requires a verified domain and a sending API key. Set `email: { provider: "resend", from: "updates@example.com" }` and store the key as `EMAIL_PROVIDER_SECRET` in `.dev.vars` and `pnpm exec wrangler secret put EMAIL_PROVIDER_SECRET`. No email binding is required. Feedbax posts to `https://api.resend.com/emails`, passing its stable delivery key in the `Idempotency-Key` header. See [Resend sending](https://resend.com/docs/api-reference/emails/send-email) and [idempotency](https://resend.com/docs/dashboard/emails/idempotency-keys).
+
+**Custom HTTPS sender** connects your own backend or mail provider adapter:
+
+```ts
+email: {
+  provider: "custom",
+  from: "updates@example.com",
+  endpoint: "https://app.example.com/internal/feedbax-email",
+},
+```
+
+Store a dedicated shared bearer secret as `EMAIL_PROVIDER_SECRET`. Your endpoint must validate `Authorization: Bearer <secret>`, accept the following JSON, deliver or durably enqueue it, and return 2xx only after acceptance. It must persist `Idempotency-Key` uniqueness for at least 24 hours and return the same successful result for retries without sending again. Keep this endpoint private to the authenticated server contract; a browser must never receive the secret.
+
+```ts
+interface NotificationEmail {
+  from: string;
+  to: string[]; // exactly one recipient per Feedbax request
+  subject: string;
+  text: string;
+  headers: {
+    "List-Unsubscribe": string;
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click";
+  };
+}
+```
+
+Preserve the unsubscribe headers, disable tracking unless your Product Team has deliberately chosen it, and never return provider credentials or recipient details to the portal. Feedbax requires HTTPS, refuses redirects, and times out custom/Resend requests after ten seconds. This adapter can use SMTP or another provider behind your server; Feedbax does not require a general plugin system or expose SMTP passwords in application configuration.
+
+### Delivery limits and recovery
+
+Each scheduled invocation attempts at most twenty emails. D1 leases serialize workers, and failures use bounded exponential retry, starting at one minute and capped at six hours. Delivery is abandoned after eight failed attempts or 24 hours, whichever comes first. Resend's provider deduplication window is 24 hours; Cloudflare's documented binding has no equivalent idempotency parameter, so a crash or ambiguous timeout after acceptance can result in a duplicate email. Custom senders must supply their own durable deduplication. No adapter promises exactly-once inbox delivery, and provider acceptance does not prove final recipient delivery. In-app notifications remain available when email fails. Inspect provider suppression/bounce logs and the private D1 delivery state to investigate delivery failures; never publish these records.
+
+## Image attachments
+
+Set `connected.images: true` and bind a dedicated private R2 bucket:
+
+```json
+{
+  "r2_buckets": [
+    { "binding": "FEEDBAX_IMAGES", "bucket_name": "your-installation-images" }
+  ]
+}
+```
+
+Create the bucket with `pnpm exec wrangler r2 bucket create your-installation-images`. Keep its r2.dev endpoint and public custom-domain access disabled; only Feedbax serves its objects. Apply all included D1 migrations. `PARTICIPATION_SIGNING_SECRET` must contain at least 32 random characters; it already supports participation capabilities and also signs scoped image review and unsubscribe links using independent purposes.
+
+Verified Participants can add up to four JPEG, PNG, or WebP images to a new Post or Comment. Each image is at most 5 MiB. The server checks MIME type, image signatures, size, ownership, and association permissions; SVG, video, and general file attachments are rejected. The form shows upload progress, previews, and removal controls and waits for uploads before submission. Text is still required. Images can be added on creation; replacing attachments on an existing Post or Comment is not part of this release.
+
+Images attach to the newly created Notion content through D1 records. Pending uploads are private to their authenticated uploader and expire after 24 hours. Scheduled cleanup removes unused uploads and retries interrupted deletions. Public image requests recheck Post publication and, for Comment images, that the Comment still exists in an open Thread. The uploader can inspect pending images and their own existing Draft Post images privately; removing the associated content also removes uploader and review-link access. Unpublishing a Post or resolving/deleting a Comment stops public image access; downloads use no-store and cannot be embedded from another origin.
+
+For a Draft Post, Feedbax writes read-only image review links into its private Notion page body. Team Members use them to inspect attachments before publication. These links are bearer capabilities: keep the page body private, do not paste its review URLs into public Description or Team Response fields, and restrict Notion workspace access normally. Public Post projections contain only the ordinary visibility-checked image route, never the review token. Rotating `PARTICIPATION_SIGNING_SECRET` invalidates existing private review links and email unsubscribe links as well as older participation capabilities.
+
+Images retain their original bytes; Feedbax does not transcode them or strip EXIF. R2 and D1 need coordinated backups because the association records authorize access to the objects. Removing the R2 binding must be paired with disabling `connected.images`; missing storage fails closed. Images are not included in the stable trusted `/api/v1/posts` submission contract or the copied feedback block in this release.
+
+## Expanded production acceptance
+
+In a dedicated Installation, apply all D1 migrations, configure the scheduled trigger, verify the sender domain, and use a private R2 bucket. Run `feedbax doctor`, then verify:
+
+1. Sign in from two browsers through the real product app, including a verified email assertion. Follow/unfollow the same Published Post and check continuity. Confirm a Device Profile cannot substitute for identity.
+2. Change a followed Post's status and add a Product Team Comment directly in Notion. Run a scheduled invocation or wait for its trigger. Confirm exactly one in-app event per observed change, private read state across browsers, and no access from another Participant.
+3. Opt in to email for a test recipient, confirm provider acceptance and actual receipt, force a retry in the dedicated test adapter, and verify its documented deduplication behavior. Check unsubscribe GET is non-mutating and POST disables future email while retaining in-app updates.
+4. Upload an image to a Draft Post. Confirm only the uploader and private Notion review link can access it; publish the Post and confirm public display, then unpublish and confirm public access stops. Repeat for a Comment and resolve it in Notion.
+5. Reject a forged review link, wrong-owner image association, oversized/unsupported image, unsigned mutation, and cross-origin mutation. Check mobile previews, unread states, empty/error/retry states, and cleanup of abandoned uploads.
+
+These checks require your real application, sender, and infrastructure. Local tests and builds do not constitute production delivery or release evidence.

@@ -21,7 +21,7 @@ export function SiteHeader() {
       </button>
       <nav
         id="site-nav"
-        className={open ? "site-nav is-open" : "site-nav"}
+        className={open ? "is-open" : undefined}
         aria-label="Primary"
       >
         <a href="/docs">Docs</a>

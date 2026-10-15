@@ -1,88 +1,39 @@
-import { useEffect, useState } from "react";
-import type { CommentThreadPage, PublicPost } from "@feedbax/feedback";
-import { ExternalLink } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
   getPublicPost,
   getPublicPostComments,
 } from "./public-post-server-function";
-import {
-  PublicPostDetail,
-  PublicPostDetailSkeleton,
-} from "./public-post-detail";
+import { PublicPostDetailSkeleton } from "./public-post-detail-skeleton";
+import { publicPostQuery } from "./post-detail-query";
+import { PostDetailContent } from "./post-detail-content";
 import { AuthorizedDraftPost } from "./authorized-draft-post";
 import { mutatePublicComment, submitPublicComment } from "./public-post-route";
-import { mergeCommentThreads } from "./comment-thread-page";
 
-type OverlayDetail = {
-  post: PublicPost | null;
-  comments: CommentThreadPage;
-};
+const loadComments = (slug: string, cursor?: string) =>
+  getPublicPostComments({ data: { slug, ...(cursor ? { cursor } : {}) } });
 
 export function OverlayPostDetail({ slug }: { slug: string }) {
-  const [detail, setDetail] = useState<OverlayDetail>();
-  useEffect(() => {
-    let current = true;
-    setDetail(undefined);
-    getPublicPost({ data: { slug } })
-      .then(async (post) => ({
-        post: post ?? null,
-        comments: post
-          ? await getPublicPostComments({ data: { slug } }).catch(() => ({
-              items: [],
-            }))
-          : { items: [] },
-      }))
-      .then((value) => current && setDetail(value))
-      .catch(
-        () => current && setDetail({ post: null, comments: { items: [] } }),
-      );
-    return () => {
-      current = false;
-    };
-  }, [slug]);
+  return <OverlayPost key={slug} slug={slug} />;
+}
 
-  if (detail === undefined) return <PublicPostDetailSkeleton />;
+function OverlayPost({ slug }: { slug: string }) {
+  const query = useQuery(
+    publicPostQuery(slug, (value) => getPublicPost({ data: { slug: value } })),
+  );
+  const post = query.data;
+
   return (
     <div className="overlay-post-detail">
-      <a
-        className="post-full-page-link"
-        href={`/p/${encodeURIComponent(slug)}`}
-      >
-        Open full page <ExternalLink aria-hidden="true" />
-      </a>
-      {detail.post ? (
-        <PublicPostDetail
-          post={detail.post}
+      {query.isPending ? (
+        <PublicPostDetailSkeleton display="overlay" />
+      ) : post ? (
+        <PostDetailContent
+          post={post}
           display="overlay"
-          comments={detail.comments}
+          loadComments={loadComments}
           submitComment={submitPublicComment}
           mutateComment={mutatePublicComment}
-          loadMore={
-            detail.comments.nextCursor
-              ? async () => {
-                  const next = await getPublicPostComments({
-                    data: { slug, cursor: detail.comments.nextCursor },
-                  });
-                  setDetail((current) =>
-                    current
-                      ? {
-                          ...current,
-                          comments: {
-                            items: mergeCommentThreads(
-                              current.comments.items,
-                              next.items,
-                            ),
-                            ...(next.nextCursor
-                              ? { nextCursor: next.nextCursor }
-                              : {}),
-                          },
-                        }
-                      : current,
-                  );
-                }
-              : undefined
-          }
         />
       ) : (
         <AuthorizedDraftPost slug={slug} />

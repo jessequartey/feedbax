@@ -21,7 +21,7 @@ export const Route = createFileRoute("/submit")({
 
 function SubmitComponent() {
   return (
-    <main className="feedback-index submission-page">
+    <main className="feedback-index">
       <RoutedPostCreationForm />
     </main>
   );

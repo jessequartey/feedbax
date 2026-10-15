@@ -7,7 +7,7 @@ export function getRouter() {
     routeTree,
     scrollRestoration: true,
     defaultNotFoundComponent: () => (
-      <main className="docs-not-found">
+      <main className="mx-auto max-w-3xl px-6 py-24">
         <p className="eyebrow">404</p>
         <h1>That page is not in the manual.</h1>
         <a href="/docs">Return to documentation</a>

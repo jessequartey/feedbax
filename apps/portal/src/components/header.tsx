@@ -2,6 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { cn } from "@feedbax/ui/lib/utils";
 
 import { CommandPaletteTrigger } from "./command-palette-context";
+import { NotificationInbox } from "./notification-inbox";
 import { ProfileMenu } from "./profile-menu";
 import type { PortalFeatures, ProductConfiguration } from "@feedbax/config";
 import feedbax from "../feedbax";
@@ -87,6 +88,7 @@ export default function Header({
               compact
             />
           ) : null}
+          <NotificationInbox />
           <ProfileMenu />
         </div>
       </header>

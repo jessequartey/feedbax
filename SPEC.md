@@ -41,7 +41,7 @@ The Connected Profile is a capability distinction, not a paid or enterprise tier
 
 ## Version 0.2.0 replacement release
 
-The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile. Final `0.2.0` follows only after the generated portal, CLI, documentation, and replacement guidance are ready. The working proof should reach prospective design partners before work begins on the Connected Profile.
+The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile. Final `0.2.0` follows only after the generated portal, CLI, documentation, and replacement guidance are ready. The working proof has shipped. As of 2026-10-15, the owner is running adoption in parallel with the approved 0.2.1 Connected Profile foundation.
 
 ### Included
 
@@ -75,6 +75,10 @@ The replacement ships first as `0.2.0-alpha.*` builds of the Notion-only Profile
 - Linear, Jira, GitHub, and Slack connectors
 - Duplicate detection and AI
 - Billing and enterprise features
+
+## Version 0.2.1 Connected Profile foundation
+
+The next release adds verified Participant identity through signed handoff from the Product Team’s existing application, D1 operational state managed through Drizzle, reliable unique voting, verified Comment attribution, explicit per-Post following, private in-app and opt-in email notifications, and image-only attachments on Posts and Comments. Cloudflare Email Service, Resend, and a custom HTTPS sender are supported email choices. The Notion-only Profile remains the default and preserves its existing behavior. Hosted billing, video, general file attachments, and additional deployment targets remain out of scope. See `docs/version-0.2.1-plan.md` and ADR-0030. Adoption and custom domains are owner-led parallel work, not implementation prerequisites.
 
 ## Feedback model
 
@@ -194,7 +198,7 @@ The standalone portal exposes:
 
 Public Post search is available from every portal page through one global command palette opened by Cmd/Ctrl+K or a Search button. The palette uses the same public Post query definition and cache family as the feed, opens selected Posts with contextual route masking, and offers Feedback, Roadmap, Changelog, and New post navigation actions. The feed route continues to validate and render a `search` parameter supplied in a URL, but Participant search interactions stay in the palette instead of mutating feed URL state.
 
-A Device Profile stores a required display name and syntactically valid email on one device. Both fields are required when creating a Post, Comment, or reply through the public portal. This requirement does not change the trusted versioned submission API, verify email ownership, create Participant identity, or grant editing authority; clearing the Device Profile does not remove Browser Capabilities.
+A Device Profile stores a required display name and syntactically valid email on one device. Both fields are required when creating a Post through the portal, and for Comments/replies in the Notion-only Profile. Connected Comments/replies instead require a verified application identity; their display name is supplied by the signed server identity, and a Device Profile cannot substitute for sign-in. This requirement does not change the trusted versioned submission API, verify email ownership, create Participant identity, or grant editing authority; clearing the Device Profile does not remove Browser Capabilities.
 
 TanStack Router owns validated URL state, route masking, and loader orchestration. Loaders seed the same typed TanStack Query definitions consumed by components, so preload and render share one server-state path. Mutations update or invalidate every affected feed, detail, draft, and roadmap query. Public and capability-authorized Draft Post reads use separate query definitions and cache paths; authorized reads are private and `no-store`, and raw Browser Capabilities never enter Query keys or persisted Query caches.
 
@@ -208,11 +212,11 @@ Vote and Comment mutations also use internal portal handlers. They are not added
 
 ## Public read query
 
-Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Top is the default validated sort state; legacy `sort=trending` resolves to Top. New sorts by Created At descending. A real time- or velocity-based Trending algorithm is excluded from version 0.2.0. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
+Public lists query 25 Posts at a time with opaque cursor pagination, enforce `Published = true` in the Notion query, and request only public allowlisted properties. Unfiltered Top on the feedback page excludes Shipped Posts before pagination. An explicit Shipped status filter, search, New ordering, and the roadmap still expose them. Top is the default validated sort state; legacy `sort=trending` resolves to Top. New sorts by Created At descending. A real time- or velocity-based Trending algorithm is excluded from version 0.2.0. Authorized Draft Posts are pinned above public results and excluded from public ordering. The roadmap groups by Post Status and sorts within groups by Updated At descending.
 
-Each public feedback-list cache miss performs one Notion query with no per-item follow-up requests. A roadmap cache miss fetches one 25-Post cursor page per roadmap Post Status. Because Notion data-source queries do not expose total result counts, each first-page roadmap read follows the remaining per-status cursors with 100-Post count pages to calculate the exact column totals; it never performs per-Post follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable page size is deferred.
+In the Notion-only Profile, each public feedback-list cache miss performs one Notion query with no per-item follow-up requests. Connected Profile enriches eligible public projections with batched D1 Vote counts; its initial Top implementation enumerates all matching Published Posts before ranking and paginating in batches of 25 so legacy Notion counters cannot distort ranking. A roadmap cache miss fetches one 25-Post cursor page per roadmap Post Status. Because Notion data-source queries do not expose total result counts, each first-page roadmap read follows the remaining per-status cursors with 100-Post count pages to calculate the exact column totals; it never performs per-Post follow-up requests. `429` and `529` responses honor `Retry-After` and use bounded exponential backoff with jitter. Configurable page size is deferred.
 
-The public-read cache requires no KV or D1. TanStack Start routes produce invariant public responses and cache headers; Cloudflare Workers Caching provides the shared edge storage, tiering, request collapsing, stale refresh, and stale-on-error behavior.
+The Notion-only public-read cache requires no KV or D1. Connected public projections additionally read authoritative D1 counts, but never include Participant subjects or session credentials. TanStack Start routes produce invariant public responses and cache headers; Cloudflare Workers Caching provides the shared edge storage, tiering, request collapsing, stale refresh, and stale-on-error behavior.
 
 Browsers cache public responses for 30 seconds. Cloudflare treats them as fresh for 120 seconds, may serve stale while asynchronously refreshing for 10 minutes, and may serve the last safe public projection during a Notion failure for up to 24 hours. Direct Team Member edits in Notion may therefore take up to two minutes to appear.
 
@@ -247,7 +251,7 @@ Implementation proceeds in this order:
 3. Verify submission, moderation, public rendering, Browser Capability editing, and Cloudflare deployment.
 4. Turn the proven setup and deployment steps into the CLI.
 5. Add the documentation application around the stable workflow.
-6. Build the Connected Profile after design-partner learning.
+6. Build the 0.2.1 Connected Profile foundation while the owner runs design-partner learning in parallel.
 7. Create hosted or proprietary code only after adoption justifies it.
 
 Connector folders are created only when an approved connector has implementation work; empty aspirational packages are excluded.
@@ -382,3 +386,7 @@ Existing `feedbax@0.1.1` and `create-feedbax@0.1.0` packages are replaced throug
 All changes to `main` use pull requests with required CI and resolved conversations; force pushes and branch deletion are blocked. Another approving review becomes mandatory only after a second trusted maintainer exists.
 
 Contributions require no CLA. Issues are reserved for reproducible bugs, while features and architectural proposals begin as discussions. Maintainers favor small bug, reliability, performance, documentation, and maintenance changes; non-trivial work requires prior agreement, and maintainers may close, split, or decline unsolicited scope-expanding work.
+
+### 0.2.1 portal presentation refinements
+
+Roadmap columns show five Posts initially and reveal five more per View more action; this presentation window does not change backend cursor page sizes or total counts. Card titles and descriptions use two-line previews of uniform height. Post dialogs open their loading shell immediately; dialog and canonical pages render Post content without waiting for Comments. The Comment composer or compact profile/sign-in prompt precedes a separately scrollable thread list with loading and retry feedback. The redundant full-page toolbar is absent. Portal page headings and Post dialog titles/descriptions use the shared shadcn type scale, and Changelog uses a compact release timeline with readable paragraphs.

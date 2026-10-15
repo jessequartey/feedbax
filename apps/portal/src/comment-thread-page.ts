@@ -10,7 +10,17 @@ export function mergeCommentThreads(
     merged.set(
       thread.id,
       existing
-        ? { ...existing, comments: [...existing.comments, ...thread.comments] }
+        ? {
+            ...existing,
+            comments: [
+              ...new Map(
+                [...existing.comments, ...thread.comments].map((comment) => [
+                  comment.id,
+                  comment,
+                ]),
+              ).values(),
+            ],
+          }
         : thread,
     );
   }

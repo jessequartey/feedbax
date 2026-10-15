@@ -41,7 +41,7 @@ describe("Comment creation", () => {
     });
     expect(composer.classList.contains("comment-composer")).toBe(true);
     expect(screen.getByLabelText("Add a comment").getAttribute("rows")).toBe(
-      "4",
+      "3",
     );
     expect(
       screen.getByPlaceholderText("Share context, an example, or a question…"),
@@ -145,6 +145,47 @@ describe("Comment creation", () => {
 
     expect(submitComment).not.toHaveBeenCalled();
     expect(await screen.findByLabelText("Add a comment")).toBeTruthy();
+  });
+
+  it("does not duplicate a native Comment that arrives before its submission confirmation", async () => {
+    saveDeviceProfile(localStorage, {
+      name: "Ari",
+      email: "private@example.com",
+    });
+    const confirmed = {
+      id: "native-comment",
+      discussionId: "native-thread",
+      body: "One comment",
+      author: { kind: "participant" as const, displayName: "Ari" },
+      createdAt: new Date(),
+    };
+    let finish!: (value: typeof confirmed) => void;
+    const submitComment = vi.fn(
+      () =>
+        new Promise<typeof confirmed>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const view = renderCommentDetail({ submitComment });
+    fireEvent.change(await screen.findByLabelText("Add a comment"), {
+      target: { value: confirmed.body },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Post comment" }));
+    view.rerender(
+      <DeviceProfileProvider>
+        <PublicPostDetail
+          post={post}
+          submitComment={submitComment}
+          comments={{
+            items: [{ id: confirmed.discussionId, comments: [confirmed] }],
+          }}
+        />
+      </DeviceProfileProvider>,
+    );
+    finish(confirmed);
+    await waitFor(() =>
+      expect(screen.getAllByText("One comment")).toHaveLength(1),
+    );
   });
 
   it("rolls back a rejected Comment and shows an actionable error", async () => {

@@ -51,7 +51,19 @@ export type ChangelogConfiguration = {
   readonly dataSourceId: string;
   readonly properties: ChangelogPropertyIds;
 };
+export type EmailConfiguration = {
+  readonly provider: "cloudflare" | "resend" | "custom";
+  readonly from: string;
+  readonly endpoint?: string;
+};
+export type ConnectedConfiguration = {
+  readonly email?: EmailConfiguration;
+  readonly images?: boolean;
+  readonly issuer: string;
+  readonly loginUrl: string;
+};
 export type FeedbaxConfig = {
+  readonly connected?: ConnectedConfiguration;
   readonly product: ProductConfiguration;
   readonly theme: { readonly preset: string };
   readonly notion: NotionConfiguration;
@@ -66,6 +78,7 @@ export type FeedbaxConfig = {
 };
 
 const rootKeys = [
+  "connected",
   "product",
   "theme",
   "notion",
@@ -124,6 +137,75 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
     ...optionalPublicUrl(product, "supportUrl"),
     ...optionalPublicUrl(product, "privacyUrl"),
   };
+  let connected: ConnectedConfiguration | undefined;
+  if (value.connected !== undefined) {
+    const input = object(value.connected, "connected");
+    rejectUnknown(
+      input,
+      ["issuer", "loginUrl", "email", "images"],
+      "connected",
+    );
+    const issuer = publicUrl(input.issuer, "connected.issuer", false);
+    const loginUrl = publicUrl(input.loginUrl, "connected.loginUrl", false);
+    if (!validatedProduct.siteUrl)
+      throw new Error("Connected Profile requires product.siteUrl.");
+    if (
+      new URL(loginUrl).username ||
+      new URL(loginUrl).password ||
+      new URL(loginUrl).hash
+    )
+      throw new Error(
+        "connected.loginUrl must not contain credentials or a fragment.",
+      );
+    let email: EmailConfiguration | undefined;
+    if (input.email !== undefined) {
+      const sender = object(input.email, "connected.email");
+      rejectUnknown(
+        sender,
+        ["provider", "from", "endpoint"],
+        "connected.email",
+      );
+      if (!["cloudflare", "resend", "custom"].includes(String(sender.provider)))
+        throw new Error(
+          "connected.email.provider must be cloudflare, resend, or custom.",
+        );
+      const from = text(sender.from, "connected.email.from");
+      if (from.length > 254 || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(from))
+        throw new Error(
+          "connected.email.from must be a plain sender email address.",
+        );
+      const endpoint =
+        sender.endpoint === undefined
+          ? undefined
+          : publicUrl(sender.endpoint, "connected.email.endpoint", false);
+      if (sender.provider === "custom" && !endpoint)
+        throw new Error("Custom email requires connected.email.endpoint.");
+      if (sender.provider !== "custom" && endpoint)
+        throw new Error("Only custom email uses connected.email.endpoint.");
+      if (
+        endpoint &&
+        (new URL(endpoint).username ||
+          new URL(endpoint).password ||
+          new URL(endpoint).hash)
+      )
+        throw new Error(
+          "Custom email endpoint must not contain credentials or a fragment.",
+        );
+      email = {
+        provider: sender.provider as EmailConfiguration["provider"],
+        from,
+        ...(endpoint ? { endpoint } : {}),
+      };
+    }
+    if (input.images !== undefined && typeof input.images !== "boolean")
+      throw new Error("connected.images must be true or false.");
+    connected = {
+      issuer,
+      loginUrl,
+      ...(email ? { email } : {}),
+      ...(input.images !== undefined ? { images: input.images } : {}),
+    };
+  }
   const theme = object(value.theme, "theme");
   rejectUnknown(theme, ["preset"], "theme");
   const notion = storage(
@@ -172,6 +254,7 @@ export function defineFeedbax(config: unknown): FeedbaxConfig {
     throw new Error("Turnstile is enabled but turnstile.siteKey is missing.");
   return {
     product: validatedProduct,
+    ...(connected ? { connected } : {}),
     theme: { preset: text(theme.preset, "theme.preset") },
     notion,
     ...(changelog ? { changelog } : {}),

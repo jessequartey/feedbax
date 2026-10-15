@@ -17,6 +17,7 @@ const routes = [
   "guides/notion-workflow",
   "guides/comments-and-voting",
   "guides/changelog",
+  "guides/connected-profile",
   "guides/customization",
   "integrations/submission-api",
   "integrations/feedback-block",

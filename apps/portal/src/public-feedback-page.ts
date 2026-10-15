@@ -30,7 +30,18 @@ export async function loadPublicPostPage({
   feedback: Pick<FeedbackModule, "listPublicPosts">;
   search: Record<string, unknown>;
 }): Promise<PublicPostPage> {
-  return feedback.listPublicPosts(publicPostSearch(search));
+  const query = publicPostSearch(search);
+  const defaultTop =
+    query.sort !== "new" &&
+    !query.search &&
+    !query.status &&
+    !query.statuses?.length;
+  return feedback.listPublicPosts({
+    ...query,
+    ...(defaultTop
+      ? { statuses: postStatuses.filter((status) => status !== "Shipped") }
+      : {}),
+  });
 }
 
 export function publicPostSearch(

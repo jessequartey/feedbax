@@ -65,6 +65,103 @@ export async function diagnoseInstallation({
         throw new Error(`Restore ${name} in wrangler.jsonc.`);
     return "Worker target and required rate-limit bindings are configured.";
   });
+  if (config?.connected) {
+    results.push({
+      name: "Connected Worker plan",
+      status: "warn",
+      message:
+        "The scheduled Connected workload targets Workers Paid; Free invocation limits are insufficient for a full batch.",
+      repair:
+        "Verify the Installation uses Workers Paid. Cloudflare Email Service also requires Paid for arbitrary recipients.",
+    });
+    await check("Connected identity", async () => {
+      if (
+        !effectiveEnv.IDENTITY_HANDOFF_SECRET ||
+        effectiveEnv.IDENTITY_HANDOFF_SECRET.length < 32
+      )
+        throw new Error(
+          "Configure IDENTITY_HANDOFF_SECRET with at least 32 random characters in .dev.vars and the Worker secret store.",
+        );
+      return "Signed identity handoff is configured; the secret is not printed.";
+    });
+    await check("Connected scheduled updates", async () => {
+      const wrangler = await readWranglerConfiguration(cwd);
+      if (!wrangler.triggers?.crons?.length)
+        throw new Error(
+          'Add triggers.crons: ["*/5 * * * *"] to wrangler.jsonc for following updates, email retries, and image cleanup.',
+        );
+      return "Scheduled Connected processing is configured.";
+    });
+    if (config.connected.email)
+      await check("Notification email", async () => {
+        const sender = config!.connected!.email!;
+        const wrangler = await readWranglerConfiguration(cwd);
+        if (sender.provider === "cloudflare") {
+          if (
+            !wrangler.send_email?.some((item) => item.name === "FEEDBAX_EMAIL")
+          )
+            throw new Error(
+              "Add the FEEDBAX_EMAIL send_email binding and onboard the sender domain to Cloudflare Email Service.",
+            );
+        } else if (!effectiveEnv.EMAIL_PROVIDER_SECRET)
+          throw new Error(
+            "Store EMAIL_PROVIDER_SECRET in .dev.vars and the Worker secret store for the selected email provider.",
+          );
+        return `${sender.provider} email sending is configured. Domain verification and real delivery still need an acceptance check.`;
+      });
+    if (config.connected.images)
+      await check("Participant images", async () => {
+        const wrangler = await readWranglerConfiguration(cwd);
+        if (
+          !wrangler.r2_buckets?.some(
+            (item) => item.binding === "FEEDBAX_IMAGES" && item.bucket_name,
+          )
+        )
+          throw new Error(
+            "Bind a dedicated private R2 bucket as FEEDBAX_IMAGES; keep r2.dev and custom-domain public access disabled.",
+          );
+        await execute(
+          "pnpm",
+          [
+            "exec",
+            "wrangler",
+            "d1",
+            "execute",
+            "FEEDBAX_DB",
+            "--remote",
+            "--command",
+            "SELECT id,subject,object_key,content_type,bytes,created_at,post_slug,comment_id FROM image_attachments LIMIT 0;",
+          ],
+          cwd,
+        );
+        return "Image binding and metadata schema are configured. Confirm the bucket has no public endpoint.";
+      });
+    await check("Connected D1 schema", async () => {
+      const wrangler = await readWranglerConfiguration(cwd);
+      const binding = wrangler.d1_databases?.find(
+        (item) => item.binding === "FEEDBAX_DB",
+      );
+      if (!binding?.database_id)
+        throw new Error(
+          "Bind a dedicated D1 database as FEEDBAX_DB in wrangler.jsonc and apply all included D1 migrations.",
+        );
+      await execute(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "FEEDBAX_DB",
+          "--remote",
+          "--command",
+          "SELECT subject, display_name FROM participants LIMIT 0; SELECT token_hash, expires_at FROM participant_sessions LIMIT 0; SELECT post_slug, subject FROM participant_votes LIMIT 0; SELECT comment_id, subject, display_name FROM comment_attribution LIMIT 0; SELECT nonce FROM identity_nonces LIMIT 0; SELECT post_slug,subject,followed_at FROM post_follows LIMIT 0; SELECT subject,email,email_enabled FROM participant_contacts LIMIT 0; SELECT id,event_id,read_at,email_state FROM participant_notifications LIMIT 0; SELECT post_slug,status,comment_cursor FROM post_observations LIMIT 0; SELECT id,post_slug,created_at FROM post_events LIMIT 0;",
+        ],
+        cwd,
+      );
+      return "The configured D1 schema is readable. No data was modified.";
+    });
+  }
   for (const name of [
     "NOTION_TOKEN",
     "FEEDBAX_API_KEY_HASH",

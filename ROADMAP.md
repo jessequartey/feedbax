@@ -2,7 +2,11 @@
 
 This roadmap separates the proof release from the larger platform vision. It records direction, not delivery promises or dates.
 
-## Version 0.2.0 alpha: prove the Notion-native loop
+## Version 0.2.0 — shipped 2026-10-15
+
+Published `feedbax@0.2.0` and `create-feedbax@0.2.0`; release acceptance is recorded in `docs/version-0.2.0-acceptance.md`.
+
+### Notion-native loop
 
 - TanStack Start portal on Cloudflare Workers
 - Notion-only Profile
@@ -16,7 +20,7 @@ This roadmap separates the proof release from the larger platform vision. It rec
 - Typed `feedbax.ts` configuration
 - Manual deployment proven before CLI automation
 
-## Version 0.2.0: make the proof adoptable
+### Installation and operation
 
 - `create-feedbax` interactive generator using a versioned Feedbax-owned template
 - `doctor` diagnostics and API-key rotation
@@ -24,13 +28,27 @@ This roadmap separates the proof release from the larger platform vision. It rec
 - shadcn theme preset workflow
 - Framework-neutral shadcn feedback registry block with server-only trusted client helper
 - Dogfooded Feedbax feedback portal
-- Design-partner feedback and production-derived fixes
 
-## Connected Profile
+## Version 0.2.1 — Connected Profile foundation
 
-- Verified Participant identity and signed identity handoff
+In development. The owner selected this scope on 2026-10-15; adoption runs in parallel and is no longer a prerequisite to implementation.
+
+- Verified Participant identity through signed handoff from the Product Team’s existing application
 - D1 operational state managed through Drizzle
-- Reliable unique voting and verified Comment attribution
+- Reliable unique voting per verified Participant and Published Post
+- Verified Comment attribution backed by durable identity mappings
+- Optional Connected Profile; existing Notion-only Installations retain their behavior
+- Generated installation, diagnostics, documentation, and release verification for both profiles
+
+## Owner-led adoption and operations
+
+- Three independent design-partner installations and interviews
+- Human-authored Notion reply/resolve walkthrough
+- Official custom domains
+- Production-derived fixes informed by adoption
+
+## Later Connected Profile capabilities
+
 - Following and notifications
 - Participant media storage in R2
 - Abuse controls and synchronization hardening

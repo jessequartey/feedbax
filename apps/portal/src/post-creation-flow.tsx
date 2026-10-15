@@ -65,11 +65,11 @@ export function PostCreationFlow({
 export function PostCreationSkeleton() {
   return (
     <main
-      className="feedback-index submission-page"
+      className="feedback-index"
       aria-label="Loading Post creation"
       aria-busy="true"
     >
-      <section className="feedback-submit creation-skeleton" aria-hidden="true">
+      <section className="feedback-submit" aria-hidden="true">
         <div className="feedback-submit-copy">
           <Skeleton className="creation-skeleton-eyebrow" />
           <Skeleton className="creation-skeleton-heading" />

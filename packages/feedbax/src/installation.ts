@@ -55,7 +55,16 @@ export type WranglerConfiguration = {
   name?: string;
   account_id?: string;
   routes?: (string | { pattern: string; custom_domain?: boolean })[];
+  d1_databases?: {
+    binding: string;
+    database_id: string;
+    database_name?: string;
+    migrations_dir?: string;
+  }[];
   ratelimits?: { name: string }[];
+  triggers?: { crons?: string[] };
+  send_email?: { name: string; allowed_sender_addresses?: string[] }[];
+  r2_buckets?: { binding: string; bucket_name: string }[];
 };
 export async function readWranglerConfiguration(
   cwd: string,

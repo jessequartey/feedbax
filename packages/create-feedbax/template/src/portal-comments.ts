@@ -26,6 +26,7 @@ export interface PortalCommentResult {
 const commentCapabilityLifetime = 15 * 60 * 1_000;
 
 export interface PortalCommentRequest {
+  imageIds?: string[];
   slug: string;
   body: string;
   displayName: string;
@@ -36,6 +37,7 @@ export interface PortalCommentRequest {
 }
 
 export function createPortalCommentHandler(options: {
+  verifiedParticipant?: { displayName: string };
   feedback: Pick<FeedbackModule, "createComment" | "replyToCommentThread">;
   commentsEnabled: boolean;
   rateLimiter: PortalSubmissionRateLimiter;
@@ -50,7 +52,7 @@ export function createPortalCommentHandler(options: {
         "Comments are disabled for this Installation.",
         "comments_disabled",
       );
-    const value = validateCommentInput(input);
+    const value = validateCommentInput(input, options.verifiedParticipant);
     const { success } = await options.rateLimiter.limit({
       key: `comment:${options.rateLimitKey}`,
     });
@@ -89,6 +91,7 @@ export function createPortalCommentHandler(options: {
     }
 
     const command = {
+      ...(value.imageIds ? { imageIds: value.imageIds } : {}),
       slug: value.slug,
       body: value.body,
       displayName: value.displayName,
@@ -338,10 +341,16 @@ export function createPortalCommentMutationRequestHandler(
   };
 }
 
-function validateCommentInput(input: unknown): PortalCommentRequest {
+function validateCommentInput(
+  input: unknown,
+  participant?: { displayName: string },
+): PortalCommentRequest {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw invalidCommentRequest();
-  const value = input as Record<string, unknown>;
+  const value: Record<string, unknown> = {
+    ...(input as Record<string, unknown>),
+    ...(participant ? { displayName: participant.displayName } : {}),
+  };
   if (typeof value.slug !== "string" || !value.slug.trim())
     throw invalidCommentRequest();
   if (typeof value.body !== "string" || !value.body.trim())
@@ -354,16 +363,26 @@ function validateCommentInput(input: unknown): PortalCommentRequest {
       "Device Profile display name is required before commenting.",
       "profile_required",
     );
-  if (!isValidCommentEmail(value.email))
+  if (!participant && !isValidCommentEmail(value.email))
     throw new ActionablePortalFailure(
       "A Device Profile with a valid email is required before commenting.",
       "profile_required",
     );
+  if (
+    value.imageIds !== undefined &&
+    (!Array.isArray(value.imageIds) ||
+      value.imageIds.length > 4 ||
+      value.imageIds.some(
+        (id) => typeof id !== "string" || !/^[-a-f0-9]{36}$/.test(id),
+      ))
+  )
+    throw invalidCommentRequest();
   return {
+    ...(value.imageIds ? { imageIds: value.imageIds as string[] } : {}),
     slug: value.slug.trim(),
     body: value.body.trim(),
     displayName: value.displayName.trim(),
-    email: value.email.trim(),
+    email: typeof value.email === "string" ? value.email.trim() : "",
     ...(typeof value.discussionId === "string" && value.discussionId
       ? { discussionId: value.discussionId }
       : {}),

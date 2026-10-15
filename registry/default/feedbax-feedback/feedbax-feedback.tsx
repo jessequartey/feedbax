@@ -254,7 +254,7 @@ function FeedbackForm({
       </FieldGroup>
       {error ? <FieldError role="alert">{error}</FieldError> : null}
       {success ? (
-        <p role="status" className="text-sm text-emerald-700">
+        <p role="status" className="text-sm text-primary">
           {success}
         </p>
       ) : null}

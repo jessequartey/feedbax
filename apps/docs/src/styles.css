@@ -275,14 +275,14 @@ a {
   line-height: 1.7;
   font-size: 13px;
 }
-.text-link {
+.docs-link {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   margin-top: 18px;
   font-weight: 600;
 }
-.text-link svg {
+.docs-link svg {
   width: 16px;
 }
 .trust {

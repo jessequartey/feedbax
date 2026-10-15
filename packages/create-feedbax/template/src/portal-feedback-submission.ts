@@ -147,8 +147,18 @@ function validateInput(
     throw invalidSubmission();
   }
   if (!isValidSubmitter(value.submitter)) throw invalidSubmission();
+  if (
+    value.imageIds !== undefined &&
+    (!Array.isArray(value.imageIds) ||
+      value.imageIds.length > 4 ||
+      value.imageIds.some(
+        (id) => typeof id !== "string" || !/^[-a-f0-9]{36}$/.test(id),
+      ))
+  )
+    throw invalidSubmission();
 
   return {
+    ...(value.imageIds ? { imageIds: value.imageIds as string[] } : {}),
     title: value.title,
     description: value.description,
     type: value.type,

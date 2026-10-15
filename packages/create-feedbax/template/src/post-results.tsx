@@ -142,7 +142,7 @@ function PostResultRow({
             <span className="block text-base font-medium text-foreground sm:text-lg">
               {post.title}
             </span>
-            <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
+            <span className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">
               {post.description}
             </span>
             <span

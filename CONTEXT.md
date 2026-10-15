@@ -16,6 +16,14 @@ _Avoid_: Admin, staff user
 A product user who submits feedback or participates through voting, commenting, or following updates.
 _Avoid_: End user, customer, visitor
 
+**Verified Participant**:
+A Participant whose identity is asserted by a Product Team’s trusted application. Verification establishes continuity of that application identity, not legal identity or one account per human.
+_Avoid_: Verified Device Profile, verified email, anonymous identity
+
+**Identity Handoff**:
+A Product Team application’s assertion that an authenticated Participant may participate in its Feedbax Installation under a stable identity.
+_Avoid_: Device Profile, Browser Capability
+
 **Deployer**:
 The technical person who installs and configures Feedbax for a Product Team. A Deployer may also be a Team Member.
 _Avoid_: Installer, operator
@@ -113,6 +121,20 @@ _Avoid_: Session, login, Participant identity
 **Product Team Comment**:
 A Comment or reply presented publicly as authored by "Product Team" rather than by an individual Team Member.
 _Avoid_: Admin comment, staff reply
+
+## Following, notifications, and images
+
+**Follow**:
+A Verified Participant's explicit subscription to future Post Status changes and new Comments on one Published Post. A Follow may be removed and does not imply a Vote.
+_Avoid_: Vote, watch, automatic subscription
+
+**Notification**:
+A private update for a Verified Participant about a followed Post. Reading a Notification and receiving an email are independent; email delivery requires an eligible contact address and the Participant's consent.
+_Avoid_: Changelog Entry, announcement, guaranteed email delivery
+
+**Image Attachment**:
+A Participant-supplied image associated with a Post or Comment. Its visibility follows the associated content's publication and removal rules.
+_Avoid_: Changelog Image, file attachment, public upload
 
 ## Changelog
 

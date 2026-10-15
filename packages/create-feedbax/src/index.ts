@@ -1,4 +1,4 @@
-import type { PortalFeatures } from "@feedbax/config";
+import type { EmailConfiguration, PortalFeatures } from "@feedbax/config";
 import { createHash, randomBytes } from "node:crypto";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { defineFeedbax } from "@feedbax/config";
@@ -33,6 +33,7 @@ export async function provisionGuidedInstallation({
   themePreset,
   workerName,
   commentProbePageId,
+  connected,
   features,
   feedbackSelection,
   changelogSelection,
@@ -46,6 +47,15 @@ export async function provisionGuidedInstallation({
   themePreset: string;
   workerName?: string;
   commentProbePageId?: string;
+  connected?: {
+    issuer: string;
+    loginUrl: string;
+    databaseId: string;
+    databaseName: string;
+    handoffSecret: string;
+    email?: EmailConfiguration & { secret?: string };
+    imageBucket?: string;
+  };
   features: PortalFeatures;
   feedbackSelection: FeedbackStorageSelection;
   changelogSelection?: ChangelogStorageSelection;
@@ -64,6 +74,58 @@ export async function provisionGuidedInstallation({
   }
   if (product.siteUrl && new URL(product.siteUrl).protocol !== "https:")
     throw new Error("product.siteUrl must be an HTTPS URL.");
+  if (connected) {
+    if (
+      !product.siteUrl ||
+      connected.handoffSecret.length < 32 ||
+      !/^[0-9a-f-]{36}$/i.test(connected.databaseId) ||
+      !connected.databaseName.trim()
+    )
+      throw new Error(
+        "Connected setup requires a public site URL, dedicated D1 identifiers, and a handoff secret of at least 32 characters.",
+      );
+    for (const url of [connected.issuer, connected.loginUrl])
+      if (
+        new URL(url).protocol !== "https:" ||
+        new URL(url).username ||
+        new URL(url).password
+      )
+        throw new Error(
+          "Connected identity URLs must use HTTPS without credentials.",
+        );
+  }
+  if (connected?.email) {
+    const sender = connected.email;
+    if (
+      !["cloudflare", "resend", "custom"].includes(sender.provider) ||
+      !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(sender.from)
+    )
+      throw new Error(
+        "Choose cloudflare, resend, or custom and a plain sender email address.",
+      );
+    if (sender.provider !== "cloudflare" && !sender.secret?.trim())
+      throw new Error(
+        "Resend and custom delivery require a server-only email secret.",
+      );
+    if (
+      sender.provider === "custom" &&
+      (!sender.endpoint ||
+        new URL(sender.endpoint).protocol !== "https:" ||
+        new URL(sender.endpoint).username ||
+        new URL(sender.endpoint).password ||
+        new URL(sender.endpoint).hash)
+    )
+      throw new Error(
+        "Custom delivery requires an HTTPS endpoint without credentials or fragments.",
+      );
+  }
+  if (
+    connected?.imageBucket &&
+    !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(connected.imageBucket)
+  )
+    throw new Error(
+      "Use a dedicated private R2 bucket name of 3–63 lowercase letters, digits, or hyphens.",
+    );
   const targetName =
     workerName ??
     basename(destination)
@@ -134,7 +196,47 @@ export async function provisionGuidedInstallation({
   const wrangler = JSON.parse(await readFile(wranglerPath, "utf8"));
   await writeFile(
     wranglerPath,
-    JSON.stringify({ ...wrangler, name: targetName }, null, 2) + "\n",
+    JSON.stringify(
+      {
+        ...wrangler,
+        name: targetName,
+        ...(connected
+          ? {
+              triggers: { crons: ["*/5 * * * *"] },
+              ...(connected.email?.provider === "cloudflare"
+                ? {
+                    send_email: [
+                      {
+                        name: "FEEDBAX_EMAIL",
+                        allowed_sender_addresses: [connected.email.from],
+                      },
+                    ],
+                  }
+                : {}),
+              ...(connected.imageBucket
+                ? {
+                    r2_buckets: [
+                      {
+                        binding: "FEEDBAX_IMAGES",
+                        bucket_name: connected.imageBucket,
+                      },
+                    ],
+                  }
+                : {}),
+              d1_databases: [
+                {
+                  binding: "FEEDBAX_DB",
+                  database_id: connected.databaseId,
+                  database_name: connected.databaseName,
+                  migrations_dir: "migrations",
+                },
+              ],
+            }
+          : {}),
+      },
+      null,
+      2,
+    ) + "\n",
   );
   const apiKey = randomBytes(32).toString("base64url");
   const signingSecret = randomBytes(32).toString("base64url");
@@ -147,6 +249,10 @@ export async function provisionGuidedInstallation({
       .update(apiKey)
       .digest("base64url"),
     PARTICIPATION_SIGNING_SECRET: signingSecret,
+    ...(connected ? { IDENTITY_HANDOFF_SECRET: connected.handoffSecret } : {}),
+    ...(connected?.email?.secret
+      ? { EMAIL_PROVIDER_SECRET: connected.email.secret }
+      : {}),
     FEEDBAX_VOTING_ENABLED: String(features.voting),
     FEEDBAX_COMMENTS_ENABLED: String(features.comments),
     FEEDBAX_CHANGELOG_ENABLED: String(features.changelog),
@@ -174,6 +280,26 @@ export async function provisionGuidedInstallation({
   const configuration = defineFeedbax({
     product: { ...product, logo: "/feedbax-mark.svg" },
     theme: { preset: themePreset },
+    ...(connected
+      ? {
+          connected: {
+            issuer: connected.issuer,
+            loginUrl: connected.loginUrl,
+            ...(connected.email
+              ? {
+                  email: {
+                    provider: connected.email.provider,
+                    from: connected.email.from,
+                    ...(connected.email.endpoint
+                      ? { endpoint: connected.email.endpoint }
+                      : {}),
+                  },
+                }
+              : {}),
+            ...(connected.imageBucket ? { images: true } : {}),
+          },
+        }
+      : {}),
     notion: {
       databaseId: feedback.databaseId,
       dataSourceId: feedback.dataSourceId,

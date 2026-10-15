@@ -6,6 +6,11 @@ declare module "cloudflare:workers" {
     }>;
   };
   export const env: {
+    FEEDBAX_EMAIL?: import("@feedbax/feedback").CloudflareEmailBinding;
+    EMAIL_PROVIDER_SECRET?: string;
+    FEEDBAX_IMAGES?: import("@cloudflare/workers-types").R2Bucket;
+    FEEDBAX_DB?: import("@feedbax/feedback").ConnectedDatabase;
+    IDENTITY_HANDOFF_SECRET?: string;
     TRUSTED_SUBMISSIONS_RATE_LIMITER: {
       limit(options: { key: string }): Promise<{ success: boolean }>;
     };

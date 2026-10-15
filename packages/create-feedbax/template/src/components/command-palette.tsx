@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import type { PublicPostPage } from "@feedbax/feedback";
 import type { PortalFeatures } from "@feedbax/config";
 
-import { Badge } from "@feedbax/ui/components/badge";
+import { Button } from "@feedbax/ui/components/button";
+import { Kbd, KbdGroup } from "@feedbax/ui/components/kbd";
+import { Spinner } from "@feedbax/ui/components/spinner";
 import {
   Command,
   CommandDialog,
@@ -13,16 +15,8 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@feedbax/ui/components/command";
-import {
-  FileText,
-  LayoutList,
-  LoaderCircle,
-  Map,
-  Newspaper,
-  Plus,
-} from "lucide-react";
+import { FileText, LayoutList, Map, Newspaper, Plus } from "lucide-react";
 import { publicPostsQuery } from "../post-queries";
 import { useCommandPalette } from "./command-palette-context";
 import feedbax from "../feedbax";
@@ -64,14 +58,19 @@ export function CommandPalette({
       (search) => searchPosts(search.search ?? ""),
     ),
     enabled: open && deferredTerm.trim().length > 0,
+    placeholderData: keepPreviousData,
   });
   const posts = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const hasTerm = term.trim().length > 0;
+  const settling = term.trim() !== deferredTerm.trim();
   const showEmpty =
     open &&
     deferredTerm.trim().length > 0 &&
     !query.isPending &&
+    !query.isError &&
+    !settling &&
     posts.length === 0;
-  const searching = open && deferredTerm.trim().length > 0 && query.isFetching;
+  const searching = open && hasTerm && (settling || query.isFetching);
   const searchStatus = searching
     ? "Searching Posts…"
     : showEmpty
@@ -83,7 +82,7 @@ export function CommandPalette({
   useEffect(() => {
     const firstPost = posts[0];
     if (firstPost) setSelection(`post-${firstPost.slug}`);
-  }, [posts]);
+  }, [posts[0]?.slug]);
 
   function getCurrentRouteOptions() {
     const currentRoute = router.state.matches.at(-1);
@@ -136,24 +135,45 @@ export function CommandPalette({
           onValueChange={setTerm}
           placeholder="Search feedback…"
         />
-        <CommandList aria-busy={searching || undefined} className="max-h-96">
-          <CommandEmpty>No Posts match this search.</CommandEmpty>
-          {searching && posts.length === 0 ? (
-            <CommandGroup heading="Posts">
-              <CommandItem disabled value="searching-posts">
-                <LoaderCircle className="animate-spin" aria-hidden="true" />
-                Searching Posts…
-              </CommandItem>
-            </CommandGroup>
+        <CommandList
+          aria-busy={searching || undefined}
+          className="min-h-28 max-h-96 p-2"
+        >
+          {showEmpty ? (
+            <CommandEmpty>No Posts match this search.</CommandEmpty>
           ) : null}
-          {posts.length > 0 ? (
+          {query.isError && hasTerm ? (
+            <div
+              role="alert"
+              className="space-y-3 px-4 py-8 text-center text-sm text-muted-foreground"
+            >
+              <p>Search is unavailable. Try again.</p>
+              <Button variant="outline" onClick={() => void query.refetch()}>
+                Retry search
+              </Button>
+            </div>
+          ) : null}
+          {searching ? (
+            <div
+              role="status"
+              className={
+                posts.length
+                  ? "flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"
+                  : "flex items-center justify-center gap-2 px-4 py-8 text-sm text-muted-foreground"
+              }
+            >
+              <Spinner aria-hidden="true" />
+              Searching Posts…
+            </div>
+          ) : null}
+          {hasTerm && !query.isError && posts.length > 0 ? (
             <CommandGroup heading="Posts">
               {posts.map((post) => (
                 <CommandItem
                   key={post.slug}
                   value={`post-${post.slug}`}
                   onSelect={() => openPost(post.slug)}
-                  className="min-h-11 gap-3 py-2.5"
+                  className="min-h-14 gap-3"
                 >
                   <FileText aria-hidden="true" />
                   <div className="min-w-0 flex-1">
@@ -164,17 +184,14 @@ export function CommandPalette({
                       {post.description}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <Badge variant="outline">{post.type}</Badge>
-                    <Badge className="hidden sm:inline-flex" variant="outline">
-                      {post.status}
-                    </Badge>
+                  <div className="shrink-0 text-right text-xs text-muted-foreground">
+                    <span className="block">{post.status}</span>
+                    <span className="mt-1 hidden sm:block">{post.type}</span>
                   </div>
                 </CommandItem>
               ))}
             </CommandGroup>
           ) : null}
-          {!term.trim() ? <CommandSeparator /> : null}
           {!term.trim() ? (
             <CommandGroup heading="Navigate">
               <CommandItem
@@ -228,6 +245,18 @@ export function CommandPalette({
             </CommandGroup>
           ) : null}
         </CommandList>
+        <div className="flex items-center justify-between gap-4 border-t px-4 py-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <KbdGroup>
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd>
+            </KbdGroup>{" "}
+            to navigate <Kbd>↵</Kbd> to open
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Kbd>Esc</Kbd> to close
+          </span>
+        </div>
         <div aria-label="Search status" className="sr-only" role="status">
           {searchStatus}
         </div>
