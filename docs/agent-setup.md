@@ -4,13 +4,13 @@ Use this guide when a person or coding agent is creating a portal, configuring c
 
 ## 1. Choose the source
 
-For the published 0.2.1 release, use Node 24 LTS and pnpm 10:
+For version 0.2.2, use Node 24 LTS and pnpm 10:
 
 ```sh
 npx create-feedbax@0.2.2 my-feedback
 ```
 
-The guided creator provisions or validates Notion sources, copies the app, generates local secrets, installs dependencies, and runs diagnostics. It has no non-interactive provisioning `--yes` flag.
+The guided creator collects provider-specific resources, provisions or validates the selected connection, copies the app, generates local secrets, installs dependencies, and runs diagnostics. It has no non-interactive provisioning `--yes` flag.
 
 For source copying without prompts, external service calls, or dependency installation:
 

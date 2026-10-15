@@ -1,6 +1,6 @@
 # Version 0.2.2 acceptance
 
-Status: owner accepted the implemented release cut and explicitly authorized merge and publication on 2026-10-15. Release verification is in progress; publication is confirmed separately below. This does not convert unfinished work or unperformed acceptance checks into passing evidence. New Team Member tools remain deferred under ADR-0036.
+Status: owner accepted the implemented release cut and explicitly authorized merge and publication on 2026-10-15. Publication is established by the [version release](https://github.com/jessequartey/feedbax/releases/tag/v0.2.2) and npm registry records, not by this acceptance document. This does not convert unfinished work or unperformed acceptance checks into passing evidence. New Team Member tools remain deferred under ADR-0036.
 
 ## Accepted release cut
 
@@ -50,7 +50,7 @@ Two live-environment issues were corrected during pairing: same-account Worker r
 
 - Owner-requested UI refinement deployed to both fixtures: Comments opens by default, Activities contains progress, the explanatory paragraph is removed, and Follow controls are hidden until Connected sign-in. Private portal browser checks confirmed both panels and arrow-key switching in both directions. A public portal browser check confirmed an unsubmitted Comment survived a round trip through Activities; the test draft was cleared without posting. Versions: public `b87c8d13-4883-4dad-80ec-056390e14394`, private `3336fce8-4fc7-456e-81df-3fca658ae4d2`. Existing Post/Comment/Connected interaction tests passed (13 tests), along with portal types, lint, synchronized-template validation and both production builds. This does not resolve the remaining release acceptance below.
 
-## Source-upgrade milestone
+## Source-upgrade milestone (pre-release evidence)
 
 The development CLI now provides source-only `upgrade --from 0.2.1` preview, explicit apply, status, resume and guarded rollback. Its target is bundled from the synchronized flat template; the released baseline comes from the exact npm creator archive with pinned SHA-512 integrity. The source journal records baseline/local/target file hashes and changed-file preimages with private permissions. Configuration and credentials are preserved; data/schema/deployment work is separate. See [the upgrade guide](../apps/docs/content/docs/guides/upgrading.mdx).
 
