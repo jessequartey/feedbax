@@ -3,7 +3,7 @@ title: Authentication
 description: Set up signed application identity, D1, verified participation, and session operations.
 ---
 
-Connected Profile is optional. Omit `connected` to retain Notion-only behavior. A Connected Installation requires a dedicated D1 database and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in.
+Connected Profile is optional. Omit `connected` to retain Notion-only behavior. A Connected Installation requires a dedicated D1 database and an existing Product Team application that authenticates Participants on its server. There is no Feedbax email sign-in. Small processing also uses a dedicated Cloudflare Queue for background work.
 
 ## Configure an Installation
 
@@ -259,11 +259,48 @@ The expanded Connected Profile also includes per-Post following, a private notif
 
 ## Following and notifications
 
-Connected defaults to `processing: "small"`, which observes one followed Post, attempts one notification email, and cleans up at most five images per scheduled invocation. This mode is intended for small Workers Free installations using Resend or a custom sender; verify actual CPU usage and backlog on the target account. It does not increase Cloudflare quotas. Set `connected.processing: "standard"` for ten observed Posts, twenty email attempts, and fifty cleanups per run; that mode targets Workers Paid. Cloudflare Email Service separately requires Workers Paid to send to arbitrary Participants. Check [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [Cloudflare email pricing](https://developers.cloudflare.com/email-service/platform/pricing/), and [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) before provisioning.
+Connected defaults to `processing: "small"`. Its five-minute timer only enqueues a constant work signal into a dedicated Cloudflare Queue; a consumer then prepares one Follow history page, observes one followed Post, attempts one notification email, and cleans up at most five images. This separates the Free timer's 10 ms CPU allowance from Queues' documented default consumer limit of 30 seconds. The queue contains no Participant identity, email, or content. Set `connected.processing: "standard"` for ten preparations/observed Posts, twenty emails, and fifty cleanups directly in the timer; that mode targets Workers Paid and needs no processing queue. Cloudflare Email Service separately requires Workers Paid for arbitrary recipients. Resend/custom delivery supports the small Free setup. See [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [Queues limits](https://developers.cloudflare.com/queues/platform/limits/), [Queues pricing](https://developers.cloudflare.com/queues/platform/pricing/), and [D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
+
+### Create and bind the processing queue
+
+Create one queue for this Installation in the same Cloudflare account, before running the guided creator or deploying:
+
+```sh
+pnpm exec wrangler queues create your-installation-updates
+```
+
+The guided creator asks for its name and writes both bindings. For a manual setup, add this beside the existing D1 bindings in `wrangler.jsonc`:
+
+```json
+{
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "queues": {
+    "producers": [
+      { "binding": "FEEDBAX_UPDATES", "queue": "your-installation-updates" }
+    ],
+    "consumers": [
+      {
+        "queue": "your-installation-updates",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_concurrency": 1,
+        "max_retries": 3,
+        "retry_delay": 60
+      }
+    ]
+  }
+}
+```
+
+Keep producer and consumer names identical, and use a dedicated queue for each Installation. Small mode fails closed when the binding is absent; it does not run the heavy work inline. `doctor` validates the paired bindings, bounds, remote queue existence, and all D1 migrations. Template-only output needs this configuration added manually. Local Wrangler simulates queues but does not prove remote capacity or email receipt.
+
+At five-minute intervals, normal small processing produces 288 signals/day, usually 864 queue operations (write/read/delete). Three queue redeliveries per signal would raise that to 1,728 operations; other queues share the account's Free allowance of 10,000 operations/day. Free retention is 24 hours. Keep the batch and concurrency at one. A failed queue invocation is retried up to three times, at least a minute apart; D1 remains the authority for unfinished work and the next timer signal can resume it. Leases, transactional checkpoints, event deduplication, and provider delivery keys protect repeated attempts. This is not an exactly-once guarantee. Watch timer CPU, queue backlog/failed consumers, D1 quotas, and provider limits on the actual account. No plan upgrade or billing change is performed by these settings.
 
 Connected Participants can explicitly Follow a Published Post from its detail view. Following is independent of voting; submitting, commenting, or voting does not silently subscribe a Participant. The header bell opens a private inbox with unread state, Mark read, Mark all read, pagination, and email preferences. Signing out hides these controls and private state is never publicly cached.
 
-A scheduled Worker observes status changes and new native Notion Comments on followed Posts. Add `"triggers": { "crons": ["*/5 * * * *"] }` to Wrangler configuration. Small processing checks one followed Post per invocation, prioritizing the least recently checked; standard processing checks ten. It reads one 50-Comment cursor page per observed Post per invocation and continues the next cursor on later invocations. This bounds Notion work; busy Installations and long Comment histories have longer notification latency. With a five-minute schedule, small mode has at most 288 Post observations and 288 email attempts per day across the Installation. A backlog can take multiple runs to drain; delivery older than 24 hours is skipped. Measure demand and switch to standard mode on Workers Paid before sustained demand exceeds these limits. It observes current status, so intermediate status changes between polls may be coalesced. It does not claim an instantaneous audit history. Existing Comments/statuses from before a Follow are not notifications, and Participants do not receive notifications about Comments with their own recorded attribution.
+The timer signals the small consumer every five minutes; standard mode observes directly. Small processing checks one active followed Post, prioritizing the least recently checked; standard checks ten. Each observation reads one 50-Comment cursor page and resumes later pages on subsequent jobs. Normal small cadence budgets 288 observations and email attempts per day, with additional attempts possible after queue redelivery. Busy Installations and long histories have longer latency; delivery older than 24 hours is skipped. Status notifications compare each Follow's recorded status, so minute-rounded Notion timestamps cannot hide an observed transition. Intermediate states between observations may be coalesced.
+
+A new Follow snapshots existing Comment IDs from its current minute, preventing both historical notices and missing later Comments with the same rounded timestamp. Most Posts activate immediately. When the first 50-Comment page has a continuation, the button shows preparation with a cancel action while bounded background pages establish the baseline. Updates begin when preparation completes; earlier Comments and status changes during preparation are excluded. Repeating Follow from another browser preserves the original baseline. Unfollowing cancels preparation and removes its private baseline. Participants do not receive notifications about Comments with their own recorded attribution.
 
 In-app notifications are deduplicated by event and Participant, survive browser changes, and retain independent read state. Notifications and outbound delivery recheck that the Post is still Published. Stop following from the same Post to stop future updates. Email is independently opt-in through the inbox switch and can be disabled there or through the unsubscribe link in each email. Unsubscribe links show a confirmation page on GET and accept a one-click POST from supporting mail clients. A link scanner's GET does not change preferences.
 
@@ -337,7 +374,7 @@ Preserve the unsubscribe headers, disable tracking unless your Product Team has 
 
 ### Delivery limits and recovery
 
-Each scheduled invocation attempts at most twenty emails. D1 leases serialize workers, and failures use bounded exponential retry, starting at one minute and capped at six hours. Delivery is abandoned after eight failed attempts or 24 hours, whichever comes first. Resend's provider deduplication window is 24 hours; Cloudflare's documented binding has no equivalent idempotency parameter, so a crash or ambiguous timeout after acceptance can result in a duplicate email. Custom senders must supply their own durable deduplication. No adapter promises exactly-once inbox delivery, and provider acceptance does not prove final recipient delivery. In-app notifications remain available when email fails. Inspect provider suppression/bounce logs and the private D1 delivery state to investigate delivery failures; never publish these records.
+Each small queue job attempts at most one email; a standard scheduled invocation attempts at most twenty. D1 leases serialize workers, and failures use bounded exponential retry, starting at one minute and capped at six hours. Delivery is abandoned after eight failed attempts or 24 hours, whichever comes first. Resend's provider deduplication window is 24 hours; Cloudflare's documented binding has no equivalent idempotency parameter, so a crash or ambiguous timeout after acceptance can result in a duplicate email. Custom senders must supply their own durable deduplication. No adapter promises exactly-once inbox delivery, and provider acceptance does not prove final recipient delivery. In-app notifications remain available when email fails. Inspect provider suppression/bounce logs and the private D1 delivery state to investigate delivery failures; never publish these records.
 
 ## Image attachments
 
@@ -363,10 +400,10 @@ Images retain their original bytes; Feedbax does not transcode them or strip EXI
 
 ## Expanded production acceptance
 
-In a dedicated Installation, apply all D1 migrations, configure the scheduled trigger, verify the sender domain, and use a private R2 bucket. Run `feedbax doctor`, then verify:
+In a dedicated Installation, apply all D1 migrations, configure the timer and processing queue for small mode, verify the sender domain, and use a private R2 bucket. Run `feedbax doctor`, then verify:
 
 1. Sign in from two browsers through the real product app, including a verified email assertion. Follow/unfollow the same Published Post and check continuity. Confirm a Device Profile cannot substitute for identity.
-2. Change a followed Post's status and add a Product Team Comment directly in Notion. Run a scheduled invocation or wait for its trigger. Confirm exactly one in-app event per observed change, private read state across browsers, and no access from another Participant.
+2. Change a followed Post's status and add a Product Team Comment directly in Notion. Wait for the timer and queue consumer (or the standard scheduled invocation). Inspect their separate outcomes and CPU limits. Confirm exactly one in-app event per observed change, private read state across browsers, and no access from another Participant.
 3. Opt in to email for a test recipient, confirm provider acceptance and actual receipt, force a retry in the dedicated test adapter, and verify its documented deduplication behavior. Check unsubscribe GET is non-mutating and POST disables future email while retaining in-app updates.
 4. Upload an image to a Draft Post. Confirm only the uploader and private Notion review link can access it; publish the Post and confirm public display, then unpublish and confirm public access stops. Repeat for a Comment and resolve it in Notion.
 5. Reject a forged review link, wrong-owner image association, oversized/unsupported image, unsigned mutation, and cross-origin mutation. Check mobile previews, unread states, empty/error/retry states, and cleanup of abandoned uploads.

@@ -31,7 +31,7 @@ For work on unreleased 0.2.1, use this repository and its workspace commands. Th
 - Which independent capabilities are enabled: voting, Comments, and Changelog.
 - For existing Notion sources: database IDs, data source IDs, and stable property IDs matching the canonical schema. Use [Notion setup](../apps/docs/content/docs/getting-started/notion.mdx); do not infer IDs from column titles.
 - If Turnstile is enabled: the public site key and private secret.
-- For Connected: the product application’s HTTPS origin/issuer, signed login endpoint, dedicated D1 database ID/name, and an independent shared handoff secret. Follow [authentication setup](connected-profile.md).
+- For Connected: the product application’s HTTPS origin/issuer, signed login endpoint, dedicated D1 database ID/name, a dedicated Cloudflare Queue for small processing, and an independent shared handoff secret. Follow [authentication setup](connected-profile.md).
 
 Credentials belong in ignored local files or secret stores. Public product settings and Notion IDs belong in `src/feedbax.ts`. Do not send the Notion token or signing keys to browser code.
 
@@ -43,7 +43,7 @@ After template-only copying, configure those same files using the [configuration
 
 For new Notion schemas, guided setup is the simplest supported path. Advanced automation can import the creator’s exported `provisionGuidedInstallation` function; its typed options are in [`packages/create-feedbax/src/index.ts`](../packages/create-feedbax/src/index.ts). It returns the plaintext trusted key once and previews external mutations. Template copying alone never provisions a schema.
 
-For Connected, apply the included migration to the dedicated `FEEDBAX_DB` binding, configure `IDENTITY_HANDOFF_SECRET` on both servers, and implement the application handoff endpoint from the tested authentication guide. A Device Profile is not verified sign-in.
+For Connected small processing, create a queue with `pnpm exec wrangler queues create <queue-name>` before guided setup, and supply that name when prompted. The creator writes the producer and bounded consumer. For manual setup, follow the queue example in the authentication guide. Apply every included migration to the dedicated `FEEDBAX_DB` binding, configure `IDENTITY_HANDOFF_SECRET` on both servers, and implement the application handoff endpoint from the tested authentication guide. A Device Profile is not verified sign-in.
 
 ## 4. Verify local readiness
 
@@ -86,4 +86,4 @@ After source changes, synchronize the owned-app template with `pnpm template:syn
 
 ## Connected social features
 
-For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, configure the scheduled trigger, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.
+For following, in-app/email notifications, or image attachments, use the full Connected guide (CONNECTED.md in a generated app; docs/connected-profile.md in the source repository). Apply every included D1 migration, including the Follow baseline migration, configure the timer and dedicated processing queue for small mode, choose Cloudflare/Resend/custom email when required, and keep the R2 bucket private for images. Never use a Device Profile as verified email evidence. Run doctor and behavior checks; explicitly distinguish local tests from real sender delivery and production authentication acceptance.

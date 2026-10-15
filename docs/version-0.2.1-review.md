@@ -57,3 +57,9 @@ The live browser flow also exposed a conflict between no-referrer and the portal
 ### Final handoff and scheduler recheck
 
 Standards: no definite violations or substantial heuristics. Spec: no actionable regressions. Both reviewers verified the unchanged publication/open-Comment rules, explicit D1 actor attribution, strict callback Origin validation, synchronized templates/guides, and retained small-mode bounds. Live optimized CPU remained 20 ms, so Workers Free capacity acceptance remains open.
+
+## Workers Free queue and notification precision review
+
+Independent Standards and Spec reviewers checked the small-mode queue dispatch, creator/doctor configuration, bounded history preparation, cancellation fencing, synchronized templates, and guides. Standards found no definite violations or substantial heuristics. Spec identified one migration gap that could notify existing Followers about historical Comments in the original Follow minute. Migration now prepares those Follows before activating updates. A migrated-D1 regression proves historical Comments produce no notice and a later same-minute Comment produces one. The final Spec recheck closed the finding; neither axis has an outstanding implementation finding.
+
+The source suite passes 343 tests across 59 files. The live installation doctor passes D1/Queue/schema reads, type checks, tests, and production build. Native timer and queue delivery measurements are recorded separately in the acceptance document; publication still requires completion of live acceptance.
