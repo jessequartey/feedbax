@@ -1,5 +1,9 @@
 # create-feedbax
 
+## 0.2.3
+
+No changes in this release.
+
 ## 0.2.2
 
 ### Patch Changes
