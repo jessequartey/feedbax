@@ -20,20 +20,27 @@ interface Binding {
 interface Work {
   id: string;
   installation_id: string;
-  kind: string;
+  kind: "reconcile" | "revoke";
   attempts: number;
   lease_token: string;
   binding_version: number;
-  state: string;
+  state: "pending" | "complete" | "failed";
   next_attempt: number;
   lease_until: number;
 }
 const recoveryInterval = 3600_000;
 const outageCooldown = 24 * recoveryInterval;
+export const maximumQueueDelaySeconds = 12 * 60 * 60;
+export const maintenanceSignal = "feedbax-github-maintenance-v1";
+export const cleanupSignal = "feedbax-github-cleanup-v1";
+export type DeliverySignal =
+  { workId: string } | typeof maintenanceSignal | typeof cleanupSignal;
+const revocationPriority = 3;
 export interface DeliveryResult {
   completed: number;
   failed: number;
   retryAfter?: number;
+  deferredUntil?: number;
 }
 
 export function createDeliveryModule(options: {
@@ -55,7 +62,9 @@ export function createDeliveryModule(options: {
   const retry = (until: number): DeliveryResult => ({
     completed: 0,
     failed: 0,
-    retryAfter: Math.max(1, Math.min(86400, Math.ceil((until - now()) / 1000))),
+    ...(until - now() > maximumQueueDelaySeconds * 1000
+      ? { deferredUntil: until }
+      : { retryAfter: Math.max(1, Math.ceil((until - now()) / 1000)) }),
   });
   async function dispatch(workId: string) {
     if (!options.dispatch) return;
@@ -71,15 +80,17 @@ export function createDeliveryModule(options: {
         dispatch_after: number;
       }>();
     if (!work || work.dispatch_after > time) return;
-    const delay = Math.max(
-      0,
-      Math.min(
-        86400,
-        Math.ceil(
-          (Math.max(work.next_attempt, work.lease_until) - time) / 1000,
-        ),
-      ),
-    );
+    const due = Math.max(work.next_attempt, work.lease_until);
+    if (due - time > maximumQueueDelaySeconds * 1000) {
+      await database
+        .prepare(
+          "UPDATE portal_work SET dispatch_after=MAX(dispatch_after,?) WHERE id=? AND state='pending'",
+        )
+        .bind(due, workId)
+        .run();
+      return;
+    }
+    const delay = Math.max(0, Math.ceil((due - time) / 1000));
     await options.dispatch(workId, delay);
     await database
       .prepare(
@@ -96,16 +107,28 @@ export function createDeliveryModule(options: {
       .bind(workId)
       .first<Work>();
     if (!candidate || candidate.state !== "pending") return idle;
-    if (candidate.lease_until > time || candidate.next_attempt > time)
-      return retry(Math.max(candidate.lease_until, candidate.next_attempt));
+    if (candidate.lease_until > time) return retry(candidate.lease_until);
     if (candidate.attempts >= 5) {
-      await database
+      const lease = randomUUID();
+      const exhausted = await database
         .prepare(
-          "UPDATE portal_work SET state='failed',failure_code='portal_unavailable' WHERE id=? AND state='pending' AND lease_until<=? AND attempts>=5",
+          "UPDATE portal_work SET lease_token=?,lease_until=? WHERE id=? AND state='pending' AND lease_until<=? AND attempts>=5 RETURNING *",
         )
-        .bind(workId, time)
-        .run();
-      return idle;
+        .bind(lease, time + 60_000, workId, time)
+        .first<Work>();
+      return exhausted
+        ? failWork(exhausted, lease, time)
+        : retry(time + 60_000);
+    }
+    if (candidate.next_attempt > time) {
+      if (candidate.next_attempt - time > maximumQueueDelaySeconds * 1000)
+        await database
+          .prepare(
+            "UPDATE portal_work SET dispatch_after=MAX(dispatch_after,?) WHERE id=? AND state='pending'",
+          )
+          .bind(candidate.next_attempt, workId)
+          .run();
+      return retry(candidate.next_attempt);
     }
     const binding = await database
       .prepare("SELECT * FROM portal_bindings WHERE installation_id=?")
@@ -185,44 +208,97 @@ export function createDeliveryModule(options: {
       ]);
       return { completed: 1, failed: 0 };
     } catch {
-      const terminal = work.attempts >= 5;
-      const next =
-        time +
-        Math.min(
-          recoveryInterval,
-          60_000 * 2 ** Math.min(work.attempts - 1, 6),
-        ) +
-        Math.floor(Math.random() * 10_000);
-      const updates = [
-        database
-          .prepare(
-            "UPDATE portal_work SET state=?,failure_code='portal_unavailable',next_attempt=?,dispatch_after=?,lease_until=0 WHERE id=? AND lease_token=? AND state='pending'",
-          )
-          .bind(terminal ? "failed" : "pending", next, next, work.id, lease),
-      ];
-      if (terminal && binding)
-        updates.push(
-          database
-            .prepare(
-              "UPDATE portal_bindings SET cooldown_until=?,next_recovery_at=MAX(next_recovery_at,?) WHERE installation_id=? AND key_version=? AND EXISTS(SELECT 1 FROM portal_work WHERE id=? AND lease_token=? AND state='failed')",
-            )
-            .bind(
-              time + outageCooldown,
-              time + outageCooldown,
-              binding.installation_id,
-              binding.key_version,
-              work.id,
-              lease,
-            ),
-        );
-      await database.batch(updates);
-      return {
-        completed: 0,
-        failed: 1,
-        ...(terminal ? {} : { retryAfter: Math.ceil((next - time) / 1000) }),
-      };
+      return failWork(work, lease, time);
     }
   }
+  async function failWork(
+    work: Work,
+    lease: string,
+    time: number,
+  ): Promise<DeliveryResult> {
+    const terminal = work.attempts >= 5;
+    const next =
+      time +
+      Math.min(recoveryInterval, 60_000 * 2 ** Math.min(work.attempts - 1, 6)) +
+      Math.floor(Math.random() * 10_000);
+    const updates = [
+      database
+        .prepare(
+          "UPDATE portal_work SET state=?,failure_code='portal_unavailable',next_attempt=?,dispatch_after=?,lease_until=0 WHERE id=? AND lease_token=? AND state='pending'",
+        )
+        .bind(terminal ? "failed" : "pending", next, next, work.id, lease),
+    ];
+    if (terminal)
+      updates.push(
+        database
+          .prepare(
+            "UPDATE portal_bindings SET cooldown_until=?,next_recovery_at=MAX(next_recovery_at,?) WHERE installation_id=? AND key_version=? AND EXISTS(SELECT 1 FROM portal_work WHERE id=? AND lease_token=? AND state='failed')",
+          )
+          .bind(
+            time + outageCooldown,
+            time + outageCooldown,
+            work.installation_id,
+            work.binding_version,
+            work.id,
+            lease,
+          ),
+      );
+    await database.batch(updates);
+    return {
+      completed: 0,
+      failed: 1,
+      ...(terminal ? {} : { retryAfter: Math.ceil((next - time) / 1000) }),
+    };
+  }
+  async function dispatchCommitted(workIds: string[]) {
+    // D1 acceptance is already durable. One failed Queue send must not change
+    // the acknowledgement or prevent another destination's dispatch.
+    for (const id of workIds) {
+      try {
+        await dispatch(id);
+      } catch {
+        /* Hourly recovery resumes the outbox. */
+      }
+    }
+  }
+  async function processRevocation() {
+    const time = now();
+    const work = await database
+      .prepare(
+        "SELECT id FROM portal_work WHERE state='pending' AND priority=3 AND next_attempt<=? AND lease_until<=? ORDER BY next_attempt,id LIMIT 1",
+      )
+      .bind(time, time)
+      .first<{ id: string }>();
+    if (work) return { workId: work.id, result: await processWork(work.id) };
+  }
+
+  async function cleanup() {
+    const time = now();
+    const expired = await database.batch([
+      database
+        .prepare(
+          "UPDATE webhook_receipts SET payload=NULL WHERE rowid IN (SELECT rowid FROM webhook_receipts WHERE payload IS NOT NULL AND (received_at<? OR NOT EXISTS(SELECT 1 FROM portal_work WHERE portal_work.app_id=webhook_receipts.app_id AND portal_work.delivery_id=webhook_receipts.delivery_id AND state!='complete')) ORDER BY received_at LIMIT 100)",
+        )
+        .bind(time - 7 * 86400_000),
+      database
+        .prepare(
+          "UPDATE portal_work SET failure_code=NULL WHERE id IN (SELECT id FROM portal_work WHERE failure_code IS NOT NULL AND created_at<? ORDER BY created_at,id LIMIT 100)",
+        )
+        .bind(time - 30 * 86400_000),
+      database
+        .prepare(
+          "DELETE FROM integration_nonces WHERE rowid IN (SELECT rowid FROM integration_nonces WHERE expires_at<? ORDER BY expires_at LIMIT 100)",
+        )
+        .bind(time),
+      database
+        .prepare(
+          "DELETE FROM pairing_attempts WHERE state IN (SELECT state FROM pairing_attempts WHERE expires_at<? ORDER BY expires_at LIMIT 100)",
+        )
+        .bind(time),
+    ]);
+    return expired.some((result) => result.meta.changes === 100);
+  }
+
   return {
     async ingest(request: Request) {
       let raw: string;
@@ -333,7 +409,7 @@ export function createDeliveryModule(options: {
               delivery,
               binding.installation_id,
               revoked ? "revoke" : "reconcile",
-              revoked ? 3 : 2,
+              revoked ? revocationPriority : 2,
               time,
               time,
               binding.key_version,
@@ -347,23 +423,21 @@ export function createDeliveryModule(options: {
       }
       try {
         await database.batch(statements);
-        for (const id of workIds) await dispatch(id);
       } catch {
         return response(503);
       }
+      await dispatchCommitted(workIds);
       return response(202);
     },
     processWork,
+    dispatchCommitted,
     dispatch,
-    async processRevocation() {
-      const time = now();
-      const work = await database
-        .prepare(
-          "SELECT id FROM portal_work WHERE state='pending' AND priority=3 AND next_attempt<=? AND lease_until<=? ORDER BY next_attempt,id LIMIT 1",
-        )
-        .bind(time, time)
-        .first<{ id: string }>();
-      if (work) await processWork(work.id);
+    processRevocation,
+    async processQueuedWork(workId: string) {
+      const priority = await processRevocation();
+      return priority?.workId === workId
+        ? priority.result
+        : processWork(workId);
     },
     async process(limit = 1) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 10)
@@ -389,7 +463,7 @@ export function createDeliveryModule(options: {
       const time = now();
       // Hourly, bounded recovery is separate from event delivery. An existing
       // reconciliation for this generation already represents current-state work.
-      const stale = (
+      const dueBindings = (
         await database
           .prepare(
             "SELECT * FROM portal_bindings WHERE active=1 AND next_recovery_at<=? ORDER BY next_recovery_at,installation_id LIMIT 10",
@@ -397,7 +471,7 @@ export function createDeliveryModule(options: {
           .bind(time)
           .all<Binding>()
       ).results;
-      for (const binding of stale) {
+      for (const binding of dueBindings) {
         await database.batch([
           database
             .prepare(
@@ -446,31 +520,12 @@ export function createDeliveryModule(options: {
           dispatchFailed = true;
         }
       }
-      await database.batch([
-        database
-          .prepare(
-            "UPDATE webhook_receipts SET payload=NULL WHERE rowid IN (SELECT rowid FROM webhook_receipts WHERE payload IS NOT NULL AND (received_at<? OR NOT EXISTS(SELECT 1 FROM portal_work WHERE portal_work.app_id=webhook_receipts.app_id AND portal_work.delivery_id=webhook_receipts.delivery_id AND state!='complete')) ORDER BY received_at LIMIT 100)",
-          )
-          .bind(time - 7 * 86400_000),
-        database
-          .prepare(
-            "UPDATE portal_work SET failure_code=NULL WHERE id IN (SELECT id FROM portal_work WHERE failure_code IS NOT NULL AND created_at<? ORDER BY created_at,id LIMIT 100)",
-          )
-          .bind(time - 30 * 86400_000),
-        database
-          .prepare(
-            "DELETE FROM integration_nonces WHERE rowid IN (SELECT rowid FROM integration_nonces WHERE expires_at<? ORDER BY expires_at LIMIT 100)",
-          )
-          .bind(time),
-        database
-          .prepare(
-            "DELETE FROM pairing_attempts WHERE state IN (SELECT state FROM pairing_attempts WHERE expires_at<? ORDER BY expires_at LIMIT 100)",
-          )
-          .bind(time),
-      ]);
+      const moreExpired = await cleanup();
       if (dispatchFailed)
         throw new Error("Some delivery signals could not be queued.");
+      return moreExpired;
     },
+    cleanup,
     async status(installationId: string) {
       const binding = await database
         .prepare(

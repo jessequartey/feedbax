@@ -1,26 +1,15 @@
 import { afterEach, expect, it } from "vitest";
-import { Miniflare } from "miniflare";
+import type { Miniflare } from "miniflare";
+import { createTestStorage } from "./test-support";
 import { createHmac } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
 import { createDeliveryModule } from "./delivery";
 
 let runtime: Miniflare | undefined;
 afterEach(async () => runtime?.dispose());
 async function setup() {
-  runtime = new Miniflare({
-    modules: true,
-    script: "export default {}",
-    d1Databases: ["DB"],
-    compatibilityDate: "2026-07-30",
-  });
-  const database = await runtime.getD1Database("DB");
-  const migrations = new URL("../migrations/", import.meta.url);
-  for (const file of (await readdir(migrations)).sort())
-    await database.exec(
-      (await readFile(new URL(file, migrations), "utf8"))
-        .replace(/--[^\n]*/g, "")
-        .replace(/\s+/g, " "),
-    );
+  const storage = await createTestStorage();
+  runtime = storage.runtime;
+  const { database } = storage;
   await database
     .prepare(
       "INSERT INTO portal_bindings(installation_id,origin,github_installation_id,repository_id,repository_owner,repository_name,bot_user_id,created_at) VALUES('portal-a','https://portal-a.account.workers.dev',99,123,'acme','feedback',456,0)",
@@ -101,11 +90,11 @@ it("dispatches durable webhook work immediately and acknowledges queue replays w
   expect(deliveries[0]).not.toContain("private engineering");
 });
 
-it("recovers a failed queue send from the same durable receipt", async () => {
+it("acknowledges a durable commit and recovers a failed Queue send from the same receipt", async () => {
   const { ingest, delivery, database, signals, queueUnavailable } =
     await setup();
   queueUnavailable(true);
-  expect((await ingest()).status).toBe(503);
+  expect((await ingest()).status).toBe(202);
   expect(
     await database.prepare("SELECT count(*) n FROM portal_work").first("n"),
   ).toBe(1);
@@ -171,10 +160,8 @@ it("coalesces hourly recovery while older reconciliation is pending and does not
   ).toBe(1);
 });
 
-it("recovers persisted work after a lost queue signal and ignores unsupported webhook events", async () => {
+it("recovers persisted work after a lost Queue signal", async () => {
   const { ingest, delivery, signals, advance } = await setup();
-  expect((await ingest("irrelevant", "push")).status).toBe(202);
-  expect(signals).toEqual([]);
   await ingest();
   signals.length = 0;
   advance(3600_000);
@@ -221,7 +208,9 @@ it("delivers revocation during an outage cooldown without revoking a newer bindi
     .bind(Date.UTC(2026, 9, 26))
     .run();
   await ingest();
-  expect((await delivery.processWork(signals[0]!)).retryAfter).toBe(86400);
+  expect(await delivery.processWork(signals[0]!)).toMatchObject({
+    deferredUntil: Date.UTC(2026, 9, 26),
+  });
   expect(deliveries).toEqual([]);
   advance(3600_000);
   await delivery.maintain();
@@ -267,4 +256,160 @@ it("bounds maintenance expiry and preserves replay tombstones and newer diagnost
       .prepare("SELECT count(*) n FROM portal_work WHERE state='failed'")
       .first("n"),
   ).toBe(120);
+});
+
+it.each([5, 6])(
+  "applies generation-fenced cooldown to abandoned work after %i attempts",
+  async (attempts) => {
+    const { database, delivery, ingest, signals, advance } = await setup();
+    await ingest();
+    await database
+      .prepare("UPDATE portal_work SET attempts=? WHERE id=?")
+      .bind(attempts, signals[0])
+      .run();
+    await delivery.processWork(signals[0]!);
+    advance(3600_000);
+    await delivery.maintain();
+    expect(
+      await database.prepare("SELECT count(*) n FROM portal_work").first("n"),
+    ).toBe(1);
+    expect(
+      await database
+        .prepare("SELECT cooldown_until FROM portal_bindings")
+        .first("cooldown_until"),
+    ).toBe(Date.UTC(2026, 9, 26));
+  },
+);
+
+it("does not cool down a newly paired generation when abandoned older work is exhausted", async () => {
+  const { database, delivery, ingest, signals } = await setup();
+  await ingest();
+  await database
+    .prepare("UPDATE portal_work SET attempts=6 WHERE id=?")
+    .bind(signals[0])
+    .run();
+  await database.prepare("UPDATE portal_bindings SET key_version=2").run();
+  await delivery.processWork(signals[0]!);
+  expect(
+    await database
+      .prepare("SELECT cooldown_until FROM portal_bindings")
+      .first("cooldown_until"),
+  ).toBe(0);
+});
+
+it("continues dispatching other bindings when a committed installation event loses one Queue signal", async () => {
+  const { database, delivery, signals, queueUnavailable, advance } =
+    await setup();
+  await database.exec(
+    "INSERT INTO portal_bindings(installation_id,origin,github_installation_id,repository_id,repository_owner,repository_name,bot_user_id,created_at) VALUES('portal-b','https://portal-b.account.workers.dev',99,124,'acme','other',456,0)",
+  );
+  let calls = 0;
+  const fanout = createDeliveryModule({
+    database,
+    appId: "123",
+    webhookSecret: "webhook-secret",
+    signingSecret: "s".repeat(40),
+    now: () => Date.UTC(2026, 9, 25),
+    deliver: async () => new Response(null, { status: 202 }),
+    dispatch: async (id) => {
+      calls++;
+      if (calls === 1) throw new Error("Temporary Queue send failure");
+      signals.push(id);
+    },
+  });
+  const body = JSON.stringify({ installation: { id: 99 }, action: "suspend" });
+  const response = await fanout.ingest(
+    new Request("https://service.example/webhooks/github", {
+      method: "POST",
+      headers: {
+        "X-GitHub-Event": "installation",
+        "X-GitHub-Delivery": "fanout",
+        "X-Hub-Signature-256": `sha256=${createHmac("sha256", "webhook-secret").update(body).digest("hex")}`,
+      },
+      body,
+    }),
+  );
+  expect(response.status).toBe(202);
+  expect(calls).toBe(2);
+  expect(signals).toHaveLength(1);
+  expect(
+    await database
+      .prepare("SELECT count(*) n FROM portal_bindings WHERE active=0")
+      .first("n"),
+  ).toBe(2);
+  queueUnavailable(false);
+  advance(3600_000);
+  await delivery.maintain();
+  expect(signals).toHaveLength(3);
+});
+
+it("acknowledges unsupported authenticated events without creating receipts or delivery work", async () => {
+  const { ingest, database, signals } = await setup();
+  expect((await ingest("irrelevant", "push")).status).toBe(202);
+  expect(signals).toEqual([]);
+  expect(
+    await database
+      .prepare("SELECT count(*) n FROM webhook_receipts")
+      .first("n"),
+  ).toBe(0);
+  expect(
+    await database.prepare("SELECT count(*) n FROM portal_work").first("n"),
+  ).toBe(0);
+});
+
+it("does not spend Queue operations on a delay beyond the safe signal lifetime", async () => {
+  const { database, delivery, ingest, signals, advance } = await setup();
+  await ingest();
+  const id = signals[0]!;
+  signals.length = 0;
+  const until = Date.UTC(2026, 9, 26);
+  await database
+    .prepare(
+      "UPDATE portal_work SET next_attempt=?,dispatch_after=0 WHERE id=?",
+    )
+    .bind(until, id)
+    .run();
+  await delivery.dispatch(id);
+  expect(signals).toEqual([]);
+  advance(12 * 3600_000);
+  await delivery.maintain();
+  expect(signals).toEqual([]);
+  advance(12 * 3600_000);
+  await delivery.maintain();
+  expect(signals).toEqual([id]);
+  expect((await delivery.processWork(id)).completed).toBe(1);
+});
+
+it("does not terminalize an exhausted job while another consumer still owns its lease", async () => {
+  const { database, delivery, ingest, signals, advance } = await setup();
+  await ingest();
+  await database
+    .prepare("UPDATE portal_work SET attempts=5,lease_until=? WHERE id=?")
+    .bind(Date.UTC(2026, 9, 25) + 60_000, signals[0])
+    .run();
+  expect((await delivery.processWork(signals[0]!)).retryAfter).toBe(60);
+  expect(
+    await database
+      .prepare("SELECT cooldown_until FROM portal_bindings")
+      .first("cooldown_until"),
+  ).toBe(0);
+  advance(60_000);
+  await delivery.processWork(signals[0]!);
+  expect(
+    await database
+      .prepare("SELECT cooldown_until FROM portal_bindings")
+      .first("cooldown_until"),
+  ).toBe(Date.UTC(2026, 9, 26) + 60_000);
+});
+
+it("returns a failure when receipt durability fails before dispatch", async () => {
+  const { database, ingest, signals } = await setup();
+  await database.exec(
+    "CREATE TRIGGER fail_ingress BEFORE INSERT ON webhook_receipts BEGIN SELECT RAISE(ABORT,'storage unavailable'); END;",
+  );
+  expect((await ingest()).status).toBe(503);
+  expect(signals).toEqual([]);
+  expect(
+    await database.prepare("SELECT count(*) n FROM portal_work").first("n"),
+  ).toBe(0);
 });

@@ -4,11 +4,15 @@ import type {
   Queue,
 } from "@cloudflare/workers-types";
 import { createIntegrationService } from "./service";
+import {
+  cleanupSignal,
+  maintenanceSignal,
+  maximumQueueDelaySeconds,
+  type DeliverySignal,
+} from "./delivery";
 interface Environment {
   FEEDBAX_APP_DB: D1Database;
-  INTEGRATION_DELIVERY_QUEUE: Queue<
-    { workId: string } | "feedbax-github-maintenance-v1"
-  >;
+  INTEGRATION_DELIVERY_QUEUE?: Queue<DeliverySignal>;
   SERVICE_ORIGIN: string;
   TRUSTED_PORTAL_ORIGINS: string;
   PORTAL_SERVICE_BINDINGS?: string;
@@ -29,8 +33,6 @@ const services = new WeakMap<
 function service(environment: Environment) {
   const cached = services.get(environment);
   if (cached) return cached;
-  if (!environment.INTEGRATION_DELIVERY_QUEUE)
-    throw new Error("Bind the integration delivery queue.");
   const trusted = JSON.parse(environment.TRUSTED_PORTAL_ORIGINS) as unknown;
   if (
     !Array.isArray(trusted) ||
@@ -75,6 +77,8 @@ function service(environment: Environment) {
     trustedPortalOrigins: trusted,
     portalTransports: transports,
     dispatch: async (workId, delaySeconds) => {
+      if (!environment.INTEGRATION_DELIVERY_QUEUE)
+        throw new Error("Bind the integration delivery queue.");
       await environment.INTEGRATION_DELIVERY_QUEUE.send(
         { workId },
         { delaySeconds },
@@ -118,16 +122,27 @@ export default {
   async scheduled(_event: unknown, environment: Environment) {
     if (!environment.GITHUB_APP_ID || !environment.INTEGRATION_SIGNING_SECRET)
       return;
-    await environment.INTEGRATION_DELIVERY_QUEUE.send(
-      "feedbax-github-maintenance-v1",
-    );
+    if (!environment.INTEGRATION_DELIVERY_QUEUE)
+      throw new Error("Bind the integration delivery queue.");
+    await environment.INTEGRATION_DELIVERY_QUEUE.send(maintenanceSignal);
   },
   async queue(batch: MessageBatch<unknown>, environment: Environment) {
     for (const message of batch.messages) {
       const body = message.body;
-      if (body === "feedbax-github-maintenance-v1") {
+      if (body === maintenanceSignal || body === cleanupSignal) {
         try {
-          await service(environment).maintain();
+          const configured = service(environment);
+          const moreExpired =
+            body === cleanupSignal
+              ? await configured.cleanup()
+              : await configured.maintain();
+          if (moreExpired) {
+            if (!environment.INTEGRATION_DELIVERY_QUEUE)
+              throw new Error("Bind the integration delivery queue.");
+            await environment.INTEGRATION_DELIVERY_QUEUE.send(cleanupSignal, {
+              delaySeconds: 1,
+            });
+          }
           message.ack();
         } catch {
           message.retry({ delaySeconds: 60 });
@@ -147,11 +162,22 @@ export default {
       try {
         const configured = service(environment);
         // Queue FIFO must not bury a known revocation behind content work.
-        await configured.processRevocation();
-        const result = await configured.processWork(body.workId);
-        if (result.retryAfter)
-          message.retry({ delaySeconds: result.retryAfter });
-        else message.ack();
+        const result = await configured.processQueuedWork(body.workId);
+        if (result.retryAfter) {
+          const age = Math.max(
+            0,
+            (Date.now() - message.timestamp.getTime()) / 1000,
+          );
+          if (age + result.retryAfter >= maximumQueueDelaySeconds) {
+            if (!environment.INTEGRATION_DELIVERY_QUEUE)
+              throw new Error("Bind the integration delivery queue.");
+            await environment.INTEGRATION_DELIVERY_QUEUE.send(
+              { workId: body.workId },
+              { delaySeconds: result.retryAfter },
+            );
+            message.ack();
+          } else message.retry({ delaySeconds: result.retryAfter });
+        } else message.ack();
       } catch {
         message.retry({ delaySeconds: 60 });
       }

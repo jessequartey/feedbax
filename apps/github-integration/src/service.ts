@@ -435,8 +435,9 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
   return {
     process: delivery.process,
     processWork: delivery.processWork,
-    processRevocation: delivery.processRevocation,
+    processQueuedWork: delivery.processQueuedWork,
     maintain: delivery.maintain,
+    cleanup: delivery.cleanup,
     async fetch(input: Request): Promise<Response> {
       try {
         const url = new URL(input.url);
@@ -482,9 +483,9 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
                   binding.key_version,
                 ),
             ]);
-            await delivery.dispatch(
+            await delivery.dispatchCommitted([
               `revoke:${binding.installation_id}:${binding.key_version}`,
-            );
+            ]);
             return json({ revoked: true });
           }
           return json(await tokenFor(binding));
