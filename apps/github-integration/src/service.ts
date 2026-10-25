@@ -34,6 +34,7 @@ export interface IntegrationServiceOptions {
     { fetch(request: Request): Promise<Response> }
   >;
   request?: typeof fetch;
+  dispatch?: (workId: string, delaySeconds: number) => Promise<void>;
 }
 interface Binding {
   installation_id: string;
@@ -86,6 +87,7 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
     webhookSecret: options.app.webhookSecret,
     signingSecret: options.signingSecret,
     deliver: portalRequest,
+    dispatch: options.dispatch,
   });
   const github = async (
     path: string,
@@ -397,7 +399,7 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
       phase = "binding_activation";
       const activated = await database
         .prepare(
-          "INSERT INTO portal_bindings(installation_id,origin,github_installation_id,repository_id,repository_owner,repository_name,bot_user_id,key_version,active,created_at) VALUES(?,?,?,?,?,?,?,?,1,?) ON CONFLICT(installation_id) DO UPDATE SET origin=excluded.origin,github_installation_id=excluded.github_installation_id,repository_id=excluded.repository_id,repository_owner=excluded.repository_owner,repository_name=excluded.repository_name,bot_user_id=excluded.bot_user_id,key_version=excluded.key_version,active=1 WHERE portal_bindings.origin=excluded.origin AND portal_bindings.repository_id=excluded.repository_id AND portal_bindings.github_installation_id=excluded.github_installation_id AND portal_bindings.key_version=excluded.key_version-1",
+          "INSERT INTO portal_bindings(installation_id,origin,github_installation_id,repository_id,repository_owner,repository_name,bot_user_id,key_version,active,created_at) VALUES(?,?,?,?,?,?,?,?,1,?) ON CONFLICT(installation_id) DO UPDATE SET origin=excluded.origin,github_installation_id=excluded.github_installation_id,repository_id=excluded.repository_id,repository_owner=excluded.repository_owner,repository_name=excluded.repository_name,bot_user_id=excluded.bot_user_id,key_version=excluded.key_version,active=1,cooldown_until=0,next_recovery_at=0 WHERE portal_bindings.origin=excluded.origin AND portal_bindings.repository_id=excluded.repository_id AND portal_bindings.github_installation_id=excluded.github_installation_id AND portal_bindings.key_version=excluded.key_version-1",
         )
         .bind(
           binding.installation_id,
@@ -432,6 +434,10 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
   };
   return {
     process: delivery.process,
+    processWork: delivery.processWork,
+    processQueuedWork: delivery.processQueuedWork,
+    maintain: delivery.maintain,
+    cleanup: delivery.cleanup,
     async fetch(input: Request): Promise<Response> {
       try {
         const url = new URL(input.url);
@@ -476,6 +482,9 @@ export function createIntegrationService(options: IntegrationServiceOptions) {
                   binding.installation_id,
                   binding.key_version,
                 ),
+            ]);
+            await delivery.dispatchCommitted([
+              `revoke:${binding.installation_id}:${binding.key_version}`,
             ]);
             return json({ revoked: true });
           }

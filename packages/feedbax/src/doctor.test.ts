@@ -254,74 +254,89 @@ describe("doctor diagnostics", () => {
   );
 });
 
-it("diagnoses GitHub-only D1 and paired access without requiring Notion or identity", async () => {
-  const cwd = await fixture(false);
-  const path = join(cwd, "src/feedbax.ts");
-  const config = JSON.parse(
-    (await readFile(path, "utf8")).replace("export default ", ""),
-  );
-  delete config.notion;
-  config.provider = "github";
-  config.product.siteUrl = "https://portal.example";
-  config.github = {
-    installationId: "portal-acme",
-    serviceUrl: "https://service.example",
-    repository: { id: 123, owner: "acme", name: "feedback" },
-    botUserId: 456,
-  };
-  await writeFile(path, `export default ${JSON.stringify(config)}`);
-  const wrangler = JSON.parse(
-    await readFile(join(cwd, "wrangler.jsonc"), "utf8"),
-  );
-  wrangler.d1_databases = [
-    {
-      binding: "FEEDBAX_DB",
-      database_id: "11111111-2222-3333-4444-555555555555",
-      database_name: "acme",
-    },
-  ];
-  wrangler.triggers = { crons: ["*/5 * * * *"] };
-  await writeFile(join(cwd, "wrangler.jsonc"), JSON.stringify(wrangler));
-  const urls: string[] = [];
-  const results = await diagnoseInstallation({
-    cwd,
-    env: {
-      FEEDBAX_API_KEY_HASH: "hash",
-      PARTICIPATION_SIGNING_SECRET: "s".repeat(40),
-      GITHUB_SERVICE_SECRET: "g".repeat(40),
-    },
-    execute,
-    request: async (input, init) => {
-      const request =
-        input instanceof Request ? input : new Request(input, init);
-      urls.push(request.url);
-      if (request.url.endsWith("/v1/status"))
-        return Response.json({
-          active: true,
-          lastDeliveryAt: Date.now(),
-          pending: 0,
-          terminalFailures: 0,
-        });
-      if (request.url.endsWith("/v1/token"))
-        return Response.json({
-          token: "scoped",
-          expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-          repositoryId: 123,
-          botUserId: 456,
-        });
-      return Response.json({ id: 123, private: true });
-    },
-  });
-  expect(diagnosticsPassed(results)).toBe(true);
-  expect(results).toContainEqual(
-    expect.objectContaining({ name: "GitHub Portal Binding", status: "pass" }),
-  );
-  expect(
-    results.some(
-      (result) =>
-        result.name.includes("Notion") || result.name === "NOTION_TOKEN",
-    ),
-  ).toBe(false);
-  expect(urls.some((url) => url.includes("notion"))).toBe(false);
-  expect(JSON.stringify(results)).not.toContain("scoped");
-});
+it.each([
+  { age: 0, interval: undefined, stale: false },
+  { age: 1800_000, interval: 3600_000, stale: false },
+  { age: 5400_000, interval: 3600_000, stale: true },
+  { age: 1800_000, interval: undefined, stale: true },
+])(
+  "diagnoses GitHub-only access with delivery age $age and recovery interval $interval",
+  async ({ age, interval, stale }) => {
+    const cwd = await fixture(false);
+    const path = join(cwd, "src/feedbax.ts");
+    const config = JSON.parse(
+      (await readFile(path, "utf8")).replace("export default ", ""),
+    );
+    delete config.notion;
+    config.provider = "github";
+    config.product.siteUrl = "https://portal.example";
+    config.github = {
+      installationId: "portal-acme",
+      serviceUrl: "https://service.example",
+      repository: { id: 123, owner: "acme", name: "feedback" },
+      botUserId: 456,
+    };
+    await writeFile(path, `export default ${JSON.stringify(config)}`);
+    const wrangler = JSON.parse(
+      await readFile(join(cwd, "wrangler.jsonc"), "utf8"),
+    );
+    wrangler.d1_databases = [
+      {
+        binding: "FEEDBAX_DB",
+        database_id: "11111111-2222-3333-4444-555555555555",
+        database_name: "acme",
+      },
+    ];
+    wrangler.triggers = { crons: ["*/5 * * * *"] };
+    await writeFile(join(cwd, "wrangler.jsonc"), JSON.stringify(wrangler));
+    const urls: string[] = [];
+    const results = await diagnoseInstallation({
+      cwd,
+      env: {
+        FEEDBAX_API_KEY_HASH: "hash",
+        PARTICIPATION_SIGNING_SECRET: "s".repeat(40),
+        GITHUB_SERVICE_SECRET: "g".repeat(40),
+      },
+      execute,
+      request: async (input, init) => {
+        const request =
+          input instanceof Request ? input : new Request(input, init);
+        urls.push(request.url);
+        if (request.url.endsWith("/v1/status"))
+          return Response.json({
+            active: true,
+            lastDeliveryAt: Date.now() - age,
+            recoveryIntervalMs: interval,
+            pending: 0,
+            terminalFailures: 0,
+          });
+        if (request.url.endsWith("/v1/token"))
+          return Response.json({
+            token: "scoped",
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+            repositoryId: 123,
+            botUserId: 456,
+          });
+        return Response.json({ id: 123, private: true });
+      },
+    });
+    expect(diagnosticsPassed(results)).toBe(true);
+    expect(
+      results.some((result) => result.name === "GitHub synchronization"),
+    ).toBe(stale);
+    expect(results).toContainEqual(
+      expect.objectContaining({
+        name: "GitHub Portal Binding",
+        status: "pass",
+      }),
+    );
+    expect(
+      results.some(
+        (result) =>
+          result.name.includes("Notion") || result.name === "NOTION_TOKEN",
+      ),
+    ).toBe(false);
+    expect(urls.some((url) => url.includes("notion"))).toBe(false);
+    expect(JSON.stringify(results)).not.toContain("scoped");
+  },
+);

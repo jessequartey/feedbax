@@ -54,6 +54,7 @@ it("polls a later binding even when the first portal is unavailable", async () =
       });
     },
   });
+  await delivery.maintain();
   expect(await delivery.process()).toEqual({ completed: 0, failed: 1 });
   time += 1000;
   expect(await delivery.process()).toEqual({ completed: 1, failed: 0 });
