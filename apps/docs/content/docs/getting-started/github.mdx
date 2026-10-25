@@ -13,7 +13,7 @@ Use Node 24 LTS, pnpm 10, a Cloudflare account and a GitHub.com repository where
 
 **Public repositories expose issue titles and bodies immediately**, including submissions waiting for portal moderation. Choose a private repository for confidential intake. Feedbax publishes only explicit approved sections, but cannot make public GitHub issues private.
 
-Deploy the [GitHub integration service](https://github.com/jessequartey/feedbax/blob/main/apps/github-integration/README.md). That guide covers the separate service database, exact trusted portal origins, App registration, selected-repository installation, secret storage and webhook processing. Keep the App key only in the service. Add the intended portal origin to its trusted destinations before pairing.
+Deploy the [GitHub integration service](https://github.com/jessequartey/feedbax/blob/main/apps/github-integration/README.md). That guide covers the separate service database, exact trusted portal origins, a dedicated delivery Queue, App registration, selected-repository installation, secret storage and webhook processing. In the updated source service, webhooks dispatch delivery immediately; an hourly service cron handles bounded recovery and cleanup. The portal cron configured below remains separate. Keep the App key only in the service. Add the intended portal origin to its trusted destinations before pairing.
 
 Record the repository's numeric ID, App bot user ID from the service's `/v1/info`, and external GitHub App installation ID from its installation settings. These differ from the stable Feedbax Installation ID that you generate for the portal.
 

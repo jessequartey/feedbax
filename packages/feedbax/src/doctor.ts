@@ -360,12 +360,21 @@ export async function diagnoseInstallation({
           lastDeliveryAt?: number;
           pending?: number;
           terminalFailures?: number;
+          recoveryIntervalMs?: number;
         };
         if (!status.active)
           throw new Error("GitHub Portal Binding is revoked.");
+        const interval = status.recoveryIntervalMs;
+        const staleAfter =
+          typeof interval === "number" &&
+          Number.isFinite(interval) &&
+          interval >= 300_000 &&
+          interval <= 86400_000
+            ? interval + 900_000
+            : 900_000;
         if (
           !status.lastDeliveryAt ||
-          Date.now() - status.lastDeliveryAt > 900_000 ||
+          Date.now() - status.lastDeliveryAt > staleAfter ||
           (status.terminalFailures ?? 0) > 0
         )
           results.push({
@@ -373,7 +382,7 @@ export async function diagnoseInstallation({
             status: "warn",
             message: `Reconciliation needs attention: ${status.pending ?? 0} pending; ${status.terminalFailures ?? 0} terminal failures.`,
             repair:
-              "Verify service and portal cron processing, permissions, and their most recent successful delivery.",
+              "Verify service Queue delivery and recovery, portal cron processing, permissions, and their most recent successful delivery.",
           });
         const token = await createGitHubServiceAccess({
           config: github,

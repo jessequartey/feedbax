@@ -1,7 +1,14 @@
-import type { D1Database } from "@cloudflare/workers-types";
+import type {
+  D1Database,
+  MessageBatch,
+  Queue,
+} from "@cloudflare/workers-types";
 import { createIntegrationService } from "./service";
 interface Environment {
   FEEDBAX_APP_DB: D1Database;
+  INTEGRATION_DELIVERY_QUEUE: Queue<
+    { workId: string } | "feedbax-github-maintenance-v1"
+  >;
   SERVICE_ORIGIN: string;
   TRUSTED_PORTAL_ORIGINS: string;
   PORTAL_SERVICE_BINDINGS?: string;
@@ -15,9 +22,15 @@ interface Environment {
     limit(options: { key: string }): Promise<{ success: boolean }>;
   };
 }
-let cached: ReturnType<typeof createIntegrationService> | undefined;
+const services = new WeakMap<
+  Environment,
+  ReturnType<typeof createIntegrationService>
+>();
 function service(environment: Environment) {
+  const cached = services.get(environment);
   if (cached) return cached;
+  if (!environment.INTEGRATION_DELIVERY_QUEUE)
+    throw new Error("Bind the integration delivery queue.");
   const trusted = JSON.parse(environment.TRUSTED_PORTAL_ORIGINS) as unknown;
   if (
     !Array.isArray(trusted) ||
@@ -48,7 +61,7 @@ function service(environment: Environment) {
       throw new Error("Configure the portal Service Binding.");
     transports[origin] = binding;
   }
-  cached = createIntegrationService({
+  const configured = createIntegrationService({
     database: environment.FEEDBAX_APP_DB,
     origin: environment.SERVICE_ORIGIN,
     app: {
@@ -61,8 +74,15 @@ function service(environment: Environment) {
     signingSecret: environment.INTEGRATION_SIGNING_SECRET,
     trustedPortalOrigins: trusted,
     portalTransports: transports,
+    dispatch: async (workId, delaySeconds) => {
+      await environment.INTEGRATION_DELIVERY_QUEUE.send(
+        { workId },
+        { delaySeconds },
+      );
+    },
   });
-  return cached;
+  services.set(environment, configured);
+  return configured;
 }
 export default {
   async fetch(request: Request, environment: Environment) {
@@ -98,6 +118,43 @@ export default {
   async scheduled(_event: unknown, environment: Environment) {
     if (!environment.GITHUB_APP_ID || !environment.INTEGRATION_SIGNING_SECRET)
       return;
-    await service(environment).process(1);
+    await environment.INTEGRATION_DELIVERY_QUEUE.send(
+      "feedbax-github-maintenance-v1",
+    );
+  },
+  async queue(batch: MessageBatch<unknown>, environment: Environment) {
+    for (const message of batch.messages) {
+      const body = message.body;
+      if (body === "feedbax-github-maintenance-v1") {
+        try {
+          await service(environment).maintain();
+          message.ack();
+        } catch {
+          message.retry({ delaySeconds: 60 });
+        }
+        continue;
+      }
+      if (
+        !body ||
+        typeof body !== "object" ||
+        !("workId" in body) ||
+        typeof body.workId !== "string" ||
+        !/^[A-Za-z0-9:_-]{1,256}$/.test(body.workId)
+      ) {
+        message.ack();
+        continue;
+      }
+      try {
+        const configured = service(environment);
+        // Queue FIFO must not bury a known revocation behind content work.
+        await configured.processRevocation();
+        const result = await configured.processWork(body.workId);
+        if (result.retryAfter)
+          message.retry({ delaySeconds: result.retryAfter });
+        else message.ack();
+      } catch {
+        message.retry({ delaySeconds: 60 });
+      }
+    }
   },
 };

@@ -23,6 +23,24 @@
       "simple": { "limit": 10, "period": 60 },
     },
   ],
-  "triggers": { "crons": ["* * * * *"] },
+  "queues": {
+    "producers": [
+      {
+        "binding": "INTEGRATION_DELIVERY_QUEUE",
+        "queue": "feedbax-github-delivery",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "feedbax-github-delivery",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_concurrency": 1,
+        "max_retries": 10,
+        "retry_delay": 60,
+      },
+    ],
+  },
+  "triggers": { "crons": ["0 * * * *"] },
   "observability": { "enabled": false },
 }
