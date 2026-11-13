@@ -1,4 +1,0 @@
-{
-  "extends": "@feedbax/config/tsconfig.base.json",
-  "include": ["src/**/*.ts"]
-}
