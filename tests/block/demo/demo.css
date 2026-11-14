@@ -1,0 +1,12 @@
+@import "../../../src/styles.css";
+@source "../../../registry";
+@source "../../../src/components/ui";
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
