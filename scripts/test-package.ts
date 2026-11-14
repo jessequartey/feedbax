@@ -145,17 +145,9 @@ export async function testPackage(): Promise<void> {
         failures.push(`${pm}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    if (
-      (
-        await readFile(join(harness, "node_modules/create-feedbax/dist/providers.mjs"), "utf8")
-      ).includes("Merge W2")
-    )
-      failures.push(
-        "W2: real setup factories are missing; fake-provider success does not satisfy the release gate.",
-      );
     if (failures.length)
       throw new Error(
-        `Generated-app acceptance failed:\n${failures.join("\n\n")}\nIf src/server/functions.ts still imports tests/fixtures, W1 must replace that W0 stub before the release gate can pass.`,
+        `Generated-app acceptance failed:\n${failures.join("\n\n")}`,
       );
   } finally {
     await rm(temp, { recursive: true, force: true });

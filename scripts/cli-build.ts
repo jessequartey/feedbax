@@ -1,6 +1,5 @@
 // Node 24 type stripping; only erasable TypeScript.
-import { chmod, copyFile, mkdir, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { chmod, copyFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildTemplate } from "./package-template.ts";
@@ -26,56 +25,43 @@ export async function buildCli(): Promise<void> {
   );
   if (packed.code) throw new Error(packed.stderr || packed.stdout);
   await chmod(join(cwd, "dist/index.mjs"), 0o755);
+  // Bundle the real provisioning clients (src/integrations) so the CLI never carries a
+  // second Notion or GitHub implementation.
   const entry = join(cwd, "provider-entry.ts");
   try {
-    if (
-      existsSync(join(root, "src/integrations/notion.ts")) &&
-      existsSync(join(root, "src/integrations/github.ts"))
-    ) {
-      await writeFile(
-        entry,
-        'export { createNotionSetupClient } from "../../src/integrations/notion.ts";\nexport { createGitHubSetupClient } from "../../src/integrations/github.ts";\n',
-      );
-      const providers = await run(
-        join(root, "node_modules/.bin/vp"),
-        [
-          "pack",
-          "provider-entry.ts",
-          "--no-config",
-          "--format",
-          "esm",
-          "--target",
-          "node24",
-          "--out-dir",
-          "dist",
-          "--no-clean",
-        ],
-        { cwd },
-      );
-      if (providers.code) throw new Error(providers.stderr || providers.stdout);
-      await copyFile(join(cwd, "dist/provider-entry.mjs"), join(cwd, "dist/providers.mjs"));
-      await rm(join(cwd, "dist/provider-entry.mjs"));
-    } else {
-      // TEMP until W2 merges. No duplicate Notion schema or provider implementation.
-      await mkdir(join(cwd, "dist"), { recursive: true });
-      await writeFile(
-        join(cwd, "dist/providers.mjs"),
-        'const unavailable = () => { throw new Error("Notion/GitHub setup clients are unavailable in this development build. Merge W2 and run npm run cli:build before releasing."); };\nexport { unavailable as createNotionSetupClient, unavailable as createGitHubSetupClient };\n',
-      );
-      console.warn(
-        "TEMP: W2 clients are absent; injected clients work, release provisioning requires W2.",
-      );
-    }
+    await writeFile(
+      entry,
+      'export { createNotionSetupClient } from "../../src/integrations/notion.ts";\nexport { createGitHubSetupClient } from "../../src/integrations/github.ts";\n',
+    );
+    const providers = await run(
+      join(root, "node_modules/.bin/vp"),
+      [
+        "pack",
+        "provider-entry.ts",
+        "--no-config",
+        "--format",
+        "esm",
+        "--target",
+        "node24",
+        "--out-dir",
+        "dist",
+        "--no-clean",
+      ],
+      { cwd },
+    );
+    if (providers.code) throw new Error(providers.stderr || providers.stdout);
+    await copyFile(join(cwd, "dist/provider-entry.mjs"), join(cwd, "dist/providers.mjs"));
+    await rm(join(cwd, "dist/provider-entry.mjs"));
   } finally {
     await rm(entry, { force: true });
   }
   const template = buildTemplate();
-  // npm always omits .gitignore, including nested ones. Transport the exact W0
+  // npm always omits .gitignore, including nested ones. Transport the exact
   // allowlisted file under a neutral name, then restore it when scaffolding.
   await copyFile(join(template.out, ".gitignore"), join(template.out, "_gitignore"));
   if (template.forbiddenImports.length)
-    console.warn(
-      `Template integration pending: ${template.forbiddenImports.join(", ")} imports repo fixtures (W1 must replace the W0 stub).`,
+    throw new Error(
+      `Template imports repo-only fixtures: ${template.forbiddenImports.join(", ")}`,
     );
   await copyFile(join(root, "LICENSE"), join(cwd, "LICENSE"));
   console.log(`create-feedbax: built CLI + ${template.files.length} template files`);

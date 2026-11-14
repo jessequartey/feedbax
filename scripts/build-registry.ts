@@ -13,7 +13,7 @@ const registryFile = join(ROOT, "registry.json");
 const outDir = join(ROOT, "public", "r");
 
 if (!existsSync(registryFile)) {
-  console.error("error: registry.json not found (owned by W4)");
+  console.error("error: registry.json not found");
   process.exit(1);
 }
 

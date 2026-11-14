@@ -89,7 +89,7 @@ function walk(dir: string): string[] {
   });
 }
 
-/** Template files that import tests, scripts, the registry or the CLI (e.g. the W0 stub). */
+/** Template files that import tests, scripts, the registry or the CLI . */
 export function findForbiddenImports(outDir: string): string[] {
   return walk(join(outDir, "src"))
     .filter((file) => /\.(?:ts|tsx)$/.test(file))
@@ -117,7 +117,7 @@ export function buildTemplate(options: { out?: string; root?: string } = {}): {
   for (const file of COPY_FILES) cpSync(join(root, file), join(out, file));
 
   const readme = join(root, ".template", "README.md");
-  if (!existsSync(readme)) throw new Error("Missing .template/README.md (owned by W6)");
+  if (!existsSync(readme)) throw new Error("Missing .template/README.md");
   cpSync(readme, join(out, "README.md"));
 
   const rootPackage = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as Pkg;
@@ -146,7 +146,7 @@ function main(): void {
       console.error(`error: ${message}`);
       process.exit(1);
     }
-    console.warn(`warning: ${message} (fails with --strict; expected only for the W0 stub)`);
+    console.warn(`warning: ${message}`);
   }
 }
 

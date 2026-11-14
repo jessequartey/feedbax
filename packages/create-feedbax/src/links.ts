@@ -1,4 +1,4 @@
-// The maintainer publishes this page before release; W6 checks this same URL.
+// The maintainer publishes this page before release.
 export const NOTION_TEMPLATE_URL = "https://www.notion.so/PLACEHOLDER-FEEDBAX-TEMPLATE";
 export const NOTION_INTEGRATION_URL = "https://www.notion.so/profile/integrations";
 export const GITHUB_TOKEN_URL =

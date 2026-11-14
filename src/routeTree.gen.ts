@@ -15,7 +15,11 @@ import { Route as MyFeedbackRouteImport } from './routes/my-feedback'
 import { Route as RoadmapRouteImport } from './routes/roadmap'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SubmitRouteImport } from './routes/submit'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiPostsRouteImport } from './routes/api/posts'
 import { Route as PostsPostIdRouteImport } from './routes/posts.$postId'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -47,9 +51,29 @@ const SubmitRoute = SubmitRouteImport.update({
   path: '/submit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPostsRoute = ApiPostsRouteImport.update({
+  id: '/api/posts',
+  path: '/api/posts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PostsPostIdRoute = PostsPostIdRouteImport.update({
   id: '/posts/$postId',
   path: '/posts/$postId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
+  id: '/api/media/$id',
+  path: '/api/media/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -60,7 +84,11 @@ export interface FileRoutesByFullPath {
   '/roadmap': typeof RoadmapRoute
   '/signup': typeof SignupRoute
   '/submit': typeof SubmitRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/posts': typeof ApiPostsRoute
   '/posts/$postId': typeof PostsPostIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/media/$id': typeof ApiMediaIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -69,7 +97,11 @@ export interface FileRoutesByTo {
   '/roadmap': typeof RoadmapRoute
   '/signup': typeof SignupRoute
   '/submit': typeof SubmitRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/posts': typeof ApiPostsRoute
   '/posts/$postId': typeof PostsPostIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/media/$id': typeof ApiMediaIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -79,7 +111,11 @@ export interface FileRoutesById {
   '/roadmap': typeof RoadmapRoute
   '/signup': typeof SignupRoute
   '/submit': typeof SubmitRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/posts': typeof ApiPostsRoute
   '/posts/$postId': typeof PostsPostIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/media/$id': typeof ApiMediaIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -90,7 +126,11 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/api/health'
+    | '/api/posts'
     | '/posts/$postId'
+    | '/api/auth/$'
+    | '/api/media/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -99,7 +139,11 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/api/health'
+    | '/api/posts'
     | '/posts/$postId'
+    | '/api/auth/$'
+    | '/api/media/$id'
   id:
     | '__root__'
     | '/'
@@ -108,7 +152,11 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/api/health'
+    | '/api/posts'
     | '/posts/$postId'
+    | '/api/auth/$'
+    | '/api/media/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,7 +166,11 @@ export interface RootRouteChildren {
   RoadmapRoute: typeof RoadmapRoute
   SignupRoute: typeof SignupRoute
   SubmitRoute: typeof SubmitRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiPostsRoute: typeof ApiPostsRoute
   PostsPostIdRoute: typeof PostsPostIdRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiMediaIdRoute: typeof ApiMediaIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -165,11 +217,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubmitRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/posts': {
+      id: '/api/posts'
+      path: '/api/posts'
+      fullPath: '/api/posts'
+      preLoaderRoute: typeof ApiPostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/posts/$postId': {
       id: '/posts/$postId'
       path: '/posts/$postId'
       fullPath: '/posts/$postId'
       preLoaderRoute: typeof PostsPostIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/media/$id': {
+      id: '/api/media/$id'
+      path: '/api/media/$id'
+      fullPath: '/api/media/$id'
+      preLoaderRoute: typeof ApiMediaIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -182,7 +262,11 @@ const rootRouteChildren: RootRouteChildren = {
   RoadmapRoute: RoadmapRoute,
   SignupRoute: SignupRoute,
   SubmitRoute: SubmitRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiPostsRoute: ApiPostsRoute,
   PostsPostIdRoute: PostsPostIdRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiMediaIdRoute: ApiMediaIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

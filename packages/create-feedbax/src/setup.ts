@@ -235,7 +235,7 @@ export async function setup(
   try {
     config = JSON.parse(await readFile(join(cwd, "wrangler.jsonc"), "utf8")) as WranglerConfig;
   } catch {
-    /* W0's initial JSONC has comments and placeholder values. */
+    /* The initial JSONC has comments and placeholder values. */
   }
   const ownsResources = config?.name === answers.name && config?.account_id === accountId;
   const dbName = ownsResources ? config!.d1_databases[0]!.database_name : `${answers.name}-db`;

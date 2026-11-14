@@ -15,7 +15,7 @@ export async function createNotionTemplate(
     throw new Error(
       "Set NOTION_TOKEN to the integration's complete Internal Integration Secret. Share the parent page in Content access → Edit access.",
     );
-  // W2 owns the one schema and the template's guide blocks. No local schema copy.
+  // src/integrations owns the one schema and the template's guide blocks. No local schema copy.
   const moduleUrl = new URL("../src/integrations/notion.ts", import.meta.url);
   try {
     const client =
