@@ -61,6 +61,7 @@ describe("Notion setup", () => {
         dataSourceId: SOURCE,
         databaseId: DATABASE,
         parentTitle: "Team",
+        parentPageId: PARENT,
         url: `https://notion.so/${DATABASE}`,
       },
     ]);
@@ -111,11 +112,15 @@ describe("Notion setup", () => {
       list([source(partial, "Custom title")]),
       source(partial, "Custom title"),
       database(),
-      {},
       parent,
+      source(partial, "Custom title"),
+      {},
     );
-    await createNotionSetupClient("token", fake.fetch).findFeedbaxDataSources();
-    expect(fake.requests[3]).toMatchObject({
+    const client = createNotionSetupClient("token", fake.fetch);
+    const targets = await client.findFeedbaxDataSources();
+    expect(fake.requests.every((r) => r.method !== "PATCH")).toBe(true);
+    await client.prepareDataSource(targets[0]);
+    expect(fake.requests[5]).toMatchObject({
       method: "PATCH",
       url: `https://api.notion.com/v1/data_sources/${SOURCE}`,
       body: { properties: { Description: NOTION_SCHEMA.Description } },
@@ -130,9 +135,18 @@ describe("Notion setup", () => {
       },
       Extra: { type: "number", number: {} },
     };
-    const fake = fakeFetch(list([source(properties)]), source(properties), database(), {}, parent);
-    await createNotionSetupClient("token", fake.fetch).findFeedbaxDataSources();
-    expect(fake.requests[3].body).toEqual({
+    const fake = fakeFetch(
+      list([source(properties)]),
+      source(properties),
+      database(),
+      parent,
+      source(properties),
+      {},
+    );
+    const client = createNotionSetupClient("token", fake.fetch);
+    const targets = await client.findFeedbaxDataSources();
+    await client.prepareDataSource(targets[0]);
+    expect(fake.requests[5].body).toEqual({
       properties: {
         Status: {
           select: {
@@ -152,13 +166,7 @@ describe("Notion setup", () => {
   test("rejects a mistyped required property on a named Feedbax source without replacing it", async () => {
     const wrong = { ...NOTION_SCHEMA, Status: { type: "status", status: {} } };
     const fake = fakeFetch(list([source(wrong)]), source(wrong), database());
-    await expect(
-      createNotionSetupClient("token", fake.fetch).findFeedbaxDataSources(),
-    ).rejects.toMatchObject({
-      provider: "notion",
-      kind: "schema",
-      message: "Notion property Status must have type select.",
-    });
+    expect(await createNotionSetupClient("token", fake.fetch).findFeedbaxDataSources()).toEqual([]);
     expect(fake.requests.every((r) => r.method !== "PATCH")).toBe(true);
   });
   test("listPages excludes in_trash and caps at 100 accessible pages", async () => {
@@ -225,6 +233,7 @@ describe("Notion setup", () => {
       dataSourceId: SOURCE,
       databaseId: DATABASE,
       parentTitle: "Team",
+      parentPageId: PARENT,
       url: database().url,
     });
   });

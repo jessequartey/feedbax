@@ -71,6 +71,25 @@ export async function chooseNotion(
       );
     if (saved || targets.length === 1) {
       const target = saved ?? targets[0]!;
+      if (saved && flags.notionPage) {
+        if (!saved.parentPageId)
+          throw new CliError(
+            "The saved Notion parent cannot be verified. Resume without --notion-page to keep the saved database unchanged.",
+            2,
+          );
+        const page = await client.getPage(flags.notionPage);
+        if (
+          page.id.replaceAll("-", "").toLowerCase() !==
+          saved.parentPageId.replaceAll("-", "").toLowerCase()
+        )
+          throw new CliError(
+            "--notion-page names a different parent from the saved database. Resume without that flag, or explicitly edit feedbax.config.ts to change targets.",
+            2,
+          );
+      }
+      if (target.needsRepair)
+        prompt.info("Updating missing Feedbax columns in the selected database.");
+      await client.prepareDataSource(target);
       prompt.info(`Using Feedbax in ${target.parentTitle}`);
       return target;
     }
@@ -80,10 +99,16 @@ export async function chooseNotion(
         targets.map((target) => ({
           value: target.dataSourceId,
           label: target.parentTitle,
-          hint: target.url,
+          hint: target.needsRepair
+            ? `${target.url} · missing columns will be added after selection`
+            : target.url,
         })),
       );
-      return targets.find((target) => target.dataSourceId === id)!;
+      const target = targets.find((target) => target.dataSourceId === id)!;
+      if (target.needsRepair)
+        prompt.info("Updating missing Feedbax columns in the selected database.");
+      await client.prepareDataSource(target);
+      return target;
     }
     if (flags.yes && !flags.notionPage)
       throw new CliError(

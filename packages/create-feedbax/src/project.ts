@@ -1,6 +1,7 @@
 import { chmod, cp, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
+import { withoutComments } from "./jsonc.ts";
 import { CliError } from "./flags.ts";
 import type { SetupAnswers } from "./types.ts";
 export async function exists(path: string): Promise<boolean> {
@@ -15,7 +16,7 @@ export async function exists(path: string): Promise<boolean> {
 export async function readVars(cwd: string): Promise<Record<string, string>> {
   if (!(await exists(join(cwd, ".dev.vars")))) return {};
   const result: Record<string, string> = {};
-  for (const line of (await readFile(join(cwd, ".dev.vars"), "utf8")).split("\n")) {
+  for (const line of (await readFile(join(cwd, ".dev.vars"), "utf8")).split(/\r?\n/)) {
     const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line);
     if (match) {
       const value = match[2]!;
@@ -103,13 +104,14 @@ export async function writeAppConfig(cwd: string, answers: SetupAnswers): Promis
 }
 export async function savedAnswers(cwd: string): Promise<Partial<SetupAnswers>> {
   if (!(await exists(join(cwd, "feedbax.config.ts")))) return {};
-  const config = await readFile(join(cwd, "feedbax.config.ts"), "utf8");
+  const config = withoutComments(await readFile(join(cwd, "feedbax.config.ts"), "utf8"));
   const id = /["']?dataSourceId["']?\s*:\s*["']([a-f0-9-]+)["']/i.exec(config)?.[1];
+  if (!id || id.replaceAll("-", "") === "0".repeat(32)) return {};
   const repo = /["']?repo["']?\s*:\s*["']([^"']+)["']/.exec(config)?.[1];
   return {
     notionDataSourceId: id?.replace(/-/g, "") !== "0".repeat(32) ? id : undefined,
     githubRepo: repo,
-    template: repo ? "notion-github" : undefined,
+    template: repo ? "notion-github" : "notion",
     anonymous: /["']?anonymous["']?\s*:\s*true/.test(config),
   };
 }

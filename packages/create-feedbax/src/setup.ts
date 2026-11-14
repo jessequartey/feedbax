@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { GitHubSetupClient, NotionSetupClient } from "../../../src/contracts/integrations.ts";
 import { CliError, subdomainProblem } from "./flags.ts";
 import { redact } from "./io.ts";
+import { parseJsonc } from "./jsonc.ts";
 import { ensureSecrets } from "./project.ts";
 import type { PackageManager, Prompter, Run, Secrets, SetupAnswers } from "./types.ts";
 
@@ -233,9 +234,13 @@ export async function setup(
   const portalUrl = `https://${answers.name}.${subdomain}.workers.dev`;
   let config: WranglerConfig | undefined;
   try {
-    config = JSON.parse(await readFile(join(cwd, "wrangler.jsonc"), "utf8")) as WranglerConfig;
-  } catch {
-    /* The initial JSONC has comments and placeholder values. */
+    config = parseJsonc(await readFile(join(cwd, "wrangler.jsonc"), "utf8")) as WranglerConfig;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      throw new CliError(
+        "Could not read wrangler.jsonc. Fix its JSONC syntax before rerunning setup.",
+        2,
+      );
   }
   const ownsResources = config?.name === answers.name && config?.account_id === accountId;
   const dbName = ownsResources ? config!.d1_databases[0]!.database_name : `${answers.name}-db`;

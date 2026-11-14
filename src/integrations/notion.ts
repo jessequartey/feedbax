@@ -25,6 +25,8 @@ export type NotionPage = {
   id: string;
   url: string;
   in_trash?: boolean;
+  archived?: boolean;
+  is_archived?: boolean;
   properties: Record<
     string,
     {
@@ -110,6 +112,7 @@ export function createNotionSetupClient(
       ? (await getPage(database.parent.page_id)).title
       : notionText(database.title) || "Feedbax",
     url: database.url,
+    ...(database.parent.page_id ? { parentPageId: database.parent.page_id } : {}),
   });
   const createDatabaseIn = async (page: NotionPageChoice, inline: boolean) => {
     const database = await request<Database>("/databases", "POST", {
@@ -121,7 +124,13 @@ export function createNotionSetupClient(
     const dataSourceId = database.data_sources[0]?.id;
     if (!dataSourceId)
       throw schemaError("Notion did not return a data source for the new database.");
-    return { dataSourceId, databaseId: database.id, parentTitle: page.title, url: database.url };
+    return {
+      dataSourceId,
+      databaseId: database.id,
+      parentTitle: page.title,
+      parentPageId: page.id,
+      url: database.url,
+    };
   };
   const createDatabase = async (pageId: string): Promise<NotionTarget> =>
     createDatabaseIn(await getPage(pageId), false);
@@ -145,23 +154,36 @@ export function createNotionSetupClient(
           const named = [notionText(source.title), notionText(database.title)].some(
             (title) => title.trim().toLowerCase() === "feedbax",
           );
-          if (!named) {
-            try {
-              notionSchemaChanges(source.properties);
-            } catch {
-              continue;
-            }
+          let needsRepair = false;
+          try {
+            // Discovery only validates. A named partial schema can be repaired after choice.
+            needsRepair = Object.keys(notionSchemaChanges(source.properties, named)).length > 0;
+          } catch {
+            if (named)
+              console.warn(
+                "Skipping an incompatible Notion data source: required Feedbax column types do not match.",
+              );
+            continue;
           }
-          const changes = notionSchemaChanges(source.properties, true);
-          if (Object.keys(changes).length)
-            await request(`/data_sources/${source.id}`, "PATCH", { properties: changes });
-          targets.push(await target(source, database));
+          targets.push({
+            ...(await target(source, database)),
+            ...(needsRepair ? { needsRepair: true } : {}),
+          });
         }
         cursor = result.has_more ? result.next_cursor : null;
         if (result.has_more && !cursor)
           throw schemaError("Notion search returned no pagination cursor.");
       } while (cursor);
       return targets;
+    },
+    async prepareDataSource(selected) {
+      const source = await request<DataSource>(
+        `/data_sources/${parseNotionId(selected.dataSourceId)}`,
+      );
+      if (source.in_trash) throw schemaError("The selected Notion data source is in trash.");
+      const changes = notionSchemaChanges(source.properties, true);
+      if (Object.keys(changes).length)
+        await request(`/data_sources/${source.id}`, "PATCH", { properties: changes });
     },
     async listPages() {
       const pages: NotionPageChoice[] = [];

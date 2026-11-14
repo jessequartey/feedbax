@@ -15,13 +15,15 @@ export function fakeClients(
   const created: string[] = [];
   const notionClient: NotionSetupClient = {
     me: async () => ({ name: "Feedbax" }),
+    prepareDataSource: async () => {},
     findFeedbaxDataSources: async () => targets,
     listPages: async () => [{ id: ID, title: "Team", url: target.url }],
     getPage: async () => ({ id: ID, title: "Team", url: target.url }),
     createDatabase: async (id) => {
       created.push(id);
-      targets.push(target);
-      return target;
+      const createdTarget = { ...target, parentPageId: id };
+      targets.push(createdTarget);
+      return createdTarget;
     },
     createTemplatePage: async () => ({ pageUrl: target.url, target }),
   };

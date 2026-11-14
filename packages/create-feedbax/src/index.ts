@@ -109,6 +109,29 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
         : ""
     }`;
     const saved = await savedAnswers(cwd);
+    if (
+      saved.notionDataSourceId &&
+      ((flags.anonymous !== undefined && flags.anonymous !== saved.anonymous) ||
+        (flags.template !== undefined && flags.template !== saved.template) ||
+        (flags.githubRepo !== undefined && flags.githubRepo !== saved.githubRepo))
+    )
+      throw new CliError(
+        "These flags conflict with an already configured project. Edit feedbax.config.ts explicitly before rerunning setup.",
+        2,
+      );
+    if (saved.notionDataSourceId && flags.notionPage) {
+      const resumeArgs: string[] = [];
+      for (let index = 0; index < argv.length; index++) {
+        const arg = argv[index]!;
+        if (arg === "--notion-page") {
+          index++;
+          continue;
+        }
+        if (!arg.startsWith("--notion-page=")) resumeArgs.push(arg);
+      }
+      if (!flags.name) resumeArgs.unshift(name);
+      retry = `npx create-feedbax${resumeArgs.map((arg) => ` '${arg.replaceAll("'", "'\\''")}'`).join("")}`;
+    }
     const prior = await readVars(cwd);
     hidden.push(...Object.values(prior));
     const resume = await exists(join(cwd, "feedbax.config.ts"));
@@ -221,11 +244,8 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
     }
     const anonymous =
       flags.anonymous ??
-      (resume
-        ? saved.anonymous
-        : flags.yes
-          ? false
-          : await prompt.confirm("Let people post without an account?", false)) ??
+      saved.anonymous ??
+      (flags.yes ? false : await prompt.confirm("Let people post without an account?", false)) ??
       false;
     if (flags.yes) await begin();
     const answers: SetupAnswers = {

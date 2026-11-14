@@ -204,7 +204,7 @@ describe("provider questions", () => {
       p = scripted(["search", "paste", `https://notion.so/${ID}`]);
     expect(
       await chooseNotion(c.notionClient, { yes: false, help: false, version: false }, p, () => {}),
-    ).toEqual(target);
+    ).toEqual({ ...target, parentPageId: ID });
     expect(c.created).toEqual([ID]);
   });
   it("re-prompts a rejected token with specific guidance, supports network retry", async () => {
@@ -332,4 +332,99 @@ describe("failure boundaries", () => {
     expect((await validatedToken("notion", "token", c, p, false)).token).toBe("replacement");
     expect(p.log.join("\n")).toContain("whole secret");
   });
+});
+
+it("asks anonymous choice after a partial scaffold and clearly rejects conflicting reruns", async () => {
+  const f = await fixture();
+  const { scaffold } = await import("../../packages/create-feedbax/src/project.ts");
+  await scaffold(join(f.cwd, "my-feedback"), f.templateDir, "my-feedback");
+  f.prompt = scripted([true, "notion", false, true]);
+  expect(await main(["my-feedback"], f)).toBe(0);
+  expect(f.prompt.log.join("\n")).toContain("Let people post without an account?");
+  expect(await readFile(join(f.cwd, "my-feedback", "feedbax.config.ts"), "utf8")).toContain(
+    '"anonymous": true',
+  );
+  f.prompt = scripted();
+  expect(await main(["my-feedback", "--yes", "--anonymous=false"], f)).toBe(2);
+  expect(f.prompt.log.join("\n")).toMatch(/conflict|already configured/);
+});
+it("resumes resource ownership from genuine JSONC and reads CRLF secrets", async () => {
+  const f = await fixture();
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  const { writeFile } = await import("node:fs/promises");
+  const project = join(f.cwd, "my-feedback"),
+    path = join(project, "wrangler.jsonc");
+  const content = await readFile(path, "utf8");
+  await writeFile(
+    path,
+    "// setup ownership\r\n" +
+      content
+        .replace('"vars": {', '"example": "https://example.com/a//b/*c*/",\n"vars": {')
+        .replace(/\n}$/, ",\n}"),
+  );
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  await writeFile(
+    join(project, ".dev.vars"),
+    "PLAIN=plain\r\nSINGLE='single'\r\nDOUBLE=\"double\"\r\n",
+  );
+  expect(await readVars(project)).toEqual({ PLAIN: "plain", SINGLE: "single", DOUBLE: "double" });
+});
+it("cancelling Notion selection never repairs any candidate", async () => {
+  const clients = fakeClients([
+    target,
+    { ...target, dataSourceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  ]);
+  let repairs = 0;
+  clients.notionClient.prepareDataSource = async () => {
+    repairs++;
+  };
+  await expect(
+    chooseNotion(
+      clients.notionClient,
+      { yes: false, help: false, version: false },
+      scripted([cancel()]),
+      () => {},
+    ),
+  ).rejects.toThrow();
+  expect(repairs).toBe(0);
+});
+it("resumes the identical --notion-page command after Cloudflare failure and rejects a different parent", async () => {
+  const f = await fixture();
+  f.clients = fakeClients([]);
+  f.clients.notionClient.getPage = async (id) => ({ id, title: "Team", url: target.url });
+  f.state.fail = "d1 create";
+  const argv = ["my-feedback", "--yes", "--notion-page", ID];
+  expect(await main(argv, f)).toBe(1);
+  expect(await main(argv, f)).toBe(0);
+  expect(f.clients.created).toEqual([ID]);
+  const before = f.state.calls.length;
+  f.prompt = scripted();
+  expect(
+    await main(
+      ["my-feedback", "--yes", "--notion-page", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+      f,
+    ),
+  ).toBe(2);
+  expect(f.prompt.log.join("\n")).toMatch(/different|conflict/);
+  expect(f.state.calls).toHaveLength(before);
+});
+it("provides an actionable resume command omitting only --notion-page when its parent cannot be verified", async () => {
+  const f = await fixture();
+  f.state.fail = "d1 create";
+  const argv = [
+    "my-feedback",
+    "--yes",
+    "--template=notion",
+    "--anonymous=false",
+    `--notion-page=${ID}`,
+  ];
+  expect(await main(argv, f)).toBe(1);
+  f.prompt = scripted();
+  expect(await main(argv, f)).toBe(2);
+  const log = f.prompt.log.join("\n"),
+    retry = log.split("Retry:").at(-1)!;
+  expect(log).toContain("cannot be verified");
+  expect(retry).toContain("--template=notion");
+  expect(retry).toContain("--anonymous=false");
+  expect(retry).not.toContain("--notion-page");
 });

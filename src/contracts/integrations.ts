@@ -4,6 +4,8 @@ export type NotionTarget = {
   databaseId: string;
   parentTitle: string;
   url: string;
+  needsRepair?: boolean;
+  parentPageId?: string;
 };
 export type NotionPageChoice = { id: string; title: string; url: string };
 export type GitHubRepo = { fullName: string; archived: boolean; hasIssues: boolean };
@@ -49,6 +51,7 @@ export type NotionTemplateResult = {
 export type NotionSetupClient = {
   me(): Promise<{ name: string | null }>;
   findFeedbaxDataSources(): Promise<NotionTarget[]>; // search data_source + schema match, all pages
+  prepareDataSource(target: NotionTarget): Promise<void>; // repair only the selected/saved target
   listPages(): Promise<NotionPageChoice[]>; // search pages, ≤100, excludes in_trash
   getPage(idOrUrl: string): Promise<NotionPageChoice>; // parses notion.so / notion.site / UUID
   createDatabase(pageId: string): Promise<NotionTarget>;
