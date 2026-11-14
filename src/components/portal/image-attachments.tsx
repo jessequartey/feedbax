@@ -184,6 +184,7 @@ export function ImageAttachments({
                     width={slot.width}
                     height={slot.height}
                     alt={`Preview of ${slot.name}`}
+                    decoding="async"
                     className="aspect-video w-full object-cover"
                   />
                   <p className="truncate px-2 py-1.5 text-xs text-muted-foreground">

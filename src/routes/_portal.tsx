@@ -31,12 +31,12 @@ function PortalLayout() {
       <ViewerProvider viewer={viewer}>
         <a
           href="#main-content"
-          className="fixed top-3 left-3 z-[100] -translate-y-20 border bg-background px-4 py-3 text-sm font-medium transition-transform focus-visible:translate-y-0"
+          className="fixed top-3 left-3 z-[100] -translate-y-24 border bg-background px-4 py-3 text-sm font-medium focus-visible:translate-y-0 focus-visible:ring-2 focus-visible:ring-ring"
         >
           Skip to content
         </a>
         <SiteHeader />
-        <main id="main-content" tabIndex={-1} className="outline-none">
+        <main id="main-content" tabIndex={-1} className="scroll-mt-20 outline-none">
           <Outlet />
         </main>
         <ShowcaseCard />

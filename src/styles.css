@@ -126,7 +126,25 @@
     }
   html {
     @apply font-sans;
+    /* Sticky header is h-16 / md:h-20. Keep skip-link and hash targets below it. */
+    scroll-padding-top: 5.5rem;
     }
+}
+
+/* Decorative motion only. Loading spinners stay so a busy control still reads as busy. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
 /* "Get your own Feedbax" showcase card: hangs from two strings on desktop, sways once on load. */
 @keyframes feedbax-sway {
