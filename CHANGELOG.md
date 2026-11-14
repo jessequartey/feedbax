@@ -6,7 +6,7 @@ Rebuilt from scratch. Setup is now one command and a few clicks.
 
 - **One command.** `npx create-feedbax@latest` asks its questions, creates the Cloudflare resources, applies migrations and deploys. Rerunning it resumes a stopped setup.
 - **Social and host login.** GitHub, Google or your app's existing login; email/password login is disabled. GitHub sign-in credentials are separate from the optional Issues token.
-- **Free hosting target.** Cached images/assets and bounded sync retries reduce resource use. The previous password/SSR implementation exceeded the production CPU budget; the social/host candidate's live CPU gate remains pending.
+- **Free hosting target.** Static portal assets, cached images and bounded sync retries reduce resource use. Social/host login and sync are verified live. Some requests exceeded Workers Free's CPU budget; further optimization is deferred, so Free-limit compliance is not guaranteed.
 - **Official Notion template.** Duplicate the board, inbox, calendar and GitHub queue; setup detects the database. Community templates can keep the same schema.
 - **Notion is the dashboard.** Posts sync to a Notion database every 5 minutes. Change Status in Notion and the portal follows.
 - **Optional GitHub issues.** Tick **Send to GitHub** in Notion to create exactly one issue. Closing the issue sets the post to Done.

@@ -402,7 +402,7 @@ Move its matching Notion row to Trash and remove any test GitHub issue separatel
 
 Feedbax targets Cloudflare's Free plan with one Worker, one D1 database, one R2 bucket, one Queue and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking; failures back off instead of retrying in a loop.
 
-**CPU is the release gate.** Workers Free allows 10 ms of CPU per HTTP request. The previous password/SSR implementation exceeded it in production, so this release disables password login and is being revalidated with social/host login and runtime improvements. Local timings and successful HTTP responses alone do not establish that a deployment fits the Free budget. Final production CPU measurements remain pending; this candidate is not yet verified for Free hosting.
+Workers Free allows 10 ms of CPU per HTTP request. Some measured social/host login and data requests exceeded that budget, even though the tested flows worked. Further CPU optimization is deferred; this release does not guarantee that every request fits the Free limit. CPU time measures processing, excluding time spent waiting for network requests.
 
 Check CPU, request volume, database activity and storage for your traffic against Cloudflare's [Workers](https://developers.cloudflare.com/workers/platform/limits/), [D1](https://developers.cloudflare.com/d1/platform/pricing/), [Queues](https://developers.cloudflare.com/queues/platform/pricing/) and [R2](https://developers.cloudflare.com/r2/pricing/) limits. R2 activation may require a payment method even when usage stays within its free allowance.
 
