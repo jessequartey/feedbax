@@ -15,10 +15,10 @@ export type ChangelogPublishedSink = (event: ChangelogPublishedEvent) => void | 
  * (enqueue one `email.changelog` queue message). Ticket 08: push the webhook enqueue for
  * event "changelog.published". Keep a sink short: enqueue work, do not do it here.
  */
-export const changelogPublishedSinks: ChangelogPublishedSink[] = [
-  // Webhooks: one indexed read, and nothing more when no endpoint wants the event.
-  emitChangelogWebhook,
-];
+export const changelogPublishedSinks: ChangelogPublishedSink[] = [];
+// Webhooks: one indexed read, and nothing more when no endpoint wants the event. It only
+// stores deliveries and enqueues them; the HTTP requests are made by the queue consumer.
+changelogPublishedSinks.push(emitChangelogWebhook);
 
 /** Runs every sink and resolves when all settled. Safe to await in tests. */
 export async function runChangelogPublished(event: ChangelogPublishedEvent): Promise<void> {

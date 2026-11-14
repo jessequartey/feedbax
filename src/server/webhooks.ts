@@ -154,10 +154,15 @@ async function storeAndEnqueue(rows: NewDelivery[], endpointIds: string[]): Prom
   const database = db();
   // The history cap: keep the newest rows per endpoint. A pruned pending delivery is simply
   // dropped by the consumer (its row is gone).
-  const prune = endpointIds.map((id) =>
-    database.run(
-      sql`DELETE FROM webhook_deliveries WHERE endpoint_id = ${id} AND id NOT IN (SELECT id FROM webhook_deliveries WHERE endpoint_id = ${id} ORDER BY created_at DESC, id DESC LIMIT ${WEBHOOK_LIMITS.historyPerEndpoint})`,
-    ),
+  const prune = [...new Set(endpointIds)].map((id) =>
+    database
+      .delete(webhookDeliveries)
+      .where(
+        and(
+          eq(webhookDeliveries.endpointId, id),
+          sql`${webhookDeliveries.id} NOT IN (SELECT id FROM webhook_deliveries WHERE endpoint_id = ${id} ORDER BY created_at DESC, id DESC LIMIT ${WEBHOOK_LIMITS.historyPerEndpoint})`,
+        ),
+      ),
   );
   const inserts = rows.map((row) => database.insert(webhookDeliveries).values(row));
   await database.batch([...inserts, ...prune] as unknown as [
@@ -349,7 +354,7 @@ export async function deliverWebhook(deliveryId: string): Promise<number | null>
     status = response.status;
     wait = retryAfterSeconds(response.headers.get("Retry-After"));
     // Only the status matters; never read, store or log what the receiver answered.
-    await response.body?.cancel().catch(() => undefined);
+    void response.body?.cancel().catch(() => undefined);
     if (status >= 200 && status < 300) {
       await finish("delivered", status, null);
       return null;
