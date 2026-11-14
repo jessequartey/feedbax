@@ -80,10 +80,17 @@ jobs:
         working-directory: packages/create-feedbax
         run: |
           version=$(node -p "require('./package.json').version")
+          tarball="$RUNNER_TEMP/create-feedbax-$version.tgz"
           if npm view "create-feedbax@$version" version >/dev/null 2>&1; then
-            echo "create-feedbax@$version is already on npm; skipping publish."
+            published=$(npm view "create-feedbax@$version" dist.integrity)
+            expected=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; import { createHash } from "node:crypto"; console.log("sha512-" + createHash("sha512").update(readFileSync(process.argv[1])).digest("base64"))' "$tarball")
+            if [ "$published" != "$expected" ]; then
+              echo "create-feedbax@$version is already on npm with different package contents; refusing to create a release." >&2
+              exit 1
+            fi
+            echo "create-feedbax@$version is already on npm with matching integrity; skipping publish."
           else
-            npm publish --access public --provenance
+            npm publish "$tarball" --access public --provenance
           fi
 
       - name: Create the GitHub Release
