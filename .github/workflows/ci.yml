@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   ci:
+    name: Verify Core
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
