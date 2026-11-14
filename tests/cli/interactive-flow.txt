@@ -30,7 +30,7 @@ were used, no provider resources were created, and no real portal was deployed.
 │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
 ◇  Which repository?
 │  team/app
-●  Read access verified; write access is checked when the first issue is created
+●  Issues: write access verified
 ◇  Let people post without an account?
 │  No
 ◇  Install dependencies

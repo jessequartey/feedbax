@@ -267,8 +267,8 @@ describe("GitHub setup", () => {
     ]);
     expect(fake.requests[0].url).toBe("https://api.github.com/user/repos?per_page=100&page=1");
   });
-  test("checks metadata and Issues read access without creating a test issue", async () => {
-    const fake = fakeFetch(repo, []);
+  test("verifies Issues write access with an invalid POST that creates nothing", async () => {
+    const fake = fakeFetch(repo, new Response('{"message":"Validation Failed"}', { status: 422 }));
     expect(await createGitHubSetupClient("token", fake.fetch).checkRepo("acme/app")).toEqual({
       fullName: "acme/app",
       archived: false,
@@ -278,8 +278,10 @@ describe("GitHub setup", () => {
       fake.requests.map((r) => [r.method, new URL(r.url).pathname + new URL(r.url).search]),
     ).toEqual([
       ["GET", "/repos/acme/app"],
-      ["GET", "/repos/acme/app/issues?state=all&per_page=1"],
+      ["POST", "/repos/acme/app/issues"],
     ]);
+    // No title (or any field): GitHub can only answer 422, so no issue is ever created.
+    expect(fake.requests[1].body).toEqual({});
   });
   test.each([
     { ...repo, archived: true },
@@ -305,11 +307,34 @@ describe("GitHub setup", () => {
     ).rejects.toMatchObject({ kind: "schema" });
     expect(fake.requests).toHaveLength(0);
   });
-  test("issues access denial is a clear permission error", async () => {
-    const fake = fakeFetch(repo, new Response("secret", { status: 403 }));
+  test.each([403, 404])("%s on the write probe means the token cannot write", async (status) => {
+    const fake = fakeFetch(repo, new Response("secret", { status }));
+    const failure = createGitHubSetupClient("token", fake.fetch).checkRepo("acme/app");
+    await expect(failure).rejects.toMatchObject({ kind: "permission", status });
+    await expect(failure).rejects.toThrow("Issues: Read and write");
+    await expect(failure).rejects.not.toThrow("secret");
+  });
+  test("410 on the write probe reports disabled Issues", async () => {
+    const fake = fakeFetch(repo, new Response("", { status: 410 }));
     await expect(
       createGitHubSetupClient("token", fake.fetch).checkRepo("acme/app"),
-    ).rejects.toMatchObject({ kind: "permission", status: 403 });
+    ).rejects.toMatchObject({ kind: "permission", status: 410 });
+  });
+  test("a rate-limited or failing write probe is not reported as a permission problem", async () => {
+    const limited = fakeFetch(repo, new Response("", { status: 403, headers: { "Retry-After": "30" } }));
+    await expect(
+      createGitHubSetupClient("token", limited.fetch).checkRepo("acme/app"),
+    ).rejects.toMatchObject({ kind: "rate_limit", retryAfterMs: 30_000 });
+    const down = fakeFetch(repo, new Response("", { status: 503 }));
+    await expect(
+      createGitHubSetupClient("token", down.fetch).checkRepo("acme/app"),
+    ).rejects.toMatchObject({ kind: "transient" });
+  });
+  test("an unexpected 2xx from the write probe is an error, not a pass", async () => {
+    const fake = fakeFetch(repo, { number: 1 });
+    await expect(
+      createGitHubSetupClient("token", fake.fetch).checkRepo("acme/app"),
+    ).rejects.toMatchObject({ kind: "schema" });
   });
 });
 

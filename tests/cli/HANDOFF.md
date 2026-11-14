@@ -54,10 +54,10 @@ or application template. No W0/W1/W2/W3/W4/W6-owned file was edited.
   `PORTAL_URL`, to the first `wrangler deploy --secrets-file`. `finally` removes
   it. `.dev.vars` is 0600 and gitignored. Child errors are redacted; malformed
   saved secrets produce a generic error without quoting their contents.
-- GitHub checks token identity and repository issue read access, rejects archived
-  repositories and disabled Issues, and never creates a test issue. The precise
-  spec-required message explains that write access is checked by the first
-  approved issue. The prefilled token URL was opened in the shared browser, but
+- GitHub checks token identity, rejects archived repositories and disabled
+  Issues, and verifies Issues write access by sending `POST /repos/{owner}/{repo}/issues`
+  with an invalid body (422 = can write; 403/404 = cannot), so no issue is created.
+  The prefilled token URL was opened in the shared browser, but
   GitHub redirected to sign-in, so `issues=write` could not be visually verified.
   The CLI explicitly instructs **Issues: Read and write** as the safe fallback.
 - npm omits nested `.gitignore` files. The CLI build transports W0's exact file

@@ -56,10 +56,52 @@ export function createGitHubSetupClient(
           "Choose a repository that is not archived and has Issues enabled.",
         );
       }
-      // GitHub offers no read-only endpoint proving a PAT's Issues write permission.
-      // Do not create a test issue: the first approved issue verifies write access.
-      await request(`${path}/issues?state=all&per_page=1`);
-      return repoView(repo);
+      // Prove Issues write access without creating an issue: POST an invalid body (no
+      // `title`). GitHub authorizes the request before validating it, so a token that can
+      // write gets 422 "Validation Failed" and nothing is created; a token that cannot
+      // gets 403 (or 404 when it cannot see the repository at all). 410 means Issues are off.
+      try {
+        await request(`${path}/issues`, "POST", {});
+      } catch (error) {
+        if (!(error instanceof IntegrationError) || error.provider !== "github") throw error;
+        if (error.status === 422) return repoView(repo);
+        if (error.status === 403 && error.kind === "permission") {
+          throw new IntegrationError(
+            "github",
+            "permission",
+            403,
+            null,
+            "github token cannot write Issues in this repository. Grant Issues: Read and write.",
+          );
+        }
+        if (error.status === 404) {
+          throw new IntegrationError(
+            "github",
+            "permission",
+            404,
+            null,
+            "github token cannot write Issues in this repository. Grant Issues: Read and write and select this repository.",
+          );
+        }
+        if (error.status === 410) {
+          throw new IntegrationError(
+            "github",
+            "permission",
+            410,
+            null,
+            "Issues are disabled for this repository.",
+          );
+        }
+        throw error;
+      }
+      // A 2xx here would mean GitHub accepted an empty issue, which it never does.
+      throw new IntegrationError(
+        "github",
+        "schema",
+        null,
+        null,
+        "github returned an unexpected response while checking Issues write access.",
+      );
     },
   };
 }

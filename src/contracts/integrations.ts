@@ -45,5 +45,5 @@ export type NotionSetupClient = {
 export type GitHubSetupClient = {
   me(): Promise<{ login: string }>;
   listRepos(): Promise<GitHubRepo[]>; // first 100 the token can see
-  checkRepo(fullName: string): Promise<GitHubRepo>; // + verifies issues read access
+  checkRepo(fullName: string): Promise<GitHubRepo>; // + verifies issues write access (invalid-body POST: 422 = can write)
 };

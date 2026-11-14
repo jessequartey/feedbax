@@ -71,7 +71,7 @@
 [999D[6A[1B[J◇  Which repository?
 │  team/app
 [?25h│
-●  Read access verified; write access is checked when the first issue is created
+●  Issues: write access verified
 [?25l│
 ◆  Let people post without an account?
 │  ○ Yes / ● No

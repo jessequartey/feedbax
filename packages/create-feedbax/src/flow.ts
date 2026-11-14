@@ -152,15 +152,15 @@ export async function chooseRepo(
         throw new CliError(
           "Issues are disabled. Enable Issues in the repository's Settings → General → Features.",
         );
-      prompt.info("Read access verified; write access is checked when the first issue is created");
+      prompt.info("Issues: write access verified");
       return checked.fullName;
     } catch (error) {
       if (error instanceof Cancelled || (error instanceof Error && error.name === "AbortError"))
         throw new Cancelled();
       const message =
-        error instanceof CliError
+        error instanceof CliError || (error instanceof Error && error.name === "IntegrationError")
           ? error.message
-          : "Cannot read issues in this repository. Give the token access to it and choose Issues: Read and write.";
+          : "Cannot reach this repository. Give the token access to it and choose Issues: Read and write.";
       if (flags.yes) throw new CliError(message);
       prompt.error(message);
       repo = undefined;

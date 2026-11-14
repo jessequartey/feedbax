@@ -64,9 +64,7 @@ describe("setup", () => {
       expect(index, item).toBeGreaterThan(previous);
       previous = index;
     }
-    expect(log).toContain(
-      "Read access verified; write access is checked when the first issue is created",
-    );
+    expect(log).toContain("Issues: write access verified");
     expect(log).toContain("[default No]");
     const project = join(f.cwd, "my-feedback");
     const before = await readVars(project);
@@ -239,7 +237,22 @@ describe("provider questions", () => {
       chooseRepo(c, { yes: true, help: false, version: false, githubRepo: "team/app" }, scripted()),
     ).rejects.toThrow("Issues are disabled");
   });
-  it("creates the template through W2's shared method", async () => {
+  it("surfaces a missing Issues write permission from the repository check", async () => {
+    const c = fakeClients().github("token");
+    c.checkRepo = async () => {
+      throw new IntegrationError(
+        "github",
+        "permission",
+        403,
+        null,
+        "github token cannot write Issues in this repository. Grant Issues: Read and write.",
+      );
+    };
+    await expect(
+      chooseRepo(c, { yes: true, help: false, version: false, githubRepo: "team/app" }, scripted()),
+    ).rejects.toThrow("cannot write Issues");
+  });
+  it("creates the template through the shared client method", async () => {
     const c = fakeClients();
     expect(
       await createNotionTemplate(
