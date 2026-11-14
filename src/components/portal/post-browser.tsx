@@ -12,6 +12,7 @@ import { PaginationBar } from "./pagination-bar";
 import { PostList, PostListSkeleton } from "./post-row";
 import { clearFilters, hasActiveFilters, type BoardSearch } from "./portal-search";
 import { EmptyState } from "./states";
+import { useViewer } from "./viewer";
 
 export function NewPostButton({ className }: { className?: string }) {
   return (
@@ -51,7 +52,9 @@ type Props = {
 export function PostBrowser({ title, description, kind, search, page, onChange, onClear }: Props) {
   const filtered = hasActiveFilters(search);
   const activeCount = [search.category, search.status].filter(Boolean).length;
+  const { config } = useViewer();
   const panel = {
+    categories: config.categories,
     category: search.category,
     status: search.status,
     onCategory: (category: BoardSearch["category"]) => onChange({ category }),

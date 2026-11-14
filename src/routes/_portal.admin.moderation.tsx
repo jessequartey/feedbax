@@ -1,0 +1,98 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+import { unwrap } from "@/components/admin/use-admin";
+import { CommentModeration, FilterControl, PostModeration } from "@/components/admin/moderation";
+import { buttonVariants } from "@/components/ui/button";
+import type { ModerationFilter } from "@/contracts/admin";
+import { cn } from "@/lib/utils";
+import { adminListComments, adminListPosts } from "@/server/functions";
+
+type ModerationSearch = { view?: "comments"; filter?: "hidden" | "spam"; page?: number };
+
+function parsePage(raw: unknown): number | undefined {
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isInteger(n) && n > 1 && n <= 10_000 ? n : undefined;
+}
+
+export const Route = createFileRoute("/_portal/admin/moderation")({
+  validateSearch: (raw: Record<string, unknown>): ModerationSearch => ({
+    ...(raw.view === "comments" ? { view: "comments" as const } : {}),
+    ...(raw.view !== "comments" && (raw.filter === "hidden" || raw.filter === "spam")
+      ? { filter: raw.filter }
+      : {}),
+    ...(parsePage(raw.page) ? { page: parsePage(raw.page) } : {}),
+  }),
+  loaderDeps: ({ search }) => search,
+  loader: async ({ deps }) =>
+    deps.view === "comments"
+      ? ({
+          view: "comments",
+          comments: await unwrap(adminListComments({ data: { page: deps.page } })),
+        } as const)
+      : ({
+          view: "posts",
+          posts: await unwrap(adminListPosts({ data: { filter: deps.filter, page: deps.page } })),
+        } as const),
+  component: ModerationPage,
+});
+
+function ModerationPage() {
+  const data = Route.useLoaderData();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const view = data.view;
+  const tab = (active: boolean) =>
+    cn(
+      buttonVariants({ variant: active ? "secondary" : "ghost" }),
+      "h-9 px-4 text-sm max-md:h-11",
+      !active && "text-muted-foreground",
+    );
+  return (
+    <section aria-label="Moderation">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex gap-1" role="group" aria-label="What to moderate">
+          <Link
+            to="/admin/moderation"
+            search={{}}
+            aria-current={view === "posts" ? "true" : undefined}
+            className={tab(view === "posts")}
+          >
+            Posts
+          </Link>
+          <Link
+            to="/admin/moderation"
+            search={{ view: "comments" }}
+            aria-current={view === "comments" ? "true" : undefined}
+            className={tab(view === "comments")}
+          >
+            Comments
+          </Link>
+        </div>
+        {data.view === "posts" ? (
+          <FilterControl
+            value={(search.filter ?? "all") as ModerationFilter}
+            onChange={(filter) =>
+              void navigate({ search: filter === "all" ? {} : { filter }, replace: true })
+            }
+          />
+        ) : null}
+      </div>
+      {data.view === "posts" ? (
+        <PostModeration
+          page={data.posts}
+          filter={search.filter ?? "all"}
+          onPage={(page) =>
+            void navigate({ search: (prev) => ({ ...prev, page: page > 1 ? page : undefined }) })
+          }
+        />
+      ) : (
+        <CommentModeration
+          page={data.comments}
+          onPage={(page) =>
+            void navigate({ search: (prev) => ({ ...prev, page: page > 1 ? page : undefined }) })
+          }
+        />
+      )}
+    </section>
+  );
+}

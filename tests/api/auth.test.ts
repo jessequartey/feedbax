@@ -158,6 +158,7 @@ it("projects only public capabilities, validates host keys and keeps host login 
   expect(Object.keys(publicConfig(settings)).sort()).toEqual([
     "anonymous",
     "appUrl",
+    "categories",
     "hostLogin",
     "name",
     "oauth",

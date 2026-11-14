@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PortalRouteImport } from './routes/_portal'
 import { Route as PortalIndexRouteImport } from './routes/_portal.index'
+import { Route as PortalAdminRouteImport } from './routes/_portal.admin'
 import { Route as PortalLoginRouteImport } from './routes/_portal.login'
 import { Route as PortalMyFeedbackRouteImport } from './routes/_portal.my-feedback'
 import { Route as PortalRoadmapRouteImport } from './routes/_portal.roadmap'
@@ -19,6 +20,10 @@ import { Route as PortalSubmitRouteImport } from './routes/_portal.submit'
 import { Route as AdminEnterRouteImport } from './routes/admin.enter'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
+import { Route as PortalAdminIndexRouteImport } from './routes/_portal.admin.index'
+import { Route as PortalAdminModerationRouteImport } from './routes/_portal.admin.moderation'
+import { Route as PortalAdminSettingsRouteImport } from './routes/_portal.admin.settings'
+import { Route as PortalAdminUsersRouteImport } from './routes/_portal.admin.users'
 import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
@@ -30,6 +35,11 @@ const PortalRoute = PortalRouteImport.update({
 const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalAdminRoute = PortalAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalLoginRoute = PortalLoginRouteImport.update({
@@ -72,6 +82,26 @@ const ApiPostsRoute = ApiPostsRouteImport.update({
   path: '/api/posts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalAdminIndexRoute = PortalAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminModerationRoute = PortalAdminModerationRouteImport.update({
+  id: '/moderation',
+  path: '/moderation',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminSettingsRoute = PortalAdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminUsersRoute = PortalAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
 const PortalPostsPostIdRoute = PortalPostsPostIdRouteImport.update({
   id: '/posts/$postId',
   path: '/posts/$postId',
@@ -90,6 +120,7 @@ const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof PortalIndexRoute
+  '/admin': typeof PortalAdminRouteWithChildren
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
   '/roadmap': typeof PortalRoadmapRoute
@@ -98,9 +129,13 @@ export interface FileRoutesByFullPath {
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
+  '/admin/moderation': typeof PortalAdminModerationRoute
+  '/admin/settings': typeof PortalAdminSettingsRoute
+  '/admin/users': typeof PortalAdminUsersRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
+  '/admin/': typeof PortalAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof PortalLoginRoute
@@ -112,13 +147,18 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/': typeof PortalIndexRoute
+  '/admin/moderation': typeof PortalAdminModerationRoute
+  '/admin/settings': typeof PortalAdminSettingsRoute
+  '/admin/users': typeof PortalAdminUsersRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
+  '/admin': typeof PortalAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_portal': typeof PortalRouteWithChildren
+  '/_portal/admin': typeof PortalAdminRouteWithChildren
   '/_portal/login': typeof PortalLoginRoute
   '/_portal/my-feedback': typeof PortalMyFeedbackRoute
   '/_portal/roadmap': typeof PortalRoadmapRoute
@@ -128,14 +168,19 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/_portal/': typeof PortalIndexRoute
+  '/_portal/admin/moderation': typeof PortalAdminModerationRoute
+  '/_portal/admin/settings': typeof PortalAdminSettingsRoute
+  '/_portal/admin/users': typeof PortalAdminUsersRoute
   '/_portal/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
+  '/_portal/admin/': typeof PortalAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/login'
     | '/my-feedback'
     | '/roadmap'
@@ -144,9 +189,13 @@ export interface FileRouteTypes {
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
+    | '/admin/moderation'
+    | '/admin/settings'
+    | '/admin/users'
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -158,12 +207,17 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/posts'
     | '/'
+    | '/admin/moderation'
+    | '/admin/settings'
+    | '/admin/users'
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
+    | '/admin'
   id:
     | '__root__'
     | '/_portal'
+    | '/_portal/admin'
     | '/_portal/login'
     | '/_portal/my-feedback'
     | '/_portal/roadmap'
@@ -173,9 +227,13 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/posts'
     | '/_portal/'
+    | '/_portal/admin/moderation'
+    | '/_portal/admin/settings'
+    | '/_portal/admin/users'
     | '/_portal/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
+    | '/_portal/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -201,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/admin': {
+      id: '/_portal/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof PortalAdminRouteImport
       parentRoute: typeof PortalRoute
     }
     '/_portal/login': {
@@ -259,6 +324,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPostsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_portal/admin/': {
+      id: '/_portal/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof PortalAdminIndexRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/moderation': {
+      id: '/_portal/admin/moderation'
+      path: '/moderation'
+      fullPath: '/admin/moderation'
+      preLoaderRoute: typeof PortalAdminModerationRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/settings': {
+      id: '/_portal/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof PortalAdminSettingsRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/users': {
+      id: '/_portal/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof PortalAdminUsersRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
     '/_portal/posts/$postId': {
       id: '/_portal/posts/$postId'
       path: '/posts/$postId'
@@ -283,7 +376,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PortalAdminRouteChildren {
+  PortalAdminModerationRoute: typeof PortalAdminModerationRoute
+  PortalAdminSettingsRoute: typeof PortalAdminSettingsRoute
+  PortalAdminUsersRoute: typeof PortalAdminUsersRoute
+  PortalAdminIndexRoute: typeof PortalAdminIndexRoute
+}
+
+const PortalAdminRouteChildren: PortalAdminRouteChildren = {
+  PortalAdminModerationRoute: PortalAdminModerationRoute,
+  PortalAdminSettingsRoute: PortalAdminSettingsRoute,
+  PortalAdminUsersRoute: PortalAdminUsersRoute,
+  PortalAdminIndexRoute: PortalAdminIndexRoute,
+}
+
+const PortalAdminRouteWithChildren = PortalAdminRoute._addFileChildren(
+  PortalAdminRouteChildren,
+)
+
 interface PortalRouteChildren {
+  PortalAdminRoute: typeof PortalAdminRouteWithChildren
   PortalLoginRoute: typeof PortalLoginRoute
   PortalMyFeedbackRoute: typeof PortalMyFeedbackRoute
   PortalRoadmapRoute: typeof PortalRoadmapRoute
@@ -294,6 +406,7 @@ interface PortalRouteChildren {
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
+  PortalAdminRoute: PortalAdminRouteWithChildren,
   PortalLoginRoute: PortalLoginRoute,
   PortalMyFeedbackRoute: PortalMyFeedbackRoute,
   PortalRoadmapRoute: PortalRoadmapRoute,

@@ -17,6 +17,7 @@ export const baseConfig: PublicConfig = {
   name: "Acme Feedback",
   appUrl: null,
   anonymous: false,
+  categories: ["feature", "bug", "general"],
   hostLogin: false,
   showcase: false,
   oauth: { github: false, google: false },

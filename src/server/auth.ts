@@ -8,7 +8,8 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { eq, sql } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig, PublicConfig } from "../contracts/config.ts";
-import type { ViewerUser } from "../contracts/domain.ts";
+import { CATEGORY_LABELS } from "../contracts/domain.ts";
+import type { Category, ViewerUser } from "../contracts/domain.ts";
 import { createDb, schema } from "../db/client.ts";
 import { decode64 } from "./encoding.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
@@ -25,7 +26,11 @@ import { DomainError, reportUnexpected } from "./errors.ts";
 import { requireSameOrigin } from "./request.ts";
 import { text } from "./validation.ts";
 
-export function publicConfig(settings = config, bindings: Cloudflare.Env = env): PublicConfig {
+export function publicConfig(
+  settings = config,
+  bindings: Cloudflare.Env = env,
+  categories: Category[] = Object.keys(CATEGORY_LABELS) as Category[],
+): PublicConfig {
   for (const provider of ["GITHUB", "GOOGLE"] as const) {
     if (
       Boolean(bindings[`${provider}_CLIENT_ID`]) !==
@@ -50,6 +55,7 @@ export function publicConfig(settings = config, bindings: Cloudflare.Env = env):
     name: settings.name,
     appUrl: settings.appUrl,
     anonymous: settings.auth.anonymous,
+    categories,
     showcase: settings.showcase,
     oauth: {
       github: Boolean(bindings.GITHUB_CLIENT_ID && bindings.GITHUB_CLIENT_SECRET),

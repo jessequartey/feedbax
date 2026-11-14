@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { ArrowLeftIcon, LogOutIcon, MenuIcon, UserIcon } from "lucide-react";
+import { ArrowLeftIcon, LogOutIcon, MenuIcon, ShieldIcon, UserIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -66,6 +66,24 @@ function BackToApp({ url, className }: { url: string; className?: string }) {
       <ArrowLeftIcon aria-hidden="true" />
       Back to app
     </a>
+  );
+}
+
+/** Discreet entry to /admin, rendered only for admins (the server still guards every page). */
+function AdminLink({ className, onClick }: { className?: string; onClick?: () => void }) {
+  return (
+    <Link
+      to="/admin/moderation"
+      onClick={onClick}
+      className={cn(
+        buttonVariants({ variant: "ghost" }),
+        "h-9 gap-1.5 px-3 text-sm text-muted-foreground max-md:h-11",
+        className,
+      )}
+    >
+      <ShieldIcon aria-hidden="true" />
+      Admin
+    </Link>
   );
 }
 
@@ -179,6 +197,7 @@ function MobileMenu({ pathname, backUrl }: { pathname: string; backUrl: string |
               {item.label}
             </Link>
           ))}
+          {user?.admin ? <AdminLink onClick={close} className="justify-start" /> : null}
         </nav>
         <div className="mt-auto flex flex-col gap-2 border-t p-4">
           {backUrl ? <BackToApp url={backUrl} className="w-full" /> : null}
@@ -237,6 +256,7 @@ export function SiteHeader() {
         </nav>
         <div className="col-start-2 flex items-center justify-self-end gap-2 md:col-start-3">
           {backUrl ? <BackToApp url={backUrl} className="hidden md:inline-flex" /> : null}
+          {viewer.user?.admin ? <AdminLink className="hidden md:inline-flex" /> : null}
           <ThemeToggle className="size-11 md:size-9" />
           <div className="hidden md:block">
             <UserMenu />

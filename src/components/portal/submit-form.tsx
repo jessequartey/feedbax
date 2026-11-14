@@ -13,18 +13,18 @@ import { createPost } from "@/server/functions";
 import { clearDraft, loadDraft, parsePostDraft, POST_DRAFT_KEY, saveDraft } from "./draft";
 import { ImageAttachments, extensionFor, useImageAttachments } from "./image-attachments";
 import { CATEGORY_ICONS } from "./post-badges";
-import { CATEGORY_VALUES } from "./portal-search";
 import { useWriteGate } from "./viewer";
 
 type Errors = Partial<Record<"title" | "body" | "category" | "image", string>>;
 
 export function SubmitForm() {
-  const { ensureWriter, reportError } = useWriteGate();
+  const { ensureWriter, reportError, viewer } = useWriteGate();
+  const offered = viewer.config.categories;
   const router = useRouter();
   const ids = React.useId();
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
-  const [category, setCategory] = React.useState<Category>("feature");
+  const [category, setCategory] = React.useState<Category>(offered[0] ?? "feature");
   const [errors, setErrors] = React.useState<Errors>({});
   const [pending, setPending] = React.useState(false);
   // The post id is the idempotency key. It is reused for retries and renewed on any edit.
@@ -41,7 +41,8 @@ export function SubmitForm() {
     if (draft) {
       setTitle(draft.title);
       setBody(draft.body);
-      setCategory(draft.category);
+      // A draft saved before the admin hid its category falls back to the first offered one.
+      setCategory(offered.includes(draft.category) ? draft.category : (offered[0] ?? "feature"));
     }
   }, []);
 
@@ -188,9 +189,9 @@ export function SubmitForm() {
             const chosen = next[0] as Category | undefined;
             if (chosen) update({ category: chosen });
           }}
-          className="grid w-full grid-cols-1 sm:grid-cols-3"
+          className="grid w-full grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(0,1fr))]"
         >
-          {CATEGORY_VALUES.map((value) => {
+          {offered.map((value) => {
             const Icon = CATEGORY_ICONS[value];
             return (
               <ToggleGroupItem

@@ -1,7 +1,7 @@
 import { ShowcaseSlot } from "./showcase-card";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
-import { ArrowLeftIcon, ExternalLinkIcon, MessageSquareIcon } from "lucide-react";
+import { ArrowLeftIcon, EyeOffIcon, ExternalLinkIcon, MessageSquareIcon } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -46,6 +46,15 @@ export function PostDetailView({
       </Link>
       <div className="mt-4 grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-0">
         <article className="min-w-0 lg:pr-8" aria-labelledby="post-title">
+          {post.hidden ? (
+            <p
+              role="note"
+              className="mb-4 flex items-center gap-2 border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+            >
+              <EyeOffIcon className="size-4 shrink-0" aria-hidden="true" />
+              This post is hidden. Only its author and the admins can see it.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <CategoryBadge category={post.category} />
             <StatusBadge status={post.status} />

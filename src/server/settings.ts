@@ -2,30 +2,19 @@ import { env } from "cloudflare:workers";
 import { inArray, sql } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
+import type { NotificationToggles, RuntimeSettings } from "../contracts/admin.ts";
 import type { Category } from "../contracts/domain.ts";
 import { CATEGORY_LABELS } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
 import { settings as settingsTable } from "../db/schema.ts";
 import { invalid } from "./errors.ts";
+import { cachedSettings, clearSettingsCache } from "./settings-cache.ts";
 
 // Runtime settings: rows in the D1 `settings` table override the safe feedbax.config.ts
 // fields. Anything missing or unreadable falls back to config (or the built-in default for
 // fields config does not have yet). Secrets, resource IDs and integrations are never here.
 
-export type NotificationToggles = {
-  statusChanges: boolean;
-  replies: boolean;
-  changelog: boolean;
-  adminDigest: boolean;
-};
-export type RuntimeSettings = {
-  name: string;
-  anonymous: boolean;
-  /** Categories offered on the portal, in display order. */
-  categories: Category[];
-  /** Site-wide email switches; per-user choices live in `email_prefs`. */
-  notifications: NotificationToggles;
-};
+export type { NotificationToggles, RuntimeSettings };
 export type SettingsPatch = {
   [K in keyof Omit<RuntimeSettings, "notifications">]?: RuntimeSettings[K] | null;
 } & { notifications?: { [K in keyof NotificationToggles]?: boolean | null } };
@@ -101,6 +90,33 @@ export async function readSettings(
 }
 
 /**
+ * Effective settings for request handling: `readSettings` behind a short per-isolate cache
+ * (settings-cache.ts), so a request does not pay a D1 read for them. If the read fails the
+ * portal keeps working on feedbax.config.ts alone.
+ */
+export function effectiveSettings(
+  d1: D1Database = env.DB,
+  base: FeedbaxConfig = config,
+  now = Date.now(),
+): Promise<RuntimeSettings> {
+  return cachedSettings(d1, base, now, () =>
+    readSettings(d1, base).catch(() => resolveSettings(base, [])),
+  );
+}
+/**
+ * `feedbax.config.ts` with the runtime overrides applied: the portal name and the anonymous
+ * switch. Better Auth, the write guard and the public config all decide from this, per request.
+ */
+export async function runtimeConfig(
+  base: FeedbaxConfig = config,
+  d1: D1Database = env.DB,
+): Promise<FeedbaxConfig> {
+  const effective = await effectiveSettings(d1, base);
+  if (effective.name === base.name && effective.anonymous === base.auth.anonymous) return base;
+  return { ...base, name: effective.name, auth: { ...base.auth, anonymous: effective.anonymous } };
+}
+
+/**
  * Validate and store overrides. `null` removes an override so config applies again.
  * Throws invalid_input (with the field) before writing anything if any value is invalid.
  * Callers must already have passed `requireAdmin`.
@@ -147,4 +163,5 @@ export async function saveSettings(
       : []),
   ];
   if (statements.length) await db.batch(statements as [(typeof statements)[number]]);
+  clearSettingsCache();
 }

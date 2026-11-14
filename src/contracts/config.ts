@@ -1,3 +1,4 @@
+import type { Category } from "./domain.ts";
 export type FeedbaxConfigInput = {
   name?: string;
   appUrl?: string;
@@ -19,6 +20,8 @@ export type PublicConfig = {
   name: string;
   appUrl: string | null;
   anonymous: boolean;
+  /** Categories offered for new posts and in the filters, in display order. */
+  categories: Category[];
   oauth: { github: boolean; google: boolean };
   hostLogin: boolean;
   showcase: boolean;

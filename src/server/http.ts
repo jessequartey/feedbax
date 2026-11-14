@@ -6,6 +6,7 @@ import type { ErrorCode } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
 import { syncState } from "../db/schema.ts";
 import { createAuth, publicConfig } from "./auth.ts";
+import { runtimeConfig } from "./settings.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
 import { createPostForUser } from "./posts.ts";
 import { isBanned } from "./admin.ts";
@@ -121,7 +122,8 @@ export async function handleAuth(request: Request): Promise<Response> {
     if (path === "/sign-in/social" || path === "/sign-out") methods = ["POST"];
     else if (path === "/feedbax/sign-in") methods = ["GET", "POST"];
     else if (path === "/error") methods = ["GET"];
-    else if (path === "/sign-in/anonymous" && config.auth.anonymous) methods = ["POST"];
+    else if (path === "/sign-in/anonymous" && (await runtimeConfig()).auth.anonymous)
+      methods = ["POST"];
     else if (path === "/callback/github" || path === "/callback/google") {
       const provider = path === "/callback/github" ? "github" : "google";
       if (publicConfig().oauth[provider]) methods = ["GET", "POST"];
@@ -164,7 +166,8 @@ export async function handleAdminEnter(request: Request): Promise<Response> {
   }
 }
 async function callAuth(request: Request): Promise<Response> {
-  const response = await createAuth().handler(request);
+  // Per request: the admin's anonymous switch decides whether the anonymous plugin is mounted.
+  const response = await createAuth(await runtimeConfig()).handler(request);
   response.headers.set("Cache-Control", "no-store");
   if (response.status >= 500) {
     const correlationId = crypto.randomUUID();

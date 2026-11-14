@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, getRequestHeaders, setResponseHeader } from "@tanstack/react-start/server";
-import config from "../../feedbax.config.ts";
 import type {
   ApiResult,
   Category,
@@ -14,7 +13,9 @@ import type {
   VoteResult,
 } from "../contracts/domain.ts";
 import type { Viewer } from "../contracts/portal.ts";
-import { publicConfig, viewerUser } from "./auth.ts";
+import { viewerUser } from "./auth.ts";
+import { adminApi } from "./admin-api.ts";
+import { portalConfig } from "./portal-config.ts";
 import { createPostForUser, getPostDetail, listPostPage } from "./posts.ts";
 import { addCommentForUser, listCommentPage } from "./comments.ts";
 import { setVoteForUser } from "./votes.ts";
@@ -38,7 +39,8 @@ function viewer() {
 }
 export const getViewer = createServerFn({ method: "GET" }).handler(async (): Promise<Viewer> => ({
   user: await viewer(),
-  config: publicConfig(config),
+  // The admin's runtime overrides (name, anonymous, categories) take effect here.
+  config: await portalConfig(),
 }));
 export const listPosts = createServerFn({ method: "GET" })
   .validator((data: ListPostsInput) => listInput(data))
@@ -56,7 +58,8 @@ export const listComments = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<Page<CommentView>> => {
     // Comments do not depend on the viewer, so no session lookup; keep the same cache policy.
     setResponseHeader("Cache-Control", "private, no-store");
-    return listCommentPage(data);
+    // The viewer is looked up only for a hidden post, whose comments its author may read.
+    return listCommentPage(data, viewer);
   });
 export const getRoadmap = createServerFn({ method: "GET" })
   .validator((data: { q?: string; category?: Category }) => {
@@ -92,4 +95,76 @@ export const setVote = createServerFn({ method: "POST" })
   .validator((data: { postId: string; voted: boolean }) => data)
   .handler(async ({ data }): Promise<ApiResult<VoteResult>> =>
     result(async () => setVoteForUser(data, await viewer()), "votes.set"),
+  );
+
+// ---- Admin (/admin/*) ----
+// Every function runs the admin guard on the server through `adminApi` (admin-api.ts), which
+// checks `requireAdmin` before anything else. Reads are GET, changes are POST (same-origin).
+// Results use the ApiResult shape so a non-admin gets a plain "forbidden", never a hint.
+const pass = <T>(data: T) => data;
+export const adminSession = createServerFn({ method: "GET" }).handler(async () =>
+  result(async () => adminApi.session(await viewer(), undefined), "admin.action"),
+);
+export const adminListPosts = createServerFn({ method: "GET" })
+  .validator(pass<{ filter?: string; page?: number }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.listModerationPosts(await viewer(), data), "admin.action"),
+  );
+export const adminListComments = createServerFn({ method: "GET" })
+  .validator(pass<{ page?: number }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.listModerationComments(await viewer(), data), "admin.action"),
+  );
+export const adminSetPostState = createServerFn({ method: "POST" })
+  .validator(pass<{ postId: string; state: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.setPostState(await viewer(), data), "admin.action"),
+  );
+export const adminMergePost = createServerFn({ method: "POST" })
+  .validator(pass<{ sourceId: string; targetId: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.mergePost(await viewer(), data), "admin.action"),
+  );
+export const adminSearchMergeTargets = createServerFn({ method: "GET" })
+  .validator(pass<{ excludeId: string; q?: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.searchMergeTargets(await viewer(), data), "admin.action"),
+  );
+export const adminDeletePost = createServerFn({ method: "POST" })
+  .validator(pass<{ postId: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.deletePost(await viewer(), data), "admin.action"),
+  );
+export const adminDeleteComment = createServerFn({ method: "POST" })
+  .validator(pass<{ commentId: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.deleteComment(await viewer(), data), "admin.action"),
+  );
+export const adminSendToGitHub = createServerFn({ method: "POST" })
+  .validator(pass<{ postId: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.sendToGitHub(await viewer(), data), "admin.action"),
+  );
+export const adminListUsers = createServerFn({ method: "GET" })
+  .validator(pass<{ q?: string; filter?: string; page?: number }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.listUsers(await viewer(), data), "admin.action"),
+  );
+export const adminSetBanned = createServerFn({ method: "POST" })
+  .validator(pass<{ userId: string; banned: boolean }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.setBanned(await viewer(), data), "admin.action"),
+  );
+export const adminSetAdminRole = createServerFn({ method: "POST" })
+  .validator(pass<{ userId: string; admin: boolean }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.setAdminRole(await viewer(), data), "admin.action"),
+  );
+export const adminGetSettings = createServerFn({ method: "GET" }).handler(async () =>
+  result(async () => adminApi.getSettings(await viewer(), undefined), "admin.action"),
+);
+export const adminSaveSettings = createServerFn({ method: "POST" })
+  .validator(pass<Record<string, unknown>>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.saveSettings(await viewer(), data), "admin.action"),
   );

@@ -48,11 +48,15 @@ export type PostSummary = {
   viewerHasVoted: boolean;
   createdAt: string;
   updatedAt: string;
+  /** True only in lists and pages the author or an admin can see: hidden or spam. */
+  hidden?: true;
 };
 export type PostDetail = PostSummary & {
   body: string;
   images: ImageView[];
   githubUrl: string | null;
+  /** Set on a merged duplicate: the page redirects to this post. */
+  mergedInto?: string;
 };
 export type CommentView = {
   id: string;

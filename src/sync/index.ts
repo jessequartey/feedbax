@@ -3,7 +3,7 @@ import { IntegrationError } from "../contracts/integrations.ts";
 import type { SyncErrorState, SyncMessage } from "../contracts/sync.ts";
 import { syncState, usedTokens } from "../db/schema.ts";
 import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
-import { mirrorPost, pollNotion } from "./notion.ts";
+import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
@@ -18,6 +18,9 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
       switch (body.type) {
         case "notion.post":
           await mirrorPost(body.postId);
+          break;
+        case "notion.archive":
+          await archiveNotionPage(body.pageId);
           break;
         case "notion.poll":
           await pollNotion(body);

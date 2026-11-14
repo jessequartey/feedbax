@@ -142,6 +142,32 @@ export async function mirrorPost(postId: string): Promise<void> {
     .where(eq(posts.id, post.id));
 }
 
+const NOTION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Moves the Notion row of a post deleted from /admin/moderation to trash. The post is already
+ * gone from D1, so a row that is missing or already in trash counts as done.
+ */
+export async function archiveNotionPage(pageId: string): Promise<void> {
+  if (!NOTION_UUID.test(pageId)) return;
+  const request = providerRequest("notion");
+  try {
+    await request(`/pages/${pageId}`, "PATCH", { in_trash: true });
+  } catch (error) {
+    if (!(error instanceof IntegrationError) || ![400, 404].includes(error.status ?? 0))
+      throw error;
+    let row: NotionPage;
+    try {
+      row = await request<NotionPage>(`/pages/${pageId}`);
+    } catch (readError) {
+      if (readError instanceof IntegrationError && readError.status === 404) return;
+      throw readError;
+    }
+    if (row.in_trash || row.archived || row.is_archived) return;
+    throw error;
+  }
+}
+
 export async function pollNotion(
   message: Extract<SyncMessage, { type: "notion.poll" }>,
 ): Promise<void> {

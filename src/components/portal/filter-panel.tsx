@@ -81,6 +81,8 @@ function FilterOption({
 }
 
 export type FilterPanelProps = {
+  /** Categories to offer (the admin can hide some). Defaults to all of them. */
+  categories?: readonly Category[];
   category?: Category;
   status?: Status;
   onCategory: (category: Category | undefined) => void;
@@ -88,7 +90,13 @@ export type FilterPanelProps = {
 };
 
 /** The category and status lists. Used as the 280 px sidebar and inside the mobile Sheet. */
-export function FilterPanel({ category, status, onCategory, onStatus }: FilterPanelProps) {
+export function FilterPanel({
+  categories = CATEGORY_VALUES,
+  category,
+  status,
+  onCategory,
+  onStatus,
+}: FilterPanelProps) {
   return (
     <div className="flex flex-col gap-8">
       <section aria-labelledby="filter-category">
@@ -99,7 +107,7 @@ export function FilterPanel({ category, status, onCategory, onStatus }: FilterPa
           <FilterOption active={!category} icon={ListIcon} onClick={() => onCategory(undefined)}>
             All posts
           </FilterOption>
-          {CATEGORY_VALUES.map((value) => (
+          {categories.map((value) => (
             <FilterOption
               key={value}
               active={category === value}

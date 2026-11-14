@@ -1,14 +1,16 @@
 import { env } from "cloudflare:workers";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
-import config from "../../feedbax.config.ts";
 import { LIMITS } from "../contracts/domain.ts";
 import type { CommentView, Page, ViewerUser } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
 import { comments, posts, user } from "../db/schema.ts";
 import { requireWriter } from "./auth.ts";
 import { DomainError } from "./errors.ts";
+import type { FeedbaxConfig } from "../contracts/config.ts";
 import { enqueuePost } from "./posts.ts";
+import { runtimeConfig } from "./settings.ts";
+import { publiclyVisible } from "./visibility.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
 
 function commentView(row: {
@@ -31,9 +33,9 @@ const author = { id: user.id, name: user.name, isAnonymous: user.isAnonymous };
 export async function addCommentForUser(
   input: unknown,
   viewer: ViewerUser | null,
-  settings = config,
+  settings?: FeedbaxConfig,
 ): Promise<CommentView> {
-  const writer = requireWriter(viewer, settings),
+  const writer = requireWriter(viewer, settings ?? (await runtimeConfig())),
     data = record(input);
   const id = uuid(data.id),
     postId = uuid(data.postId, "postId"),
@@ -53,7 +55,14 @@ export async function addCommentForUser(
   }
   const replay = await existingComment();
   if (replay) return replay;
-  if (!(await db.select({ id: posts.id }).from(posts).where(eq(posts.id, postId)).get()))
+  // Hidden, spam and merged posts take no new comments: to everyone else they do not exist.
+  if (
+    !(await db
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(eq(posts.id, postId), publiclyVisible))
+      .get())
+  )
     throw new DomainError("not_found", "Post not found.");
   const now = Date.now();
   const [inserted] = await db.batch([
@@ -75,14 +84,34 @@ export async function addCommentForUser(
   if (inserted.length) enqueuePost(postId);
   return comment;
 }
-export async function listCommentPage(input: unknown): Promise<Page<CommentView>> {
+/**
+ * `viewer` is looked up only when the post is hidden or spam, so a normal post's comments
+ * stay viewer-independent. The author and admins can read the comments of their own hidden
+ * post; a merged duplicate keeps its comments out of view (its page redirects).
+ */
+export async function listCommentPage(
+  input: unknown,
+  viewer: () => Promise<ViewerUser | null> = async () => null,
+): Promise<Page<CommentView>> {
   const data = record(input),
     postId = uuid(data.postId, "postId"),
     page = pageNumber(data.page),
     db = createDb(env.DB),
     limit = 20;
-  if (!(await db.select({ id: posts.id }).from(posts).where(eq(posts.id, postId)).get()))
-    throw notFound();
+  const post = await db
+    .select({
+      authorId: posts.authorId,
+      hiddenAt: posts.hiddenAt,
+      spam: posts.spam,
+    })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .get();
+  if (!post) throw notFound();
+  if (post.hiddenAt !== null || post.spam) {
+    const reader = await viewer();
+    if (reader?.id !== post.authorId && !reader?.admin) throw notFound();
+  }
   const [rows, count] = await Promise.all([
     db
       .select({ comment: comments, author })
