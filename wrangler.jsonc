@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // create-feedbax fills in name, account_id, database_id, bucket/queue names and PORTAL_URL.
+  // The values below are placeholders that keep local dev, tests and `deploy --dry-run` working.
+  "name": "feedbax",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-11-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": { "PORTAL_URL": "http://localhost:3000" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "feedbax-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "feedbax-images" }],
+  "queues": {
+    "producers": [{ "binding": "SYNC_QUEUE", "queue": "feedbax-sync" }],
+    "consumers": [
+      { "queue": "feedbax-sync", "max_batch_size": 1, "max_concurrency": 1, "max_retries": 10 },
+    ],
+  },
+  "triggers": { "crons": ["*/5 * * * *"] },
+}
