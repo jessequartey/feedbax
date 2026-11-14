@@ -304,17 +304,27 @@ export async function setup(
   // Persist ownership before a possibly successful request whose response could be lost.
   await save();
   await prompt.step("D1 create", async () => {
+    let ownedDatabase = database;
     if (!database) {
       deps.onRemote?.();
       await wrangler(["d1", "create", dbName]);
+      ownedDatabase = parseJsonOutput<{ uuid: string; name: string }[]>(
+        await wrangler(["d1", "list", "--json"]),
+      ).find((item) => item.name === dbName);
     }
-    const info = parseJsonOutput<{ uuid: string }>(
-      await wrangler(["d1", "info", dbName, "--json"]),
-    );
-    if (!/^[a-f0-9-]{32,36}$/i.test(info.uuid))
+    if (!ownedDatabase || !/^[a-f0-9-]{32,36}$/i.test(ownedDatabase.uuid))
       throw new CliError("D1 returned no database ID. Retry to adopt the existing database.");
-    config!.d1_databases[0]!.database_id = info.uuid;
+    // Wrangler resolves matching config bindings before remote names. Persist the real ID
+    // before asking for info, so first setup never resolves the scaffold's zero placeholder.
+    config!.d1_databases[0]!.database_id = ownedDatabase.uuid;
     await save();
+    const info = parseJsonOutput<{ uuid: string }>(
+      await wrangler(["d1", "info", ownedDatabase.uuid, "--json"]),
+    );
+    if (info.uuid !== ownedDatabase.uuid)
+      throw new CliError(
+        "D1 returned a different database ID. Check the project binding and retry.",
+      );
   });
   await prompt.step("R2 create", async () => {
     if (bucket) return;

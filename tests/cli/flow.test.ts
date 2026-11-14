@@ -34,6 +34,25 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((p) => rm(p, { recursive: true, force: true })));
 });
 describe("setup", () => {
+  it("persists the created D1 ID before Wrangler resolves its configured database binding", async () => {
+    const f = await fixture();
+    const originalRun = f.run;
+    f.run = async (command, args, options) => {
+      const action = args.slice(args.indexOf("wrangler") + 1);
+      if (action[0] === "d1" && action[1] === "info") {
+        const config = JSON.parse(
+          await readFile(join(f.cwd, "my-feedback", "wrangler.jsonc"), "utf8"),
+        );
+        if (config.d1_databases[0].database_id !== ID)
+          return { code: 1, stdout: "", stderr: "7404: configured database ID not found" };
+      }
+      return originalRun(command, args, options);
+    };
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    const config = JSON.parse(await readFile(join(f.cwd, "my-feedback", "wrangler.jsonc"), "utf8"));
+    expect(config.d1_databases[0].database_id).toBe(ID);
+    expect(f.state.calls.filter((call) => call.includes("d1 create"))).toHaveLength(1);
+  });
   it("collects questions in order while installing; deploys and preserves private secrets on rerun", async () => {
     const f = await fixture();
     f.prompt = scripted(["my-feedback", "notion-github", false, "team/app", false]);
