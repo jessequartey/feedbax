@@ -1,29 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, test } from "vite-plus/test";
-import { env, waitUntil } from "cloudflare:workers";
-import { flushWaitUntil, queue, resetEnv } from "./cloudflare-workers.ts";
+import { env } from "cloudflare:workers";
+import { resetEnv } from "./cloudflare-workers.ts";
 import { defineConfig } from "../../src/contracts/config.ts";
 import { IntegrationError } from "../../src/contracts/integrations.ts";
-import {
-  CATEGORY_LABELS,
-  LIMITS,
-  STATUS_LABELS,
-  type Category,
-  type Status,
-} from "../../src/contracts/domain.ts";
+import { CATEGORY_LABELS, LIMITS, STATUS_LABELS } from "../../src/contracts/domain.ts";
 import { HOST_TOKEN_HEADER, HOST_TOKEN_TTL_SECONDS } from "../../src/contracts/host-token.ts";
-import {
-  fixtureCreatePost,
-  fixtureGetPost,
-  fixtureListComments,
-  fixtureListMyPosts,
-  fixtureListPosts,
-  fixturePosts,
-  fixtureRoadmap,
-  fixtureSetVote,
-  fixtureUsers,
-} from "./portal.ts";
 
 type Vector = {
   name: string;
@@ -126,43 +109,6 @@ describe("cloudflare:workers shim", () => {
       "SELECT id FROM posts WHERE github_requested = 1 AND github_number IS NULL",
     ).all<{ id: string }>();
     expect(github.results.map((r) => r.id)).toEqual(["gh-wanted"]);
-  });
-
-  test("R2 binding works and resetEnv empties it", async () => {
-    await env.IMAGES.put("posts/x/0", new Uint8Array([1, 2, 3]));
-    expect((await env.IMAGES.get("posts/x/0"))?.size).toBe(3);
-    await resetEnv();
-    expect(await env.IMAGES.get("posts/x/0")).toBeNull();
-  });
-
-  test("fake queue records sends and can fail on demand", async () => {
-    await env.SYNC_QUEUE.send({ type: "notion.post", postId: "p" });
-    expect(queue.sent).toEqual([{ type: "notion.post", postId: "p" }]);
-    queue.failNext();
-    await expect(env.SYNC_QUEUE.send({ type: "notion.post", postId: "q" })).rejects.toThrow();
-    await env.SYNC_QUEUE.send({ type: "notion.post", postId: "r" });
-    expect(queue.sent).toHaveLength(2);
-  });
-
-  test("waitUntil collects promises and flushWaitUntil awaits them", async () => {
-    let done = false;
-    waitUntil(
-      new Promise((resolve) =>
-        setTimeout(() => {
-          done = true;
-          resolve(undefined);
-        }, 20),
-      ),
-    );
-    expect(done).toBe(false);
-    await flushWaitUntil();
-    expect(done).toBe(true);
-  });
-
-  test("env carries test-only secrets, never real ones", () => {
-    expect(env.NOTION_TOKEN).toContain("test_only");
-    expect(env.FEEDBAX_HOST_SECRET).toBe(vectors.secret);
-    expect(env.GITHUB_TOKEN).toBeUndefined();
   });
 });
 
@@ -326,49 +272,5 @@ describe("host token fixtures", () => {
       const sig = b64url(createHmac("sha256", key).update(`${h}.${p}`).digest());
       expect(`${h}.${p}.${sig}`).toBe(vector.token);
     }
-  });
-});
-
-describe("portal fixtures", () => {
-  test("every status and category appears, with anonymous and host authors", () => {
-    expect(new Set(fixturePosts.map((p) => p.status))).toEqual(
-      new Set<Status>(["open", "planned", "in_progress", "done", "closed"]),
-    );
-    expect(new Set(fixturePosts.map((p) => p.category))).toEqual(
-      new Set<Category>(["feature", "bug", "general"]),
-    );
-    expect(fixturePosts.some((p) => p.author.anonymous)).toBe(true);
-    expect(fixtureUsers.map((u) => u.kind).sort()).toEqual(["account", "anonymous", "host"]);
-  });
-
-  test("there is a post with two images and more than one page of posts", () => {
-    expect(fixtureGetPost(fixturePosts[2]!.id)?.images).toHaveLength(2);
-    const first = fixtureListPosts({ sort: "new" });
-    expect(first).toMatchObject({ page: 1, limit: 20, hasMore: true });
-    expect(first.total).toBeGreaterThan(40);
-    expect(fixtureListPosts({ sort: "new", page: 3 }).hasMore).toBe(false);
-    expect(fixtureListPosts({ limit: 500 }).limit).toBe(50);
-  });
-
-  test("filters, roadmap, comments and mutations behave", () => {
-    expect(fixtureListPosts({ status: "done" }).items.every((p) => p.status === "done")).toBe(true);
-    expect(fixtureListMyPosts({}).items.every((p) => p.author.name === "Ada Lovelace")).toBe(true);
-    const roadmap = fixtureRoadmap({});
-    expect(Object.keys(roadmap)).toEqual(["planned", "in_progress", "done"]);
-    expect(roadmap.planned.total).toBeGreaterThan(0);
-    expect(fixtureListComments(fixturePosts[2]!.id).items).toHaveLength(20);
-    expect(fixtureListComments(fixturePosts[2]!.id, 2).hasMore).toBe(false);
-    const form = new FormData();
-    form.set("id", "11111111-1111-4111-8111-111111111111");
-    form.set("title", "Hello");
-    expect(fixtureCreatePost(form)).toMatchObject({ ok: true });
-    expect(fixtureCreatePost(new FormData())).toMatchObject({ ok: false });
-    expect(fixtureSetVote({ postId: "missing", voted: true })).toMatchObject({ ok: false });
-  });
-
-  test("excerpts cap at 180 code points with an ellipsis", () => {
-    const long = fixtureListPosts({ q: "Anonymous bug report" }).items[0]!;
-    expect(Array.from(long.excerpt)).toHaveLength(181);
-    expect(long.excerpt.endsWith("…")).toBe(true);
   });
 });

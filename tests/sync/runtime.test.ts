@@ -335,23 +335,9 @@ describe("Notion polling", () => {
     expect(await post()).toMatchObject({ status: "planned", revision: 1 });
     expect(console.warn).toHaveBeenCalled();
   });
-  test("ignores unknown, blank, mismatched and trashed rows without deleting posts", async () => {
+  test("ignores unknown, blank, mismatched, trashed and template example rows without deleting posts", async () => {
     await seed({ notionPageId: PAGE });
-    mock(
-      schema,
-      list([
-        notionRow("Done", true, "unknown"),
-        notionRow("Done", true, ""),
-        notionRow("Done", true, ID, "different"),
-        { ...notionRow("Done", true), in_trash: true },
-      ]),
-    );
-    await deliver(poll);
-    expect(await post()).toMatchObject({ status: "open", githubRequested: 0 });
-    expect(queue.sent).toEqual([]);
-  });
-  test("ignores template example rows: an empty Feedbax ID is never a post", async () => {
-    await seed({ notionPageId: PAGE });
+    // The template's example row has an empty Feedbax ID: it is never a post.
     const example = {
       ...notionRow("Planned", true, "", "example-page"),
       properties: {
@@ -362,7 +348,16 @@ describe("Notion polling", () => {
         "Send to GitHub": { type: "checkbox", checkbox: true },
       },
     };
-    mock(schema, list([example]));
+    mock(
+      schema,
+      list([
+        notionRow("Done", true, "unknown"),
+        notionRow("Done", true, ""),
+        notionRow("Done", true, ID, "different"),
+        { ...notionRow("Done", true), in_trash: true },
+        example,
+      ]),
+    );
     await deliver(poll);
     expect(await post()).toMatchObject({ status: "open", githubRequested: 0 });
     expect(queue.sent).toEqual([]);

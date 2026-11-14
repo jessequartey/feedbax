@@ -53,6 +53,11 @@ const config = defineConfig({
         new URL("./tests/fixtures/cloudflare-workers.ts", import.meta.url),
       ),
     },
+    // Share one module graph (and one Wrangler platform proxy) per worker instead of
+    // re-importing the server for every file: halves import time. Files run serially per worker.
+    isolate: false,
+    unstubGlobals: true,
+    unstubEnvs: true,
     testTimeout: 20_000,
     hookTimeout: 30_000,
   },

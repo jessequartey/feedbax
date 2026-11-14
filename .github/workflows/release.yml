@@ -29,6 +29,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/create-feedbax/package-lock.json
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@12.2.2 pnpm@10.29.3
       - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
@@ -55,32 +59,13 @@ jobs:
 
       - run: npm ci
       - run: npm ci --prefix packages/create-feedbax # the CLI package has its own install
-      - run: npm run check
-      - run: npm run typecheck
-      - run: npm test
+      # The tag points at a main commit that CI already verified (check, typecheck, tests, built
+      # Worker scripts, wrangler dry run, registry diff); only release-specific work repeats here.
       - run: npm run build
-      - name: Worker exports fetch, queue and scheduled
-        run: npm run verify:build
-      - name: Built Worker request boundaries
-        run: node scripts/test-worker-entry.ts
-      - name: Built Worker auth and session isolation
-        run: node scripts/test-worker-auth.ts
-      - name: Built Worker provider sync
-        run: node scripts/test-worker-sync.ts
-      - name: Wrangler dry run
-        run: npx --no-install wrangler deploy --dry-run
-      - name: No server secret names in the portal client bundle (the public registry JSON in dist/client/r documents them)
-        run: |
-          if grep -rE --exclude-dir=r 'BETTER_AUTH_SECRET|FEEDBAX_HOST_SECRET' dist/client; then
-            echo "Server secret name found in dist/client." >&2
-            exit 1
-          fi
-      - name: Registry and template are up to date
-        run: |
-          npm run registry:build
-          git diff --exit-code -- public/r
       - run: npm run cli:build
       - run: npm run test:package
+        env:
+          FULL_PM_MATRIX: "1"
 
       - name: Pack the CLI
         working-directory: packages/create-feedbax

@@ -261,8 +261,11 @@ export async function testPackage(
     );
     if (options.apps === false) return;
     // All real installs/builds use the generated tree, never a second template.
+    // PR CI installs and builds with npm only; the release workflow sets FULL_PM_MATRIX=1 for
+    // the npm + pnpm + bun matrix (the pnpm dlx and bunx tarball launches above always run).
+    const managers = process.env.FULL_PM_MATRIX === "1" ? ["npm", "pnpm", "bun"] : ["npm"];
     const failures: string[] = [];
-    for (const pm of ["npm", "pnpm", "bun"]) {
+    for (const pm of managers) {
       await rm(join(project, "node_modules"), { recursive: true, force: true });
       try {
         await checked(pm, ["install"], project, { CI: "true" });

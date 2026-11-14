@@ -1,7 +1,7 @@
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vite-plus/test";
 import { parseJsonc } from "../../packages/create-feedbax/src/jsonc.ts";
 import { main } from "../../packages/create-feedbax/src/index.ts";
 import {
@@ -21,11 +21,17 @@ import {
 import { createNotionTemplate } from "../../scripts/create-notion-template.ts";
 import { cancel, fakeClients, fakeCloudflare, ID, scripted, target } from "./fakes.ts";
 const dirs: string[] = [];
+// The template is only ever read (scaffold copies from it), so build it once for the file.
+let sharedTemplate = "";
+beforeAll(async () => {
+  sharedTemplate = await mkdtemp(join(tmpdir(), "feedbax-template-"));
+  buildTemplate({ out: join(sharedTemplate, "template") });
+});
+afterAll(() => rm(sharedTemplate, { recursive: true, force: true }));
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), "feedbax-test-"));
   dirs.push(cwd);
-  const templateDir = join(cwd, "template");
-  buildTemplate({ out: templateDir });
+  const templateDir = join(sharedTemplate, "template");
   const clients = fakeClients(),
     cf = fakeCloudflare(),
     prompt = scripted();
@@ -207,12 +213,12 @@ describe("setup", () => {
     const f = await fixture();
     f.env.NOTION_TOKEN = "";
     expect(await main(["my-feedback", "--yes"], f)).toBe(2);
-    expect(await readdir(f.cwd)).toEqual(["template"]);
+    expect(await readdir(f.cwd)).toEqual([]);
     expect(f.state.calls).toHaveLength(0);
     f.env.NOTION_TOKEN = "sentinel-secret-token";
     f.clients = fakeClients([]);
     expect(await main(["my-feedback", "--yes"], f)).toBe(2);
-    expect(await readdir(f.cwd)).toEqual(["template"]);
+    expect(await readdir(f.cwd)).toEqual([]);
   });
   it.each(["r2", "subdomain"])(
     "non-interactive %s prerequisites exit without a prompt",
@@ -341,7 +347,7 @@ describe("failure boundaries", () => {
           f,
         ),
       ).toBe(2);
-      expect(await readdir(f.cwd)).toEqual(["template"]);
+      expect(await readdir(f.cwd)).toEqual([]);
       expect(f.state.calls).toHaveLength(0);
     },
   );
@@ -491,7 +497,7 @@ describe("selected login checkpoint", () => {
       expect(await main(["my-feedback", "--yes", `--login=${login}`, "--anonymous=true"], f)).toBe(
         2,
       );
-      expect(await readdir(f.cwd)).toEqual(["template"]);
+      expect(await readdir(f.cwd)).toEqual([]);
       expect(f.state.calls).toEqual([]);
       const log = f.prompt.log.join("\n");
       expect(log).toContain(`${login.toUpperCase()}_CLIENT_ID`);
@@ -672,7 +678,7 @@ describe("selected login checkpoint", () => {
           f,
         ),
       ).toBe(2);
-      expect(await readdir(f.cwd)).toEqual(["template"]);
+      expect(await readdir(f.cwd)).toEqual([]);
       expect(f.state.calls).toEqual([]);
     },
   );
