@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write # GitHub Release
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@12.2.2
+
+      - name: Tag matches the CLI version
+        run: |
+          pkg=$(node -p "require('./packages/create-feedbax/package.json').version")
+          if [ "v$pkg" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match packages/create-feedbax version $pkg" >&2
+            exit 1
+          fi
+
+      - name: Notion template URL is not a placeholder
+        run: |
+          url=$(grep -rhoE "NOTION_TEMPLATE_URL\s*=\s*['\"][^'\"]+['\"]" packages/create-feedbax/src | head -n1 || true)
+          if [ -z "$url" ]; then
+            echo "NOTION_TEMPLATE_URL not found in packages/create-feedbax/src" >&2
+            exit 1
+          fi
+          if echo "$url" | grep -qiE 'placeholder|example\.com|TODO|REPLACE|XXXX'; then
+            echo "NOTION_TEMPLATE_URL is still a placeholder: $url" >&2
+            exit 1
+          fi
+          if grep -q 'NOTION_TEMPLATE_URL_PLACEHOLDER' README.md; then
+            echo "README.md still links to the placeholder Notion template" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Registry and template are up to date
+        run: |
+          npm run registry:build
+          git diff --exit-code -- public/r
+      - run: npm run cli:build
+      - run: npm run test:package
+
+      - name: Pack the CLI
+        working-directory: packages/create-feedbax
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP"
+          sha256sum create-feedbax-*.tgz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish to npm
+        working-directory: packages/create-feedbax
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "create-feedbax@$version" version >/dev/null 2>&1; then
+            echo "create-feedbax@$version is already on npm; skipping publish."
+          else
+            npm publish --access public --provenance
+          fi
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' \
+            "Install: \`npx create-feedbax@${GITHUB_REF_NAME#v}\`" \
+            "" \
+            "Full setup guide: see the README. Starting from 0.2.x? Create a new project (see CHANGELOG.md)." \
+            > "$RUNNER_TEMP/notes-header.md"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes-file "$RUNNER_TEMP/notes-header.md" \
+            "$RUNNER_TEMP"/create-feedbax-*.tgz \
+            "$RUNNER_TEMP/SHA256SUMS.txt"
