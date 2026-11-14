@@ -60,7 +60,7 @@ export async function add(
   if (integration === "webhooks") {
     const portal = portalUrl(project) ?? "<your portal URL>";
     ctx.prompt.note(
-      `Webhook endpoints are managed in your portal, not in files or secrets:\n1. npx feedbax admin  → open the printed sign-in link\n2. ${portal}/admin/settings → Webhooks → add an endpoint URL\n3. Copy its signing secret; verify the X-Feedbax-Signature header (HMAC-SHA256 of the raw body).\nEvents: post.created, post.status_changed, comment.created, vote.created, changelog.published.`,
+      `Webhook endpoints are managed in your portal, not in files or secrets:\n1. npx feedbax admin  → open the printed sign-in link\n2. ${portal}/admin/settings → Webhooks → add an endpoint URL\n3. Copy its signing secret. Each request carries X-Feedbax-Signature: t=<unix seconds>,v1=<hex>, the HMAC-SHA256 of "<t>.<raw body>" keyed with that secret.\nEvents: post.created, post.status_changed, comment.created, vote.created, changelog.published.`,
       "Webhooks",
     );
     return 0;

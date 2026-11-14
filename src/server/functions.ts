@@ -205,6 +205,40 @@ export const adminChangelogSearchPosts = createServerFn({ method: "GET" })
   .handler(async ({ data }) =>
     result(async () => adminApi.changelogSearchPosts(await viewer(), data), "admin.action"),
   );
+export const adminWebhooksList = createServerFn({ method: "GET" }).handler(async () =>
+  result(async () => adminApi.webhooksList(await viewer(), undefined), "admin.action"),
+);
+export const adminWebhookCreate = createServerFn({ method: "POST" })
+  .validator(pass<Record<string, unknown>>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookCreate(await viewer(), data), "admin.action"),
+  );
+export const adminWebhookUpdate = createServerFn({ method: "POST" })
+  .validator(pass<Record<string, unknown>>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookUpdate(await viewer(), data), "admin.action"),
+  );
+export const adminWebhookDelete = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookDelete(await viewer(), data), "admin.action"),
+  );
+// A POST, so the secret never sits in a cacheable GET response.
+export const adminWebhookRevealSecret = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookRevealSecret(await viewer(), data), "admin.action"),
+  );
+export const adminWebhookRotateSecret = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookRotateSecret(await viewer(), data), "admin.action"),
+  );
+export const adminWebhookTest = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookTest(await viewer(), data), "admin.action"),
+  );
 export const adminGetSettings = createServerFn({ method: "GET" }).handler(async () =>
   result(async () => adminApi.getSettings(await viewer(), undefined), "admin.action"),
 );

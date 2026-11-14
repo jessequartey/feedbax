@@ -17,6 +17,7 @@ import {
 import { authenticMarker, issueMarker } from "./github-marker.ts";
 import type { ProviderRequest } from "../integrations/request.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
+import { emitStatusChanges } from "../server/webhooks.ts";
 let actor: { token: string; id: number } | undefined;
 async function actorId(request: ProviderRequest): Promise<number> {
   if (actor && actor.token === env.GITHUB_TOKEN) return actor.id;
@@ -89,6 +90,8 @@ export async function createIssue(postId: string): Promise<void> {
     ? await autoDraftStatements(database, [{ id: postId, body: post.body }])
     : [];
   await database.batch([update, ...drafts]);
+  if (closed && post.status !== "done")
+    await emitStatusChanges([{ id: postId, previous: post.status }]);
 }
 
 export async function pollGitHub(
@@ -118,6 +121,7 @@ export async function pollGitHub(
         .select({
           id: posts.id,
           body: posts.body,
+          status: posts.status,
           number: posts.githubNumber,
           creator: posts.githubCreatorId,
         })
@@ -164,6 +168,9 @@ export async function pollGitHub(
     .flatMap((issue) => linked.filter((post) => post.number === issue.number));
   const batch = [...updates, ...(await autoDraftStatements(database, shipped))];
   if (batch.length) await database.batch(batch as [(typeof batch)[number], ...typeof batch]);
+  const moved = shipped.filter((post) => post.status !== "done");
+  if (moved.length)
+    await emitStatusChanges(moved.map((post) => ({ id: post.id, previous: post.status })));
   if (
     issues.length === 100 &&
     Date.parse(issues[issues.length - 1]!.updated_at) <= Date.parse(message.until)

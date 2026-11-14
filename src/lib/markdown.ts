@@ -257,3 +257,45 @@ export function markdownToText(source: string, max = 160): string {
   const letters = Array.from(text);
   return letters.length > max ? `${letters.slice(0, max - 1).join("")}…` : text;
 }
+
+const linkText = (text: string, href: string) => (text === href ? text : `${text} (${href})`);
+
+function plainInline(nodes: Inline[]): string {
+  return nodes
+    .map((node) =>
+      node.type === "text" || node.type === "code"
+        ? node.text
+        : node.type === "break"
+          ? "\n"
+          : node.type === "link"
+            ? linkText(plainInline(node.children), node.href)
+            : plainInline(node.children),
+    )
+    .join("");
+}
+
+/**
+ * The whole body as plain text, no cut and no HTML: blocks are separated by a blank line, list
+ * items sit on their own lines ("- " or "1. "), links keep their address in brackets. Used where
+ * a reader cannot render Markdown (webhook payloads carry both forms).
+ */
+export function markdownToPlainText(source: string): string {
+  return parseMarkdown(source)
+    .map((block) => {
+      switch (block.type) {
+        case "list":
+          return block.items
+            .map((item, i) => `${block.ordered ? `${i + 1}.` : "-"} ${plainInline(item)}`)
+            .join("\n");
+        case "code":
+          return block.text;
+        case "rule":
+          return "";
+        default:
+          return plainInline(block.children);
+      }
+    })
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}

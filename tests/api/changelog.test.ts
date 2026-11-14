@@ -414,7 +414,7 @@ describe("changelog.published", () => {
   });
   it("is a no-op by default and a failing sink never fails or blocks the publish", async () => {
     const who = await admin();
-    expect(changelogPublishedSinks).toEqual([]);
+    changelogPublishedSinks.length = 0; // webhooks register a sink too; with none, nothing happens
     expect((await entry(who, { title: "Quiet" })).status).toBe("published");
     const seen: string[] = [];
     changelogPublishedSinks.push(

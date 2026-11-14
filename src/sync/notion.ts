@@ -8,6 +8,7 @@ import { notionSchemaChanges, richText, schemaError } from "../integrations/noti
 import type { NotionProperties } from "../integrations/notion-schema.ts";
 import { notionText } from "../integrations/notion.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
+import { emitStatusChanges } from "../server/webhooks.ts";
 import type { NotionList, NotionPage } from "../integrations/notion.ts";
 import {
   config,
@@ -199,6 +200,7 @@ export async function pollNotion(
   const updates: BatchItem<"sqlite">[] = [];
   // Posts this poll moves to Done get a draft changelog entry in the same batch.
   const shipped: { id: string; body: string }[] = [];
+  const statusChanges: { id: string; previous: Status }[] = [];
   const approvals = new Set<string>();
   const seen = new Set<string>();
   for (const page of result.results) {
@@ -231,6 +233,7 @@ export async function pollNotion(
     } else if (status && status !== post.status) {
       changes.status = status;
       changes.updatedAt = Date.now();
+      statusChanges.push({ id: post.id, previous: post.status });
       if (status === "done") shipped.push({ id: post.id, body: post.body });
     }
     if (config.integrations.github && approvalProperty.checkbox === true) {
@@ -251,6 +254,8 @@ export async function pollNotion(
   updates.push(...(await autoDraftStatements(database, shipped)));
   if (updates.length)
     await database.batch(updates as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+  // After the write: webhooks never fail the poll, and a retry would not see a change again.
+  if (statusChanges.length) await emitStatusChanges(statusChanges);
   if (approvals.size)
     await env.SYNC_QUEUE.sendBatch(
       [...approvals].map((postId) => ({

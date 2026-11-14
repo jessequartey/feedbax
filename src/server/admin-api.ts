@@ -25,6 +25,15 @@ import type { SettingsPatch } from "./settings.ts";
 import { invalid } from "./errors.ts";
 import { listUsers, setAdminRole, setBanned } from "./user-admin.ts";
 import { record } from "./validation.ts";
+import {
+  createWebhook,
+  deleteWebhook,
+  listWebhooks,
+  revealWebhookSecret,
+  rotateWebhookSecret,
+  testWebhook,
+  updateWebhook,
+} from "./webhooks.ts";
 
 // The one entry point for every admin server function (functions.ts calls `adminApi.<name>`).
 // `admin()` makes the guard impossible to forget: no handler runs before requireAdmin has
@@ -60,6 +69,13 @@ export const adminApi = {
   changelogDelete: admin((_who, input: unknown) => deleteEntry(input)),
   changelogSetStatus: admin((_who, input: unknown) => setChangelogStatus(input)),
   changelogSearchPosts: admin((_who, input: unknown) => searchLinkablePosts(input)),
+  webhooksList: admin(() => listWebhooks()),
+  webhookCreate: admin((_who, input: unknown) => createWebhook(input)),
+  webhookUpdate: admin((_who, input: unknown) => updateWebhook(input)),
+  webhookDelete: admin((_who, input: unknown) => deleteWebhook(input)),
+  webhookRevealSecret: admin((_who, input: unknown) => revealWebhookSecret(input)),
+  webhookRotateSecret: admin((_who, input: unknown) => rotateWebhookSecret(input)),
+  webhookTest: admin((_who, input: unknown) => testWebhook(input)),
   getSettings: admin(() => adminSettings()),
   saveSettings: admin(async (_who, input: unknown) => {
     const data = record(input);
