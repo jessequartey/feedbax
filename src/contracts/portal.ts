@@ -25,3 +25,24 @@ export type PortalFunctions = {
   addComment: (data: { id: string; postId: string; body: string }) => ApiResult<CommentView>;
   setVote: (data: { postId: string; voted: boolean }) => ApiResult<VoteResult>;
 };
+
+/** Per-person email choices (the `email_prefs` row, or its defaults). */
+export type EmailPrefs = {
+  /** A post you wrote or voted on changed status. */
+  status: boolean;
+  /** New comments on your posts and on posts you commented on. */
+  replies: boolean;
+  /** New changelog entries. Opt-in. */
+  changelog: boolean;
+  /** Daily digest of new posts. Admins only. */
+  digest: boolean;
+};
+/** What /notifications shows and edits. */
+export type EmailSettings = {
+  /** Email is set up on this portal (`npx feedbax add email`). */
+  enabled: boolean;
+  /** Where email goes. Null when this account has no address Feedbax can use. */
+  address: string | null;
+  admin: boolean;
+  prefs: EmailPrefs;
+};

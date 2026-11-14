@@ -1,10 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import { SignInOptions } from "../../src/components/portal/sign-in-options.tsx";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { SiteHeader } from "../../src/components/portal/site-header.tsx";
 import { FilterPanel } from "../../src/components/portal/filter-panel.tsx";
-import { accountUser, fixtureListPosts, hostUser } from "../fixtures/portal.ts";
+import { accountUser, anonymousUser, fixtureListPosts, hostUser } from "../fixtures/portal.ts";
 import { baseConfig, renderPage, viewerOf } from "./helpers.tsx";
 
 describe("header", () => {
@@ -32,6 +33,24 @@ describe("header", () => {
     for (const label of ["Feedback", "Roadmap", "Changelog", "My feedback"])
       expect(html).toContain(label);
     expect(html).toContain('href="/changelog"');
+  });
+
+  it("keeps email settings in the account menu and the mobile menu, not the closed header", async () => {
+    const source = readFileSync(
+      new URL("../../src/components/portal/site-header.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source.match(/to="\/notifications"/g)).toHaveLength(2);
+    expect(source).toContain('config.email && user.kind !== "anonymous"');
+    expect(source).toContain('config.email && user && user.kind !== "anonymous"');
+    // Closed menus are not in the server HTML, so the link stays out of the first paint.
+    for (const viewer of [
+      viewerOf(accountUser),
+      viewerOf(accountUser, { ...baseConfig, email: true }),
+      viewerOf(anonymousUser, { ...baseConfig, email: true }),
+    ]) {
+      expect(await renderPage(<SiteHeader />, viewer)).not.toContain('href="/notifications"');
+    }
   });
 
   it("offers Sign in when signed out, and the account menu when signed in", async () => {

@@ -119,7 +119,7 @@ function SignInLink({ className }: { className?: string }) {
 }
 
 function UserMenu() {
-  const { user } = useViewer();
+  const { user, config } = useViewer();
   const signOut = useSignOut();
   if (!user) return <SignInLink />;
   return (
@@ -140,6 +140,11 @@ function UserMenu() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link to="/my-feedback" />}>My feedback</DropdownMenuItem>
+        {config.email && user.kind !== "anonymous" ? (
+          <DropdownMenuItem render={<Link to="/notifications" />}>
+            Email notifications
+          </DropdownMenuItem>
+        ) : null}
         {user.kind === "anonymous" ? (
           <DropdownMenuItem render={<Link to="/login" />}>Sign in</DropdownMenuItem>
         ) : null}
@@ -198,6 +203,18 @@ function MobileMenu({ pathname, backUrl }: { pathname: string; backUrl: string |
               {item.label}
             </Link>
           ))}
+          {config.email && user && user.kind !== "anonymous" ? (
+            <Link
+              to="/notifications"
+              onClick={close}
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-11 justify-start px-3 text-sm",
+              )}
+            >
+              Email notifications
+            </Link>
+          ) : null}
           {user?.admin ? <AdminLink onClick={close} className="justify-start" /> : null}
         </nav>
         <div className="mt-auto flex flex-col gap-2 border-t p-4">

@@ -35,7 +35,7 @@ export default { async fetch(request) {
   const inert = { prepare() { throw new Error("construction performed I/O"); } };
   if(createDb(inert)!==createDb(inert)) throw new Error("wrapper not reused");
   if(createDb(env.DB)===createDb(env.DB_OTHER)) throw new Error("binding crossed");
-  const settings={name:"Test",appUrl:"https://host.example.com",auth:{anonymous:false},integrations:{notion:{dataSourceId:"00000000-0000-0000-0000-000000000000"},github:false}};
+  const settings={name:"Test",appUrl:"https://host.example.com",auth:{anonymous:false},notifications:{email:false},integrations:{notion:{dataSourceId:"00000000-0000-0000-0000-000000000000"},github:false}};
   const bindings={...env,DB:env.DB_OTHER};
   const phase=new URL(request.url).pathname;
   if(phase==="/host") return createAuth(settings,bindings).handler(new Request("https://portal.example.com/api/auth/feedbax/sign-in"+new URL(request.url).search,{method:"POST",headers:{origin:env.PORTAL_URL}}));
@@ -395,6 +395,21 @@ try {
     assert.equal(feed.status, 200, "changelog feed reaches the Worker");
     assert.match(feed.headers.get("content-type") ?? "", /^application\/rss\+xml/);
     assert.match(await feed.text(), /^<\?xml[^>]*\?>\s*<rss version="2\.0"/);
+    // The one-click unsubscribe is under /api/*, so mail clients' POSTs reach the Worker; a
+    // link that was not signed here is refused, and a GET only redirects.
+    const bad = "?u=nobody&k=status&t=" + "A".repeat(43);
+    const oneClick = await app.fetch("https://portal.example.com/api/email/unsubscribe" + bad, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/x-www-form-urlencoded" },
+      body: "List-Unsubscribe=One-Click",
+    });
+    assert.equal(oneClick.status, 400, "unsigned unsubscribe is refused by the Worker");
+    const confirm = await app.fetch("https://portal.example.com/api/email/unsubscribe" + bad, {
+      headers,
+      redirect: "manual",
+    });
+    assert.equal(confirm.status, 303);
+    assert.equal(confirm.headers.get("location"), "/unsubscribe" + bad);
     for (const path of [
       "/api/auth/sign-up/email",
       "/api/auth/callback/google",
