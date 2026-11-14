@@ -22,6 +22,8 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      // The header's F mark; /favicon.ico redirects here (public/_redirects).
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       // Feed readers and browsers discover the changelog from any page.
       { rel: "alternate", type: "application/rss+xml", title: "Changelog", href: "/changelog.rss" },
     ],
