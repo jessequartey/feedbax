@@ -40,7 +40,7 @@ In your app, run:
 npx shadcn@latest add https://raw.githubusercontent.com/jessequartey/feedbax/main/public/r/feedbax-feedback.json
 ```
 
-Copy `FEEDBAX_HOST_SECRET` from `.dev.vars` to your app's server and add a token route. The steps are in the [main README](https://github.com/jessequartey/feedbax#add-the-feedback-dialog-to-your-app).
+Copy the generated `FEEDBAX_HOST_SECRET` unchanged from `.dev.vars` to your app's server and add a token route. A sign-in link asks users to confirm the named account before switching their portal session. The steps are in the [main README](https://github.com/jessequartey/feedbax#add-the-feedback-dialog-to-your-app).
 
 ## Your Notion dashboard
 

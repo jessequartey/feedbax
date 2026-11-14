@@ -12,6 +12,7 @@ Rebuilt from scratch. Setup is now one command and a few clicks.
 - **Feedback dialog for your app.** Install the shadcn registry block by URL or configure `@feedbax` in `components.json`. Includes screenshots, annotation, redaction and host sign-on; see the [install guide](README.md#add-the-feedback-dialog-to-your-app).
 - **Theming with the shadcn CLI.** `npx shadcn@latest apply --preset <code> --only theme`.
 - **Anonymous mode.** An optional switch lets people post without an account.
+- **Hardened setup and sign-in.** Host sign-in asks for identity confirmation, uploads are bounded before parsing, profile names and signing keys are validated, and vote limits protect shared resources. Notion discovery changes only the selected database; one trashed mirror no longer stalls other posts. GitHub issue recovery verifies its origin. Deployment applies additive migrations.
 - **Coming later:** Admin: manage users, Webhooks, Changelog & product updates, Admin settings and Email notifications. Nothing to configure for notifications yet.
 - Only `create-feedbax` is published. There is no runtime `feedbax` package.
 

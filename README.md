@@ -175,6 +175,7 @@ Images live in R2. The portal keeps working during a Notion or GitHub outage; sy
 - Change **Status** in Notion: Open, Planned, In progress, Done or Closed. **Done** means delivered; **Closed** means declined, duplicate or out of scope. Allow about 5 minutes for changes to appear.
 - With GitHub enabled, tick **Send to GitHub** to create one issue. Changing Status alone creates nothing. Unticking later does nothing. Closing the issue marks the post **Done**; reopening it does not undo that.
 - Keep the database's property names and types. Extra properties and views are welcome. Feedbax writes the author, counts and links; your team changes Status and Send to GitHub.
+- Votes update immediately on the portal; bursts are combined before syncing to Notion. Each user can change their vote up to 10 times in 10 seconds and 120 times an hour. Repeating the same vote does not count again.
 
 ## Add the feedback dialog to your app
 
@@ -263,7 +264,7 @@ export const Route = createFileRoute("/api/feedbax-token")({
 
 On Cloudflare Workers, use `env.FEEDBAX_HOST_SECRET` from `import { env } from "cloudflare:workers"` instead of `process.env`.
 
-For other backends, sign an HS256 JWT with the base64url-decoded secret. Use header `{"alg":"HS256","typ":"JWT"}` and claims `sub` (stable user ID, 1–200 characters), `name` (1–80 characters), `exp` (at most 5 minutes ahead) and `jti` (fresh UUID). Each token works once.
+For other backends, sign an HS256 JWT with the base64url-decoded secret. The secret must be canonical, unpadded base64url decoding to at least 32 bytes; keep the generated value unchanged on both servers. Use header `{"alg":"HS256","typ":"JWT"}` and claims `sub` (stable user ID, 1–200 Unicode codepoints, without line separators), `name` (1–80 Unicode codepoints), `exp` (at most 5 minutes ahead) and `jti` (fresh UUID). IDs and names must contain non-whitespace text. Each token works once.
 
 **3. Render the dialog and link.** The exported component is named `FeedbaxDialog`:
 
@@ -278,7 +279,7 @@ import { FeedbaxLink } from "@/components/feedbax/feedbax-link";
 </FeedbaxLink>
 ```
 
-Replace the URL with your portal's. In the portal's `feedbax.config.ts`, set `appUrl` to your app's URL and redeploy. This allows your app's origin to submit and adds **Back to app**. `FeedbaxLink` opens the portal sign-in flow and then the board. Host identities and standalone portal accounts are separate; the block always requires a signed-in host user.
+Replace the URL with your portal's. In the portal's `feedbax.config.ts`, set `appUrl` to your app's URL and redeploy. This allows your app's origin to submit and adds **Back to app**. `FeedbaxLink` shows a confirmation naming the account; choose **Continue** to sign in and open the board. Opening the link alone does not switch accounts or transfer anonymous feedback. Host identities and standalone portal accounts are separate; the block always requires a signed-in host user.
 
 | `FeedbaxDialog` prop   | Default              | Purpose                                                  |
 | ---------------------- | -------------------- | -------------------------------------------------------- |
@@ -356,6 +357,8 @@ Local data is separate, but local posts sync to your real Notion database if `NO
 
 For a custom domain, update the route in `wrangler.jsonc` and `PORTAL_URL` together, then deploy. Updates are source-level in 0.3.0: review and copy upstream changes into your project, keeping your config, resource IDs and secrets. Running create-feedbax again resumes setup; it does not upgrade an existing project. There is no automatic migration from 0.2.x; start a new project (see [CHANGELOG.md](CHANGELOG.md)).
 
+Edit an existing project's options in `feedbax.config.ts` and redeploy. Conflicting setup flags stop with an explanation instead of overwriting your config. The deploy command applies additive migrations while preserving existing data.
+
 **Removing a test or spam post:** there is no moderation screen in 0.3.0. Copy the post's UUID from its portal URL and inspect the matching records first:
 
 ```sh
@@ -405,6 +408,8 @@ These features are **Planned**. [Vote on the demo roadmap](https://feedbax-demo.
 ## Troubleshooting
 
 Open your portal's `/api/health` for `notion` and `github` status (`ok`, `failing` or `off`). For details, run `npx wrangler tail` from your project or open Workers Logs in Cloudflare.
+
+If one post stops syncing after its Notion row was trashed, restore that existing row. Other posts continue syncing; a later poll reconnects the restored row. Feedbax does not recreate or restore it for you. Unexpected HTTP errors include an `X-Request-ID` you can use alongside Workers Logs; keep secrets out of bug reports.
 
 | Problem                                       | Fix                                                                                                                                                                                                                                   |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
