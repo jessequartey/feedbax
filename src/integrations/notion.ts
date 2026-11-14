@@ -70,9 +70,9 @@ export function parseNotionId(idOrUrl: string): string {
       url.protocol !== "https:" ||
       url.username ||
       url.password ||
-      !/(^|\.)notion\.(so|site)$/.test(url.hostname)
+      !/(^|\.)notion\.(so|site|com)$/.test(url.hostname)
     ) {
-      throw schemaError("Enter a notion.so or notion.site page URL.");
+      throw schemaError("Enter a Notion page URL (app.notion.com, notion.so or notion.site).");
     }
     try {
       value = decodeURIComponent(url.pathname).split("/").filter(Boolean).at(-1) ?? "";

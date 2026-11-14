@@ -34,7 +34,7 @@ export function pageProblem(value: string): string | undefined {
     const url = new URL(value);
     if (
       url.protocol === "https:" &&
-      /(?:^|\.)(?:notion\.so|notion\.site)$/.test(url.hostname) &&
+      /(?:^|\.)(?:notion\.so|notion\.site|notion\.com)$/.test(url.hostname) &&
       id.test(url.pathname)
     )
       return;

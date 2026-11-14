@@ -183,6 +183,7 @@ describe("Notion setup", () => {
     `https://www.notion.so/Team-${PAGE.replaceAll("-", "")}?pvs=4`,
     `https://acme.notion.site/Feedback-${PAGE.replaceAll("-", "")}`,
     `https://notion.so/${PAGE}`,
+    `https://app.notion.com/p/${PAGE.replaceAll("-", "")}`,
   ])("parses page UUID or URL %s", async (input) => {
     const fake = fakeFetch(notionRow());
     expect(await createNotionSetupClient("token", fake.fetch).getPage(input)).toMatchObject({
@@ -193,6 +194,7 @@ describe("Notion setup", () => {
   test.each([
     "https://evil.example/" + PAGE,
     "https://notion.so.evil.example/" + PAGE,
+    "https://notion.com.evil.example/" + PAGE,
     "http://notion.so/" + PAGE,
     "../../users/me",
     "invalid-id",

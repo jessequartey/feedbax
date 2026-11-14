@@ -31,12 +31,15 @@ describe("prompt validators", () => {
     ID.replaceAll("-", ""),
     `https://www.notion.so/Team-${ID.replaceAll("-", "")}?pvs=4`,
     `https://team.notion.site/${ID}`,
+    `https://app.notion.com/p/${ID.replaceAll("-", "")}`,
+    `https://www.notion.com/Team-${ID.replaceAll("-", "")}`,
   ])("accepts page %s", (v) => expect(pageProblem(v)).toBeUndefined());
   it.each([
     "",
     "garbage",
     `https://evil.test/${ID}`,
     `https://notion.so.evil.test/${ID}`,
+    `https://notion.com.evil.test/${ID}`,
     `http://notion.so/${ID}`,
     `https://notion.so/no-id`,
     `garbage${ID}`,
