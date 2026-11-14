@@ -1,7 +1,13 @@
 import { ShowcaseSlot } from "./showcase-card";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
-import { ArrowLeftIcon, EyeOffIcon, ExternalLinkIcon, MessageSquareIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  EyeOffIcon,
+  ExternalLinkIcon,
+  MessageSquareIcon,
+  RocketIcon,
+} from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -59,6 +65,24 @@ export function PostDetailView({
             <CategoryBadge category={post.category} />
             <StatusBadge status={post.status} />
           </div>
+          {post.shippedIn?.length ? (
+            <p className="mt-3 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+              <RocketIcon className="size-4 shrink-0" aria-hidden="true" />
+              <span>Shipped in</span>
+              {post.shippedIn.map((entry, index) => (
+                <React.Fragment key={entry.id}>
+                  {index > 0 ? <span aria-hidden="true">,</span> : null}
+                  <Link
+                    to="/changelog/$entryId"
+                    params={{ entryId: entry.id }}
+                    className="font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                  >
+                    {entry.title}
+                  </Link>
+                </React.Fragment>
+              ))}
+            </p>
+          ) : null}
           <h1
             id="post-title"
             className="mt-4 text-3xl leading-tight font-semibold tracking-tight break-words md:text-4xl"

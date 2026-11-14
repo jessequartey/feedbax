@@ -12,9 +12,11 @@ import type {
   RoadmapResult,
   VoteResult,
 } from "../contracts/domain.ts";
+import type { ChangelogEntry, ChangelogPage } from "../contracts/changelog.ts";
 import type { Viewer } from "../contracts/portal.ts";
 import { viewerUser } from "./auth.ts";
 import { adminApi } from "./admin-api.ts";
+import { getPublishedEntry, listPublishedEntries } from "./changelog.ts";
 import { portalConfig } from "./portal-config.ts";
 import { createPostForUser, getPostDetail, listPostPage } from "./posts.ts";
 import { addCommentForUser, listCommentPage } from "./comments.ts";
@@ -78,6 +80,19 @@ export const getRoadmap = createServerFn({ method: "GET" })
       }),
     );
     return { planned: columns[0], in_progress: columns[1], done: columns[2] };
+  });
+// The changelog is public and the same for everyone, so there is no session lookup.
+export const getChangelog = createServerFn({ method: "GET" })
+  .validator((data: { page?: number }) => data)
+  .handler(async ({ data }): Promise<ChangelogPage> => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return listPublishedEntries(data);
+  });
+export const getChangelogEntry = createServerFn({ method: "GET" })
+  .validator((data: { id: string }) => ({ id: record(data).id }))
+  .handler(async ({ data }): Promise<ChangelogEntry> => {
+    setResponseHeader("Cache-Control", "private, no-store");
+    return getPublishedEntry(data.id);
   });
 // Mutation inputs are checked inside the result boundary, so invalid input returns
 // the frozen ApiResult shape instead of escaping through Start's validator handler.
@@ -159,6 +174,36 @@ export const adminSetAdminRole = createServerFn({ method: "POST" })
   .validator(pass<{ userId: string; admin: boolean }>)
   .handler(async ({ data }) =>
     result(async () => adminApi.setAdminRole(await viewer(), data), "admin.action"),
+  );
+export const adminChangelogList = createServerFn({ method: "GET" })
+  .validator(pass<{ page?: number }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.changelogList(await viewer(), data), "admin.action"),
+  );
+export const adminChangelogCreate = createServerFn({ method: "POST" })
+  .validator(pass<{ title: string; body: string; postIds?: string[] }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.changelogCreate(await viewer(), data), "admin.action"),
+  );
+export const adminChangelogUpdate = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string; title: string; body: string; postIds?: string[] }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.changelogUpdate(await viewer(), data), "admin.action"),
+  );
+export const adminChangelogDelete = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.changelogDelete(await viewer(), data), "admin.action"),
+  );
+export const adminChangelogSetStatus = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string; published: boolean }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.changelogSetStatus(await viewer(), data), "admin.action"),
+  );
+export const adminChangelogSearchPosts = createServerFn({ method: "GET" })
+  .validator(pass<{ q?: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.changelogSearchPosts(await viewer(), data), "admin.action"),
   );
 export const adminGetSettings = createServerFn({ method: "GET" }).handler(async () =>
   result(async () => adminApi.getSettings(await viewer(), undefined), "admin.action"),

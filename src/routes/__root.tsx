@@ -20,7 +20,11 @@ export const Route = createRootRoute({
       { property: "og:description", content: FEEDBAX_DESCRIPTION },
       { name: "twitter:card", content: "summary" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      // Feed readers and browsers discover the changelog from any page.
+      { rel: "alternate", type: "application/rss+xml", title: "Changelog", href: "/changelog.rss" },
+    ],
   }),
   shellComponent: RootDocument,
   component: Outlet,

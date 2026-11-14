@@ -25,12 +25,13 @@ describe("header", () => {
     expect(html).not.toContain("Back to app");
   });
 
-  it("shows the product name and its initial, with no Changelog", async () => {
+  it("shows the product name, its initial and the Changelog link", async () => {
     const html = await renderPage(<SiteHeader />, viewerOf(null, { name: "Acme Feedback" }));
     expect(html).toContain("Acme Feedback");
     expect(html).toContain(">A<");
-    expect(html).not.toMatch(/changelog/i);
-    for (const label of ["Feedback", "Roadmap", "My feedback"]) expect(html).toContain(label);
+    for (const label of ["Feedback", "Roadmap", "Changelog", "My feedback"])
+      expect(html).toContain(label);
+    expect(html).toContain('href="/changelog"');
   });
 
   it("offers Sign in when signed out, and the account menu when signed in", async () => {

@@ -3,6 +3,14 @@ import type { AdminSettings } from "../contracts/admin.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
 import { requireAdmin } from "./auth.ts";
 import {
+  createEntry,
+  deleteEntry,
+  listAdminEntries,
+  searchLinkablePosts,
+  setChangelogStatus,
+  updateEntry,
+} from "./changelog.ts";
+import {
   deleteComment,
   deletePost,
   listModerationComments,
@@ -46,12 +54,19 @@ export const adminApi = {
   listUsers: admin((who, input: unknown) => listUsers(input, who)),
   setBanned: admin((who, input: unknown) => setBanned(input, who)),
   setAdminRole: admin((who, input: unknown) => setAdminRole(input, who)),
+  changelogList: admin((_who, input: unknown) => listAdminEntries(input)),
+  changelogCreate: admin((who, input: unknown) => createEntry(input, who.id)),
+  changelogUpdate: admin((_who, input: unknown) => updateEntry(input)),
+  changelogDelete: admin((_who, input: unknown) => deleteEntry(input)),
+  changelogSetStatus: admin((_who, input: unknown) => setChangelogStatus(input)),
+  changelogSearchPosts: admin((_who, input: unknown) => searchLinkablePosts(input)),
   getSettings: admin(() => adminSettings()),
   saveSettings: admin(async (_who, input: unknown) => {
     const data = record(input);
     // Only the safe fields; saveSettings rejects anything else and any invalid value.
     for (const key of Object.keys(data))
-      if (!["name", "anonymous", "categories", "notifications"].includes(key)) invalid(key);
+      if (!["name", "anonymous", "categories", "notifications", "changelog"].includes(key))
+        invalid(key);
     await saveSettings(data as SettingsPatch);
     return adminSettings();
   }),

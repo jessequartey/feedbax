@@ -341,7 +341,7 @@ export async function testPackage(
     const bindings = JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8"));
     assert.deepEqual(bindings.assets, {
       not_found_handling: "single-page-application",
-      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter"],
+      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"],
     });
     assert.deepEqual(bindings.observability, { enabled: true, redact_query_string: true });
     assert.equal(bindings.d1_databases[0].binding, "DB");
@@ -492,6 +492,7 @@ export async function testPackage(
           "/api/*",
           "/_serverFn/*",
           "/admin/enter",
+          "/changelog.rss",
         ]);
         assert.equal(typeof emitted.assets.directory, "string");
         assert(emitted.assets.directory.length > 0, "generated build declares its client assets");

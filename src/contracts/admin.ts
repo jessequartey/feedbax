@@ -8,6 +8,10 @@ export type NotificationToggles = {
   changelog: boolean;
   adminDigest: boolean;
 };
+export type ChangelogSettings = {
+  /** Draft a changelog entry when a post becomes Done. */
+  autoDraft: boolean;
+};
 export type RuntimeSettings = {
   name: string;
   anonymous: boolean;
@@ -15,6 +19,7 @@ export type RuntimeSettings = {
   categories: Category[];
   /** Site-wide email switches; per-user choices live in `email_prefs`. */
   notifications: NotificationToggles;
+  changelog: ChangelogSettings;
 };
 /** What /admin/settings edits: the effective values, and what feedbax.config.ts would give. */
 export type AdminSettings = { effective: RuntimeSettings; defaults: RuntimeSettings };

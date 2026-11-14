@@ -16,6 +16,7 @@ import {
 
 import { authenticMarker, issueMarker } from "./github-marker.ts";
 import type { ProviderRequest } from "../integrations/request.ts";
+import { autoDraftStatements } from "../server/changelog-draft.ts";
 let actor: { token: string; id: number } | undefined;
 async function actorId(request: ProviderRequest): Promise<number> {
   if (actor && actor.token === env.GITHUB_TOKEN) return actor.id;
@@ -70,7 +71,8 @@ export async function createIssue(postId: string): Promise<void> {
   if (!Number.isSafeInteger(issue.user?.id)) throw new Error("Invalid GitHub issue creator");
   const closedAt =
     issue.state === "closed" ? Date.parse(issue.closed_at ?? issue.updated_at) : null;
-  await database
+  const closed = closedAt !== null && Number.isFinite(closedAt);
+  const update = database
     .update(posts)
     .set({
       githubNumber: issue.number,
@@ -78,11 +80,15 @@ export async function createIssue(postId: string): Promise<void> {
       githubUrl: issue.html_url,
       revision: sql`${posts.revision} + 1`,
       updatedAt: Date.now(),
-      ...(closedAt !== null && Number.isFinite(closedAt)
-        ? { githubClosedAt: closedAt, status: "done" as const }
-        : {}),
+      ...(closed ? { githubClosedAt: closedAt, status: "done" as const } : {}),
     })
     .where(and(eq(posts.id, postId), isNull(posts.githubNumber)));
+  // An issue that was already closed when it was linked makes the post Done: draft its entry
+  // in the same batch (idempotent in SQL, so a replayed message adds nothing).
+  const drafts = closed
+    ? await autoDraftStatements(database, [{ id: postId, body: post.body }])
+    : [];
+  await database.batch([update, ...drafts]);
 }
 
 export async function pollGitHub(
@@ -109,7 +115,12 @@ export async function pollGitHub(
   );
   const linked = closed.length
     ? await database
-        .select({ id: posts.id, number: posts.githubNumber, creator: posts.githubCreatorId })
+        .select({
+          id: posts.id,
+          body: posts.body,
+          number: posts.githubNumber,
+          creator: posts.githubCreatorId,
+        })
         .from(posts)
         .where(
           and(
@@ -148,8 +159,11 @@ export async function pollGitHub(
         .where(and(eq(posts.githubNumber, issue.number), isNull(posts.githubClosedAt))),
     ];
   });
-  if (updates.length)
-    await database.batch(updates as [(typeof updates)[number], ...typeof updates]);
+  const shipped = verified
+    .filter((issue) => Number.isFinite(Date.parse(issue.closed_at ?? issue.updated_at)))
+    .flatMap((issue) => linked.filter((post) => post.number === issue.number));
+  const batch = [...updates, ...(await autoDraftStatements(database, shipped))];
+  if (batch.length) await database.batch(batch as [(typeof batch)[number], ...typeof batch]);
   if (
     issues.length === 100 &&
     Date.parse(issues[issues.length - 1]!.updated_at) <= Date.parse(message.until)

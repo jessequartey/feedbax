@@ -17,7 +17,7 @@ export type Check = {
   skipped?: string;
 };
 
-const REQUIRED_ROUTES = ["/api/*", "/_serverFn/*", "/admin/enter"];
+const REQUIRED_ROUTES = ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"];
 
 export function bindingProblems(project: Project): Check["problems"] {
   const w = project.wrangler;

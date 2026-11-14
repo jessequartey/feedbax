@@ -326,9 +326,9 @@ export async function setup(
     assets: {
       ...(ownsResources ? config?.assets : {}),
       not_found_handling: "single-page-application",
-      // Auth callbacks, RPCs and the admin sign-in link must reach the Worker even for
-      // browser navigation.
-      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter"],
+      // Auth callbacks, RPCs, the admin sign-in link and the changelog RSS feed must reach
+      // the Worker even for browser navigation.
+      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"],
     },
     observability: {
       ...(ownsResources ? config?.observability : {}),
