@@ -50,13 +50,17 @@ export default { async fetch(request) {
 const meteredCode = `
 import {env} from "cloudflare:workers";
 import worker from "./index.js";
+// One proxy for the isolate, like the real stable env.DB, so per-isolate caches keyed on the
+// binding (the settings cache) behave as in production; only the counter resets per request.
+const original=env.DB;
+let reads=0;
+const metered=new Proxy(original,{get(target,key){
+  if(key==="prepare")return sql=>{if(/^\\s*select\\b/i.test(sql))reads++;return target.prepare(sql);};
+  const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
+}});
 export default {async fetch(request){
-  const original=env.DB;
-  let reads=0;
-  env.DB=new Proxy(original,{get(target,key){
-    if(key==="prepare")return sql=>{if(/^\\s*select\\b/i.test(sql))reads++;return target.prepare(sql);};
-    const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
-  }});
+  reads=0;
+  env.DB=metered;
   try {
     const response=await worker.fetch(request);
     // Drain before restoring bindings, retaining per-request accounting for streamed RPCs.
