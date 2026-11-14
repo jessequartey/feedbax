@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
 import { LIMITS } from "../contracts/domain.ts";
@@ -13,6 +13,7 @@ import { richText } from "../email/content.ts";
 import { emailEnabled, queueEmailsLater } from "../email/events.ts";
 import { runtimeConfig } from "./settings.ts";
 import { publiclyVisible } from "./visibility.ts";
+import { emitCommentCreated } from "./webhooks.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
 
 function commentView(row: {
@@ -97,6 +98,7 @@ export async function addCommentForUser(
           },
         },
       ]);
+    waitUntil(emitCommentCreated(comment));
   }
   return comment;
 }

@@ -40,7 +40,7 @@ describe("changelog entries (opt-in)", () => {
   async function publish(title = "Dark mode is here", body = "It **works**.") {
     const admin = await account(`admin-${crypto.randomUUID()}`, { role: "admin" });
     const who = { id: admin, name: "admin", kind: "account", admin: true } as const;
-    // Registered when the portal loads; other test files clear the list, so make sure of it.
+    // Registered with the list itself; test files that clear it leave it empty, so make sure.
     if (!changelogPublishedSinks.includes(changelogEmailSink))
       changelogPublishedSinks.push(changelogEmailSink);
     const created = await adminApi.changelogCreate(who, { title, body });

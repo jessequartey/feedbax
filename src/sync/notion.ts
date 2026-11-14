@@ -8,6 +8,7 @@ import { notionSchemaChanges, richText, schemaError } from "../integrations/noti
 import type { NotionProperties } from "../integrations/notion-schema.ts";
 import { notionText } from "../integrations/notion.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
+import { emitStatusChanges } from "../server/webhooks.ts";
 import type { NotionList, NotionPage } from "../integrations/notion.ts";
 import {
   config,
@@ -200,8 +201,9 @@ export async function pollNotion(
   const updates: BatchItem<"sqlite">[] = [];
   // Posts this poll moves to Done get a draft changelog entry in the same batch.
   const shipped: { id: string; body: string }[] = [];
+  const statusChanges: { id: string; previous: Status }[] = [];
   const approvals = new Set<string>();
-  const statusChanges: StatusChange[] = [];
+  const emailChanges: StatusChange[] = [];
   const seen = new Set<string>();
   for (const page of result.results) {
     if (page.in_trash || page.archived || page.is_archived || seen.has(page.id)) continue;
@@ -233,8 +235,9 @@ export async function pollNotion(
     } else if (status && status !== post.status) {
       changes.status = status;
       changes.updatedAt = Date.now();
+      statusChanges.push({ id: post.id, previous: post.status });
       if (status === "done") shipped.push({ id: post.id, body: post.body });
-      statusChanges.push({
+      emailChanges.push({
         post: { id: post.id, title: post.title, body: post.body },
         from: post.status,
         to: status,
@@ -259,7 +262,9 @@ export async function pollNotion(
   if (updates.length)
     await database.batch(updates as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
   // After the batch, so only stored changes notify. Best effort, never fails the poll.
-  await queueEmails(statusEmails(statusChanges));
+  await queueEmails(statusEmails(emailChanges));
+  // After the write: webhooks never fail the poll, and a retry would not see a change again.
+  if (statusChanges.length) await emitStatusChanges(statusChanges);
   if (approvals.size)
     await env.SYNC_QUEUE.sendBatch(
       [...approvals].map((postId) => ({

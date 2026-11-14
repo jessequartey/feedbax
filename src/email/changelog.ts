@@ -1,7 +1,4 @@
-import {
-  changelogPublishedSinks,
-  type ChangelogPublishedSink,
-} from "../server/changelog-events.ts";
+import type { ChangelogPublishedSink } from "../server/changelog-events.ts";
 import { richText } from "./content.ts";
 import { emailEnabled, queueEmails } from "./events.ts";
 
@@ -18,6 +15,3 @@ export const changelogEmailSink: ChangelogPublishedSink = async ({ entry, url })
     },
   ]);
 };
-
-if (!changelogPublishedSinks.includes(changelogEmailSink))
-  changelogPublishedSinks.push(changelogEmailSink);

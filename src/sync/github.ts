@@ -18,6 +18,7 @@ import { authenticMarker, issueMarker } from "./github-marker.ts";
 import type { ProviderRequest } from "../integrations/request.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
 import { queueEmails, statusEmails } from "../email/events.ts";
+import { emitStatusChanges } from "../server/webhooks.ts";
 let actor: { token: string; id: number } | undefined;
 async function actorId(request: ProviderRequest): Promise<number> {
   if (actor && actor.token === env.GITHUB_TOKEN) return actor.id;
@@ -91,17 +92,20 @@ export async function createIssue(postId: string): Promise<void> {
     ? await autoDraftStatements(database, [{ id: postId, body: post.body }])
     : [];
   const [linked] = await database.batch([update, ...drafts]);
-  // Email only when this message linked the post (a replay finds it linked already).
-  if (closed && linked.length && post.status !== "done")
-    await queueEmails(
-      statusEmails([
-        {
-          post: { id: post.id, title: post.title, body: post.body },
-          from: post.status,
-          to: "done",
-        },
-      ]),
-    );
+  if (closed && post.status !== "done") {
+    // Email only when this message linked the post (a replay finds it linked already).
+    if (linked.length)
+      await queueEmails(
+        statusEmails([
+          {
+            post: { id: post.id, title: post.title, body: post.body },
+            from: post.status,
+            to: "done",
+          },
+        ]),
+      );
+    await emitStatusChanges([{ id: postId, previous: post.status }]);
+  }
 }
 
 export async function pollGitHub(
@@ -178,20 +182,20 @@ export async function pollGitHub(
     .filter((issue) => Number.isFinite(Date.parse(issue.closed_at ?? issue.updated_at)))
     .flatMap((issue) => linked.filter((post) => post.number === issue.number));
   const batch = [...updates, ...(await autoDraftStatements(database, shipped))];
-  if (batch.length) {
-    await database.batch(batch as [(typeof batch)[number], ...typeof batch]);
+  if (batch.length) await database.batch(batch as [(typeof batch)[number], ...typeof batch]);
+  const moved = shipped.filter((post) => post.status !== "done");
+  if (moved.length) {
     // Closed issues set Done. After the batch, so only stored changes notify.
     await queueEmails(
       statusEmails(
-        shipped
-          .filter((post) => post.status !== "done")
-          .map((post) => ({
-            post: { id: post.id, title: post.title, body: post.body },
-            from: post.status,
-            to: "done" as const,
-          })),
+        moved.map((post) => ({
+          post: { id: post.id, title: post.title, body: post.body },
+          from: post.status,
+          to: "done" as const,
+        })),
       ),
     );
+    await emitStatusChanges(moved.map((post) => ({ id: post.id, previous: post.status })));
   }
   if (
     issues.length === 100 &&

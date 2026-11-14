@@ -14,7 +14,6 @@ import {
 } from "../contracts/changelog.ts";
 import { createDb, type Db } from "../db/client.ts";
 import { changelogEntries, changelogPosts, posts } from "../db/schema.ts";
-import "../email/changelog.ts"; // registers the email sink on `changelog.published`
 import { emitChangelogPublished } from "./changelog-events.ts";
 import { DomainError, invalid } from "./errors.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";

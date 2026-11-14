@@ -56,6 +56,8 @@ export function requireLogin(
 ): void {
   if (answers.appUrl && appUrlProblem(answers.appUrl))
     throw new CliError(appUrlProblem(answers.appUrl)!, 2);
+  // The default setup has no sign-in provider: anonymous feedback works without one.
+  if (!answers.login) return;
   if (answers.login === "host") {
     if (!answers.appUrl)
       throw new CliError("Host login needs --app-url (or appUrl saved in feedbax.config.ts).", 2);
@@ -81,6 +83,7 @@ export async function loginCheckpoint(
   onSecret: (value: string) => void,
   persist: () => Promise<void>,
 ): Promise<void> {
+  if (!answers.login) return;
   if (answers.login === "host") {
     requireLogin(answers, secrets);
     return;
