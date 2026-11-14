@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
 import { LIMITS } from "../contracts/domain.ts";
@@ -11,6 +11,7 @@ import type { FeedbaxConfig } from "../contracts/config.ts";
 import { enqueuePost } from "./posts.ts";
 import { runtimeConfig } from "./settings.ts";
 import { publiclyVisible } from "./visibility.ts";
+import { emitCommentCreated } from "./webhooks.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
 
 function commentView(row: {
@@ -81,7 +82,10 @@ export async function addCommentForUser(
   const comment = await existingComment();
   if (!comment)
     throw new DomainError("rate_limited", "You can submit 30 comments per hour.", undefined, 3600);
-  if (inserted.length) enqueuePost(postId);
+  if (inserted.length) {
+    enqueuePost(postId);
+    waitUntil(emitCommentCreated(comment));
+  }
   return comment;
 }
 /**

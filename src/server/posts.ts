@@ -19,6 +19,7 @@ import { storeImage, validateImage } from "./images.ts";
 import { parseShippedIn, shippedInField } from "./changelog.ts";
 import { effectiveSettings, runtimeConfig } from "./settings.ts";
 import { MAX_MERGE_DEPTH, publiclyVisible } from "./visibility.ts";
+import { emitPostCreated } from "./webhooks.ts";
 
 export function enqueuePost(postId: string) {
   waitUntil(env.SYNC_QUEUE.send({ type: "notion.post", postId }).catch(() => undefined));
@@ -97,6 +98,7 @@ export async function createPostForUser(
     return response(200);
   }
   enqueuePost(id);
+  waitUntil(emitPostCreated(id));
   return response(201);
 }
 function counts(viewer: ViewerUser | null) {

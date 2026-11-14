@@ -5,11 +5,25 @@ import { syncState, usedTokens } from "../db/schema.ts";
 import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
 import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
+import { deliverWebhook } from "../server/webhooks.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
   // Keep processing sequential even if a larger batch is delivered accidentally.
   for (const message of batch.messages) {
     const body = message.body;
+    if (body.type === "webhook.deliver") {
+      // Webhooks have their own retry schedule and never touch the Notion/GitHub error state.
+      try {
+        const delaySeconds = await deliverWebhook(body.deliveryId);
+        if (delaySeconds === null) message.ack();
+        else message.retry({ delaySeconds });
+      } catch {
+        // D1 failed (the request itself never throws). Try again shortly.
+        console.error({ type: "webhook.deliver_failed", deliveryId: body.deliveryId });
+        message.retry({ delaySeconds: 60 });
+      }
+      continue;
+    }
     if (body.type.startsWith("github.") && !config.integrations.github) {
       message.ack();
       continue;

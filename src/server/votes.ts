@@ -1,5 +1,5 @@
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
-import { env } from "cloudflare:workers";
+import { env, waitUntil } from "cloudflare:workers";
 import { and, eq, sql } from "drizzle-orm";
 import type { ViewerUser, VoteResult } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
@@ -11,6 +11,7 @@ import { enqueuePost } from "./posts.ts";
 import { runtimeConfig } from "./settings.ts";
 import { publiclyVisible } from "./visibility.ts";
 import { record, uuid } from "./validation.ts";
+import { emitVoteCreated } from "./webhooks.ts";
 
 export async function setVoteForUser(
   input: unknown,
@@ -54,13 +55,15 @@ export async function setVoteForUser(
     sql`UPDATE posts SET revision = revision + 1, updated_at = ${now} WHERE id = ${postId} AND changes() > 0`,
     sql`UPDATE posts SET sync_queued_at = ${now} WHERE id = ${postId} AND changes() > 0 AND sync_queued_at <= ${now - 30000} RETURNING id`,
   ];
-  const [budget, , , enqueue] = await env.DB.batch(
+  const [budget, transition, , enqueue] = await env.DB.batch(
     statements.map((statement) => {
       const query = new SQLiteSyncDialect().sqlToQuery(statement);
       return env.DB.prepare(query.sql).bind(...query.params);
     }),
   );
   if (enqueue.results.length) enqueuePost(postId);
+  // Only a vote that was really added (not a repeat, not a removal, not over budget).
+  if (data.voted && transition.results.length) waitUntil(emitVoteCreated(postId));
   const result = await db
     .select({
       votes: sql<number>`count(*)`,
