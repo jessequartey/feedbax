@@ -1,0 +1,12 @@
+
+> feedbax@0.3.0 test
+> vp test run
+
+
+ RUN  v5.1.0 /Users/jessequartey/.t3/worktrees/core/rebuild-w5-cli-a21a27d3d264bc40
+
+
+ Test Files  4 passed (4)
+      Tests  158 passed (158)
+   Start at  01:18:59
+   Duration  1.83s (import 46%, tests 43%, transform 10%)
