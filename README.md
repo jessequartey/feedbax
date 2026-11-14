@@ -125,7 +125,9 @@ Send signed events to your own endpoint: `post.created`, `post.status_changed`, 
 
 1. Run `npx feedbax admin` and open the link.
 2. Open `/admin/settings` → **Webhooks** and add an endpoint URL.
-3. Copy its signing secret and verify the `X-Feedbax-Signature` header (HMAC-SHA256 of the raw request body).
+3. Copy its signing secret. Each request carries `X-Feedbax-Signature: t=<unix seconds>,v1=<hex>`, where `v1` is the HMAC-SHA256 of `"<t>.<raw body>"` keyed with that secret. Verify it and reject old timestamps.
+
+Payloads include post, comment and changelog bodies as Markdown plus a plain-text version. Failed deliveries retry with backoff (6 attempts over about 7 hours), and the endpoint's recent deliveries show in the same screen.
 
 ## Set up with an agent
 
