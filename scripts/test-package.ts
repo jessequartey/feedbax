@@ -446,6 +446,38 @@ export async function testPackage(
         );
       }
     }
+    // The default path: only NOTION_TOKEN and Cloudflare credentials, no sign-in provider.
+    const minimalDir = join(temp, "minimal");
+    await mkdir(minimalDir);
+    const minimalState = join(minimalDir, "state.json");
+    await writeFile(minimalState, "{}");
+    await writeFile(join(minimalDir, "commands.jsonl"), "");
+    const minimalEnv = {
+      PATH: env.PATH,
+      FEEDBAX_TEST_STATE: minimalState,
+      FEEDBAX_TEST_LOG: join(minimalDir, "commands.jsonl"),
+      NOTION_TOKEN: env.NOTION_TOKEN,
+      CLOUDFLARE_API_TOKEN: env.CLOUDFLARE_API_TOKEN,
+      CLOUDFLARE_ACCOUNT_ID: env.CLOUDFLARE_ACCOUNT_ID,
+    };
+    const minimalArgs = [argv[0]!, packedCli, "my-feedback", "--yes"];
+    const minimalOutput = stripVTControlCharacters(
+      await checked(process.execPath, minimalArgs, minimalDir, minimalEnv),
+    );
+    assert(minimalOutput.includes("Anyone can post"));
+    assert(!minimalOutput.includes("sentinel-"));
+    const minimalDeployed = JSON.parse(await readFile(minimalState, "utf8"));
+    assert(minimalDeployed.deployed);
+    assert.equal(minimalDeployed.githubOAuth, false);
+    assert.equal(minimalDeployed.googleOAuth, false);
+    assert.equal(minimalDeployed.hostConfigured, false);
+    assert(
+      (await readFile(join(minimalDir, "my-feedback", "feedbax.config.ts"), "utf8")).includes(
+        "anonymous: true",
+      ),
+    );
+    await checked(process.execPath, minimalArgs, minimalDir, minimalEnv);
+    console.log("package: default setup with only NOTION_TOKEN + Cloudflare credentials passed");
     const rejectedDir = join(temp, "rejected");
     await mkdir(rejectedDir);
     for (const args of [["--login=google"], ["--login=host"], ["--login=github"]]) {

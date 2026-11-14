@@ -48,8 +48,7 @@ else if (args[0] === "deploy") {
     (statSync(dirname(path)).mode & 0o777) !== 0o700 ||
     "PORTAL_URL" in secrets ||
     !secrets.FEEDBAX_HOST_SECRET ||
-    !secrets.NOTION_TOKEN ||
-    (!githubOAuth && !googleOAuth && !hostConfigured)
+    !secrets.NOTION_TOKEN
   )
     process.exit(4);
   state.secretPath = path;
