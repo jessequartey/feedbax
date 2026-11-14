@@ -32,6 +32,8 @@ jobs:
         run: npm run verify:build
       - name: Built Worker request boundaries
         run: node scripts/test-worker-entry.ts
+      - name: Built Worker auth and session isolation
+        run: node scripts/test-worker-auth.ts
       - name: Built Worker provider sync
         run: node scripts/test-worker-sync.ts
       - name: Wrangler dry run
