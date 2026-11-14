@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 import { createHmac } from "node:crypto";
+import { toJSONAsync, fromCrossJSON } from "seroval";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 
 const root = resolve("dist/server");
@@ -45,6 +46,26 @@ export default { async fetch(request) {
   const other=await createDb(env.DB_OTHER).query.user.findMany();
   return Response.json({same:createDb(env.DB)===db,rows:rows.map(row=>row?.name??null),other:other.map(row=>row.name)});
 }};`;
+// Test-only request meter. Never shipped or used for CPU profiling.
+const meteredCode = `
+import {env} from "cloudflare:workers";
+import worker from "./index.js";
+export default {async fetch(request){
+  const original=env.DB;
+  let reads=0;
+  env.DB=new Proxy(original,{get(target,key){
+    if(key==="prepare")return sql=>{if(/^\\s*select\\b/i.test(sql))reads++;return target.prepare(sql);};
+    const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
+  }});
+  try {
+    const response=await worker.fetch(request);
+    // Drain before restoring bindings, retaining per-request accounting for streamed RPCs.
+    const body=await response.arrayBuffer();
+    const headers=new Headers(response.headers);headers.set("X-Local-D1-Reads",String(reads));
+    return new Response(body,{status:response.status,headers});
+  } finally {env.DB=original;}
+}};
+`;
 let exchanges = 0;
 const hostSecret = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
 const common = {
@@ -67,7 +88,14 @@ const runtime = new Miniflare(
       {
         name: "app",
         ...common,
-        modules,
+        modules: [
+          {
+            type: "ESModule" as const,
+            path: resolve(root, "metered-app.js"),
+            contents: meteredCode,
+          },
+          ...modules,
+        ],
         d1Databases: { DB: "primary", DB_OTHER: "secondary" },
         outboundService: async (request: Request) => {
           const url = new URL(request.url);
@@ -92,6 +120,12 @@ const runtime = new Miniflare(
             ]);
           throw new Error("Unexpected outbound request");
         },
+      },
+      {
+        // Deliberately no DB binding: any document loader/auth/data read must fail.
+        name: "shell",
+        ...common,
+        modules,
       },
       {
         name: "probe",
@@ -130,6 +164,29 @@ try {
       runtime.dispatchFetch(input, { ...init, redirect: "manual" }),
   };
   const local = await service("probe");
+  const shell = await service("shell");
+  for (const path of [
+    "/",
+    "/roadmap",
+    "/my-feedback",
+    "/login",
+    "/signup?to=%2Fmy-feedback",
+    "/posts/11111111-1111-4111-8111-111111111111",
+  ]) {
+    for (const cookie of ["", "__Secure-better-auth.session_token=forged"]) {
+      const response = await shell.fetch(`https://portal.example.com${path}`, {
+        headers: { cookie },
+      });
+      const html = await response.text();
+      assert.equal(response.status, 200, "deep-link shell does not need bindings or a viewer");
+      assert.match(html, /Loading feedback/);
+      assert.doesNotMatch(
+        html,
+        /Runtime fixture|Host one|Social fixture|session_token|test-client|loaderData/,
+      );
+      assert.equal(response.headers.has("set-cookie"), false);
+    }
+  }
   const primary = await runtime.getD1Database("DB", "app"),
     secondary = await runtime.getD1Database("DB_OTHER", "probe");
   for (const db of [primary, secondary])
@@ -208,8 +265,184 @@ try {
       },
     });
   const redirect = await app.fetch("https://portal.example.com/signup?to=%2Fmy-feedback");
-  assert.equal(redirect.status, 307);
-  assert.match(redirect.headers.get("location") ?? "", /\/login\?to=%2Fmy-feedback/);
+  assert.equal(
+    redirect.status,
+    200,
+    "signup document defers its compatibility redirect to client routing",
+  );
+  assert.match(await redirect.text(), /Loading feedback/);
+  const rpcId = (name: string) => {
+    const id = new RegExp(
+      `var ${name}_createServerFn_handler = createServerRpc\\(\\{\\s*id: "([^"]+)"`,
+    ).exec(assets)?.[1];
+    assert(id, `find real emitted ${name}`);
+    return id;
+  };
+  const call = async (name: string, data?: unknown, cookie = "", method = "GET") => {
+    const url = new URL(`/_serverFn/${rpcId(name)}`, "https://portal.example.com");
+    const payload = data === undefined ? undefined : JSON.stringify(await toJSONAsync({ data }));
+    if (method === "GET" && payload) url.searchParams.set("payload", payload);
+    const response = await app.fetch(url.href, {
+      method,
+      headers: {
+        cookie,
+        origin: "https://portal.example.com",
+        "sec-fetch-site": "same-origin",
+        "x-tsr-serverFn": "true",
+        ...(method === "POST" ? { "content-type": "application/json" } : {}),
+      },
+      ...(method === "POST" ? { body: payload } : {}),
+    });
+    assert.equal(response.status, 200, `${name} RPC status`);
+    assert.match(
+      response.headers.get("cache-control") ?? "",
+      /private.*no-store/,
+      `${name} private response`,
+    );
+    const decoded = fromCrossJSON(JSON.parse(await response.text()), {}) as {
+      result: any;
+      error?: unknown;
+    };
+    assert(!decoded.error, `${name} RPC succeeds`);
+    return decoded.result;
+  };
+  const signIn = async (sub: string) => {
+    const response = await app.fetch(
+      `https://portal.example.com/api/auth/feedbax/sign-in?token=${token(sub)}`,
+      {
+        method: "POST",
+        headers: {
+          origin: "https://portal.example.com",
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "",
+      },
+    );
+    assert.equal(response.status, 302);
+    return cookies(response);
+  };
+  const clientOne = await signIn("Client one"),
+    clientTwo = await signIn("Client two");
+  const identityOne = (await call("getViewer", undefined, clientOne)).user;
+  const identityTwo = (await call("getViewer", undefined, clientTwo)).user;
+  const postId = "11111111-1111-4111-8111-111111111111",
+    otherId = "22222222-2222-4222-8222-222222222222";
+  for (const [id, author, title] of [
+    [postId, identityOne.id, "Private fixture one"],
+    [otherId, identityTwo.id, "Private fixture two"],
+  ])
+    await primary
+      .prepare(
+        "INSERT INTO posts (id,author_id,title,body,category,status,created_at,updated_at) VALUES (?,?,?,'Body','feature','planned',1,1)",
+      )
+      .bind(id, author, title)
+      .run();
+  await primary
+    .prepare("INSERT INTO votes (post_id,user_id,created_at) VALUES (?,?,1)")
+    .bind(postId, identityOne.id)
+    .run();
+  const [first, second] = await Promise.all([
+    call("getPost", { id: postId }, clientOne),
+    call("getPost", { id: postId }, clientTwo),
+  ]);
+  assert.equal(first.viewerHasVoted, true);
+  assert.equal(second.viewerHasVoted, false);
+  assert.equal((await call("getPost", { id: postId })).viewerHasVoted, false);
+  const mine = await Promise.all([
+    call("listMyPosts", {}, clientOne),
+    call("listMyPosts", {}, clientTwo),
+  ]);
+  assert.deepEqual(
+    mine.map((page) => page.items.map((post: any) => post.id)),
+    [[postId], [otherId]],
+  );
+  assert.equal((await call("listMyPosts", {})).total, 0);
+  assert.equal((await call("listPosts", {})).total, 2);
+  assert.equal((await call("listComments", { postId })).total, 0);
+  assert.equal((await call("getRoadmap", {})).planned.total, 2);
+  const denied = await call(
+    "setVote",
+    { postId: otherId, voted: true, viewerId: identityOne.id },
+    "",
+    "POST",
+  );
+  assert.equal(denied.ok, false);
+  assert.equal(denied.error.code, "unauthenticated");
+  assert.equal((await primary.prepare("SELECT count(*) AS n FROM votes").first())?.n, 1);
+  for (const cookie of [clientOne, clientTwo])
+    for (const path of ["/", `/posts/${postId}`, "/my-feedback", "/roadmap"]) {
+      const response = await app.fetch(`https://portal.example.com${path}`, {
+        headers: { cookie },
+      });
+      const html = await response.text();
+      assert.equal(response.status, 200);
+      assert.match(html, /Loading feedback/);
+      for (const forbidden of [
+        "Client one",
+        "Client two",
+        "Private fixture one",
+        "Private fixture two",
+        identityOne.id,
+        identityTwo.id,
+      ])
+        assert(!html.includes(forbidden), "no viewer/content data in document");
+      assert.equal(response.headers.has("set-cookie"), false);
+    }
+  const meter = app;
+  const usage: Record<string, Record<string, number>> = { unsigned: {}, signed: {} };
+  for (const [label, cookie] of [
+    ["unsigned", ""],
+    ["signed", clientOne],
+  ]) {
+    for (const [name, data] of [
+      ["getViewer", undefined],
+      ["listPosts", {}],
+      ["getPost", { id: postId }],
+      ["listComments", { postId }],
+      ["getRoadmap", {}],
+      ["listMyPosts", {}],
+    ] as const) {
+      const url = new URL(`/_serverFn/${rpcId(name)}`, "https://portal.example.com");
+      if (data !== undefined)
+        url.searchParams.set("payload", JSON.stringify(await toJSONAsync({ data })));
+      // Service binding fetches use their own internal request host; align Origin with it
+      // by routing through a Request carrying the same canonical URL at the test entry.
+      const response = await meter.fetch(url.href, {
+        headers: {
+          cookie,
+          origin: "https://portal.example.com",
+          "sec-fetch-site": "same-origin",
+          "x-tsr-serverFn": "true",
+        },
+      });
+      assert.equal(response.status, 200, `${name} metered RPC`);
+      usage[label][name] = Number(response.headers.get("X-Local-D1-Reads"));
+      await response.arrayBuffer();
+    }
+    const doc = await meter.fetch(`https://portal.example.com/posts/${postId}`, {
+      headers: { cookie },
+    });
+    assert.equal(doc.status, 200);
+    assert.equal(doc.headers.get("X-Local-D1-Reads"), "0");
+    await doc.arrayBuffer();
+  }
+  assert.deepEqual(usage.unsigned, {
+    getViewer: 0,
+    listPosts: 2,
+    getPost: 2,
+    listComments: 3,
+    getRoadmap: 6,
+    listMyPosts: 0,
+  });
+  assert.deepEqual(usage.signed, {
+    getViewer: 3,
+    listPosts: 5,
+    getPost: 5,
+    listComments: 3,
+    getRoadmap: 9,
+    listMyPosts: 5,
+  });
+  console.log("local navigation D1 reads", JSON.stringify(usage));
   const out = await rpc();
   assert.equal(out.status, 200);
   assert.match(out.headers.get("cache-control") ?? "", /private.*no-store/);
@@ -262,7 +495,7 @@ try {
     assert.equal(response.headers.get("cache-control"), "no-store");
   }
   console.log(
-    "ok: real workerd DB wrapper construction/binding/freshness/concurrent-params; injected host identities/token consumption; concurrent sessions/revocation; emitted private viewer RPC; controlled OAuth callback/state replay; mounted disabled routes",
+    "ok: real workerd DB wrapper construction/binding/freshness/concurrent-params; injected host identities/token consumption; concurrent sessions/revocation; data-free deep-link shell; emitted private read RPCs and per-user votes/My feedback; protected mutation; controlled OAuth callback/state replay; mounted disabled routes",
   );
 } finally {
   await runtime.dispose();

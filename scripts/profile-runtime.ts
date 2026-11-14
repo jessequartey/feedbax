@@ -6,6 +6,7 @@ import { createHash, createHmac } from "node:crypto";
 import { resolve, basename } from "node:path";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { SourceMapConsumer } from "source-map";
+import { toJSONAsync, fromCrossJSON } from "seroval";
 // @ts-expect-error ws is the Inspector transport supplied by Miniflare.
 import WebSocket from "ws";
 
@@ -62,9 +63,23 @@ try {
       .run();
   const fnFile = files.find((p) => p.startsWith("assets/functions-"))!;
   const fnText = await readFile(resolve(root, fnFile), "utf8");
-  const viewerId =
-    /var getViewer_createServerFn_handler = createServerRpc\(\{\s*id: "([^"]+)"/.exec(fnText)?.[1];
-  assert(viewerId, "real emitted getViewer ID");
+  const rpcIds = Object.fromEntries(
+    ["getViewer", "listPosts", "getPost", "listComments", "getRoadmap", "listMyPosts"].map(
+      (name) => {
+        const id = new RegExp(
+          `var ${name}_createServerFn_handler = createServerRpc\\(\\{\\s*id: "([^"]+)"`,
+        ).exec(fnText)?.[1];
+        assert(id, `real emitted ${name} ID`);
+        return [name, id];
+      },
+    ),
+  );
+  const rpcPath = async (name: string, data?: unknown) => {
+    const url = new URL(`/_serverFn/${rpcIds[name]}`, "https://portal.example.com");
+    if (data !== undefined)
+      url.searchParams.set("payload", JSON.stringify(await toJSONAsync({ data })));
+    return url.pathname + url.search;
+  };
   const inspector = await runtime.getInspectorURL();
   const endpoint = new URL(inspector);
   endpoint.protocol = "http:";
@@ -139,15 +154,27 @@ try {
   await send("Profiler.enable");
   await send("Profiler.setSamplingInterval", { interval: 100 });
   const output = [];
-  for (const [operation, path, signedIn] of [
-    ["health", "/api/health"],
-    ["getViewer", `/_serverFn/${viewerId}`],
-    ["board-data-only", "/"],
-    ["post-full-SSR", `/posts/${ids[0]}`],
-    ["getViewer-signed-in", `/_serverFn/${viewerId}`, true],
-    ["board-signed-in", "/", true],
-    ["post-signed-in", `/posts/${ids[0]}`, true],
-  ] as const) {
+  const operations: [string, string, boolean][] = [];
+  for (const signedIn of [false, true]) {
+    const suffix = signedIn ? "-signed-in" : "";
+    for (const [name, path] of [
+      ["board", "/"],
+      ["post", `/posts/${ids[0]}`],
+      ["roadmap", "/roadmap"],
+      ["my-feedback", "/my-feedback"],
+    ])
+      operations.push([name + "-document" + suffix, path, signedIn]);
+    for (const [name, data] of [
+      ["getViewer", undefined],
+      ["listPosts", {}],
+      ["getPost", { id: ids[0] }],
+      ["listComments", { postId: ids[0] }],
+      ["getRoadmap", {}],
+      ["listMyPosts", {}],
+    ] as const)
+      operations.push([name + suffix, await rpcPath(name, data), signedIn]);
+  }
+  for (const [operation, path, signedIn] of operations) {
     const run = async () => {
       const response = await runtime.dispatchFetch(`https://portal.example.com${path}`, {
         headers: {
@@ -158,7 +185,16 @@ try {
         },
       });
       assert.equal(response.status, 200, operation);
-      await response.arrayBuffer();
+      const body = await response.text();
+      if (path.startsWith("/_serverFn/")) {
+        assert.match(response.headers.get("cache-control") ?? "", /private.*no-store/);
+        const decoded = fromCrossJSON(JSON.parse(body), {}) as {
+          result?: unknown;
+          error?: unknown;
+        };
+        assert(!decoded.error, `${operation} RPC succeeds`);
+        assert(decoded.result !== undefined, `${operation} returns data`);
+      }
     };
     for (let i = 0; i < 12; i++) await run();
     await send("Profiler.start");

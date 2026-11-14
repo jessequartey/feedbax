@@ -10,6 +10,8 @@ import { getViewer } from "@/server/functions";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
+  ssr: false,
+  pendingComponent: RootPending,
   // Who is signed in, and the public config. Refreshed after sign-in/out via router.invalidate().
   loader: () => getViewer(),
   staleTime: 60_000,
@@ -27,6 +29,15 @@ export const Route = createRootRoute({
   errorComponent: RootError,
   notFoundComponent: () => <NotFoundState />,
 });
+
+// The document shell renders before any viewer/config/data request has completed.
+function RootPending() {
+  return (
+    <div role="status" className="px-4 py-16 text-center text-sm text-muted-foreground">
+      Loading feedback…
+    </div>
+  );
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

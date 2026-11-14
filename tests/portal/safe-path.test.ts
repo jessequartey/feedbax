@@ -1,3 +1,10 @@
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+} from "@tanstack/react-router";
+import { Route as SignupRoute } from "../../src/routes/signup.tsx";
 import { describe, expect, it } from "vite-plus/test";
 
 import { loginHref, safeRelativePath } from "../../src/components/portal/safe-path.ts";
@@ -35,4 +42,26 @@ describe("safeRelativePath", () => {
     expect(loginHref("https://evil.example")).toBe("/login");
     expect(loginHref("/")).toBe("/login");
   });
+});
+
+it.each([
+  ["/submit", "/submit"],
+  ["//evil.example", undefined],
+])("signup client compatibility redirect sanitizes %s", async (to, expected) => {
+  const root = createRootRoute();
+  Object.assign(SignupRoute.options, {
+    id: "/signup",
+    path: "/signup",
+    getParentRoute: () => root,
+  });
+  const login = createRoute({ getParentRoute: () => root, path: "/login" });
+  const router = createRouter({
+    origin: "http://localhost",
+    routeTree: root.addChildren([SignupRoute, login]),
+    history: createMemoryHistory({ initialEntries: [`/signup?${new URLSearchParams({ to })}`] }),
+    isServer: false,
+  });
+  await router.load();
+  expect(router.state.location.pathname).toBe("/login");
+  expect(router.state.location.search.to).toBe(expected);
 });

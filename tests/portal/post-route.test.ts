@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { fixtureGetPost, fixtureId, fixtureListComments } from "../fixtures/portal.ts";
 import { uuid } from "../../src/server/validation.ts";
 
-const functions = vi.hoisted(() => ({ getPost: vi.fn(), listComments: vi.fn() }));
+const functions = vi.hoisted(() => ({
+  getPost: vi.fn(),
+  listComments: vi.fn(),
+  getViewer: vi.fn(),
+}));
 vi.mock("../../src/server/functions.ts", () => functions);
 
+import { Route as RootRoute } from "../../src/routes/__root.tsx";
+import { viewerOf } from "./helpers.tsx";
 import { Route } from "../../src/routes/posts.$postId.tsx";
 
 async function load(path: string) {
@@ -28,6 +34,7 @@ async function load(path: string) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  functions.getViewer.mockResolvedValue(viewerOf(null));
   functions.getPost.mockImplementation(({ data }) => fixtureGetPost(uuid(data.id)));
   functions.listComments.mockImplementation(({ data }) =>
     fixtureListComments(uuid(data.postId), data.page),
@@ -52,4 +59,33 @@ describe("post route", () => {
     expect(functions.getPost).toHaveBeenCalledWith({ data: { id } });
     expect(functions.listComments).toHaveBeenCalledWith({ data: { postId: id } });
   });
+});
+
+it("root CSR skips viewer and post loaders on the server and runs them for the client deep link", async () => {
+  const post = Route;
+  Object.assign(post.options, {
+    id: "/posts/$postId",
+    path: "/posts/$postId",
+    getParentRoute: () => RootRoute,
+  });
+  for (const isServer of [true, false]) {
+    vi.clearAllMocks();
+    const router = createRouter({
+      origin: "http://localhost",
+      routeTree: RootRoute.addChildren([post]),
+      history: createMemoryHistory({ initialEntries: [`/posts/${fixtureId(1)}`] }),
+      isServer,
+    });
+    await router.load();
+    if (isServer) {
+      expect(functions.getViewer).not.toHaveBeenCalled();
+      expect(functions.getPost).not.toHaveBeenCalled();
+      expect(functions.listComments).not.toHaveBeenCalled();
+    } else {
+      expect(functions.getViewer).toHaveBeenCalledOnce();
+      expect(functions.getPost).toHaveBeenCalledWith({ data: { id: fixtureId(1) } });
+      expect(functions.listComments).toHaveBeenCalledWith({ data: { postId: fixtureId(1) } });
+      expect(router.state.matches.at(-1)?.status).toBe("success");
+    }
+  }
 });

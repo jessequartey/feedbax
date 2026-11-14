@@ -7,6 +7,7 @@ export const Route = createFileRoute("/signup")({
     return to === "/" ? {} : { to };
   },
   beforeLoad: ({ search }) => {
-    throw redirect({ to: "/login", search });
+    const to = safeRelativePath(search.to);
+    throw redirect({ to: "/login", search: to === "/" ? {} : { to } });
   },
 });
