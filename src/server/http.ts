@@ -118,6 +118,8 @@ export async function handlePosts(request: Request, settings = config): Promise<
     response.headers.set("Access-Control-Allow-Origin", origin!);
     response.headers.set("Access-Control-Allow-Methods", "POST");
     response.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    // The block runs cross-origin; without this it cannot read Retry-After on a 429.
+    response.headers.set("Access-Control-Expose-Headers", "Retry-After");
   }
   return response;
 }

@@ -65,6 +65,26 @@ it("returns Retry-After and CORS on a bearer post quota failure", async () => {
   expect(response.status).toBe(429);
   expect(response.headers.get("retry-after")).toBe("3600");
   expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:5000");
+  expect(response.headers.get("access-control-expose-headers")).toBe("Retry-After");
+});
+it("exposes Retry-After only to allowed origins", async () => {
+  const preflight = await handlePosts(
+    new Request(`${env.PORTAL_URL}/api/posts`, {
+      method: "OPTIONS",
+      headers: { origin: "http://localhost:5000" },
+    }),
+  );
+  expect(preflight.status).toBe(204);
+  expect(preflight.headers.get("access-control-expose-headers")).toBe("Retry-After");
+  const foreign = await handlePosts(
+    new Request(`${env.PORTAL_URL}/api/posts`, {
+      method: "POST",
+      headers: { origin: "https://evil.example", authorization: "Bearer x" },
+    }),
+  );
+  expect(foreign.status).toBe(403);
+  expect(foreign.headers.get("access-control-allow-origin")).toBeNull();
+  expect(foreign.headers.get("access-control-expose-headers")).toBeNull();
 });
 it.each(["sign-up/email", "sign-in/email"])(
   "Better Auth rate limits %s by Cloudflare IP using D1",
