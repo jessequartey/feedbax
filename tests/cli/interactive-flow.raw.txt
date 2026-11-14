@@ -25,7 +25,7 @@
 ◇  Connect Notion ────────────────────────────────────────────────────────────╮
 │                                                                             │
 │  1. Duplicate the Feedbax template (optional):                              │
-│     https://www.notion.so/PLACEHOLDER-FEEDBAX-TEMPLATE                      │
+│     https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc                      │
 │  2. Create an integration: https://www.notion.so/profile/integrations       │
 │     New integration → Internal → copy Internal Integration Secret (ntn_…).  │
 │     You need to be a workspace owner.                                       │

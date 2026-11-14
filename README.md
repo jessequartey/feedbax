@@ -20,7 +20,7 @@ You need:
 ## Get started
 
 **1. Duplicate the Notion template.**
-Open [the Feedbax template](https://www.notion.so/PLACEHOLDER-FEEDBAX-TEMPLATE) and click **Duplicate** (top right). This step is optional: without it, Feedbax creates the database for you on a page you choose.
+Open [the Feedbax template](https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc) and click **Duplicate** (top right). This step is optional: without it, Feedbax creates the database for you on a page you choose.
 
 **2. Create a Notion integration.**
 
