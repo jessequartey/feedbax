@@ -14,6 +14,9 @@ const TITLE = "Feedback";
 const DESCRIPTION = "Share ideas and vote on what matters.";
 
 export const Route = createFileRoute("/")({
+  // Live Worker tail measured board SSR above the Free 10 ms CPU budget. Keep
+  // server-loaded data while rendering the existing board component in the browser.
+  ssr: "data-only",
   validateSearch: (search: Record<string, unknown>) => parseBoardSearch(search),
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => listPosts({ data: toListInput(deps) }),
