@@ -117,6 +117,22 @@ it("GET SSO confirms escaped identity without consuming or replacing a session; 
   expect(confirmed.status).toBe(302);
   expect(confirmed.headers.get("set-cookie")).toContain("session_token");
 });
+it("keeps native confirmation form origins usable without exposing token query referrers", async () => {
+  const auth = createAuth();
+  const url = `${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${await mintToken()}`;
+  const confirmation = await auth.handler(new Request(url));
+  expect(confirmation.headers.get("referrer-policy")).toBe("strict-origin");
+  expect(await confirmation.text()).toContain('<meta name="referrer" content="strict-origin">');
+  const invalid = await auth.handler(
+    new Request(`${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=invalid`),
+  );
+  expect(invalid.headers.get("referrer-policy")).toBe("no-referrer");
+  const accepted = await auth.handler(
+    new Request(url, { method: "POST", headers: { origin: env.PORTAL_URL } }),
+  );
+  expect(accepted.status).toBe(302);
+  expect(accepted.headers.get("referrer-policy")).toBe("no-referrer");
+});
 it("rejects old email collisions safely while preserving the standalone account's data", async () => {
   const auth = createAuth(),
     adapter = (await auth.$context).internalAdapter;

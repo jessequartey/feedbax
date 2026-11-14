@@ -269,14 +269,17 @@ export function createAuth(settings: FeedbaxConfig = config, bindings: Cloudflar
                 );
               }
               if (ctx.request!.method === "GET") {
+                // no-referrer makes native form navigations send Origin: null in Chrome.
+                // Send only the origin, keeping the token's path/query out of Referer.
+                ctx.setHeader("Referrer-Policy", "strict-origin");
                 const action = `/api/auth/feedbax/sign-in?${new URLSearchParams({ token: query.get("token")!, to: safeDestination(query.get("to")) })}`;
                 return new Response(
-                  `<!doctype html><html><head><meta name="referrer" content="no-referrer"><title>Confirm sign in</title></head><body><h1>Sign in to ${escapeHtml(settings.name)}</h1><p>Continue as <strong>${escapeHtml(claims.name)}</strong> (${escapeHtml(claims.sub)})?</p><p>Your anonymous feedback will move to this account.</p><form method="post" action="${escapeHtml(action)}"><button type="submit">Continue as ${escapeHtml(claims.name)}</button></form></body></html>`,
+                  `<!doctype html><html><head><meta name="referrer" content="strict-origin"><title>Confirm sign in</title></head><body><h1>Sign in to ${escapeHtml(settings.name)}</h1><p>Continue as <strong>${escapeHtml(claims.name)}</strong> (${escapeHtml(claims.sub)})?</p><p>If this browser has anonymous feedback, it will move to this account.</p><form method="post" action="${escapeHtml(action)}"><button type="submit">Continue as ${escapeHtml(claims.name)}</button></form></body></html>`,
                   {
                     headers: {
                       "Content-Type": "text/html; charset=utf-8",
                       "Cache-Control": "no-store",
-                      "Referrer-Policy": "no-referrer",
+                      "Referrer-Policy": "strict-origin",
                       "Content-Security-Policy":
                         "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
                       "X-Content-Type-Options": "nosniff",
