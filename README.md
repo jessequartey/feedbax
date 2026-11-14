@@ -7,7 +7,7 @@ A self-hosted feedback portal: collect ideas, votes and comments, triage in Noti
 [![npm version](https://img.shields.io/npm/v/create-feedbax.svg)](https://www.npmjs.com/package/create-feedbax)
 [![license](https://img.shields.io/npm/l/create-feedbax.svg)](LICENSE)
 
-[Try the demo](https://feedbax-demo.DEMO_SUBDOMAIN.workers.dev)
+[Try the demo](https://feedbax.juutech.africa)
 
 ## Get started
 
@@ -397,7 +397,7 @@ Follow the [roadmap](#roadmap) for updates.
 
 ## Roadmap
 
-These features are **Planned**. [Vote on the demo roadmap](https://feedbax-demo.DEMO_SUBDOMAIN.workers.dev/roadmap) to help prioritize them:
+These features are **Planned**. [Vote on the demo roadmap](https://feedbax.juutech.africa/roadmap) to help prioritize them:
 
 - Admin: manage users
 - Webhooks
