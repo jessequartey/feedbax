@@ -122,6 +122,10 @@ export async function testPackage(
     await assert.rejects(stat(join(project, "_gitignore")));
     const vars = await readFile(join(project, ".dev.vars"), "utf8");
     const bindings = JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8"));
+    assert.deepEqual(bindings.assets, {
+      not_found_handling: "single-page-application",
+      run_worker_first: ["/api/*", "/_serverFn/*"],
+    });
     assert.deepEqual(bindings.observability, { enabled: true, redact_query_string: true });
     assert.equal(bindings.d1_databases[0].binding, "DB");
     assert.equal(bindings.r2_buckets[0].binding, "IMAGES");
@@ -139,6 +143,10 @@ export async function testPackage(
     await assert.rejects(stat(complete.secretPath));
     await checked(process.execPath, argv, projects, env);
     assert.equal(await readFile(join(project, ".dev.vars"), "utf8"), vars);
+    assert.deepEqual(
+      JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8")).assets,
+      bindings.assets,
+    );
     assert.equal(
       JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8")).observability
         .redact_query_string,
@@ -225,6 +233,12 @@ export async function testPackage(
           await readFile(join(project, "dist/server/wrangler.json"), "utf8"),
         );
         assert.equal(emitted.observability.redact_query_string, true);
+        assert.equal(emitted.assets.not_found_handling, "single-page-application");
+        assert.deepEqual(emitted.assets.run_worker_first, ["/api/*", "/_serverFn/*"]);
+        assert.equal(typeof emitted.assets.directory, "string");
+        assert(emitted.assets.directory.length > 0, "generated build declares its client assets");
+        const shell = await readFile(join(project, "dist/client/index.html"), "utf8");
+        assert(/<!doctype html>/i.test(shell), "generated build emits the static HTML shell");
         console.log(`package: generated app installs and builds with ${pm}`);
       } catch (error) {
         failures.push(`${pm}: ${error instanceof Error ? error.message : String(error)}`);

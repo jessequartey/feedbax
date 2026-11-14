@@ -36,6 +36,7 @@ type Account = { id: string; name: string };
 type WranglerConfig = {
   name: string;
   account_id?: string;
+  assets?: Record<string, unknown>;
   observability?: Record<string, unknown>;
   vars: { PORTAL_URL: string };
   d1_databases: {
@@ -305,6 +306,12 @@ export async function setup(
     main: "src/server.ts",
     compatibility_date: "2026-11-13",
     compatibility_flags: ["nodejs_compat"],
+    assets: {
+      ...(ownsResources ? config?.assets : {}),
+      not_found_handling: "single-page-application",
+      // Auth callbacks and RPCs must reach the Worker even for browser navigation.
+      run_worker_first: ["/api/*", "/_serverFn/*"],
+    },
     observability: {
       ...(ownsResources ? config?.observability : {}),
       enabled: true,

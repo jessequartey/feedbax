@@ -773,6 +773,54 @@ describe("selected login checkpoint", () => {
       logs: { enabled: true, invocation_logs: false },
     });
   });
+  it("persists static-shell routing on fresh setup before provisioning resources", async () => {
+    const f = await fixture(),
+      run = f.run;
+    let checked = false;
+    f.run = async (command, args, options) => {
+      if (args.includes("create") && args.includes("d1")) {
+        const config = JSON.parse(await readFile(join(options.cwd, "wrangler.jsonc"), "utf8"));
+        expect(config.assets).toEqual({
+          not_found_handling: "single-page-application",
+          run_worker_first: ["/api/*", "/_serverFn/*"],
+        });
+        checked = true;
+      }
+      return run(command, args, options);
+    };
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(checked).toBe(true);
+  });
+  it.each([undefined, false, true, ["/legacy/*"]])(
+    "repairs resumed static-shell routing from %j while preserving custom assets options",
+    async (runWorkerFirst) => {
+      const f = await fixture();
+      f.state.fail = "d1 create";
+      expect(await main(["my-feedback", "--yes"], f)).toBe(1);
+      const path = join(f.cwd, "my-feedback", "wrangler.jsonc"),
+        config = JSON.parse(await readFile(path, "utf8"));
+      if (runWorkerFirst === undefined) delete config.assets;
+      else
+        config.assets = {
+          directory: "./public",
+          html_handling: "force-trailing-slash",
+          not_found_handling: "404-page",
+          run_worker_first: runWorkerFirst,
+        };
+      await writeFile(path, JSON.stringify(config));
+      expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+      const expected = {
+        ...(runWorkerFirst === undefined
+          ? {}
+          : { directory: "./public", html_handling: "force-trailing-slash" }),
+        not_found_handling: "single-page-application",
+        run_worker_first: ["/api/*", "/_serverFn/*"],
+      };
+      expect(JSON.parse(await readFile(path, "utf8")).assets).toEqual(expected);
+      expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+      expect(JSON.parse(await readFile(path, "utf8")).assets).toEqual(expected);
+    },
+  );
   it.each(["health", "viewer", "start"])(
     "does not report success after failed %s wiring verification",
     async (step) => {
