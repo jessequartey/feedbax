@@ -1,4 +1,4 @@
-<img src="docs/hero.png" alt="Feedbax feedback board and Notion dashboard" width="100%" />
+<img src="docs/hero.gif" alt="Feedbax setup summary, live feedback board and roadmap" width="100%" />
 
 # Feedbax
 
