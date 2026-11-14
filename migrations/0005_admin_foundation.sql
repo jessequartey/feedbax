@@ -1,4 +1,4 @@
--- Feedbax 0.4.0 foundation: admin identity, moderation, runtime settings, changelog,
+-- Feedbax 0.3.1 foundation: admin identity, moderation, runtime settings, changelog,
 -- webhooks and email preferences. Additive only: new nullable/defaulted columns and new
 -- tables. No existing column, index or row is dropped or rewritten. Timestamps are UTC ms.
 

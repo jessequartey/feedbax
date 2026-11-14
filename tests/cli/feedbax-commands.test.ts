@@ -88,10 +88,10 @@ describe("feedbax CLI surface", () => {
   it("rejects unknown commands, flags and secrets in flags", () => {
     expect(() => parseArgs(["nope"])).toThrow("Unknown command");
     expect(() => parseArgs(["add", "github", "--token=x"])).toThrow("Secrets belong");
-    expect(() => parseArgs(["migrate", "0.4.0", "0.5.0"])).toThrow("Too many");
-    expect(parseArgs(["migrate", "0.4.0", "--dry-run", "--baseline=0.3.0"])).toMatchObject({
+    expect(() => parseArgs(["migrate", "0.3.1", "0.5.0"])).toThrow("Too many");
+    expect(parseArgs(["migrate", "0.3.1", "--dry-run", "--baseline=0.3.0"])).toMatchObject({
       command: "migrate",
-      positionals: ["0.4.0"],
+      positionals: ["0.3.1"],
       values: { "--baseline": "0.3.0" },
     });
   });

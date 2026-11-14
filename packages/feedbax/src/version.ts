@@ -4,7 +4,7 @@ import { CliError } from "../../create-feedbax/src/flags.ts";
 import { exists } from "../../create-feedbax/src/project.ts";
 
 /** This CLI's version. A unit test keeps it equal to packages/feedbax/package.json. */
-export const VERSION = "0.4.0";
+export const VERSION = "0.3.1";
 /** The oldest generated-project version `feedbax migrate` can start from. */
 export const OLDEST_MIGRATABLE = "0.3.0";
 export const VERSION_FILE = ".feedbax/version";
@@ -37,7 +37,7 @@ export type DetectedVersion = {
 
 /**
  * Which create-feedbax template this project was generated from (or last migrated to).
- * Order: `.feedbax/version` (written since 0.4.0) → package.json `version` when it names a
+ * Order: `.feedbax/version` (written since 0.3.1) → package.json `version` when it names a
  * published create-feedbax version (generated projects keep the template's version field) →
  * the migrations fingerprint of a 0.3.0 project. 0.2.x projects are refused.
  */
@@ -79,7 +79,7 @@ export async function detectVersion(cwd: string, published: string[]): Promise<D
   } catch {
     /* no migrations directory: not a recognisable project */
   }
-  // 0.3.0 shipped migrations 0000–0004; 0.4.0 added 0005_admin_foundation.
+  // 0.3.0 shipped migrations 0000–0004; 0.3.1 added 0005_admin_foundation.
   if (
     migrations.includes("0004_github_creator.sql") &&
     !migrations.some((name) => name.startsWith("0005_"))

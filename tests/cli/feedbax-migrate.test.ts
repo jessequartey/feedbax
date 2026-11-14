@@ -38,7 +38,7 @@ describe("3-way merge", () => {
     "feedbax.config.ts": configSource(),
     "wrangler.jsonc": wranglerJson(),
   });
-  const next = template("0.4.0", {
+  const next = template("0.3.1", {
     "src/clean.ts": lines("a", "b", "c"),
     "src/user-only.ts": lines("a", "b", "c"),
     "src/upstream-only.ts": lines("a", "B", "c"),
@@ -95,7 +95,7 @@ describe("3-way merge", () => {
         "mine",
         "=======",
         "upstream",
-        ">>>>>>> feedbax 0.4.0",
+        ">>>>>>> feedbax 0.3.1",
         "c",
       ),
     );
@@ -105,7 +105,7 @@ describe("3-way merge", () => {
     // package.json: upstream version bump applied, the scaffolded project name kept.
     expect(JSON.parse(await read(cwd, "package.json"))).toMatchObject({
       name: "my-feedback",
-      version: "0.4.0",
+      version: "0.3.1",
     });
     // Protected: config and secrets untouched; wrangler.jsonc only gets the structural edit.
     expect(await read(cwd, "feedbax.config.ts")).toBe(before.config);
@@ -136,7 +136,7 @@ describe("3-way merge", () => {
   });
 
   it("reads the template from an npm tarball and restores .gitignore", () => {
-    const files = extractTemplate(tarball(template("0.4.0", { ".gitignore": "dist\n" })));
+    const files = extractTemplate(tarball(template("0.3.1", { ".gitignore": "dist\n" })));
     expect([...files.keys()].sort()).toEqual([".gitignore", "package.json"]);
   });
 });
@@ -173,7 +173,7 @@ describe("wrangler.jsonc run_worker_first", () => {
   it("adds /changelog.rss the same way, after /admin/enter, idempotently", () => {
     const edit = (text: string) =>
       ensureRunWorkerFirst(ensureRunWorkerFirst(text, "/admin/enter"), "/changelog.rss");
-    // 0.3.0 file: neither route yet. A 0.4.0 pre-release file: only /admin/enter.
+    // 0.3.0 file: neither route yet. A 0.3.1 pre-release file: only /admin/enter.
     for (const routes of [
       ["/api/*", "/_serverFn/*"],
       ["/api/*", "/_serverFn/*", "/admin/enter"],
@@ -206,10 +206,10 @@ describe("wrangler.jsonc run_worker_first", () => {
 });
 
 describe("version detection", () => {
-  const published = ["0.2.2", "0.3.0", "0.4.0"];
+  const published = ["0.2.2", "0.3.0", "0.3.1"];
   it("prefers .feedbax/version", async () => {
-    const cwd = await project({ ".feedbax/version": "0.4.0\n" });
-    expect(await detectVersion(cwd, published)).toEqual({ version: "0.4.0", source: "recorded" });
+    const cwd = await project({ ".feedbax/version": "0.3.1\n" });
+    expect(await detectVersion(cwd, published)).toEqual({ version: "0.3.1", source: "recorded" });
   });
   it("uses a published package.json version (0.3.0 projects keep the template's)", async () => {
     const cwd = await project();
@@ -237,10 +237,10 @@ describe("version detection", () => {
     await expect(detectVersion(unknown, published)).rejects.toThrow("--baseline");
   });
   it("orders versions", () => {
-    expect(compareVersions("0.4.0", "0.3.0")).toBe(1);
+    expect(compareVersions("0.3.1", "0.3.0")).toBe(1);
     expect(compareVersions("0.10.0", "0.9.9")).toBe(1);
-    expect(compareVersions("0.4.0-rc.1", "0.4.0")).toBe(-1);
-    expect(compareVersions("0.4.0", "0.4.0")).toBe(0);
+    expect(compareVersions("0.3.1-rc.1", "0.3.1")).toBe(-1);
+    expect(compareVersions("0.3.1", "0.3.1")).toBe(0);
   });
 });
 
@@ -251,7 +251,7 @@ describe("feedbax migrate", () => {
     "feedbax.config.ts": configSource(),
     "wrangler.jsonc": wranglerJson(),
   });
-  const next = template("0.4.0", {
+  const next = template("0.3.1", {
     "src/server.ts": lines("export const v = 4;"),
     "migrations/0004_github_creator.sql": "SELECT 4;\n",
     "migrations/0005_admin_foundation.sql": "SELECT 5;\n",
@@ -305,7 +305,7 @@ describe("feedbax migrate", () => {
     const run = deps(cwd);
     expect(await main(["migrate", "--dry-run"], run.deps)).toBe(0);
     const output = run.prompt.log.join("\n");
-    expect(output).toContain("Project is on 0.3.0 (from package.json version); target is 0.4.0.");
+    expect(output).toContain("Project is on 0.3.0 (from package.json version); target is 0.3.1.");
     expect(output).toContain("~ update   src/server.ts");
     expect(output).toContain("+ add      migrations/0005_admin_foundation.sql");
     expect(output).toContain('~ edit     wrangler.jsonc  (add "/admin/enter"');
@@ -320,7 +320,7 @@ describe("feedbax migrate", () => {
     expect(await main(["migrate", "--yes"], run.deps)).toBe(0);
     expect(await read(cwd, "src/server.ts")).toBe(lines("export const v = 4;"));
     expect(await read(cwd, "migrations/0005_admin_foundation.sql")).toBe("SELECT 5;\n");
-    expect(await read(cwd, ".feedbax/version")).toBe("0.4.0\n");
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
     expect(JSON.parse(await read(cwd, "wrangler.jsonc")).assets.run_worker_first).toEqual([
       "/api/*",
       "/_serverFn/*",
@@ -336,7 +336,7 @@ describe("feedbax migrate", () => {
     // Rerunning is a no-op: the recorded version is the target.
     const again = deps(cwd);
     expect(await main(["migrate", "--yes", "--force"], again.deps)).toBe(0);
-    expect(again.prompt.log.join("\n")).toContain("Already on 0.4.0");
+    expect(again.prompt.log.join("\n")).toContain("Already on 0.3.1");
   });
 
   it("stops after writing conflict markers, before install, migrations and deploy", async () => {
@@ -345,17 +345,17 @@ describe("feedbax migrate", () => {
       { git: true },
     );
     const run = deps(cwd);
-    expect(await main(["migrate", "0.4.0", "--yes"], run.deps)).toBe(1);
+    expect(await main(["migrate", "0.3.1", "--yes"], run.deps)).toBe(1);
     expect(await read(cwd, "src/server.ts")).toContain("<<<<<<< your project");
     expect(run.prompt.log.join("\n")).toContain("src/server.ts: conflict markers written");
     expect(run.wrangler.calls).toEqual([]);
-    expect(await read(cwd, ".feedbax/version")).toBe("0.4.0\n");
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
   });
 
   it("refuses downgrades and unknown targets", async () => {
     const cwd = await project(files, { git: true });
     await mkdir(join(cwd, ".feedbax"));
-    await writeFile(join(cwd, ".feedbax/version"), "0.4.0\n");
+    await writeFile(join(cwd, ".feedbax/version"), "0.3.1\n");
     commitAll(cwd);
     const down = deps(cwd);
     expect(await main(["migrate", "0.3.0", "--yes"], down.deps)).toBe(2);

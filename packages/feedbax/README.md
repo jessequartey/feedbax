@@ -1,6 +1,6 @@
 # feedbax
 
-Manage a [Feedbax](https://github.com/jessequartey/feedbax) portal from inside the project that `npx create-feedbax` generated. Generated projects (0.4.0+) already depend on it.
+Manage a [Feedbax](https://github.com/jessequartey/feedbax) portal from inside the project that `npx create-feedbax` generated. Generated projects (0.3.1+) already depend on it.
 
 ```sh
 npx feedbax admin                  # single-use admin sign-in link (15 minutes)

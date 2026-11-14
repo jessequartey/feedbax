@@ -38,7 +38,7 @@ export const COPY_FILES = [
 export const REPO_ONLY_DEPENDENCIES = ["drizzle-kit", "modern-screenshot", "@clack/prompts"];
 /** The root scripts a generated project keeps (spec §12). */
 export const TEMPLATE_SCRIPTS = ["dev", "build", "deploy", "check", "cf-typegen"];
-/** Scripts that run the project's pinned `feedbax` CLI (0.4.0 spec §2). */
+/** Scripts that run the project's pinned `feedbax` CLI (0.3.1 spec §2). */
 export const FEEDBAX_SCRIPTS = {
   migrate: "feedbax migrate",
   doctor: "feedbax doctor",

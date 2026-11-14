@@ -36,7 +36,7 @@ export const STRUCTURAL_EDITS: {
   apply(text: string): string;
 }[] = [
   {
-    since: "0.4.0",
+    since: "0.3.1",
     file: "wrangler.jsonc",
     description:
       'add "/admin/enter" and "/changelog.rss" to assets.run_worker_first (admin sign-in links, RSS feed)',
