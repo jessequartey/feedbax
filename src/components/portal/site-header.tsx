@@ -36,6 +36,22 @@ const NAV = [
   { to: "/my-feedback", label: "My feedback", sections: ["/my-feedback"] },
 ] as const;
 
+/**
+ * Changelog is a built-in section in this release — PublicConfig has no on/off
+ * flag. While that entry is in the nav, My feedback is not a primary item; the
+ * account menu (and the mobile sheet footer) is the way to /my-feedback.
+ */
+export function primaryNav<T extends { to: string }>(items: readonly T[]): readonly T[] {
+  const changelogShown = items.some((item) => item.to === "/changelog");
+  return changelogShown ? items.filter((item) => item.to !== "/my-feedback") : items;
+}
+
+const PRIMARY_NAV = primaryNav(NAV);
+const myFeedbackItem = NAV.find((item) => item.to === "/my-feedback");
+/** True when My feedback was dropped from the primary list, so account menus own it. */
+const myFeedbackInAccountMenu =
+  myFeedbackItem !== undefined && !PRIMARY_NAV.includes(myFeedbackItem);
+
 function isActive(pathname: string, sections: readonly string[]) {
   return sections.some((s) => (s === "/" ? pathname === "/" : pathname.startsWith(s)));
 }
@@ -182,7 +198,7 @@ function MobileMenu({ pathname, backUrl }: { pathname: string; backUrl: string |
           </SheetDescription>
         </SheetHeader>
         <nav aria-label="Main" className="flex flex-col gap-1 px-4">
-          {NAV.map((item) => (
+          {PRIMARY_NAV.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -202,6 +218,21 @@ function MobileMenu({ pathname, backUrl }: { pathname: string; backUrl: string |
         </nav>
         <div className="mt-auto flex flex-col gap-2 border-t p-4">
           {backUrl ? <BackToApp url={backUrl} className="w-full" /> : null}
+          {myFeedbackInAccountMenu && myFeedbackItem ? (
+            <Link
+              to={myFeedbackItem.to}
+              onClick={close}
+              aria-current={isActive(pathname, myFeedbackItem.sections) ? "page" : undefined}
+              className={cn(
+                buttonVariants({
+                  variant: isActive(pathname, myFeedbackItem.sections) ? "secondary" : "outline",
+                }),
+                "h-11 justify-start px-3 text-sm",
+              )}
+            >
+              {myFeedbackItem.label}
+            </Link>
+          ) : null}
           {user ? (
             <Button
               variant="outline"
@@ -237,7 +268,7 @@ export function SiteHeader() {
       <div className="mx-auto grid h-16 w-full max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 md:h-20 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-6 lg:px-8">
         <Wordmark name={viewer.config.name} />
         <nav aria-label="Main" className="col-start-2 hidden items-center gap-1 md:flex">
-          {NAV.map((item) => {
+          {PRIMARY_NAV.map((item) => {
             const active = isActive(pathname, item.sections);
             return (
               <Link
