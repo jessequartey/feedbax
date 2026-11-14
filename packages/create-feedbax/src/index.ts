@@ -138,7 +138,9 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
         })
       : [];
     const inferred = inferredLogin(oauth, saved.appUrl);
-    let login = flags.login ?? inferred ?? "github";
+    // No sign-in provider by default: anonymous feedback works out of the box.
+    // Add one later with `npx feedbax add github-login | google-login | host-login`.
+    let login = flags.login ?? inferred;
     let appUrl = flags.appUrl ?? saved.appUrl;
     if (
       flags.appUrl !== undefined &&
@@ -197,50 +199,12 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       prompt.info("Dependencies are installing in the background.");
     };
     if (!flags.yes) await begin();
-    const template =
-      flags.template ??
-      saved.template ??
-      ((flags.yes
-        ? "notion"
-        : await prompt.select(
-            "Template",
-            [
-              { value: "notion", label: "Notion", hint: "Team dashboard" },
-              {
-                value: "notion-github",
-                label: "Notion + GitHub",
-                hint: "Dashboard + approved issues",
-              },
-            ],
-            "notion",
-          )) as SetupAnswers["template"]);
-    if (!flags.yes && !flags.login && (!resume || !inferred)) {
-      login = (await prompt.select(
-        "How will people sign in? GitHub login is separate from GitHub issue sync.",
-        [
-          { value: "github", label: "GitHub (recommended)" },
-          { value: "google", label: "Google" },
-          { value: "host", label: "Your app's existing login" },
-        ],
-        "github",
-      )) as SetupAnswers["login"];
-    }
-    if (!flags.yes && !appUrl) {
-      appUrl =
-        (await prompt.text(
-          login === "host"
-            ? "Your app's HTTPS URL (required for host login)"
-            : "Host app URL, if you also embed feedback (optional)",
-          {
-            defaultValue: "",
-            validate: (value) =>
-              value
-                ? appUrlProblem(value)
-                : login === "host"
-                  ? "Host login needs your app URL."
-                  : undefined,
-          },
-        )) || undefined;
+    // Notion-only unless GitHub sync is asked for explicitly (or already saved).
+    const template: SetupAnswers["template"] = flags.template ?? saved.template ?? "notion";
+    if (!flags.yes && login === "host" && !appUrl) {
+      appUrl = await prompt.text("Your app's HTTPS URL (required for host login)", {
+        validate: (value) => (value ? appUrlProblem(value) : "Host login needs your app URL."),
+      });
     }
     if (login === "host") requireLogin({ login, appUrl }, oauth);
     if (appUrl && appUrlProblem(appUrl)) throw new CliError(appUrlProblem(appUrl)!, 2);
@@ -313,11 +277,8 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       github = githubAuth.client as GitHubSetupClient;
       githubRepo = await chooseRepo(github, flags, prompt, saved.githubRepo);
     }
-    const anonymous =
-      flags.anonymous ??
-      saved.anonymous ??
-      (flags.yes ? false : await prompt.confirm("Let people post without an account?", false)) ??
-      false;
+    // Anonymous feedback is on by default: no sign-in provider is needed to start.
+    const anonymous = flags.anonymous ?? saved.anonymous ?? true;
     if (flags.yes) await begin();
     const answers: SetupAnswers = {
       name,
@@ -347,18 +308,23 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       },
       onSecret: (value) => hidden.push(value),
     });
-    const loginStatus =
-      login === "host"
+    const loginStatus = !login
+      ? anonymous
+        ? "Open the portal and post your first feedback. Anyone can post without an account; add sign-in later with npx feedbax add github-login."
+        : "Anonymous posting is off and no sign-in is configured yet, so nobody can post. Add one with npx feedbax add github-login (or google-login, host-login)."
+      : login === "host"
         ? `Host login integration pending. Add the same-origin authenticated token endpoint and FeedbaxLink in ${appUrl} using ${README_URL}. Share FEEDBAX_HOST_SECRET server-side only. Users can browse now; signed-in participation is ready after that connection is verified.`
         : `${login === "github" ? "GitHub" : "Google"} sign-in is configured. Open the portal, choose Continue with ${login === "github" ? "GitHub" : "Google"}, and submit your first feedback. OAuth callback, session and first-write verification remain.`;
     prompt.note(
-      `Portal deployed: ${result.portalUrl}\n${loginStatus}\nNotion database: ${result.notionUrl}\n\ncd ${name}\n${pm} run dev        # http://localhost:3000\n${pm} run deploy     # publish changes\n${pm} run admin      # admin sign-in link (15 min, single use)\n${pm} run doctor     # check config, secrets and health\n\nSecrets: ${name}/.dev.vars (private, gitignored).\nUse a separate development OAuth App for localhost; keep production callback registration unchanged. Replace local OAuth credentials in .dev.vars for development and update production secrets explicitly; do not deploy localhost credentials over production.\nLocal posts sync to your real Notion database; delete test rows there.`,
+      `Portal deployed: ${result.portalUrl}\n${loginStatus}\nNotion database: ${result.notionUrl}\n\ncd ${name}\n${pm} run dev        # http://localhost:3000\n${pm} run deploy     # publish changes\n${pm} run admin      # admin sign-in link (15 min, single use)\n${pm} run doctor     # check config, secrets and health\n\nMore: npx feedbax add github | github-login | google-login | host-login | email | webhooks\n\nSecrets: ${name}/.dev.vars (private, gitignored).${login && login !== "host" ? "\nUse a separate development OAuth App for localhost; keep production callback registration unchanged. Replace local OAuth credentials in .dev.vars for development and update production secrets explicitly; do not deploy localhost credentials over production." : ""}\nLocal posts sync to your real Notion database; delete test rows there.`,
       "Portal deployed",
     );
     prompt.outro(
-      login === "host"
-        ? "Host integration and first feedback verification remain."
-        : "Complete sign-in and first feedback verification in your portal.",
+      !login
+        ? "Done. Open your portal and post the first feedback."
+        : login === "host"
+          ? "Host integration and first feedback verification remain."
+          : "Complete sign-in and first feedback verification in your portal.",
     );
     return 0;
   } catch (error) {
