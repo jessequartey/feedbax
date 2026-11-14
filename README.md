@@ -2,8 +2,6 @@
 
 A self-hosted feedback portal for your product. People post ideas, vote and comment. Your team triages in Notion and, if you want, approves posts into GitHub issues.
 
-![Feedbax portal](docs/screenshot.png)
-
 [![npm version](https://img.shields.io/npm/v/create-feedbax.svg)](https://www.npmjs.com/package/create-feedbax)
 [![license](https://img.shields.io/npm/l/create-feedbax.svg)](LICENSE)
 
@@ -14,7 +12,7 @@ Two templates, one app:
 
 You need:
 
-- **Node 24** or newer (24.x).
+- **Node 24.15** or newer 24.x.
 - A **Notion workspace** where you are an owner.
 - A **Cloudflare account** (free). The CLI walks you through enabling R2 and picking a workers.dev subdomain.
 - Optional: a GitHub account and a repository, for the GitHub template.
@@ -22,7 +20,7 @@ You need:
 ## Get started
 
 **1. Duplicate the Notion template.**
-Open [the Feedbax template](https://www.notion.so/NOTION_TEMPLATE_URL_PLACEHOLDER) and click **Duplicate** (top right). This step is optional: without it, Feedbax creates the database for you on a page you choose.
+Open [the Feedbax template](https://www.notion.so/PLACEHOLDER-FEEDBAX-TEMPLATE) and click **Duplicate** (top right). This step is optional: without it, Feedbax creates the database for you on a page you choose.
 
 **2. Create a Notion integration.**
 
@@ -139,19 +137,30 @@ export async function POST(request: Request): Promise<Response> {
 }
 ```
 
-Mounted in TanStack Start (`src/routes/api/feedbax-token.ts`):
+The same thing as a TanStack Start server route (`src/routes/api/feedbax-token.ts`):
 
 ```ts
 import { createFileRoute } from "@tanstack/react-router";
+import { mintFeedbaxToken } from "@/lib/feedbax/token.server";
 
 export const Route = createFileRoute("/api/feedbax-token")({
   server: {
     handlers: {
-      POST: ({ request }) => POST(request), // the handler above
+      POST: async ({ request }) => {
+        const user = await getSessionUser(request); // your own auth
+        if (!user) return new Response("Unauthorized", { status: 401 });
+        const token = await mintFeedbaxToken({
+          secret: process.env.FEEDBAX_HOST_SECRET!,
+          user: { id: user.id, name: user.name },
+        });
+        return Response.json({ token }, { headers: { "Cache-Control": "no-store" } });
+      },
     },
   },
 });
 ```
+
+On Cloudflare Workers read the secret from `env.FEEDBAX_HOST_SECRET` (`import { env } from "cloudflare:workers"`) instead of `process.env`.
 
 Not using JavaScript? Any library that signs an HS256 JWT works. Header exactly `{"alg":"HS256","typ":"JWT"}`. Key: the base64url-decoded `FEEDBAX_HOST_SECRET`. Claims: `sub` (your stable user ID, 1–200 chars), `name` (1–80 chars), `exp` (at most 5 minutes ahead) and `jti` (a fresh UUID). Every token works once.
 
@@ -172,18 +181,19 @@ import { FeedbaxLink } from "@/components/feedbax/feedbax-link";
 
 `FeedbaxDialog` props:
 
-| Prop               | Default              | What it does                                                                                     |
-| ------------------ | -------------------- | ------------------------------------------------------------------------------------------------ |
-| `portalUrl`        | required             | Your portal's URL                                                                                |
-| `tokenUrl`         | `/api/feedbax-token` | Your token endpoint                                                                              |
-| `getToken`         | none                 | Overrides `tokenUrl` with your own function                                                      |
-| `trigger`          | a "Feedback" button  | Your own trigger element                                                                         |
-| `redirectOnSubmit` | `true`               | After submitting, sign in and open the new post. When `false`, shows a **View your post** button |
-| `onSubmitted`      | none                 | Called with the result                                                                           |
+| Prop                   | Default              | What it does                                                                                     |
+| ---------------------- | -------------------- | ------------------------------------------------------------------------------------------------ |
+| `portalUrl`            | required             | Your portal's URL                                                                                |
+| `tokenUrl`             | `/api/feedbax-token` | Your token endpoint                                                                              |
+| `getToken`             | none                 | Overrides `tokenUrl` with your own function                                                      |
+| `trigger`              | a "Feedback" button  | Your own trigger element, or `null` for none (then control it with `open` / `onOpenChange`)      |
+| `redirectOnSubmit`     | `true`               | After submitting, sign in and open the new post. When `false`, shows a **View your post** button |
+| `onSubmitted`          | none                 | Called with the result                                                                           |
+| `open`, `onOpenChange` | none                 | Optional controlled state                                                                        |
 
 `FeedbaxLink` props: `portalUrl`, `tokenUrl`, `getToken`, `to` (`/` or `/posts/<id>`), `target` (`_self` or `_blank`) and `children`.
 
-**Screenshots.** The Screenshot button takes a snapshot of the page's DOM. Cross-origin images without CORS headers, iframes, video frames and some CSS effects may come out blank or different. Add `data-feedbax-ignore` to any element you want left out. The menu also offers **Capture screen instead…** where the browser supports it. Upload, paste (⌘/Ctrl+V) and drag-and-drop always work. The dialog never captures by itself and never attaches your page URL.
+**Screenshots.** The Screenshot button takes a snapshot of the page's DOM. Cross-origin images without CORS headers, iframes, video frames and some CSS effects may come out blank or different. Add `data-feedbax-ignore` to any element you want left out. Sticky and fixed headers can look un-stuck in a DOM snapshot. If that matters, use **Capture screen instead…** (in the screenshot menu, where the browser supports it), which captures what the browser shows. Upload and paste work too. Upload, paste (⌘/Ctrl+V) and drag-and-drop always work. The dialog never captures by itself and never attaches your page URL.
 
 Host users always need to be signed in to your app, even if the portal allows anonymous posts. Host identities and standalone portal accounts are separate in 0.3.
 
@@ -261,10 +271,10 @@ npm run deploy   # build, apply migrations, deploy
 - **Local data is separate.** `npm run dev` uses a local database. If `NOTION_TOKEN` is set, local posts also sync to your real Notion database. Delete the test rows afterwards. To trigger a sync locally: `curl "http://localhost:3000/cdn-cgi/handler/scheduled"`.
 - **Custom domain.** Change the route in `wrangler.jsonc` and `PORTAL_URL` together, then deploy.
 - **Updating.** Updates are source-level in 0.3. Run `npx create-feedbax@latest` into a new folder and copy your `feedbax.config.ts` and `wrangler.jsonc` across, or copy changed files by hand.
-- **Removing spam.** There is no moderation screen. Use SQL:
+- **Removing spam.** There is no moderation screen. Use SQL (children first, because of foreign keys), then archive the row in Notion. Uploaded image files stay in R2.
 
   ```sh
-  npx wrangler d1 execute DB --remote --command "DELETE FROM posts WHERE id = '<post id>'"
+  npx wrangler d1 execute DB --remote --command "DELETE FROM comments WHERE post_id = '<post id>'; DELETE FROM votes WHERE post_id = '<post id>'; DELETE FROM images WHERE post_id = '<post id>'; DELETE FROM posts WHERE id = '<post id>'"
   ```
 
 ## Troubleshooting
@@ -285,7 +295,7 @@ npm run deploy   # build, apply migrations, deploy
 | No GitHub issue appeared                              | Tick **Send to GitHub** and wait up to 5 minutes. Check `/api/health` for `github: failing`.                                                                                                                                                                                 |
 | Block says the link expired / 401                     | Tokens last 5 minutes and work once. Reload and try again. Check that `FEEDBAX_HOST_SECRET` matches the portal's and that your server clock is correct.                                                                                                                      |
 | Block blocked by CORS                                 | Set `appUrl` in `feedbax.config.ts` to your app's exact origin and run `npm run deploy`.                                                                                                                                                                                     |
-| Can't reset a password                                | There is no reset flow in 0.3. Use social login, host login, or delete the user with `wrangler d1 execute`.                                                                                                                                                                  |
+| Can't reset a password                                | There is no reset flow in 0.3. Sign in with GitHub, Google or your app (the dialog's link), or register again with a different email.                                                                                                                                        |
 
 ## Free plan note
 
@@ -303,6 +313,7 @@ Consider [Workers Paid](https://developers.cloudflare.com/workers/platform/prici
 git clone https://github.com/jessequartey/feedbax.git
 cd feedbax
 npm ci
+npm ci --prefix packages/create-feedbax   # the CLI package has its own install
 cp .dev.vars.example .dev.vars   # fill in values
 npm run dev
 ```
@@ -322,7 +333,7 @@ Other scripts: `registry:build` (regenerates `public/r/feedbax-feedback.json`; c
 
 Maintainers only. Only `create-feedbax` is published.
 
-1. One-time: publish the Notion template (Share → Publish, turn on **Allow duplicate as template**) and set `NOTION_TEMPLATE_URL` in the CLI and in this README. The release fails while it is still a placeholder.
+1. One-time: publish the Notion template (Share → Publish, turn on **Allow duplicate as template**) and set `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` (`npm run notion:template` creates the page). Use the same URL in the "Duplicate the Notion template" link above. The release fails while it is a placeholder or the two differ.
 2. One-time: on npmjs.com open `create-feedbax` → **Settings** → **Trusted Publisher** → GitHub Actions. Enter owner `jessequartey`, repository `feedbax`, workflow `release.yml`.
 3. Set the version in `packages/create-feedbax/package.json` and update `CHANGELOG.md`.
 4. Tag and push: `git tag v0.3.0 && git push origin v0.3.0`.

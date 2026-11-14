@@ -9,8 +9,8 @@ import config from "../../feedbax.config.ts";
 // The portal's thin fetch facade against the real Better Auth mount: every path, body and
 // response shape the portal relies on.
 let cookie = "";
-beforeEach(() => {
-  resetEnv();
+beforeEach(async () => {
+  await resetEnv();
   cookie = "";
   vi.stubGlobal("fetch", async (path: string, init: RequestInit) => {
     const response = await handleAuth(
@@ -36,9 +36,9 @@ it("signs up, signs out and signs in through the facade", async () => {
   const up = await authClient.signUp.email({ name: "Ada", ...credentials });
   expect(up.error).toBeNull();
   expect(cookie).toContain("better-auth.session_token=");
-  expect(
-    (await createAuth().api.getSession({ headers: new Headers({ cookie }) }))?.user.name,
-  ).toBe("Ada");
+  expect((await createAuth().api.getSession({ headers: new Headers({ cookie }) }))?.user.name).toBe(
+    "Ada",
+  );
   expect((await authClient.signOut()).error).toBeNull();
   expect(await createAuth().api.getSession({ headers: new Headers({ cookie }) })).toBeNull();
   cookie = "";

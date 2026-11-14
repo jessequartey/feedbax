@@ -28,19 +28,20 @@ jobs:
             exit 1
           fi
 
-      - name: Notion template URL is not a placeholder
+      - name: Notion template URL is real and matches the README
         run: |
-          url=$(grep -rhoE "NOTION_TEMPLATE_URL\s*=\s*['\"][^'\"]+['\"]" packages/create-feedbax/src | head -n1 || true)
-          if [ -z "$url" ]; then
+          line=$(grep -rhE "NOTION_TEMPLATE_URL\s*=\s*['\"][^'\"]+['\"]" packages/create-feedbax/src | head -n1 || true)
+          if [ -z "$line" ]; then
             echo "NOTION_TEMPLATE_URL not found in packages/create-feedbax/src" >&2
             exit 1
           fi
+          url=$(printf '%s' "$line" | sed -E "s/.*NOTION_TEMPLATE_URL[[:space:]]*=[[:space:]]*['\"]([^'\"]+)['\"].*/\1/")
           if echo "$url" | grep -qiE 'placeholder|example\.com|TODO|REPLACE|XXXX'; then
             echo "NOTION_TEMPLATE_URL is still a placeholder: $url" >&2
             exit 1
           fi
-          if grep -q 'NOTION_TEMPLATE_URL_PLACEHOLDER' README.md; then
-            echo "README.md still links to the placeholder Notion template" >&2
+          if ! grep -qF "($url)" README.md; then
+            echo "README.md must link the Notion template as ($url)" >&2
             exit 1
           fi
 

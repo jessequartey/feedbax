@@ -60,9 +60,7 @@ export async function buildCli(): Promise<void> {
   // allowlisted file under a neutral name, then restore it when scaffolding.
   await copyFile(join(template.out, ".gitignore"), join(template.out, "_gitignore"));
   if (template.forbiddenImports.length)
-    throw new Error(
-      `Template imports repo-only fixtures: ${template.forbiddenImports.join(", ")}`,
-    );
+    throw new Error(`Template imports repo-only fixtures: ${template.forbiddenImports.join(", ")}`);
   await copyFile(join(root, "LICENSE"), join(cwd, "LICENSE"));
   console.log(`create-feedbax: built CLI + ${template.files.length} template files`);
 }

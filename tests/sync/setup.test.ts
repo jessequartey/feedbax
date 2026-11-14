@@ -321,7 +321,10 @@ describe("GitHub setup", () => {
     ).rejects.toMatchObject({ kind: "permission", status: 410 });
   });
   test("a rate-limited or failing write probe is not reported as a permission problem", async () => {
-    const limited = fakeFetch(repo, new Response("", { status: 403, headers: { "Retry-After": "30" } }));
+    const limited = fakeFetch(
+      repo,
+      new Response("", { status: 403, headers: { "Retry-After": "30" } }),
+    );
     await expect(
       createGitHubSetupClient("token", limited.fetch).checkRepo("acme/app"),
     ).rejects.toMatchObject({ kind: "rate_limit", retryAfterMs: 30_000 });

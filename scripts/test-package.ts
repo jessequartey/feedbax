@@ -146,9 +146,7 @@ export async function testPackage(): Promise<void> {
       }
     }
     if (failures.length)
-      throw new Error(
-        `Generated-app acceptance failed:\n${failures.join("\n\n")}`,
-      );
+      throw new Error(`Generated-app acceptance failed:\n${failures.join("\n\n")}`);
   } finally {
     await rm(temp, { recursive: true, force: true });
   }

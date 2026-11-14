@@ -33,11 +33,11 @@ npm run cli:build
 npm run test:package
 ```
 
-`cli:build` uses Vite+ Pack and W0's one `scripts/package-template.ts` allowlist.
-W2's factories are bundled into `dist/providers.mjs`; prompts and setup accept
-injected implementations of the frozen interfaces for testing. The Notion
-schema and template guide have a single owner, W2. No provider credentials are
-needed for ordinary tests.
+`cli:build` uses Vite+ Pack and the one `scripts/package-template.ts` allowlist.
+The real Notion and GitHub clients from `src/integrations` are bundled into
+`dist/providers.mjs`; prompts and setup accept injected implementations of the
+same interfaces for testing. The Notion schema and template guide live only in
+`src/integrations`. No provider credentials are needed for ordinary tests.
 
 The real Clack UI can be exercised safely with `node tests/cli/interactive-demo.ts`
 from the repository root. Providers and subprocesses in that demo are fakes.

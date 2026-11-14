@@ -8,6 +8,7 @@ Node 24 and npm.
 
 ```sh
 npm ci
+npm ci --prefix packages/create-feedbax   # the CLI package has its own install
 cp .dev.vars.example .dev.vars   # placeholders only; use your own test values
 npm run dev                      # http://localhost:3000
 ```
@@ -22,6 +23,8 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+Changed the CLI or the template? Also run `npm run cli:build && npm run test:package` (it installs a generated app with npm, pnpm and bun).
 
 If you changed anything under `registry/`, run `npm run registry:build` and commit `public/r/`. CI fails on a diff.
 
