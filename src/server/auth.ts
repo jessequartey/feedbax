@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
-import { betterAuth } from "better-auth";
+// "minimal" leaves out Kysely and its SQLite dialects; Feedbax uses the Drizzle adapter.
+import { betterAuth } from "better-auth/minimal";
 import { createAuthEndpoint, APIError, getSessionFromCtx } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { anonymous } from "better-auth/plugins/anonymous";

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders, setResponseHeader } from "@tanstack/react-start/server";
+import { getRequest, getRequestHeaders, setResponseHeader } from "@tanstack/react-start/server";
 import config from "../../feedbax.config.ts";
 import type {
   ApiResult,
@@ -21,9 +21,20 @@ import { setVoteForUser } from "./votes.ts";
 import { result } from "./errors.ts";
 import { category, listInput, record, text, uuid } from "./validation.ts";
 
-async function viewer() {
+// One session lookup per HTTP request: during SSR the root loader and the page loaders all
+// run inside the same Start request, so they share the first lookup's result.
+const viewers = new WeakMap<Request, ReturnType<typeof viewerUser>>();
+function viewer() {
   setResponseHeader("Cache-Control", "private, no-store");
-  return viewerUser(new Headers(getRequestHeaders()));
+  const request = getRequest();
+  let found = viewers.get(request);
+  if (!found) {
+    found = viewerUser(new Headers(getRequestHeaders()));
+    viewers.set(request, found);
+    // Never keep a failed lookup: a retry inside the same request must try again.
+    found.catch(() => viewers.delete(request));
+  }
+  return found;
 }
 export const getViewer = createServerFn({ method: "GET" }).handler(async (): Promise<Viewer> => ({
   user: await viewer(),
@@ -43,7 +54,8 @@ export const getPost = createServerFn({ method: "GET" })
 export const listComments = createServerFn({ method: "GET" })
   .validator((data: { postId: string; page?: number }) => data)
   .handler(async ({ data }): Promise<Page<CommentView>> => {
-    await viewer();
+    // Comments do not depend on the viewer, so no session lookup; keep the same cache policy.
+    setResponseHeader("Cache-Control", "private, no-store");
     return listCommentPage(data);
   });
 export const getRoadmap = createServerFn({ method: "GET" })
