@@ -57,6 +57,8 @@ export type PostDetail = PostSummary & {
   githubUrl: string | null;
   /** Set on a merged duplicate: the page redirects to this post. */
   mergedInto?: string;
+  /** Published changelog entries that link this post ("Shipped in …"). Present only when any. */
+  shippedIn?: { id: string; title: string }[];
 };
 export type CommentView = {
   id: string;

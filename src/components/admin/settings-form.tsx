@@ -73,6 +73,7 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
   const [anonymous, setAnonymous] = React.useState(effective.anonymous);
   const [categories, setCategories] = React.useState<Category[]>(effective.categories);
   const [notifications, setNotifications] = React.useState(effective.notifications);
+  const [autoDraft, setAutoDraft] = React.useState(effective.changelog.autoDraft);
   const [saving, setSaving] = React.useState(false);
 
   const trimmed = name.trim();
@@ -87,6 +88,7 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
     anonymous,
     categories: CATEGORIES.filter((category) => categories.includes(category)),
     notifications,
+    changelog: { autoDraft },
   };
   const dirty = !same(current, effective);
 
@@ -107,6 +109,12 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
               : target.notifications[key],
           ]),
         ),
+        changelog: {
+          autoDraft:
+            target.changelog.autoDraft === defaults.changelog.autoDraft
+              ? null
+              : target.changelog.autoDraft,
+        },
       };
       const done = await act(
         () => adminSaveSettings({ data: patch }),
@@ -117,6 +125,7 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
         setAnonymous(done.effective.anonymous);
         setCategories(done.effective.categories);
         setNotifications(done.effective.notifications);
+        setAutoDraft(done.effective.changelog.autoDraft);
       }
     } finally {
       setSaving(false);
@@ -236,6 +245,24 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
                 onChange={(next) => setNotifications((prev) => ({ ...prev, [toggle.key]: next }))}
               />
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Changelog</CardTitle>
+            <CardDescription>
+              Entries are written in the Changelog tab and published at <code>/changelog</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="border-t">
+            <ToggleRow
+              id={`${ids}-autodraft`}
+              label="Draft an entry when a post is Done"
+              hint="Creates a draft called “Shipped: …” that links the post. Nothing is published until you publish it."
+              checked={autoDraft}
+              onChange={setAutoDraft}
+            />
           </CardContent>
         </Card>
 

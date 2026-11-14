@@ -32,6 +32,7 @@ import { backToAppUrl } from "./write-access";
 const NAV = [
   { to: "/", label: "Feedback", sections: ["/", "/posts", "/submit"] },
   { to: "/roadmap", label: "Roadmap", sections: ["/roadmap"] },
+  { to: "/changelog", label: "Changelog", sections: ["/changelog"] },
   { to: "/my-feedback", label: "My feedback", sections: ["/my-feedback"] },
 ] as const;
 

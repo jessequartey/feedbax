@@ -257,7 +257,7 @@ describe("feedbax add", () => {
 
 describe("feedbax doctor and deploy", () => {
   const secrets = ["BETTER_AUTH_SECRET", "FEEDBAX_HOST_SECRET", "NOTION_TOKEN"];
-  const wrangler = wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter"]);
+  const wrangler = wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"]);
 
   it("passes on a healthy project", async () => {
     const cwd = await project({ "wrangler.jsonc": wrangler });
@@ -283,6 +283,16 @@ describe("feedbax doctor and deploy", () => {
     expect(output).toContain("Run npx feedbax add github-login to set both.");
     expect(output).toContain("Notion sync is failing");
     expect(output).toContain("no GITHUB_TOKEN in .dev.vars");
+  });
+
+  it("asks for /changelog.rss when only the older routes are there", async () => {
+    const cwd = await project({
+      "wrangler.jsonc": wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter"]),
+    });
+    const h = harness(cwd, {}, secrets);
+    expect(await main(["doctor"], h.deps)).toBe(1);
+    expect(h.output()).toContain("assets.run_worker_first is missing /changelog.rss");
+    expect(h.output()).not.toContain("is missing /admin/enter");
   });
 
   it("reports an invalid config with its field names", async () => {

@@ -38,8 +38,10 @@ export const STRUCTURAL_EDITS: {
   {
     since: "0.4.0",
     file: "wrangler.jsonc",
-    description: 'add "/admin/enter" to assets.run_worker_first (admin sign-in links)',
-    apply: (text) => ensureRunWorkerFirst(text, "/admin/enter"),
+    description:
+      'add "/admin/enter" and "/changelog.rss" to assets.run_worker_first (admin sign-in links, RSS feed)',
+    apply: (text) =>
+      ensureRunWorkerFirst(ensureRunWorkerFirst(text, "/admin/enter"), "/changelog.rss"),
   },
 ];
 

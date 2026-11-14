@@ -10,6 +10,7 @@ const defaults = {
   anonymous: config.auth.anonymous,
   categories: ["feature", "bug", "general"],
   notifications: { statusChanges: true, replies: true, changelog: true, adminDigest: true },
+  changelog: { autoDraft: true },
 };
 const store = (key: string, value: string) =>
   env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, 0)")
@@ -27,19 +28,21 @@ it("D1 settings override the safe config fields", async () => {
     anonymous: !config.auth.anonymous,
     categories: ["bug", "feature"],
     notifications: { changelog: false },
+    changelog: { autoDraft: false },
   });
   expect(await readSettings()).toEqual({
     name: "Acme Feedback",
     anonymous: !config.auth.anonymous,
     categories: ["bug", "feature"],
     notifications: { ...defaults.notifications, changelog: false },
+    changelog: { autoDraft: false },
   });
   // Overrides win over a different config too, and are updated in place.
   await saveSettings({ name: "Renamed" });
   expect(await readSettings(env.DB, { ...config, name: "From config" })).toMatchObject({
     name: "Renamed",
   });
-  expect(await env.DB.prepare("SELECT count(*) AS n FROM settings").first("n")).toBe(4);
+  expect(await env.DB.prepare("SELECT count(*) AS n FROM settings").first("n")).toBe(5);
 });
 it("null clears an override so config applies again", async () => {
   await saveSettings({ name: "Acme", notifications: { replies: false } });
@@ -58,6 +61,9 @@ it.each([
   [{ notifications: { replies: 1 } }, "notifications.replies"],
   [{ notifications: { unknown: true } }, "notifications.unknown"],
   [{ notifications: true }, "notifications"],
+  [{ changelog: { autoDraft: "yes" } }, "changelog.autoDraft"],
+  [{ changelog: { other: true } }, "changelog.other"],
+  [{ changelog: true }, "changelog"],
   [{ secret: "x" }, "secret"],
 ])("rejects %j without writing anything", async (patch, field) => {
   await expect(saveSettings({ name: "Valid", ...patch } as never)).rejects.toMatchObject({
@@ -71,6 +77,7 @@ it("ignores unknown keys and corrupt or invalid stored values", async () => {
   await store("anonymous", '"true"');
   await store("categories", '["nope"]');
   await store("notifications.replies", "false");
+  await store("changelog.autoDraft", '"off"');
   await store("NOTION_TOKEN", '"leak"');
   expect(await readSettings()).toEqual({
     ...defaults,

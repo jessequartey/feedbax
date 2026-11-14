@@ -111,7 +111,12 @@ describe("3-way merge", () => {
     expect(await read(cwd, "feedbax.config.ts")).toBe(before.config);
     expect(await read(cwd, ".dev.vars")).toBe(before.vars);
     const wrangler = JSON.parse(await read(cwd, "wrangler.jsonc"));
-    expect(wrangler.assets.run_worker_first).toEqual(["/api/*", "/_serverFn/*", "/admin/enter"]);
+    expect(wrangler.assets.run_worker_first).toEqual([
+      "/api/*",
+      "/_serverFn/*",
+      "/admin/enter",
+      "/changelog.rss",
+    ]);
     expect(wrangler.d1_databases[0].database_id).toBe("12345678-1234-4234-8234-123456789abc");
     expect(wrangler.vars.PORTAL_URL).toBe("https://my-feedback.team.workers.dev");
   });
@@ -163,6 +168,35 @@ describe("wrangler.jsonc run_worker_first", () => {
     const after = ensureRunWorkerFirst(before, "/admin/enter");
     expect(after).toBe(before.replace('"/_serverFn/*"]', '"/_serverFn/*", "/admin/enter"]'));
     expect(ensureRunWorkerFirst(after, "/admin/enter")).toBe(after);
+  });
+
+  it("adds /changelog.rss the same way, after /admin/enter, idempotently", () => {
+    const edit = (text: string) =>
+      ensureRunWorkerFirst(ensureRunWorkerFirst(text, "/admin/enter"), "/changelog.rss");
+    // 0.3.0 file: neither route yet. A 0.4.0 pre-release file: only /admin/enter.
+    for (const routes of [
+      ["/api/*", "/_serverFn/*"],
+      ["/api/*", "/_serverFn/*", "/admin/enter"],
+    ]) {
+      const once = edit(wranglerJson(routes));
+      expect(JSON.parse(once).assets.run_worker_first).toEqual([
+        "/api/*",
+        "/_serverFn/*",
+        "/admin/enter",
+        "/changelog.rss",
+      ]);
+      expect(edit(once)).toBe(once);
+    }
+    const commented = `{
+  // keep me
+  "assets": {
+    "run_worker_first": ["/api/*", "/_serverFn/*", "/admin/enter"], // routes
+  },
+}
+`;
+    const after = edit(commented);
+    expect(after).toBe(commented.replace('"/admin/enter"]', '"/admin/enter", "/changelog.rss"]'));
+    expect(edit(after)).toBe(after);
   });
 
   it("leaves run_worker_first: true alone", () => {
@@ -222,7 +256,7 @@ describe("feedbax migrate", () => {
     "migrations/0004_github_creator.sql": "SELECT 4;\n",
     "migrations/0005_admin_foundation.sql": "SELECT 5;\n",
     "feedbax.config.ts": configSource(),
-    "wrangler.jsonc": wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter"]),
+    "wrangler.jsonc": wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"]),
   });
   const files = {
     "src/server.ts": lines("export const v = 3;"),
@@ -287,9 +321,12 @@ describe("feedbax migrate", () => {
     expect(await read(cwd, "src/server.ts")).toBe(lines("export const v = 4;"));
     expect(await read(cwd, "migrations/0005_admin_foundation.sql")).toBe("SELECT 5;\n");
     expect(await read(cwd, ".feedbax/version")).toBe("0.4.0\n");
-    expect(JSON.parse(await read(cwd, "wrangler.jsonc")).assets.run_worker_first).toContain(
+    expect(JSON.parse(await read(cwd, "wrangler.jsonc")).assets.run_worker_first).toEqual([
+      "/api/*",
+      "/_serverFn/*",
       "/admin/enter",
-    );
+      "/changelog.rss",
+    ]);
     expect(run.wrangler.calls).toEqual([
       "npm install",
       "wrangler d1 migrations apply DB --remote",

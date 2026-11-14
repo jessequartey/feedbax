@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PortalRouteImport } from './routes/_portal'
+import { Route as ChangelogDotrssRouteImport } from './routes/changelog[.]rss'
 import { Route as PortalIndexRouteImport } from './routes/_portal.index'
 import { Route as PortalAdminRouteImport } from './routes/_portal.admin'
 import { Route as PortalLoginRouteImport } from './routes/_portal.login'
@@ -21,15 +22,23 @@ import { Route as AdminEnterRouteImport } from './routes/admin.enter'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
 import { Route as PortalAdminIndexRouteImport } from './routes/_portal.admin.index'
+import { Route as PortalAdminChangelogRouteImport } from './routes/_portal.admin.changelog'
 import { Route as PortalAdminModerationRouteImport } from './routes/_portal.admin.moderation'
 import { Route as PortalAdminSettingsRouteImport } from './routes/_portal.admin.settings'
 import { Route as PortalAdminUsersRouteImport } from './routes/_portal.admin.users'
+import { Route as PortalChangelogIndexRouteImport } from './routes/_portal.changelog.index'
+import { Route as PortalChangelogEntryIdRouteImport } from './routes/_portal.changelog.$entryId'
 import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
 
 const PortalRoute = PortalRouteImport.update({
   id: '/_portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangelogDotrssRoute = ChangelogDotrssRouteImport.update({
+  id: '/changelog.rss',
+  path: '/changelog.rss',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortalIndexRoute = PortalIndexRouteImport.update({
@@ -87,6 +96,11 @@ const PortalAdminIndexRoute = PortalAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PortalAdminRoute,
 } as any)
+const PortalAdminChangelogRoute = PortalAdminChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
 const PortalAdminModerationRoute = PortalAdminModerationRouteImport.update({
   id: '/moderation',
   path: '/moderation',
@@ -101,6 +115,16 @@ const PortalAdminUsersRoute = PortalAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalChangelogIndexRoute = PortalChangelogIndexRouteImport.update({
+  id: '/changelog/',
+  path: '/changelog/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalChangelogEntryIdRoute = PortalChangelogEntryIdRouteImport.update({
+  id: '/changelog/$entryId',
+  path: '/changelog/$entryId',
+  getParentRoute: () => PortalRoute,
 } as any)
 const PortalPostsPostIdRoute = PortalPostsPostIdRouteImport.update({
   id: '/posts/$postId',
@@ -120,6 +144,7 @@ const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof PortalIndexRoute
+  '/changelog.rss': typeof ChangelogDotrssRoute
   '/admin': typeof PortalAdminRouteWithChildren
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
@@ -129,15 +154,19 @@ export interface FileRoutesByFullPath {
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
+  '/admin/changelog': typeof PortalAdminChangelogRoute
   '/admin/moderation': typeof PortalAdminModerationRoute
   '/admin/settings': typeof PortalAdminSettingsRoute
   '/admin/users': typeof PortalAdminUsersRoute
+  '/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/admin/': typeof PortalAdminIndexRoute
+  '/changelog/': typeof PortalChangelogIndexRoute
 }
 export interface FileRoutesByTo {
+  '/changelog.rss': typeof ChangelogDotrssRoute
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
   '/roadmap': typeof PortalRoadmapRoute
@@ -147,17 +176,21 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/': typeof PortalIndexRoute
+  '/admin/changelog': typeof PortalAdminChangelogRoute
   '/admin/moderation': typeof PortalAdminModerationRoute
   '/admin/settings': typeof PortalAdminSettingsRoute
   '/admin/users': typeof PortalAdminUsersRoute
+  '/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/admin': typeof PortalAdminIndexRoute
+  '/changelog': typeof PortalChangelogIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_portal': typeof PortalRouteWithChildren
+  '/changelog.rss': typeof ChangelogDotrssRoute
   '/_portal/admin': typeof PortalAdminRouteWithChildren
   '/_portal/login': typeof PortalLoginRoute
   '/_portal/my-feedback': typeof PortalMyFeedbackRoute
@@ -168,18 +201,22 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/_portal/': typeof PortalIndexRoute
+  '/_portal/admin/changelog': typeof PortalAdminChangelogRoute
   '/_portal/admin/moderation': typeof PortalAdminModerationRoute
   '/_portal/admin/settings': typeof PortalAdminSettingsRoute
   '/_portal/admin/users': typeof PortalAdminUsersRoute
+  '/_portal/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/_portal/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/_portal/admin/': typeof PortalAdminIndexRoute
+  '/_portal/changelog/': typeof PortalChangelogIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/changelog.rss'
     | '/admin'
     | '/login'
     | '/my-feedback'
@@ -189,15 +226,19 @@ export interface FileRouteTypes {
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
+    | '/admin/changelog'
     | '/admin/moderation'
     | '/admin/settings'
     | '/admin/users'
+    | '/changelog/$entryId'
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
     | '/admin/'
+    | '/changelog/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/changelog.rss'
     | '/login'
     | '/my-feedback'
     | '/roadmap'
@@ -207,16 +248,20 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/posts'
     | '/'
+    | '/admin/changelog'
     | '/admin/moderation'
     | '/admin/settings'
     | '/admin/users'
+    | '/changelog/$entryId'
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
     | '/admin'
+    | '/changelog'
   id:
     | '__root__'
     | '/_portal'
+    | '/changelog.rss'
     | '/_portal/admin'
     | '/_portal/login'
     | '/_portal/my-feedback'
@@ -227,17 +272,21 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/posts'
     | '/_portal/'
+    | '/_portal/admin/changelog'
     | '/_portal/admin/moderation'
     | '/_portal/admin/settings'
     | '/_portal/admin/users'
+    | '/_portal/changelog/$entryId'
     | '/_portal/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
     | '/_portal/admin/'
+    | '/_portal/changelog/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   PortalRoute: typeof PortalRouteWithChildren
+  ChangelogDotrssRoute: typeof ChangelogDotrssRoute
   AdminEnterRoute: typeof AdminEnterRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPostsRoute: typeof ApiPostsRoute
@@ -252,6 +301,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changelog.rss': {
+      id: '/changelog.rss'
+      path: '/changelog.rss'
+      fullPath: '/changelog.rss'
+      preLoaderRoute: typeof ChangelogDotrssRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_portal/': {
@@ -331,6 +387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAdminIndexRouteImport
       parentRoute: typeof PortalAdminRoute
     }
+    '/_portal/admin/changelog': {
+      id: '/_portal/admin/changelog'
+      path: '/changelog'
+      fullPath: '/admin/changelog'
+      preLoaderRoute: typeof PortalAdminChangelogRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
     '/_portal/admin/moderation': {
       id: '/_portal/admin/moderation'
       path: '/moderation'
@@ -351,6 +414,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/users'
       preLoaderRoute: typeof PortalAdminUsersRouteImport
       parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/changelog/': {
+      id: '/_portal/changelog/'
+      path: '/changelog'
+      fullPath: '/changelog/'
+      preLoaderRoute: typeof PortalChangelogIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/changelog/$entryId': {
+      id: '/_portal/changelog/$entryId'
+      path: '/changelog/$entryId'
+      fullPath: '/changelog/$entryId'
+      preLoaderRoute: typeof PortalChangelogEntryIdRouteImport
+      parentRoute: typeof PortalRoute
     }
     '/_portal/posts/$postId': {
       id: '/_portal/posts/$postId'
@@ -377,6 +454,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface PortalAdminRouteChildren {
+  PortalAdminChangelogRoute: typeof PortalAdminChangelogRoute
   PortalAdminModerationRoute: typeof PortalAdminModerationRoute
   PortalAdminSettingsRoute: typeof PortalAdminSettingsRoute
   PortalAdminUsersRoute: typeof PortalAdminUsersRoute
@@ -384,6 +462,7 @@ interface PortalAdminRouteChildren {
 }
 
 const PortalAdminRouteChildren: PortalAdminRouteChildren = {
+  PortalAdminChangelogRoute: PortalAdminChangelogRoute,
   PortalAdminModerationRoute: PortalAdminModerationRoute,
   PortalAdminSettingsRoute: PortalAdminSettingsRoute,
   PortalAdminUsersRoute: PortalAdminUsersRoute,
@@ -402,7 +481,9 @@ interface PortalRouteChildren {
   PortalSignupRoute: typeof PortalSignupRoute
   PortalSubmitRoute: typeof PortalSubmitRoute
   PortalIndexRoute: typeof PortalIndexRoute
+  PortalChangelogEntryIdRoute: typeof PortalChangelogEntryIdRoute
   PortalPostsPostIdRoute: typeof PortalPostsPostIdRoute
+  PortalChangelogIndexRoute: typeof PortalChangelogIndexRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
@@ -413,7 +494,9 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalSignupRoute: PortalSignupRoute,
   PortalSubmitRoute: PortalSubmitRoute,
   PortalIndexRoute: PortalIndexRoute,
+  PortalChangelogEntryIdRoute: PortalChangelogEntryIdRoute,
   PortalPostsPostIdRoute: PortalPostsPostIdRoute,
+  PortalChangelogIndexRoute: PortalChangelogIndexRoute,
 }
 
 const PortalRouteWithChildren =
@@ -421,6 +504,7 @@ const PortalRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRouteWithChildren,
+  ChangelogDotrssRoute: ChangelogDotrssRoute,
   AdminEnterRoute: AdminEnterRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPostsRoute: ApiPostsRoute,

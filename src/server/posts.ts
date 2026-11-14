@@ -16,6 +16,7 @@ import { DomainError, invalid } from "./errors.ts";
 import { category, listInput, text, uuid } from "./validation.ts";
 import { requireWriter } from "./auth.ts";
 import { storeImage, validateImage } from "./images.ts";
+import { parseShippedIn, shippedInField } from "./changelog.ts";
 import { effectiveSettings, runtimeConfig } from "./settings.ts";
 import { MAX_MERGE_DEPTH, publiclyVisible } from "./visibility.ts";
 
@@ -210,7 +211,7 @@ export async function getPostDetail(id: string, viewer: ViewerUser | null): Prom
   uuid(id);
   const db = createDb(env.DB);
   const row = await db
-    .select({ post: posts, author: authorFields, ...counts(viewer) })
+    .select({ post: posts, author: authorFields, shipped: shippedInField, ...counts(viewer) })
     .from(posts)
     .innerJoin(user, eq(posts.authorId, user.id))
     .where(eq(posts.id, id))
@@ -225,9 +226,11 @@ export async function getPostDetail(id: string, viewer: ViewerUser | null): Prom
     .from(images)
     .where(eq(images.postId, id))
     .orderBy(images.position);
+  const shippedIn = parseShippedIn(row.shipped);
   return {
     ...summary(row),
     body: row.post.body,
+    ...(shippedIn.length ? { shippedIn } : {}),
     githubUrl: row.post.githubUrl,
     ...(row.post.mergedInto ? { mergedInto: await mergeTarget(row.post.mergedInto) } : {}),
     images: attached.map((image) => ({

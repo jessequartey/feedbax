@@ -84,7 +84,12 @@ const common = {
 };
 const emittedConfig = JSON.parse(await readFile(resolve(root, "wrangler.json"), "utf8"));
 assert.equal(emittedConfig.assets.not_found_handling, "single-page-application");
-assert.deepEqual(emittedConfig.assets.run_worker_first, ["/api/*", "/_serverFn/*", "/admin/enter"]);
+assert.deepEqual(emittedConfig.assets.run_worker_first, [
+  "/api/*",
+  "/_serverFn/*",
+  "/admin/enter",
+  "/changelog.rss",
+]);
 const staticAssets = {
   directory: resolve(root, emittedConfig.assets.directory),
   run_worker_first: emittedConfig.assets.run_worker_first,
@@ -381,6 +386,11 @@ try {
     });
     assert.equal(adminEnter.status, 401, "admin link navigation reaches the Worker");
     assert.match(await adminEnter.text(), /admin link expired/);
+    // Likewise the RSS feed: a feed reader's navigation must reach the Worker, not the shell.
+    const feed = await app.fetch("https://portal.example.com/changelog.rss", { headers });
+    assert.equal(feed.status, 200, "changelog feed reaches the Worker");
+    assert.match(feed.headers.get("content-type") ?? "", /^application\/rss\+xml/);
+    assert.match(await feed.text(), /^<\?xml[^>]*\?>\s*<rss version="2\.0"/);
     for (const path of [
       "/api/auth/sign-up/email",
       "/api/auth/callback/google",

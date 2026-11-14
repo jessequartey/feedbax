@@ -2,7 +2,11 @@ import { env } from "cloudflare:workers";
 import { inArray, sql } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
-import type { NotificationToggles, RuntimeSettings } from "../contracts/admin.ts";
+import type {
+  ChangelogSettings,
+  NotificationToggles,
+  RuntimeSettings,
+} from "../contracts/admin.ts";
 import type { Category } from "../contracts/domain.ts";
 import { CATEGORY_LABELS } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
@@ -14,10 +18,13 @@ import { cachedSettings, clearSettingsCache } from "./settings-cache.ts";
 // fields. Anything missing or unreadable falls back to config (or the built-in default for
 // fields config does not have yet). Secrets, resource IDs and integrations are never here.
 
-export type { NotificationToggles, RuntimeSettings };
+export type { ChangelogSettings, NotificationToggles, RuntimeSettings };
 export type SettingsPatch = {
-  [K in keyof Omit<RuntimeSettings, "notifications">]?: RuntimeSettings[K] | null;
-} & { notifications?: { [K in keyof NotificationToggles]?: boolean | null } };
+  [K in keyof Omit<RuntimeSettings, "notifications" | "changelog">]?: RuntimeSettings[K] | null;
+} & {
+  notifications?: { [K in keyof NotificationToggles]?: boolean | null };
+  changelog?: { [K in keyof ChangelogSettings]?: boolean | null };
+};
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[];
 const TOGGLES = ["statusChanges", "replies", "changelog", "adminDigest"] as const;
@@ -27,6 +34,7 @@ export const SETTING_KEYS = [
   "anonymous",
   "categories",
   ...TOGGLES.map((toggle) => `notifications.${toggle}` as const),
+  "changelog.autoDraft",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
@@ -74,6 +82,7 @@ export function resolveSettings(
     notifications: Object.fromEntries(
       TOGGLES.map((toggle) => [toggle, pick(`notifications.${toggle}`, true)]),
     ) as NotificationToggles,
+    changelog: { autoDraft: pick("changelog.autoDraft", true) },
   };
 }
 
@@ -128,11 +137,10 @@ export async function saveSettings(
 ): Promise<void> {
   const entries: [SettingKey, unknown][] = [];
   for (const [key, value] of Object.entries(patch)) {
-    if (key === "notifications") {
-      if (typeof value !== "object" || value === null || Array.isArray(value))
-        invalid("notifications");
+    if (key === "notifications" || key === "changelog") {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) invalid(key);
       for (const [toggle, enabled] of Object.entries(value))
-        entries.push([`notifications.${toggle}` as SettingKey, enabled]);
+        entries.push([`${key}.${toggle}` as SettingKey, enabled]);
     } else entries.push([key as SettingKey, value]);
   }
   for (const [key, value] of entries)
