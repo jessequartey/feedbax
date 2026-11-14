@@ -3,10 +3,22 @@ import type {
   NotionPageChoice,
   NotionSetupClient,
   NotionTarget,
+  NotionTemplateResult,
 } from "../contracts/integrations.ts";
 import { NOTION_SCHEMA, notionSchemaChanges, richText, schemaError } from "./notion-schema.ts";
 import type { NotionProperties } from "./notion-schema.ts";
+import {
+  EXAMPLE_ROWS,
+  TEMPLATE_COVER,
+  TEMPLATE_ICON,
+  TEMPLATE_TITLE,
+  TEMPLATE_VIEWS,
+  exampleProperties,
+  footerBlocks,
+  guideBlocks,
+} from "./notion-template.ts";
 import { createProviderRequest } from "./request.ts";
+import type { ProviderRequest } from "./request.ts";
 
 export type NotionText = { plain_text?: string; text?: { content: string } };
 export type NotionPage = {
@@ -99,11 +111,11 @@ export function createNotionSetupClient(
       : notionText(database.title) || "Feedbax",
     url: database.url,
   });
-  const createDatabase = async (pageId: string): Promise<NotionTarget> => {
-    const page = await getPage(pageId);
+  const createDatabaseIn = async (page: NotionPageChoice, inline: boolean) => {
     const database = await request<Database>("/databases", "POST", {
       parent: { type: "page_id", page_id: page.id },
       title: richText("Feedbax"),
+      ...(inline ? { is_inline: true } : {}),
       initial_data_source: { properties: NOTION_SCHEMA },
     });
     const dataSourceId = database.data_sources[0]?.id;
@@ -111,6 +123,8 @@ export function createNotionSetupClient(
       throw schemaError("Notion did not return a data source for the new database.");
     return { dataSourceId, databaseId: database.id, parentTitle: page.title, url: database.url };
   };
+  const createDatabase = async (pageId: string): Promise<NotionTarget> =>
+    createDatabaseIn(await getPage(pageId), false);
   return {
     me: () => request<{ name: string | null }>("/users/me"),
     async findFeedbaxDataSources() {
@@ -165,22 +179,94 @@ export function createNotionSetupClient(
     },
     getPage,
     createDatabase,
-    async createTemplatePage(parentPageId) {
-      const parent = await getPage(parentPageId);
-      const page = await request<NotionPage>("/pages", "POST", {
-        parent: { type: "page_id", page_id: parent.id },
-        properties: { title: { type: "title", title: richText("Feedbax") } },
-        children: [
-          "Manage feedback with Status: Open, Planned, In progress, Done or Closed. Do not rename the required columns.",
-          "Tick Send to GitHub to approve issue creation when GitHub is connected. Closing the issue makes Done final.",
-          "Posts and attached images are public. Add your own columns and views freely.",
-        ].map((text) => ({
-          object: "block",
-          type: "paragraph",
-          paragraph: { rich_text: richText(text) },
-        })),
-      });
-      return { pageUrl: page.url, target: await createDatabase(page.id) };
+    async createTemplatePage(pageId, options = {}): Promise<NotionTemplateResult> {
+      const parent = await getPage(pageId);
+      let page: { id: string; url: string };
+      if (options.fillPage) {
+        const children = await request<NotionList<unknown>>(
+          `/blocks/${parent.id}/children?page_size=1`,
+        );
+        if (children.results.length)
+          throw schemaError(
+            "That page is not empty. Fill an empty page, or use --parent-page to create a new page inside it.",
+          );
+        await request(`/pages/${parent.id}`, "PATCH", {
+          properties: { title: { title: richText(TEMPLATE_TITLE) } },
+          icon: TEMPLATE_ICON,
+          cover: TEMPLATE_COVER,
+        });
+        await request(`/blocks/${parent.id}/children`, "PATCH", { children: guideBlocks() });
+        page = parent;
+      } else {
+        page = await request<NotionPage>("/pages", "POST", {
+          parent: { type: "page_id", page_id: parent.id },
+          properties: { title: { type: "title", title: richText(TEMPLATE_TITLE) } },
+          icon: TEMPLATE_ICON,
+          cover: TEMPLATE_COVER,
+          children: guideBlocks(),
+        });
+      }
+      // A database created with a page parent is appended to the end of that page. Creating it
+      // after the guide and before the footer puts the guide above it and the footer below it.
+      const target = await createDatabaseIn({ ...page, title: TEMPLATE_TITLE }, true);
+      await request(`/blocks/${page.id}/children`, "PATCH", { children: footerBlocks() });
+      if (options.examples) {
+        const now = new Date();
+        for (const row of EXAMPLE_ROWS)
+          await request("/pages", "POST", {
+            parent: { type: "data_source_id", data_source_id: target.dataSourceId },
+            properties: exampleProperties(row, now),
+          });
+      }
+      return {
+        pageUrl: page.url,
+        target,
+        views: await createTemplateViews(request, target),
+      };
     },
   };
+}
+
+/** The Views API creates layout, grouping, filters and sorts. A failure never undoes the page. */
+async function createTemplateViews(
+  request: ProviderRequest,
+  target: NotionTarget,
+): Promise<{ created: boolean; error?: string }> {
+  let current = "the views";
+  try {
+    const source = await request<DataSource>(`/data_sources/${target.dataSourceId}`);
+    const ids: Record<string, string> = {};
+    for (const [name, property] of Object.entries(source.properties))
+      if (typeof property.id === "string") ids[name] = property.id;
+    // Notion creates one table view with the database. It becomes "All feedback".
+    const listed = await request<NotionList<{ id: string }>>(
+      `/views?database_id=${target.databaseId}`,
+    );
+    const defaultViewId = listed.results[0]?.id;
+    let boardId: string | undefined;
+    for (const spec of TEMPLATE_VIEWS) {
+      current = spec.name;
+      if (!spec.body && defaultViewId) {
+        await request(`/views/${defaultViewId}`, "PATCH", { name: spec.name });
+        continue;
+      }
+      const view = await request<{ id: string }>("/views", "POST", {
+        database_id: target.databaseId,
+        data_source_id: target.dataSourceId,
+        name: spec.name,
+        ...(spec.body ? spec.body(ids) : { type: "table" }),
+        ...(spec.position === "start" ? { position: { type: "start" } } : {}),
+        ...(spec.position === "after-board" && boardId
+          ? { position: { type: "after_view", view_id: boardId } }
+          : {}),
+      });
+      if (spec.position === "start") boardId = view.id;
+    }
+    return { created: true };
+  } catch (error) {
+    return {
+      created: false,
+      error: `Could not create ${current}: ${error instanceof Error ? error.message : "request failed."}`,
+    };
+  }
 }

@@ -333,7 +333,7 @@ Other scripts: `registry:build` (regenerates `public/r/feedbax-feedback.json`; c
 
 Maintainers only. Only `create-feedbax` is published.
 
-1. One-time: publish the Notion template (Share → Publish, turn on **Allow duplicate as template**) and set `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` (`npm run notion:template` creates the page). Use the same URL in the "Duplicate the Notion template" link above. The release fails while it is a placeholder or the two differ.
+1. One-time: publish the Notion template (Share → Publish, turn on **Allow duplicate as template**) and set `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` (`NOTION_TOKEN=… npm run notion:template -- --page <url> --examples` fills an empty page you shared with the integration; `--parent-page <url>` creates a child page instead. It builds the guide, database and views through the API). Use the same URL in the "Duplicate the Notion template" link above. The release fails while it is a placeholder or the two differ.
 2. One-time: on npmjs.com open `create-feedbax` → **Settings** → **Trusted Publisher** → GitHub Actions. Enter owner `jessequartey`, repository `feedbax`, workflow `release.yml`.
 3. Set the version in `packages/create-feedbax/package.json` and update `CHANGELOG.md`.
 4. Tag and push: `git tag v0.3.0 && git push origin v0.3.0`.

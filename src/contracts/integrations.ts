@@ -34,13 +34,28 @@ export class IntegrationError extends Error {
     this.retryAfterMs = retryAfterMs;
   }
 }
+export type NotionTemplateOptions = {
+  /** Fill the given page (it must be empty) instead of creating a child page under it. */
+  fillPage?: boolean;
+  /** Insert four example rows (no Feedbax ID, so sync ignores them). */
+  examples?: boolean;
+};
+export type NotionTemplateResult = {
+  pageUrl: string;
+  target: NotionTarget;
+  /** Whether the database views were created through the API. Absent means "not attempted". */
+  views?: { created: boolean; error?: string };
+};
 export type NotionSetupClient = {
   me(): Promise<{ name: string | null }>;
   findFeedbaxDataSources(): Promise<NotionTarget[]>; // search data_source + schema match, all pages
   listPages(): Promise<NotionPageChoice[]>; // search pages, ≤100, excludes in_trash
   getPage(idOrUrl: string): Promise<NotionPageChoice>; // parses notion.so / notion.site / UUID
   createDatabase(pageId: string): Promise<NotionTarget>;
-  createTemplatePage(parentPageId: string): Promise<{ pageUrl: string; target: NotionTarget }>;
+  createTemplatePage(
+    pageId: string,
+    options?: NotionTemplateOptions,
+  ): Promise<NotionTemplateResult>;
 };
 export type GitHubSetupClient = {
   me(): Promise<{ login: string }>;

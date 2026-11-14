@@ -139,10 +139,10 @@ describe("Notion setup", () => {
             options: [
               { id: "open-id", name: "Open", color: "blue" },
               { name: "Custom" },
-              { name: "Planned" },
-              { name: "In progress" },
-              { name: "Done" },
-              { name: "Closed" },
+              { name: "Planned", color: "blue" },
+              { name: "In progress", color: "yellow" },
+              { name: "Done", color: "green" },
+              { name: "Closed", color: "red" },
             ],
           },
         },
@@ -232,18 +232,39 @@ describe("Notion setup", () => {
       createNotionSetupClient("token", fake.fetch).createDatabase(PARENT),
     ).rejects.toMatchObject({ kind: "schema" });
   });
-  test("creates a template page with guidance and one database, no sample rows", async () => {
-    const fake = fakeFetch(parent, notionRow(), notionRow(), database());
+  test("creates a child template page with guidance and one inline database, no sample rows", async () => {
+    const fake = fakeFetch(
+      parent,
+      notionRow(),
+      database(),
+      list(),
+      source(),
+      list([{ id: "default" }]),
+      { id: "view-1" },
+      { id: "view-2" },
+      {},
+      { id: "view-3" },
+      { id: "view-4" },
+      { id: "view-5" },
+      { id: "view-6" },
+    );
     const result = await createNotionSetupClient("token", fake.fetch).createTemplatePage(PARENT);
     expect(result.pageUrl).toBe(notionRow().url);
     expect(result.target.dataSourceId).toBe(SOURCE);
-    expect(fake.requests.map((r) => r.method)).toEqual(["GET", "POST", "GET", "POST"]);
+    expect(result.views).toEqual({ created: true });
+    expect(fake.requests.slice(0, 5).map((r) => r.method)).toEqual([
+      "GET",
+      "POST",
+      "POST",
+      "PATCH",
+      "GET",
+    ]);
     expect(fake.requests[1].body).toMatchObject({
       parent: { type: "page_id", page_id: PARENT },
       properties: { title: { type: "title", title: [{ text: { content: "Feedbax" } }] } },
     });
     expect(JSON.stringify(fake.requests[1].body.children)).toContain("Send to GitHub");
-    expect(JSON.stringify(fake.requests[1].body.children)).toContain("public");
+    expect(fake.requests[2].body).toMatchObject({ is_inline: true });
     expect(
       fake.requests.filter((r) => r.url.endsWith("/pages") && r.method === "POST"),
     ).toHaveLength(1);

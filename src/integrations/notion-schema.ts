@@ -5,6 +5,7 @@ export const NOTION_VERSION = "2026-03-11";
 export const GITHUB_API_VERSION = "2026-03-10";
 
 export type NotionProperty = {
+  id?: string;
   type?: string;
   title?: unknown;
   rich_text?: unknown;
@@ -13,12 +14,29 @@ export type NotionProperty = {
 };
 export type NotionProperties = Record<string, NotionProperty>;
 
+/** Option colours. Cosmetic only: validation and setup match options by name, never by colour. */
+const CATEGORY_COLORS = {
+  "Feature request": "purple",
+  "Bug report": "red",
+  "General feedback": "gray",
+} as const;
+const STATUS_COLORS = {
+  Open: "gray",
+  Planned: "blue",
+  "In progress": "yellow",
+  Done: "green",
+  Closed: "red",
+} as const;
+// Option order is the Notion board's column order, so it follows the label tables' order.
+const colored = (labels: Record<string, string>, colors: Record<string, string>) =>
+  Object.values(labels).map((name) => ({ name, color: colors[name] ?? "default" }));
+
 export const NOTION_SCHEMA = {
   Name: { title: {} },
   "Feedbax ID": { rich_text: {} },
   Description: { rich_text: {} },
-  Category: { select: { options: Object.values(CATEGORY_LABELS).map((name) => ({ name })) } },
-  Status: { select: { options: Object.values(STATUS_LABELS).map((name) => ({ name })) } },
+  Category: { select: { options: colored(CATEGORY_LABELS, CATEGORY_COLORS) } },
+  Status: { select: { options: colored(STATUS_LABELS, STATUS_COLORS) } },
   "Send to GitHub": { checkbox: {} },
   Votes: { number: { format: "number" } },
   Comments: { number: { format: "number" } },

@@ -18,6 +18,7 @@ import {
   list,
   notionRow,
   githubIssue,
+  text,
 } from "./helpers.ts";
 
 const poll: SyncMessage = { type: "notion.poll", since: SINCE, until: UNTIL, cursor: null };
@@ -332,6 +333,24 @@ describe("Notion polling", () => {
     await deliver(poll);
     expect(await post()).toMatchObject({ status: "open", githubRequested: 0 });
     expect(queue.sent).toEqual([]);
+  });
+  test("ignores template example rows: an empty Feedbax ID is never a post", async () => {
+    await seed({ notionPageId: PAGE });
+    const example = {
+      ...notionRow("Planned", true, "", "example-page"),
+      properties: {
+        ...notionRow().properties,
+        Name: { type: "title", title: text("Example: Dark mode") },
+        "Feedbax ID": { type: "rich_text", rich_text: [] },
+        Status: { type: "select", select: { name: "Planned" } },
+        "Send to GitHub": { type: "checkbox", checkbox: true },
+      },
+    };
+    mock(schema, list([example]));
+    await deliver(poll);
+    expect(await post()).toMatchObject({ status: "open", githubRequested: 0 });
+    expect(queue.sent).toEqual([]);
+    expect(await readState("notion.watermark")).toBe(UNTIL);
   });
   test("detects renamed or mistyped required schema even with no rows", async () => {
     await seed();
