@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
@@ -7,8 +8,23 @@ import viteReact from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 
+import feedbax from "./feedbax.config.ts";
+import { portalUrlFromWrangler } from "./src/lib/social-meta.ts";
+
 // Tests run in plain Node: the Cloudflare and TanStack Start plugins are only for dev/build.
 const testing = Boolean(process.env.VITEST);
+
+// The document is a static prerendered shell, so the Open Graph tags are fixed at build time
+// from the portal name (feedbax.config.ts) and the deployed URL (wrangler.jsonc vars.PORTAL_URL,
+// which create-feedbax writes before it builds). See src/lib/social-meta.ts.
+function readPortalUrl(): string {
+  try {
+    const file = readFileSync(new URL("./wrangler.jsonc", import.meta.url), "utf8");
+    return portalUrlFromWrangler(file) ?? "";
+  } catch {
+    return "";
+  }
+}
 
 const GENERATED = [
   "src/routeTree.gen.ts",
@@ -33,6 +49,9 @@ const config = defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   resolve: { tsconfigPaths: true },
+  define: testing
+    ? {}
+    : { __FEEDBAX_SOCIAL__: JSON.stringify({ name: feedbax.name, portalUrl: readPortalUrl() }) },
   plugins: testing
     ? []
     : lazyPlugins(() => [

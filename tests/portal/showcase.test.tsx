@@ -111,6 +111,6 @@ describe("shared description", () => {
     expect(content("property", "og:description")?.content).toBe(FEEDBAX_DESCRIPTION);
     expect(content("property", "og:title")?.content).toBe("Feedbax");
     expect(content("property", "og:type")?.content).toBe("website");
-    expect(content("name", "twitter:card")?.content).toBe("summary");
+    expect(content("name", "twitter:card")?.content).toBe("summary_large_image");
   });
 });
