@@ -23,6 +23,7 @@ import {
   watermark,
 } from "./shared.ts";
 import type { SyncPost } from "./shared.ts";
+import { queueEmails, statusEmails, type StatusChange } from "../email/events.ts";
 
 function mirrorProperties(post: SyncPost) {
   return {
@@ -216,6 +217,7 @@ export async function pollNotion(
   const shipped: { id: string; body: string }[] = [];
   const statusChanges: { id: string; previous: Status }[] = [];
   const approvals = new Set<string>();
+  const emailChanges: StatusChange[] = [];
   const seen = new Set<string>();
   for (const page of result.results) {
     if (page.in_trash || page.archived || page.is_archived || seen.has(page.id)) continue;
@@ -249,6 +251,11 @@ export async function pollNotion(
       changes.updatedAt = Date.now();
       statusChanges.push({ id: post.id, previous: post.status });
       if (status === "done") shipped.push({ id: post.id, body: post.body });
+      emailChanges.push({
+        post: { id: post.id, title: post.title, body: post.body },
+        from: post.status,
+        to: status,
+      });
     }
     if (config.integrations.github && approvalProperty.checkbox === true) {
       if (!post.githubRequested) changes.githubRequested = 1;
@@ -268,6 +275,8 @@ export async function pollNotion(
   updates.push(...(await autoDraftStatements(database, shipped)));
   if (updates.length)
     await database.batch(updates as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+  // After the batch, so only stored changes notify. Best effort, never fails the poll.
+  await queueEmails(statusEmails(emailChanges));
   // After the write: webhooks never fail the poll, and a retry would not see a change again.
   if (statusChanges.length) await emitStatusChanges(statusChanges);
   if (approvals.size)

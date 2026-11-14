@@ -159,6 +159,7 @@ it("projects only public capabilities, validates host keys and keeps host login 
     "anonymous",
     "appUrl",
     "categories",
+    "email",
     "hostLogin",
     "name",
     "oauth",
