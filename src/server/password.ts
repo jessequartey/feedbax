@@ -1,7 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 import { decode64, encode64 } from "./encoding.ts";
 
-export const PASSWORD_ITERATIONS = 100_000;
+// The floor of the supported range. Local Node measured ~16 ms CPU per hash at 100k, above the
+// 9 ms Workers Free gate, so new hashes start at 50k. Each hash stores its own iteration count and
+// verify() uses that, so raising this later (up to the Workers cap of 100k) never invalidates
+// existing passwords. Never go below 50k without the owner's decision.
+export const PASSWORD_ITERATIONS = 50_000;
 async function derive(password: string, salt: Uint8Array<ArrayBuffer>, iterations: number) {
   const key = await crypto.subtle.importKey(
     "raw",

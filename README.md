@@ -291,9 +291,9 @@ npm run deploy   # build, apply migrations, deploy
 
 Feedbax runs on Cloudflare's free tier: one Worker, one D1 database, one R2 bucket, one Queue and one of your account's 5 free Cron triggers. Idle, it uses about 1.7k Queue operations a day against 10k free. Check [Cloudflare's current limits](https://developers.cloudflare.com/workers/platform/pricing/) for your own traffic.
 
-Workers Free allows 10 ms of CPU per request. Hashing passwords is the heavy part, so Feedbax uses PBKDF2 (Web Crypto) with 100,000 iterations. That fits the free limit but is weaker than the 600,000 OWASP suggests for PBKDF2. To compensate, passwords need 12+ characters, sign-in attempts are rate-limited and the database is private.
+Workers Free allows 10 ms of CPU per request. Hashing passwords is the heavy part, so Feedbax uses PBKDF2 (Web Crypto) with 50,000 iterations, the lowest count it supports. That is weaker than the 600,000 OWASP suggests for PBKDF2. To compensate, passwords need 12+ characters, sign-in attempts are rate-limited and the database is private. Each hash stores its own iteration count, so the default can be raised later without breaking existing accounts.
 
-Measured CPU time on a Workers Free account: _to be filled in from the release measurement_.
+Measured CPU time on a Workers Free account: _to be filled in from the release measurement_. Locally, one 50,000-iteration hash takes about 8 ms of CPU, and a whole sign-up or sign-in request must stay under 10 ms on the Free plan, so it is close. Until the release measurement is recorded, treat email/password sign-up on Free as unconfirmed.
 
 Consider [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) ($5/month) if email/password sign-ups time out, or if you want a higher margin on page rendering. Social login and host login don't hash passwords.
 

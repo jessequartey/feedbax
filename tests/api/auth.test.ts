@@ -8,14 +8,16 @@ import config from "../../feedbax.config.ts";
 beforeEach(resetEnv);
 it("round-trips PBKDF2, rejects wrong passwords, and uses stored iterations", async () => {
   const hash = await hashPassword("a long test password");
-  expect(hash).toMatch(/^pbkdf2-sha256\$100000\$[\w-]{22}\$[\w-]{43}$/);
+  expect(hash).toMatch(/^pbkdf2-sha256\$50000\$[\w-]{22}\$[\w-]{43}$/);
   expect(await verifyPassword({ hash, password: "a long test password" })).toBe(true);
   expect(await verifyPassword({ hash, password: "wrong password" })).toBe(false);
-  const lower = await hashPassword("a long test password", 50_000);
-  expect(await verifyPassword({ hash: lower, password: "a long test password" })).toBe(true);
+  // A hash made at a higher count (older install, or a later default) keeps verifying.
+  const higher = await hashPassword("a long test password", 100_000);
+  expect(higher).toContain("$100000$");
+  expect(await verifyPassword({ hash: higher, password: "a long test password" })).toBe(true);
   expect(
     await verifyPassword({
-      hash: hash.replace("100000", "999999999"),
+      hash: hash.replace("50000", "999999999"),
       password: "a long test password",
     }),
   ).toBe(false);
@@ -57,7 +59,7 @@ it("signs up, signs out, and signs in with a real session cookie", async () => {
   const cookie = signup.headers.get("set-cookie")!.split(";")[0];
   expect(cookie).toContain("better-auth.session_token=");
   const stored = await env.DB.prepare("SELECT password FROM account").first<{ password: string }>();
-  expect(stored!.password).toMatch(/^pbkdf2-sha256\$100000\$/);
+  expect(stored!.password).toMatch(/^pbkdf2-sha256\$50000\$/);
   expect((await auth.api.getSession({ headers: new Headers({ cookie }) }))?.user.name).toBe("Ada");
   expect((await request("sign-out", {}, cookie)).status).toBe(200);
   expect(await auth.api.getSession({ headers: new Headers({ cookie }) })).toBeNull();
