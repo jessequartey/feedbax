@@ -48,6 +48,116 @@ You need **Node 24.15 or newer 24.x**, a Notion workspace where you are an **own
 
 5. **You're live.** Setup creates storage, applies migrations and prints **Your feedback portal is live:** followed by your URL. Open it and submit a post; it should reach Notion within about 5 minutes. If setup stops, fix the reported problem and rerun the same command from the same folder. Answer yes to **Finish setting up …?** to resume.
 
+## Set up with an agent
+
+Copy the prompt below into your coding agent. An agent with a terminal and computer use can handle the account setup with your permission, run the CLI and verify the deployed portal. Keep tokens in the agent's secure secret input or local environment, rather than pasting them into chat. You handle sign-in, MFA and any payment details yourself.
+
+<details>
+<summary>Copy this setup prompt</summary>
+
+```text
+Set up and deploy Feedbax for me, then verify it works end to end.
+Read https://github.com/jessequartey/feedbax#readme first and follow
+its current instructions. Run npx create-feedbax@latest --help for supported
+options; use the published create-feedbax package to create the app.
+
+My preferences (ask once for anything missing):
+- Parent folder and project name: [where to create the project]
+- Template: [Notion / Notion + GitHub]
+- Product name and app URL: [name; URL for Back to app, or standalone]
+- GitHub repository, if selected: [owner/repo]
+- Anonymous feedback: false unless I choose otherwise.
+- Package manager: use my existing choice, otherwise npm.
+
+I authorize creating the resources needed for this portal and deploying
+to the Cloudflare account I select. Ask once for permission before
+using my signed-in browser sessions to manage Notion connections,
+GitHub tokens or Cloudflare settings. Reuse permission I have already
+given. If browser access is unavailable or declined, give me the exact
+manual step and continue the work that does not depend on it. Leave
+login, MFA and payment entry to me; use secure secret-input tools when
+you need a credential only I can provide.
+
+1. Check the destination folder, Node requirement and package manager.
+   Preserve existing files. Agree on the account/workspace and the
+   preferences above before creating remote resources. If setup was
+   interrupted, inspect and resume that project instead of duplicating
+   its resources. Complete each step below; report blockers precisely.
+
+2. Set up Notion. With browser permission, sign in, open the official
+   template linked in the README, click its top-right overlapping-pages
+   Duplicate icon and choose my workspace. Name the duplicate for this
+   project. Reuse an existing intended copy if present. Create a project
+   API-token connection, or reuse one I approve, with read/insert/update
+   access to this page. Follow the README's page-menu or settings route
+   to grant access. Verify the token can see the intended page and
+   Feedbax database through the API before continuing. Creating a token
+   alone does not grant page access. If both sharing routes fail, tell
+   me the exact page and connection to link, then recheck the API after
+   my action. Keep the official source template unchanged. Remove only
+   the known Example rows from my new deployment copy. If I prefer no
+   template, share an empty page and let the CLI create its database.
+
+3. For Notion + GitHub, verify the intended repository and enabled
+   Issues. With permission, create a fine-grained token limited to that
+   repository, with Issues read/write and Metadata read. Use a 90-day
+   expiry unless my account policy requires another. Reuse an approved token;
+   keep broad personal/gh credentials out of the generated app.
+   Skip this step for Notion only.
+
+4. Run npx create-feedbax@latest from the selected parent folder (or the
+   README's pnpm/bun equivalent). Prefer its interactive flow with a
+   real terminal so Cloudflare browser login can work. Use --yes only
+   when non-interactive setup is necessary: it never prompts or opens
+   a browser and requires NOTION_TOKEN, CLOUDFLARE_API_TOKEN and
+   CLOUDFLARE_ACCOUNT_ID in the environment, plus GITHUB_TOKEN and
+   --github-repo for notion-github. Supply project/template/anonymous
+   choices using the current --help. Secrets belong in secure inputs
+   or environment variables, never command arguments, chat, logs,
+   screenshots or Git. Preserve the generated secrets and restricted
+   .dev.vars permissions.
+
+5. Confirm the intended Cloudflare account. Let the CLI provision its
+   Worker, D1 database, R2 bucket, Queue and Cron, apply migrations and
+   deploy. Follow its R2 enablement and workers.dev subdomain guidance;
+   pause for me if payment details or a paid plan would be required.
+   Record created resource IDs and the actual portal URL. On failure,
+   diagnose and resume the same project; keep its data and secrets.
+
+6. Apply my product name and appUrl in feedbax.config.ts and redeploy
+   if changed. Keep standalone account login and my anonymous choice.
+   If I request social login, configure only the chosen provider and
+   its documented callback. If I request the dialog in my existing app,
+   follow the README block instructions: server-only signing secret,
+   authenticated same-origin token endpoint, dialog, sign-in link and
+   Back to app. Never derive a signed identity from client-supplied user
+   details. Notifications and admin features are roadmap items, with
+   nothing to configure today.
+
+7. Verify the live URL and /api/health. Use clearly identified temporary
+   test data to check sign-up/sign-in, a post with an image, voting,
+   comments, and the post reaching Notion. Change its Notion status and
+   wait for it to reach the portal/roadmap. For GitHub, approve that
+   test post, verify one linked issue, close it and verify Done returns
+   to the portal and Notion. If installing the host block, also check
+   submission, sign-in confirmation, Back to app and token replay
+   rejection. Check Cloudflare errors and CPU metrics where available;
+   distinguish production measurements from local tests.
+
+8. Remove only the test posts, comments, votes, accounts, images,
+   Notion rows and GitHub issues you created for verification, following
+   the README cleanup instructions. Preserve all real feedback and the
+   running portal's resources. Check the final portal and Notion state.
+
+Finish with the live portal and Notion URLs, project folder, enabled
+integrations, verified behavior, exact remaining manual actions and
+where secrets are stored (paths/names only). Give me the local dev and
+redeploy commands. Mark untested steps honestly; setup is complete only
+when the selected integrations and deployed portal have been verified.
+```
+
+</details>
+
 ## How it works
 
 ```text
