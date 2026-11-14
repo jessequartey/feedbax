@@ -1,10 +1,40 @@
-// A small, safe Markdown subset for changelog entries. It never produces HTML from the input:
-// the parser returns a tree of text nodes, and both renderers (React in
-// components/portal/markdown.tsx, and the escaped HTML string below for RSS) only ever emit
-// text, so raw HTML such as <script> is shown as literal text. Links are limited to http(s),
-// mailto and site-relative paths; anything else (javascript:, data:, vbscript: …) is dropped
-// to plain text. Supported: paragraphs, #–### headings, - / * / 1. lists, > quotes, ``` code
-// fences, --- rules, **bold**, *italic*, `code` and [text](url).
+// The one Markdown module of the portal: a small, restricted, dependency-free subset that is
+// parsed, normalized and rendered the same way everywhere. Posts, comments and changelog
+// entries are stored as this Markdown. Nothing here ever produces HTML from input: the parser
+// returns a tree of text nodes, and every renderer only emits text (React escapes it; the
+// string renderer below escapes it itself). Raw HTML such as <script> is just literal text.
+//
+// THE SUBSET
+//   Blocks   paragraphs; headings `###` and `####` (`#`/`##` count as `###`, `#####`/`######`
+//            as `####`); bulleted (`- `, `* `, `+ `) and numbered (`1.`, `1)`) flat lists;
+//            blockquotes (`> `); fenced code blocks (``` fences, the info string is dropped).
+//   Inlines  **bold** / __bold__, *italic* / _italic_, `inline code`, [text](url), line breaks.
+//   Links    http, https and mailto only. Anything else (javascript:, data:, vbscript:, relative
+//            paths, URLs with credentials or whitespace) is dropped and only the link text stays.
+//            Rendered with rel="noopener nofollow ugc".
+//   Not      images (they stay attachments; `![x](y)` is text plus a link), raw HTML, tables,
+//            horizontal rules, nested lists, footnotes, autolinks, strikethrough. They are not
+//            an error: the characters simply show up as text.
+//   Inline formatting never spans lines. Anything pathological (very deep nesting, thousands of
+//   unmatched delimiters) degrades to literal text instead of costing time.
+//
+// API
+//   parseMarkdown(source): Block[]            the tree; total, never throws, bounded work
+//   normalizeMarkdown(source): string         canonical stored Markdown: parse, then write back
+//                                             with every literal character escaped. Idempotent,
+//                                             and it renders exactly like the input.
+//   markdownToPlainText(markdown): string     readable plain text with line structure and link
+//                                             URLs in parentheses. For email and webhook payloads.
+//   markdownToText(source, max?): string     one line, link text only, cut at `max` with "…".
+//                                             For excerpts, page descriptions and previews.
+//   markdownToHtml(source): string            escaped HTML string (the RSS description)
+//   markdownToGitHub(source): string          Markdown safe to post as a GitHub issue body:
+//                                             HTML escaped, @mentions and #refs neutralized
+//   escapeMarkdownText(text): string          a literal string as Markdown (never formats)
+//   safeHref(raw): string | null              the link policy, on its own
+//   MARKDOWN_NOTE                             the one-line "Markdown supported" hint for forms
+// The React renderer is components/portal/markdown.tsx; the server validates writes through
+// markdownText() in server/validation.ts; Notion blocks are in integrations/notion-blocks.ts.
 
 export type Inline =
   | { type: "text"; text: string }
@@ -15,89 +45,255 @@ export type Inline =
   | { type: "link"; href: string; children: Inline[] };
 export type Block =
   | { type: "paragraph"; children: Inline[] }
-  | { type: "heading"; level: 1 | 2 | 3; children: Inline[] }
-  | { type: "list"; ordered: boolean; items: Inline[][] }
+  | { type: "heading"; level: 3 | 4; children: Inline[] }
+  | { type: "list"; ordered: boolean; start: number; items: Inline[][] }
   | { type: "quote"; children: Inline[] }
-  | { type: "code"; text: string }
-  | { type: "rule" };
+  | { type: "code"; text: string };
 
-/** Absolute http(s) and mailto URLs, and site-relative paths. Everything else is refused. */
+export const MARKDOWN_NOTE =
+  "Markdown supported: **bold**, *italic*, `code`, links, lists, > quotes.";
+
+const MAX_DEPTH = 4;
+const MAX_HREF = 2000;
+const MAX_PAREN_DEPTH = 3;
+const PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
+const PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
+/** Control characters, whitespace and invisible formatting can hide a scheme ("java\tscript:"). */
+function hasHiddenChar(value: string): boolean {
+  for (const char of value) {
+    const code = char.codePointAt(0)!;
+    if (
+      code <= 0x1f ||
+      (code >= 0x7f && code <= 0x9f) ||
+      (code >= 0x200b && code <= 0x200f) ||
+      (code >= 0x202a && code <= 0x202e) ||
+      (code >= 0x2066 && code <= 0x2069) ||
+      code === 0xfeff ||
+      /\s/u.test(char)
+    )
+      return true;
+  }
+  return false;
+}
+
+/**
+ * The link policy. Absolute http(s) and mailto URLs only. Returns the URL with the characters
+ * that could break out of a Markdown destination or an HTML attribute percent-encoded, or null
+ * when the URL is refused. The result is idempotent: safeHref(safeHref(x)) === safeHref(x).
+ */
 export function safeHref(raw: string): string | null {
-  const value = raw.trim();
-  // Control characters and whitespace can hide a scheme from a naive check ("java\tscript:").
-  // oxlint-disable-next-line no-control-regex
-  if (!value || /[\u0000-\u001f\u007f\s]/u.test(value) || value.length > 2000) return null;
-  if (value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\")) return value;
+  if (!raw || raw.length > MAX_HREF || hasHiddenChar(raw)) return null;
+  let url: URL;
   try {
-    const url = new URL(value);
-    if (["http:", "https:", "mailto:"].includes(url.protocol) && url.href) return value;
+    url = new URL(raw);
   } catch {
-    // Not an absolute URL.
+    return null;
+  }
+  if (!PROTOCOLS.has(url.protocol) || url.username || url.password) return null;
+  if (url.protocol === "mailto:" ? !url.pathname : !url.hostname) return null;
+  return raw.replace(
+    /["'<>`\\()]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`,
+  );
+}
+
+type Context = { steps: number };
+
+const isSpace = (char: string | undefined) => char === undefined || /\s/u.test(char);
+const isAlnum = (char: string | undefined) => char !== undefined && /[\p{L}\p{N}]/u.test(char);
+
+/** Index of the closing backtick run of the same length, or -1. Stays inside [from, to). */
+function findCodeEnd(source: string, from: number, to: number, length: number, ctx: Context) {
+  let i = from;
+  while (i < to) {
+    const next = source.indexOf("`", i);
+    if (next === -1 || next >= to) return -1;
+    let end = next;
+    while (end < to && source[end] === "`") end++;
+    if (--ctx.steps < 0) return -1;
+    if (end - next === length) return next;
+    i = end;
+  }
+  return -1;
+}
+
+/** The closing delimiter run of `char` repeated `length` times, honoring escapes, code spans and nesting. */
+function findEmphasisEnd(
+  source: string,
+  from: number,
+  to: number,
+  char: string,
+  length: number,
+  ctx: Context,
+) {
+  let nested = 0;
+  let i = from;
+  while (i < to) {
+    if (--ctx.steps < 0) return -1;
+    const c = source[i]!;
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === "`") {
+      let end = i;
+      while (end < to && source[end] === "`") end++;
+      const close = findCodeEnd(source, end, to, end - i, ctx);
+      i = close === -1 ? end : close + (end - i);
+      continue;
+    }
+    if (c === char) {
+      let end = i;
+      while (end < to && source[end] === char) end++;
+      if (end - i === length) {
+        const before = source[i - 1];
+        const after = end < to ? source[end] : undefined;
+        const canClose = !isSpace(before) && (char === "*" || !isAlnum(after)) && i > from;
+        const canOpen = !isSpace(after) && (char === "*" || !isAlnum(before));
+        if (canClose && nested === 0) return i;
+        if (canClose) nested--;
+        else if (canOpen) nested++;
+      }
+      i = end;
+      continue;
+    }
+    i++;
+  }
+  return -1;
+}
+
+/** `[text](url)`: returns where the link text ends and where the whole link ends, or null. */
+function matchLink(source: string, open: number, to: number, ctx: Context) {
+  let i = open + 1;
+  for (; i < to; i++) {
+    if (--ctx.steps < 0) return null;
+    const c = source[i]!;
+    if (c === "\\") i++;
+    else if (c === "[") return null;
+    else if (c === "]") break;
+    else if (c === "`") {
+      let end = i;
+      while (end < to && source[end] === "`") end++;
+      const close = findCodeEnd(source, end, to, end - i, ctx);
+      i = (close === -1 ? end : close + (end - i)) - 1;
+    }
+  }
+  if (i >= to || source[i + 1] !== "(") return null;
+  const textEnd = i;
+  let depth = 0;
+  const limit = Math.min(to, textEnd + 2 + MAX_HREF);
+  for (let j = textEnd + 2; j < limit; j++) {
+    if (--ctx.steps < 0) return null;
+    const c = source[j]!;
+    if (c === "\\") j++;
+    else if (c === "(") {
+      if (++depth > MAX_PAREN_DEPTH) return null;
+    } else if (c === ")") {
+      if (depth === 0) return { textEnd, hrefStart: textEnd + 2, end: j + 1 };
+      depth--;
+    } else if (c <= " " || /\s/u.test(c)) return null;
   }
   return null;
 }
 
-const MAX_DEPTH = 4;
-
-function parseInline(source: string, depth = 0): Inline[] {
+function parseInlines(
+  source: string,
+  from: number,
+  to: number,
+  depth: number,
+  ctx: Context,
+  inLink: boolean,
+): Inline[] {
   const out: Inline[] = [];
   let buffer = "";
   const flush = () => {
     if (buffer) out.push({ type: "text", text: buffer });
     buffer = "";
   };
-  let i = 0;
-  while (i < source.length) {
+  let i = from;
+  while (i < to) {
+    if (--ctx.steps < 0) {
+      buffer += source.slice(i, to);
+      break;
+    }
     const char = source[i]!;
-    if (char === "\\" && i + 1 < source.length && /[\\`*_[\]()#>-]/.test(source[i + 1]!)) {
+    if (char === "\\" && i + 1 < to && PUNCTUATION.includes(source[i + 1]!)) {
       buffer += source[i + 1];
       i += 2;
       continue;
     }
-    if (char === "\n") {
+    if (char === "`") {
+      let end = i;
+      while (end < to && source[end] === "`") end++;
+      const length = end - i;
+      const close = findCodeEnd(source, end, to, length, ctx);
+      if (close === -1) {
+        buffer += source.slice(i, end);
+        i = end;
+        continue;
+      }
+      let code = source.slice(end, close);
+      if (code.length > 1 && code.startsWith(" ") && code.endsWith(" ") && code.trim()) {
+        code = code.slice(1, -1);
+      }
       flush();
-      out.push({ type: "break" });
-      i++;
+      out.push({ type: "code", text: code });
+      i = close + length;
       continue;
     }
-    if (char === "`") {
-      const end = source.indexOf("`", i + 1);
-      if (end > i + 1) {
-        flush();
-        out.push({ type: "code", text: source.slice(i + 1, end) });
-        i = end + 1;
-        continue;
+    if ((char === "*" || char === "_") && depth < MAX_DEPTH) {
+      let end = i;
+      while (end < to && source[end] === char) end++;
+      const length = end - i;
+      const before = i > from ? source[i - 1] : undefined;
+      const after = end < to ? source[end] : undefined;
+      const canOpen = !isSpace(after) && (char === "*" || !isAlnum(before));
+      if (canOpen && length <= 3) {
+        const close = findEmphasisEnd(source, end, to, char, length, ctx);
+        if (close !== -1) {
+          flush();
+          const children = parseInlines(source, end, close, depth + 1, ctx, inLink);
+          if (children.length) {
+            out.push(
+              length === 1
+                ? { type: "em", children }
+                : length === 2
+                  ? { type: "strong", children }
+                  : { type: "em", children: [{ type: "strong", children }] },
+            );
+          }
+          i = close + length;
+          continue;
+        }
       }
+      buffer += source.slice(i, end);
+      i = end;
+      continue;
     }
-    if (depth < MAX_DEPTH && (source.startsWith("**", i) || source.startsWith("__", i))) {
-      const mark = source.slice(i, i + 2);
-      const end = source.indexOf(mark, i + 2);
-      if (end > i + 2) {
-        flush();
-        out.push({ type: "strong", children: parseInline(source.slice(i + 2, end), depth + 1) });
-        i = end + 2;
-        continue;
-      }
-    }
-    if (depth < MAX_DEPTH && char === "*") {
-      const end = source.indexOf("*", i + 1);
-      if (end > i + 1 && source[i + 1] !== " " && source[end - 1] !== " ") {
-        flush();
-        out.push({ type: "em", children: parseInline(source.slice(i + 1, end), depth + 1) });
-        i = end + 1;
-        continue;
-      }
-    }
-    if (depth < MAX_DEPTH && char === "[") {
-      const link = /^\[([^\]\n]*)\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/.exec(source.slice(i));
-      if (link) {
-        const href = safeHref(link[2]!);
-        flush();
-        const children = parseInline(link[1]!, depth + 1);
-        // A refused URL leaves just the link text, never the URL.
-        if (href) out.push({ type: "link", href, children });
-        else out.push(...children);
-        i += link[0].length;
+    if (char === "[" && !inLink && depth < MAX_DEPTH) {
+      const match = matchLink(source, i, to, ctx);
+      if (match) {
+        const href = safeHref(source.slice(match.hrefStart, match.end - 1));
+        const children = parseInlines(source, i + 1, match.textEnd, depth + 1, ctx, true);
+        if (!href) {
+          // A refused URL leaves just the link text, never the URL.
+          for (const child of children) {
+            if (child.type === "text") buffer += child.text;
+            else {
+              flush();
+              out.push(child);
+            }
+          }
+        } else {
+          flush();
+          out.push({
+            type: "link",
+            href,
+            children: children.length ? children : [{ type: "text", text: href }],
+          });
+        }
+        i = match.end;
         continue;
       }
     }
@@ -108,70 +304,451 @@ function parseInline(source: string, depth = 0): Inline[] {
   return out;
 }
 
+const hasContent = (nodes: Inline[]): boolean =>
+  nodes.some((node) =>
+    node.type === "text"
+      ? node.text.trim() !== ""
+      : node.type === "break"
+        ? false
+        : node.type === "code"
+          ? true
+          : hasContent(node.children),
+  );
+
+/** One line of inlines with the whitespace at its edges trimmed (spaces can surface when a link is refused). */
+function parseLine(line: string, ctx: Context, trimStart: boolean): Inline[] {
+  const nodes = parseInlines(line, 0, line.length, 0, ctx, false);
+  while (trimStart && nodes[0]?.type === "text") {
+    nodes[0].text = nodes[0].text.trimStart();
+    if (nodes[0].text) break;
+    nodes.shift();
+  }
+  while (nodes.at(-1)?.type === "text") {
+    const last = nodes.at(-1) as { type: "text"; text: string };
+    last.text = last.text.trimEnd();
+    if (last.text) break;
+    nodes.pop();
+  }
+  return nodes;
+}
+
+/** Lines of one block (a paragraph, a quote) as inlines, with a break between lines. */
+function lineInlines(lines: string[], ctx: Context): Inline[] {
+  const out: Inline[] = [];
+  lines.forEach((raw, index) => {
+    let line = raw.trimEnd();
+    if (index === 0) line = line.trimStart();
+    // An odd number of trailing backslashes ends in a CommonMark hard break.
+    if (index < lines.length - 1) {
+      let slashes = 0;
+      while (line[line.length - 1 - slashes] === "\\") slashes++;
+      if (slashes % 2 === 1 && line.slice(0, -1).trim()) line = line.slice(0, -1);
+    }
+    if (index > 0) out.push({ type: "break" });
+    out.push(...parseLine(line, ctx, index === 0));
+  });
+  return out;
+}
+
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
+const SKIP_CHARS =
+  // oxlint-disable-next-line no-control-regex
+  /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069\ufeff]/gu;
+const ITEM = /^ {0,3}(?:([-*+])|(\d{1,9})[.)])[ \t]+(\S.*)$/u;
+const FENCE = /^ {0,3}(`{3,})[^`]*$/u;
+const HEADING_OPEN = /^ {0,3}(#{1,6})[ \t]+/u;
+const QUOTE_OPEN = /^ {0,3}>[ \t]?/u;
+
+/** The restricted subset as a tree. Total: any string gives a tree, in time linear in its length. */
 export function parseMarkdown(source: string): Block[] {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  const clean = source
+    .replace(LONE_SURROGATE, "\ufffd")
+    .replace(/\r\n?/g, "\n")
+    .replace(SKIP_CHARS, "");
+  const lines = clean.split("\n");
+  const ctx: Context = { steps: 40 * clean.length + 5000 };
   const blocks: Block[] = [];
   let paragraph: string[] = [];
   const endParagraph = () => {
-    if (paragraph.length)
-      blocks.push({ type: "paragraph", children: parseInline(paragraph.join("\n")) });
+    if (paragraph.length) {
+      const children = lineInlines(paragraph, ctx);
+      if (hasContent(children)) blocks.push({ type: "paragraph", children });
+    }
     paragraph = [];
   };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    if (/^\s*```/.test(line)) {
+    const fence = FENCE.exec(line);
+    if (fence) {
       endParagraph();
+      const size = fence[1]!.length;
       const code: string[] = [];
-      for (i++; i < lines.length && !/^\s*```/.test(lines[i]!); i++) code.push(lines[i]!);
-      blocks.push({ type: "code", text: code.join("\n") });
+      for (i++; i < lines.length; i++) {
+        const close = /^ {0,3}(`{3,})[ \t]*$/u.exec(lines[i]!);
+        if (close && close[1]!.length >= size) break;
+        code.push(lines[i]!);
+      }
+      const text = code.join("\n");
+      if (text.trim()) blocks.push({ type: "code", text });
       continue;
     }
     if (!line.trim()) {
       endParagraph();
       continue;
     }
-    const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    const heading = HEADING_OPEN.exec(line);
     if (heading) {
       endParagraph();
-      blocks.push({
-        type: "heading",
-        level: Math.min(heading[1]!.length, 3) as 1 | 2 | 3,
-        children: parseInline(heading[2]!),
-      });
+      let rest = line.slice(heading[0].length).trimEnd();
+      let end = rest.length;
+      while (end > 0 && rest[end - 1] === "#") end--;
+      if (end < rest.length && (end === 0 || /[ \t]/.test(rest[end - 1]!)))
+        rest = rest.slice(0, end).trimEnd();
+      const children = parseLine(rest, ctx, true);
+      if (hasContent(children))
+        blocks.push({ type: "heading", level: heading[1]!.length <= 3 ? 3 : 4, children });
       continue;
     }
-    if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(line)) {
-      endParagraph();
-      blocks.push({ type: "rule" });
-      continue;
-    }
-    const item = /^\s{0,3}(?:([-*+])|(\d{1,9})[.)])\s+(.*)$/.exec(line);
+    const item = ITEM.exec(line);
     if (item) {
       endParagraph();
       const ordered = item[2] !== undefined;
+      const start = ordered ? Number(item[2]) : 1;
       const items: Inline[][] = [];
       for (; i < lines.length; i++) {
-        const next = /^\s{0,3}(?:([-*+])|(\d{1,9})[.)])\s+(.*)$/.exec(lines[i]!);
+        const next = ITEM.exec(lines[i]!);
         if (!next || (next[2] !== undefined) !== ordered) break;
-        items.push(parseInline(next[3]!));
+        const text = next[3]!.trimEnd();
+        const children = parseLine(text, ctx, true);
+        if (hasContent(children)) items.push(children);
       }
       i--;
-      blocks.push({ type: "list", ordered, items });
+      if (items.length) blocks.push({ type: "list", ordered, start, items });
       continue;
     }
-    if (/^\s{0,3}>/.test(line)) {
+    if (QUOTE_OPEN.test(line)) {
       endParagraph();
       const quoted: string[] = [];
-      for (; i < lines.length && /^\s{0,3}>/.test(lines[i]!); i++)
-        quoted.push(lines[i]!.replace(/^\s{0,3}>\s?/, ""));
+      for (; i < lines.length && QUOTE_OPEN.test(lines[i]!); i++)
+        quoted.push(lines[i]!.replace(QUOTE_OPEN, ""));
       i--;
-      blocks.push({ type: "quote", children: parseInline(quoted.join("\n")) });
+      const children = lineInlines(quoted, ctx);
+      if (hasContent(children)) blocks.push({ type: "quote", children });
       continue;
     }
     paragraph.push(line);
   }
   endParagraph();
   return blocks;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Writing Markdown back: storage form, and the GitHub form.
+
+type Target = "storage" | "github";
+
+function escapeText(text: string, target: Target): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    const prev = text[i - 1];
+    const next = text[i + 1];
+    switch (char) {
+      case "\\":
+        out += next === undefined || PUNCTUATION.includes(next) ? "\\\\" : "\\";
+        break;
+      case "*":
+      case "`":
+      case "[":
+      case "]":
+        out += `\\${char}`;
+        break;
+      case "_":
+        out += isAlnum(prev) && isAlnum(next) ? char : "\\_";
+        break;
+      case "<":
+        out +=
+          target === "github"
+            ? "&lt;"
+            : next !== undefined && /[A-Za-z/!?]/.test(next)
+              ? "\\<"
+              : char;
+        break;
+      case "&":
+        out +=
+          target === "github" ? "&amp;" : /^#?\w+;/.test(text.slice(i + 1, i + 12)) ? "\\&" : char;
+        break;
+      case "@":
+        // A zero-width space stops GitHub from notifying whoever the name belongs to.
+        out += target === "github" ? "@\u200b" : char;
+        break;
+      case "#":
+        out += target === "github" && next !== undefined && /\d/.test(next) ? "\\#" : char;
+        break;
+      case "-":
+        out +=
+          target === "github" &&
+          next !== undefined &&
+          /\d/.test(next) &&
+          /gh$/i.test(text.slice(0, i))
+            ? "\\-"
+            : char;
+        break;
+      case "|":
+      case "~":
+        out += target === "github" ? `\\${char}` : char;
+        break;
+      default:
+        out += char;
+    }
+  }
+  return out;
+}
+
+/** Constructs that would start a block if a line began with them. */
+function escapeLineStart(line: string): string {
+  return line
+    .replace(/^( {0,3})(#{1,6}(?=[ \t]|$)|[>+=~|-])/u, "$1\\$2")
+    .replace(/^( {0,3}\d{1,9})([.)])(?=[ \t]|$)/u, "$1\\$2");
+}
+
+function codeSpan(text: string): string {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = "`".repeat(longest + 1);
+  const pad =
+    text.startsWith("`") ||
+    text.endsWith("`") ||
+    (text.startsWith(" ") && text.endsWith(" ") && text.trim());
+  return pad ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`;
+}
+
+const isEmphasis = (node: Inline | undefined) => node?.type === "strong" || node?.type === "em";
+
+function writeInlines(nodes: Inline[], target: Target, inStrong = false): string {
+  let out = "";
+  let lineStart = true;
+  nodes.forEach((node, index) => {
+    let piece: string;
+    switch (node.type) {
+      case "text": {
+        piece = escapeText(node.text, target);
+        // "!" right before a link would turn it into an image elsewhere.
+        if (nodes[index + 1]?.type === "link" && piece.endsWith("!"))
+          piece = `${piece.slice(0, -1)}\\!`;
+        if (lineStart) piece = escapeLineStart(piece);
+        break;
+      }
+      case "break":
+        out += "\n";
+        lineStart = true;
+        return;
+      case "code":
+        piece = codeSpan(node.text);
+        break;
+      case "strong": {
+        // After another emphasis node "__" keeps the two delimiter runs apart.
+        const mark = isEmphasis(nodes[index - 1]) ? "__" : "**";
+        piece = `${mark}${writeInlines(node.children, target, true)}${mark}`;
+        break;
+      }
+      case "em": {
+        const inner = writeInlines(node.children, target, true);
+        // "_" where "*" would run into a neighbouring delimiter ("***x***" has two readings).
+        const mark =
+          inStrong || isEmphasis(nodes[index - 1]) || node.children.some((c) => c.type === "strong")
+            ? "_"
+            : "*";
+        piece = `${mark}${inner}${mark}`;
+        break;
+      }
+      case "link":
+        piece = `[${writeInlines(node.children, target, true)}](${node.href})`;
+        break;
+    }
+    if (piece) lineStart = false;
+    out += piece;
+  });
+  return out;
+}
+
+function writeBlock(block: Block, target: Target): string {
+  switch (block.type) {
+    case "paragraph":
+      return writeInlines(block.children, target);
+    case "heading":
+      // A trailing "#" run would read as the optional closing sequence of the heading.
+      return `${"#".repeat(block.level)} ${writeInlines(block.children, target).replace(/(^|[ \t])(#+)$/u, "$1\\$2")}`;
+    case "list":
+      return block.items
+        .map(
+          (item, index) =>
+            `${block.ordered ? `${block.start + index}.` : "-"} ${writeInlines(item, target)}`,
+        )
+        .join("\n");
+    case "quote":
+      return writeInlines(block.children, target)
+        .split("\n")
+        .map((line) => (line ? `> ${line}` : ">"))
+        .join("\n");
+    case "code": {
+      const longest = Math.max(0, ...(block.text.match(/`+/g) ?? []).map((run) => run.length));
+      const fence = "`".repeat(Math.max(3, longest + 1));
+      return `${fence}\n${block.text}\n${fence}`;
+    }
+  }
+}
+
+/** The same content with every inline formatting node flattened to literal text. */
+function literalBlock(block: Block, oneLine: boolean): Block | null {
+  const flat = (nodes: Inline[]): Inline[] => {
+    const out: Inline[] = [];
+    const push = (text: string) => {
+      const last = out.at(-1);
+      if (last?.type === "text") last.text += text;
+      else out.push({ type: "text", text });
+    };
+    const walk = (list: Inline[]) => {
+      for (const node of list) {
+        if (node.type === "text" || node.type === "code") push(node.text);
+        else if (node.type === "break") {
+          if (oneLine) push(" ");
+          else out.push({ type: "break" });
+        } else walk(node.children);
+      }
+    };
+    walk(nodes);
+    const first = out[0];
+    if (first?.type === "text") first.text = first.text.trimStart();
+    for (let i = 0; i < out.length; i++) {
+      const node = out[i]!;
+      if (node.type === "text" && out[i + 1]?.type !== "text") node.text = node.text.trimEnd();
+    }
+    return out;
+  };
+  switch (block.type) {
+    case "paragraph":
+    case "quote":
+    case "heading":
+      return { ...block, children: flat(block.children) };
+    case "list":
+      return { ...block, items: block.items.map(flat) };
+    case "code":
+      return null;
+  }
+}
+
+/**
+ * The canonical stored form of `source`: it parses to the same tree and therefore renders the
+ * same, but every character that is not formatting is escaped, so any CommonMark reader (the
+ * editor, GitHub, an email client) reads it the same way. Normalizing twice changes nothing.
+ */
+export function normalizeMarkdown(source: string): string {
+  const parts: string[] = [];
+  for (const block of parseMarkdown(source)) {
+    const text = writeBlock(block, "storage");
+    if (JSON.stringify(parseMarkdown(text)) === JSON.stringify([block])) {
+      parts.push(text);
+      continue;
+    }
+    // A rare tree that cannot be written back unchanged is kept as literal text instead:
+    // first with its line structure, then on one line. Content is never silently dropped.
+    for (const oneLine of [false, true]) {
+      const literal = literalBlock(block, oneLine);
+      const fallback = literal ? writeBlock(literal, "storage") : null;
+      if (
+        literal &&
+        fallback &&
+        JSON.stringify(parseMarkdown(fallback)) === JSON.stringify([literal])
+      ) {
+        parts.push(fallback);
+        break;
+      }
+    }
+  }
+  return parts.join("\n\n");
+}
+
+/** A literal string as Markdown that renders as exactly that string (one paragraph). */
+export function escapeMarkdownText(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => escapeLineStart(escapeText(line.trim(), "storage")))
+    .join("\n");
+}
+
+/**
+ * The body of a GitHub issue: the stored Markdown with raw HTML escaped, @mentions and #refs
+ * neutralized (GitHub would notify people, or link other issues), and nothing else changed.
+ */
+export function markdownToGitHub(source: string): string {
+  return parseMarkdown(source)
+    .map((block) => writeBlock(block, "github"))
+    .join("\n\n");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Plain text and HTML.
+
+type PlainOptions = { urls: boolean; oneLine: boolean };
+
+function inlinePlain(nodes: Inline[], options: PlainOptions): string {
+  return nodes
+    .map((node) => {
+      switch (node.type) {
+        case "text":
+        case "code":
+          return node.text;
+        case "break":
+          return options.oneLine ? " " : "\n";
+        case "link": {
+          const text = inlinePlain(node.children, options);
+          const shown = node.href.replace(/^mailto:/, "");
+          return options.urls && text !== node.href && text !== shown ? `${text} (${shown})` : text;
+        }
+        default:
+          return inlinePlain(node.children, options);
+      }
+    })
+    .join("");
+}
+
+function blocksToPlain(blocks: Block[], options: PlainOptions): string {
+  return blocks
+    .map((block) => {
+      switch (block.type) {
+        case "list":
+          return block.items
+            .map((item, index) => {
+              const text = inlinePlain(item, options);
+              if (options.oneLine) return text;
+              return `${block.ordered ? `${block.start + index}.` : "-"} ${text}`;
+            })
+            .join(options.oneLine ? " " : "\n");
+        case "code":
+          return options.oneLine ? block.text.replace(/\s+/gu, " ") : block.text;
+        default:
+          return inlinePlain(block.children, options);
+      }
+    })
+    .join(options.oneLine ? " " : "\n\n");
+}
+
+/**
+ * Readable plain text: no markup, paragraphs separated by a blank line, list items on their own
+ * lines, links as `text (url)`. Use it for the plain-text part of an email and for webhook
+ * payloads. It accepts any string, including plain text that never was Markdown.
+ */
+export function markdownToPlainText(markdown: string): string {
+  return blocksToPlain(parseMarkdown(markdown), { urls: true, oneLine: false }).trim();
+}
+
+/** One line of plain text (link text only), cut at `max` characters with "…". For excerpts. */
+export function markdownToText(source: string, max = 160): string {
+  const text = blocksToPlain(parseMarkdown(source), { urls: false, oneLine: true })
+    .replace(/\s+/gu, " ")
+    .trim();
+  const letters = Array.from(text);
+  return letters.length > max ? `${letters.slice(0, max).join("")}…` : text;
 }
 
 export const escapeHtml = (value: string) =>
@@ -197,7 +774,7 @@ function inlineHtml(nodes: Inline[]): string {
         case "em":
           return `<em>${inlineHtml(node.children)}</em>`;
         case "link":
-          return `<a href="${escapeHtml(node.href)}" rel="noopener nofollow">${inlineHtml(node.children)}</a>`;
+          return `<a href="${escapeHtml(node.href)}" rel="noopener nofollow ugc">${inlineHtml(node.children)}</a>`;
       }
     })
     .join("");
@@ -211,91 +788,17 @@ export function markdownToHtml(source: string): string {
         case "paragraph":
           return `<p>${inlineHtml(block.children)}</p>`;
         case "heading":
-          return `<h${block.level + 2}>${inlineHtml(block.children)}</h${block.level + 2}>`;
+          return `<h${block.level}>${inlineHtml(block.children)}</h${block.level}>`;
         case "list": {
           const tag = block.ordered ? "ol" : "ul";
-          return `<${tag}>${block.items.map((item) => `<li>${inlineHtml(item)}</li>`).join("")}</${tag}>`;
+          const start = block.ordered && block.start !== 1 ? ` start="${block.start}"` : "";
+          return `<${tag}${start}>${block.items.map((item) => `<li>${inlineHtml(item)}</li>`).join("")}</${tag}>`;
         }
         case "quote":
           return `<blockquote>${inlineHtml(block.children)}</blockquote>`;
         case "code":
           return `<pre><code>${escapeHtml(block.text)}</code></pre>`;
-        case "rule":
-          return "<hr />";
       }
     })
     .join("");
-}
-
-function inlineText(nodes: Inline[]): string {
-  return nodes
-    .map((node) =>
-      node.type === "text" || node.type === "code"
-        ? node.text
-        : node.type === "break"
-          ? " "
-          : inlineText(node.children),
-    )
-    .join("");
-}
-
-/** The entry as plain text on one line, cut at `max` characters (page descriptions). */
-export function markdownToText(source: string, max = 160): string {
-  const text = parseMarkdown(source)
-    .map((block) =>
-      block.type === "list"
-        ? block.items.map(inlineText).join(" ")
-        : block.type === "code"
-          ? block.text
-          : block.type === "rule"
-            ? ""
-            : inlineText(block.children),
-    )
-    .join(" ")
-    .replace(/\s+/gu, " ")
-    .trim();
-  const letters = Array.from(text);
-  return letters.length > max ? `${letters.slice(0, max - 1).join("")}…` : text;
-}
-
-const linkText = (text: string, href: string) => (text === href ? text : `${text} (${href})`);
-
-function plainInline(nodes: Inline[]): string {
-  return nodes
-    .map((node) =>
-      node.type === "text" || node.type === "code"
-        ? node.text
-        : node.type === "break"
-          ? "\n"
-          : node.type === "link"
-            ? linkText(plainInline(node.children), node.href)
-            : plainInline(node.children),
-    )
-    .join("");
-}
-
-/**
- * The whole body as plain text, no cut and no HTML: blocks are separated by a blank line, list
- * items sit on their own lines ("- " or "1. "), links keep their address in brackets. Used where
- * a reader cannot render Markdown (webhook payloads carry both forms).
- */
-export function markdownToPlainText(source: string): string {
-  return parseMarkdown(source)
-    .map((block) => {
-      switch (block.type) {
-        case "list":
-          return block.items
-            .map((item, i) => `${block.ordered ? `${i + 1}.` : "-"} ${plainInline(item)}`)
-            .join("\n");
-        case "code":
-          return block.text;
-        case "rule":
-          return "";
-        default:
-          return plainInline(block.children);
-      }
-    })
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
 }

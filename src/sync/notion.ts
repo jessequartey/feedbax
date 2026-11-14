@@ -6,7 +6,9 @@ import type { Status } from "../contracts/domain.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
 import { notionSchemaChanges, richText, schemaError } from "../integrations/notion-schema.ts";
 import type { NotionProperties } from "../integrations/notion-schema.ts";
+import { markdownToNotionBlocks } from "../integrations/notion-blocks.ts";
 import { notionText } from "../integrations/notion.ts";
+import { markdownToPlainText } from "../lib/markdown.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
 import { emitStatusChanges } from "../server/webhooks.ts";
 import type { NotionList, NotionPage } from "../integrations/notion.ts";
@@ -25,7 +27,8 @@ import type { SyncPost } from "./shared.ts";
 function mirrorProperties(post: SyncPost) {
   return {
     Name: { title: richText(post.title) },
-    Description: { rich_text: richText(post.body) },
+    // The text only; the formatted body is the page content (see `bodyBlocks`).
+    Description: { rich_text: richText(markdownToPlainText(post.body)) },
     Category: { select: { name: CATEGORY_LABELS[post.category] } },
     Votes: { number: post.votes },
     Comments: { number: post.comments },
@@ -41,6 +44,16 @@ function mirrorProperties(post: SyncPost) {
     },
     Created: { date: { start: new Date(post.createdAt).toISOString() } },
   };
+}
+
+/**
+ * The formatted body as page content, written once when the page is created. Posts are not
+ * edited after they are written, and updates only touch the properties above, so the body
+ * never has to be rewritten block by block.
+ */
+function bodyBlocks(post: SyncPost) {
+  const children = markdownToNotionBlocks(post.body, `${portalUrl()}/posts/${post.id}`);
+  return children.length ? { children } : {};
 }
 
 export async function mirrorPost(postId: string): Promise<void> {
@@ -109,6 +122,7 @@ export async function mirrorPost(postId: string): Promise<void> {
           Status: { select: { name: "Open" } },
           "Send to GitHub": { checkbox: false },
         },
+        ...bodyBlocks(post),
       });
       pageId = created.id;
       if (!pageId) throw schemaError("Notion did not return the created page ID.");

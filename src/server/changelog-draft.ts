@@ -3,15 +3,19 @@ import { sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "../db/client.ts";
 import { changelogEntries, changelogPosts, posts } from "../db/schema.ts";
+import { escapeMarkdownText } from "../lib/markdown.ts";
+import { excerptOf } from "./excerpt.ts";
 import { readSettings } from "./settings.ts";
 
 // Auto-draft for sync (src/sync/): kept apart from changelog.ts so the queue consumer does not
 // pull in the router. Nothing here is reachable from a request.
 
-/** The post excerpt a draft starts from: whitespace collapsed, at most 280 characters. */
+/**
+ * The post excerpt a draft starts from: the post as one line of plain text, at most 280
+ * characters, written back as Markdown (so the draft shows the same words, never formatting).
+ */
 export function draftExcerpt(body: string): string {
-  const letters = Array.from(body.replace(/\s+/gu, " ").trim());
-  return letters.slice(0, 280).join("") + (letters.length > 280 ? "…" : "");
+  return escapeMarkdownText(excerptOf(body, 280));
 }
 
 /**

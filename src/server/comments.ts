@@ -12,7 +12,7 @@ import { enqueuePost } from "./posts.ts";
 import { runtimeConfig } from "./settings.ts";
 import { publiclyVisible } from "./visibility.ts";
 import { emitCommentCreated } from "./webhooks.ts";
-import { pageNumber, record, text, uuid } from "./validation.ts";
+import { markdownText, pageNumber, record, uuid } from "./validation.ts";
 
 function commentView(row: {
   comment: typeof comments.$inferSelect;
@@ -40,7 +40,7 @@ export async function addCommentForUser(
     data = record(input);
   const id = uuid(data.id),
     postId = uuid(data.postId, "postId"),
-    body = text(data.body, LIMITS.comment, "body");
+    body = markdownText(data.body, LIMITS.comment, "body");
   const db = createDb(env.DB);
   async function existingComment() {
     const row = await db

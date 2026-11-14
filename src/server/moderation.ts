@@ -15,6 +15,7 @@ import { createDb } from "../db/client.ts";
 import { changelogPosts, comments, images, posts, user, votes } from "../db/schema.ts";
 import { DomainError, invalid } from "./errors.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
+import { excerptOf } from "./excerpt.ts";
 import { publiclyVisible } from "./visibility.ts";
 
 // Moderation actions. Callers must already have passed `requireAdmin` (admin-api.ts): these
@@ -75,11 +76,10 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
       .get(),
   ]);
   const items = rows.map((row): ModerationPost => {
-    const body = Array.from(row.post.body.replace(/\s+/gu, " ").trim());
     return {
       id: row.post.id,
       title: row.post.title,
-      excerpt: body.slice(0, 160).join("") + (body.length > 160 ? "…" : ""),
+      excerpt: excerptOf(row.post.body, 160),
       category: row.post.category,
       status: row.post.status,
       author: author(row.author),

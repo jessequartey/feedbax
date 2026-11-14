@@ -3,8 +3,10 @@ import * as React from "react";
 import { parseMarkdown, type Block, type Inline } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
-// Renders the safe Markdown subset (src/lib/markdown.ts) as React elements. Nothing here uses
-// dangerouslySetInnerHTML: every string reaches the DOM as text.
+// The one renderer for stored Markdown (src/lib/markdown.ts): post pages, comments, the
+// changelog and admin moderation all use it, so a body looks the same everywhere. Nothing here
+// uses dangerouslySetInnerHTML: every string reaches the DOM as text. Whitespace is kept as
+// typed (pre-wrap), so plain text written before formatting existed looks as it always did.
 
 function Inlines({ nodes }: { nodes: Inline[] }) {
   return (
@@ -38,8 +40,8 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
               <a
                 key={index}
                 href={node.href}
-                rel="noopener nofollow"
-                {...(node.href.startsWith("/") ? {} : { target: "_blank" })}
+                rel="noopener nofollow ugc"
+                target="_blank"
                 className="underline underline-offset-4 hover:text-foreground"
               >
                 <Inlines nodes={node.children} />
@@ -51,20 +53,20 @@ function Inlines({ nodes }: { nodes: Inline[] }) {
   );
 }
 
-const HEADINGS = { 1: "h3", 2: "h4", 3: "h5" } as const;
+const HEADINGS = { 3: "h3", 4: "h4" } as const;
 
 function BlockView({ block }: { block: Block }) {
   switch (block.type) {
     case "paragraph":
       return (
-        <p className="break-words">
+        <p className="break-words whitespace-pre-wrap">
           <Inlines nodes={block.children} />
         </p>
       );
     case "heading": {
       const Tag = HEADINGS[block.level];
       return (
-        <Tag className="mt-2 font-semibold break-words">
+        <Tag className="mt-2 font-semibold break-words whitespace-pre-wrap">
           <Inlines nodes={block.children} />
         </Tag>
       );
@@ -72,9 +74,12 @@ function BlockView({ block }: { block: Block }) {
     case "list": {
       const Tag = block.ordered ? "ol" : "ul";
       return (
-        <Tag className={cn("ml-5 space-y-1", block.ordered ? "list-decimal" : "list-disc")}>
+        <Tag
+          className={cn("ml-5 space-y-1", block.ordered ? "list-decimal" : "list-disc")}
+          {...(block.ordered && block.start !== 1 ? { start: block.start } : {})}
+        >
           {block.items.map((item, index) => (
-            <li key={index} className="break-words">
+            <li key={index} className="break-words whitespace-pre-wrap">
               <Inlines nodes={item} />
             </li>
           ))}
@@ -83,7 +88,7 @@ function BlockView({ block }: { block: Block }) {
     }
     case "quote":
       return (
-        <blockquote className="border-l-2 pl-4 text-muted-foreground">
+        <blockquote className="border-l-2 pl-4 break-words whitespace-pre-wrap text-muted-foreground">
           <Inlines nodes={block.children} />
         </blockquote>
       );
@@ -93,11 +98,10 @@ function BlockView({ block }: { block: Block }) {
           <code>{block.text}</code>
         </pre>
       );
-    case "rule":
-      return <hr className="my-2" />;
   }
 }
 
+/** `className` replaces the default text size and spacing (`text-sm space-y-2` for comments). */
 export function Markdown({ source, className }: { source: string; className?: string }) {
   const blocks = React.useMemo(() => parseMarkdown(source), [source]);
   return (

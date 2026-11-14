@@ -80,7 +80,7 @@ describe("markdownToPlainText", () => {
   it("keeps the whole body as readable text", () => {
     expect(
       markdownToPlainText(
-        "# Title\n\nSome **bold** and *italic* with `code` and [a link](https://x.example/a).\n\n- one\n- two\n\n1. first\n2. second\n\n> quoted\n\n---\n\n```\nlet a = 1;\n```",
+        "# Title\n\nSome **bold** and *italic* with `code` and [a link](https://x.example/a).\n\n- one\n- two\n\n1. first\n2. second\n\n> quoted\n\n```\nlet a = 1;\n```",
       ),
     ).toBe(
       "Title\n\nSome bold and italic with code and a link (https://x.example/a).\n\n- one\n- two\n\n1. first\n2. second\n\nquoted\n\nlet a = 1;",

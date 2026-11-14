@@ -33,7 +33,9 @@ import type { Page } from "@/contracts/domain";
 import { formatDate, plural } from "@/components/portal/format";
 import { CategoryBadge, StatusBadge } from "@/components/portal/post-badges";
 import { PaginationBar } from "@/components/portal/pagination-bar";
+import { Markdown } from "@/components/portal/markdown";
 import { EmptyState } from "@/components/portal/states";
+import { markdownToText } from "@/lib/markdown";
 import {
   adminDeleteComment,
   adminDeletePost,
@@ -345,7 +347,7 @@ export function CommentModeration({
               className="flex flex-col gap-3 p-4 md:flex-row md:items-start md:gap-5 md:p-5"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-sm break-words whitespace-pre-wrap">{comment.body}</p>
+                <Markdown source={comment.body} className="space-y-2 text-sm leading-normal" />
                 <p className="mt-2 text-xs text-muted-foreground">
                   {comment.author.name} · {formatDate(comment.createdAt)} · on{" "}
                   <Link
@@ -374,10 +376,7 @@ export function CommentModeration({
         onOpenChange={(open) => (open ? undefined : setDoomed(null))}
         title="Delete this comment?"
         description={
-          <>
-            “{target?.body.slice(0, 120)}
-            {(target?.body.length ?? 0) > 120 ? "…" : ""}” will be removed. This can't be undone.
-          </>
+          <>“{markdownToText(target?.body ?? "", 120)}” will be removed. This can't be undone.</>
         }
         confirmLabel="Delete comment"
         destructive

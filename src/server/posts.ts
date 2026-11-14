@@ -13,13 +13,14 @@ import type { FeedbaxConfig } from "../contracts/config.ts";
 import { createDb } from "../db/client.ts";
 import { images, posts, user } from "../db/schema.ts";
 import { DomainError, invalid } from "./errors.ts";
-import { category, listInput, text, uuid } from "./validation.ts";
+import { category, listInput, markdownText, text, uuid } from "./validation.ts";
 import { requireWriter } from "./auth.ts";
 import { storeImage, validateImage } from "./images.ts";
 import { parseShippedIn, shippedInField } from "./changelog.ts";
 import { effectiveSettings, runtimeConfig } from "./settings.ts";
 import { MAX_MERGE_DEPTH, publiclyVisible } from "./visibility.ts";
 import { emitPostCreated } from "./webhooks.ts";
+import { excerptOf, plainBodySql, plainQuery } from "./excerpt.ts";
 
 export function enqueuePost(postId: string) {
   waitUntil(env.SYNC_QUEUE.send({ type: "notion.post", postId }).catch(() => undefined));
@@ -39,7 +40,7 @@ export async function createPostForUser(
     if (!["id", "title", "body", "category", "image"].includes(key)) invalid(key);
   const id = uuid(value.get("id"));
   const title = text(value.get("title"), LIMITS.title, "title");
-  const body = text(value.get("body"), LIMITS.body, "body");
+  const body = markdownText(value.get("body"), LIMITS.body, "body");
   const kind = category(value.get("category"));
   if (!(await effectiveSettings()).categories.includes(kind)) invalid("category");
   const files = value.getAll("image");
@@ -120,11 +121,10 @@ function summary(row: {
   comments: number;
   viewerHasVoted: boolean;
 }): PostSummary {
-  const body = Array.from(row.post.body.replace(/\s+/gu, " ").trim());
   return {
     id: row.post.id,
     title: row.post.title,
-    excerpt: body.slice(0, 180).join("") + (body.length > 180 ? "…" : ""),
+    excerpt: excerptOf(row.post.body, 180),
     category: row.post.category,
     status: row.post.status,
     author: {
@@ -151,7 +151,9 @@ export async function listPostPage(
     db = createDb(env.DB);
   if (mine && !viewer)
     return { items: [], page: data.page, limit: data.limit, total: 0, hasMore: false };
-  const pattern = `%${(data.q ?? "").replace(/[\\%_]/g, "\\$&")}%`;
+  const like = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+  const pattern = like(data.q ?? "");
+  const plain = data.q ? plainQuery(data.q) : null;
   const where = and(
     // The public board, roadmap and search never show hidden, spam or merged posts, and their
     // totals never count them. "My feedback" is the author's own view: everything they wrote.
@@ -159,7 +161,7 @@ export async function listPostPage(
     data.category ? eq(posts.category, data.category) : undefined,
     data.status ? eq(posts.status, data.status) : undefined,
     data.q
-      ? sql`(${posts.title} LIKE ${pattern} ESCAPE ${"\\"} OR ${posts.body} LIKE ${pattern} ESCAPE ${"\\"})`
+      ? sql`(${posts.title} LIKE ${pattern} ESCAPE ${"\\"}${plain ? sql` OR ${plainBodySql} LIKE ${like(plain)} ESCAPE ${"\\"}` : sql``})`
       : undefined,
   );
   const voteOrder =
