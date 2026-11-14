@@ -95,7 +95,7 @@ describe("scripts/package-template.ts", () => {
     expect(findForbiddenImports(dir)).toEqual(["src/bad.ts"]);
   });
 
-  test("only the W0 server-function stub reaches into tests/ (W1 removes it)", () => {
-    expect(result.forbiddenImports.filter((f) => f !== "src/server/functions.ts")).toEqual([]);
+  test("no application file imports repo-only files", () => {
+    expect(result.forbiddenImports).toEqual([]);
   });
 });

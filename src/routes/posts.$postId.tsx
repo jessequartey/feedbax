@@ -1,12 +1,18 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { PostDetailSkeleton, PostDetailView } from "@/components/portal/post-detail";
 import { pageTitle } from "@/components/portal/route-head";
 import { NotFoundState } from "@/components/portal/states";
 import { getPost, listComments } from "@/server/functions";
+import { uuid } from "@/server/validation";
 
 export const Route = createFileRoute("/posts/$postId")({
   loader: async ({ params }) => {
+    try {
+      uuid(params.postId);
+    } catch {
+      throw notFound();
+    }
     const [post, comments] = await Promise.all([
       getPost({ data: { id: params.postId } }),
       listComments({ data: { postId: params.postId } }),
