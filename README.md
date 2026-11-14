@@ -61,7 +61,7 @@ Next, add what you need: [GitHub issue sync](#add-github-issue-sync), [GitHub](#
 
 Add-ons are optional and independent. Run each from your project folder with `npx feedbax@latest add <name>`. Each prompts for what it needs, sets the Cloudflare secrets, edits `feedbax.config.ts` and offers to redeploy. Secrets come from masked prompts or environment variables, never flags. With `--yes` it never prompts: set the variables listed under the add-on and pass its flag. Run `npx feedbax add --help` for the list.
 
-Without the `feedbax` package installed (projects created before 0.4.0), keep using `npx feedbax@latest`.
+Without the `feedbax` package installed (projects created before 0.3.1), keep using `npx feedbax@latest`.
 
 ### Add GitHub issue sync
 
@@ -439,7 +439,7 @@ From your project folder:
 ```sh
 npx feedbax@latest migrate --dry-run   # print the plan, change nothing
 npx feedbax@latest migrate             # upgrade to the latest release
-npx feedbax@latest migrate 0.4.0       # or to a specific version
+npx feedbax@latest migrate 0.3.1       # or to a specific version
 ```
 
 `migrate` downloads the published `create-feedbax` template for your project's version and for the target, then merges each upstream change into your files. After you confirm, it installs dependencies if they changed, applies new D1 migrations and deploys; `--yes` confirms every step.
