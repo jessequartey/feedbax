@@ -15,9 +15,11 @@ import { Route as PortalIndexRouteImport } from './routes/_portal.index'
 import { Route as PortalAdminRouteImport } from './routes/_portal.admin'
 import { Route as PortalLoginRouteImport } from './routes/_portal.login'
 import { Route as PortalMyFeedbackRouteImport } from './routes/_portal.my-feedback'
+import { Route as PortalNotificationsRouteImport } from './routes/_portal.notifications'
 import { Route as PortalRoadmapRouteImport } from './routes/_portal.roadmap'
 import { Route as PortalSignupRouteImport } from './routes/_portal.signup'
 import { Route as PortalSubmitRouteImport } from './routes/_portal.submit'
+import { Route as PortalUnsubscribeRouteImport } from './routes/_portal.unsubscribe'
 import { Route as AdminEnterRouteImport } from './routes/admin.enter'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
@@ -30,6 +32,7 @@ import { Route as PortalChangelogIndexRouteImport } from './routes/_portal.chang
 import { Route as PortalChangelogEntryIdRouteImport } from './routes/_portal.changelog.$entryId'
 import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiEmailUnsubscribeRouteImport } from './routes/api/email/unsubscribe'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
 
 const PortalRoute = PortalRouteImport.update({
@@ -61,6 +64,11 @@ const PortalMyFeedbackRoute = PortalMyFeedbackRouteImport.update({
   path: '/my-feedback',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalNotificationsRoute = PortalNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => PortalRoute,
+} as any)
 const PortalRoadmapRoute = PortalRoadmapRouteImport.update({
   id: '/roadmap',
   path: '/roadmap',
@@ -74,6 +82,11 @@ const PortalSignupRoute = PortalSignupRouteImport.update({
 const PortalSubmitRoute = PortalSubmitRouteImport.update({
   id: '/submit',
   path: '/submit',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalUnsubscribeRoute = PortalUnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
   getParentRoute: () => PortalRoute,
 } as any)
 const AdminEnterRoute = AdminEnterRouteImport.update({
@@ -136,6 +149,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEmailUnsubscribeRoute = ApiEmailUnsubscribeRouteImport.update({
+  id: '/api/email/unsubscribe',
+  path: '/api/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
   id: '/api/media/$id',
   path: '/api/media/$id',
@@ -148,9 +166,11 @@ export interface FileRoutesByFullPath {
   '/admin': typeof PortalAdminRouteWithChildren
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
+  '/notifications': typeof PortalNotificationsRoute
   '/roadmap': typeof PortalRoadmapRoute
   '/signup': typeof PortalSignupRoute
   '/submit': typeof PortalSubmitRoute
+  '/unsubscribe': typeof PortalUnsubscribeRoute
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
@@ -161,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/admin/': typeof PortalAdminIndexRoute
   '/changelog/': typeof PortalChangelogIndexRoute
@@ -169,9 +190,11 @@ export interface FileRoutesByTo {
   '/changelog.rss': typeof ChangelogDotrssRoute
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
+  '/notifications': typeof PortalNotificationsRoute
   '/roadmap': typeof PortalRoadmapRoute
   '/signup': typeof PortalSignupRoute
   '/submit': typeof PortalSubmitRoute
+  '/unsubscribe': typeof PortalUnsubscribeRoute
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
@@ -183,6 +206,7 @@ export interface FileRoutesByTo {
   '/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/admin': typeof PortalAdminIndexRoute
   '/changelog': typeof PortalChangelogIndexRoute
@@ -194,9 +218,11 @@ export interface FileRoutesById {
   '/_portal/admin': typeof PortalAdminRouteWithChildren
   '/_portal/login': typeof PortalLoginRoute
   '/_portal/my-feedback': typeof PortalMyFeedbackRoute
+  '/_portal/notifications': typeof PortalNotificationsRoute
   '/_portal/roadmap': typeof PortalRoadmapRoute
   '/_portal/signup': typeof PortalSignupRoute
   '/_portal/submit': typeof PortalSubmitRoute
+  '/_portal/unsubscribe': typeof PortalUnsubscribeRoute
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
@@ -208,6 +234,7 @@ export interface FileRoutesById {
   '/_portal/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/_portal/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/_portal/admin/': typeof PortalAdminIndexRoute
   '/_portal/changelog/': typeof PortalChangelogIndexRoute
@@ -220,9 +247,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/login'
     | '/my-feedback'
+    | '/notifications'
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/unsubscribe'
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
@@ -233,6 +262,7 @@ export interface FileRouteTypes {
     | '/changelog/$entryId'
     | '/posts/$postId'
     | '/api/auth/$'
+    | '/api/email/unsubscribe'
     | '/api/media/$id'
     | '/admin/'
     | '/changelog/'
@@ -241,9 +271,11 @@ export interface FileRouteTypes {
     | '/changelog.rss'
     | '/login'
     | '/my-feedback'
+    | '/notifications'
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/unsubscribe'
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
@@ -255,6 +287,7 @@ export interface FileRouteTypes {
     | '/changelog/$entryId'
     | '/posts/$postId'
     | '/api/auth/$'
+    | '/api/email/unsubscribe'
     | '/api/media/$id'
     | '/admin'
     | '/changelog'
@@ -265,9 +298,11 @@ export interface FileRouteTypes {
     | '/_portal/admin'
     | '/_portal/login'
     | '/_portal/my-feedback'
+    | '/_portal/notifications'
     | '/_portal/roadmap'
     | '/_portal/signup'
     | '/_portal/submit'
+    | '/_portal/unsubscribe'
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
@@ -279,6 +314,7 @@ export interface FileRouteTypes {
     | '/_portal/changelog/$entryId'
     | '/_portal/posts/$postId'
     | '/api/auth/$'
+    | '/api/email/unsubscribe'
     | '/api/media/$id'
     | '/_portal/admin/'
     | '/_portal/changelog/'
@@ -291,6 +327,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPostsRoute: typeof ApiPostsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiEmailUnsubscribeRoute: typeof ApiEmailUnsubscribeRoute
   ApiMediaIdRoute: typeof ApiMediaIdRoute
 }
 
@@ -338,6 +375,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalMyFeedbackRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/_portal/notifications': {
+      id: '/_portal/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof PortalNotificationsRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/_portal/roadmap': {
       id: '/_portal/roadmap'
       path: '/roadmap'
@@ -357,6 +401,13 @@ declare module '@tanstack/react-router' {
       path: '/submit'
       fullPath: '/submit'
       preLoaderRoute: typeof PortalSubmitRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/unsubscribe': {
+      id: '/_portal/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof PortalUnsubscribeRouteImport
       parentRoute: typeof PortalRoute
     }
     '/admin/enter': {
@@ -443,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/email/unsubscribe': {
+      id: '/api/email/unsubscribe'
+      path: '/api/email/unsubscribe'
+      fullPath: '/api/email/unsubscribe'
+      preLoaderRoute: typeof ApiEmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/media/$id': {
       id: '/api/media/$id'
       path: '/api/media/$id'
@@ -477,9 +535,11 @@ interface PortalRouteChildren {
   PortalAdminRoute: typeof PortalAdminRouteWithChildren
   PortalLoginRoute: typeof PortalLoginRoute
   PortalMyFeedbackRoute: typeof PortalMyFeedbackRoute
+  PortalNotificationsRoute: typeof PortalNotificationsRoute
   PortalRoadmapRoute: typeof PortalRoadmapRoute
   PortalSignupRoute: typeof PortalSignupRoute
   PortalSubmitRoute: typeof PortalSubmitRoute
+  PortalUnsubscribeRoute: typeof PortalUnsubscribeRoute
   PortalIndexRoute: typeof PortalIndexRoute
   PortalChangelogEntryIdRoute: typeof PortalChangelogEntryIdRoute
   PortalPostsPostIdRoute: typeof PortalPostsPostIdRoute
@@ -490,9 +550,11 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalAdminRoute: PortalAdminRouteWithChildren,
   PortalLoginRoute: PortalLoginRoute,
   PortalMyFeedbackRoute: PortalMyFeedbackRoute,
+  PortalNotificationsRoute: PortalNotificationsRoute,
   PortalRoadmapRoute: PortalRoadmapRoute,
   PortalSignupRoute: PortalSignupRoute,
   PortalSubmitRoute: PortalSubmitRoute,
+  PortalUnsubscribeRoute: PortalUnsubscribeRoute,
   PortalIndexRoute: PortalIndexRoute,
   PortalChangelogEntryIdRoute: PortalChangelogEntryIdRoute,
   PortalPostsPostIdRoute: PortalPostsPostIdRoute,
@@ -509,6 +571,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiPostsRoute: ApiPostsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiEmailUnsubscribeRoute: ApiEmailUnsubscribeRoute,
   ApiMediaIdRoute: ApiMediaIdRoute,
 }
 export const routeTree = rootRouteImport

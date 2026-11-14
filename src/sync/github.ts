@@ -17,6 +17,7 @@ import {
 import { authenticMarker, issueMarker } from "./github-marker.ts";
 import type { ProviderRequest } from "../integrations/request.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
+import { queueEmails, statusEmails } from "../email/events.ts";
 let actor: { token: string; id: number } | undefined;
 async function actorId(request: ProviderRequest): Promise<number> {
   if (actor && actor.token === env.GITHUB_TOKEN) return actor.id;
@@ -82,13 +83,25 @@ export async function createIssue(postId: string): Promise<void> {
       updatedAt: Date.now(),
       ...(closed ? { githubClosedAt: closedAt, status: "done" as const } : {}),
     })
-    .where(and(eq(posts.id, postId), isNull(posts.githubNumber)));
+    .where(and(eq(posts.id, postId), isNull(posts.githubNumber)))
+    .returning({ id: posts.id });
   // An issue that was already closed when it was linked makes the post Done: draft its entry
   // in the same batch (idempotent in SQL, so a replayed message adds nothing).
   const drafts = closed
     ? await autoDraftStatements(database, [{ id: postId, body: post.body }])
     : [];
-  await database.batch([update, ...drafts]);
+  const [linked] = await database.batch([update, ...drafts]);
+  // Email only when this message linked the post (a replay finds it linked already).
+  if (closed && linked.length && post.status !== "done")
+    await queueEmails(
+      statusEmails([
+        {
+          post: { id: post.id, title: post.title, body: post.body },
+          from: post.status,
+          to: "done",
+        },
+      ]),
+    );
 }
 
 export async function pollGitHub(
@@ -117,7 +130,9 @@ export async function pollGitHub(
     ? await database
         .select({
           id: posts.id,
+          title: posts.title,
           body: posts.body,
+          status: posts.status,
           number: posts.githubNumber,
           creator: posts.githubCreatorId,
         })
@@ -163,7 +178,21 @@ export async function pollGitHub(
     .filter((issue) => Number.isFinite(Date.parse(issue.closed_at ?? issue.updated_at)))
     .flatMap((issue) => linked.filter((post) => post.number === issue.number));
   const batch = [...updates, ...(await autoDraftStatements(database, shipped))];
-  if (batch.length) await database.batch(batch as [(typeof batch)[number], ...typeof batch]);
+  if (batch.length) {
+    await database.batch(batch as [(typeof batch)[number], ...typeof batch]);
+    // Closed issues set Done. After the batch, so only stored changes notify.
+    await queueEmails(
+      statusEmails(
+        shipped
+          .filter((post) => post.status !== "done")
+          .map((post) => ({
+            post: { id: post.id, title: post.title, body: post.body },
+            from: post.status,
+            to: "done" as const,
+          })),
+      ),
+    );
+  }
   if (
     issues.length === 100 &&
     Date.parse(issues[issues.length - 1]!.updated_at) <= Date.parse(message.until)

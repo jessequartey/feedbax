@@ -17,6 +17,7 @@ export type Operation =
   | "comments.create"
   | "votes.set"
   | "admin.action"
+  | "email.prefs"
   | "auth.request"
   | "health.read"
   | "anonymous-transfer";

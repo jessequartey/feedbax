@@ -25,6 +25,8 @@ export type PublicConfig = {
   oauth: { github: boolean; google: boolean };
   hostLogin: boolean;
   showcase: boolean;
+  /** Email notifications are set up (from-address and Resend key): /notifications is offered. */
+  email: boolean;
 };
 
 const NOTION_ID =

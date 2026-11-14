@@ -20,6 +20,7 @@ export const baseConfig: PublicConfig = {
   categories: ["feature", "bug", "general"],
   hostLogin: false,
   showcase: false,
+  email: false,
   oauth: { github: false, google: false },
 };
 

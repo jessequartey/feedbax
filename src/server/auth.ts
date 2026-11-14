@@ -25,6 +25,7 @@ import {
 import { DomainError, reportUnexpected } from "./errors.ts";
 import { requireSameOrigin } from "./request.ts";
 import { text } from "./validation.ts";
+import { emailEnabled } from "../email/events.ts";
 
 export function publicConfig(
   settings = config,
@@ -57,6 +58,7 @@ export function publicConfig(
     anonymous: settings.auth.anonymous,
     categories,
     showcase: settings.showcase,
+    email: emailEnabled(bindings, settings),
     oauth: {
       github: Boolean(bindings.GITHUB_CLIENT_ID && bindings.GITHUB_CLIENT_SECRET),
       google: Boolean(bindings.GOOGLE_CLIENT_ID && bindings.GOOGLE_CLIENT_SECRET),

@@ -53,6 +53,7 @@ it("shows the settings the admin saved in the public config, and the project def
     "anonymous",
     "appUrl",
     "categories",
+    "email",
     "hostLogin",
     "name",
     "oauth",

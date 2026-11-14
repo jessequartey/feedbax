@@ -257,3 +257,53 @@ export function markdownToText(source: string, max = 160): string {
   const letters = Array.from(text);
   return letters.length > max ? `${letters.slice(0, max - 1).join("")}…` : text;
 }
+
+function plainInline(nodes: Inline[]): string {
+  return nodes
+    .map((node) => {
+      switch (node.type) {
+        case "text":
+        case "code":
+          return node.text;
+        case "break":
+          return "\n";
+        case "strong":
+        case "em":
+          return plainInline(node.children);
+        case "link": {
+          // Keep the address: a text/plain email or webhook has no clickable link.
+          const label = plainInline(node.children);
+          return label === node.href || !label ? node.href : `${label} (${node.href})`;
+        }
+      }
+    })
+    .join("");
+}
+
+/**
+ * The Markdown as readable plain text with its syntax removed: blocks separated by a blank
+ * line, list items as "- " / "1. ", links as "text (url)". Used for email text parts and
+ * for queue payloads. Never produces HTML. Plain-text bodies pass through unchanged.
+ */
+export function markdownToPlainText(markdown: string): string {
+  return parseMarkdown(markdown)
+    .map((block) => {
+      switch (block.type) {
+        case "paragraph":
+        case "heading":
+        case "quote":
+          return plainInline(block.children);
+        case "list":
+          return block.items
+            .map((item, index) => `${block.ordered ? `${index + 1}.` : "-"} ${plainInline(item)}`)
+            .join("\n");
+        case "code":
+          return block.text;
+        case "rule":
+          return "";
+      }
+    })
+    .filter((part) => part.trim())
+    .join("\n\n")
+    .trim();
+}
