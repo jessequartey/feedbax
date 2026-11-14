@@ -18,7 +18,8 @@ jobs:
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
-      - run: npm install -g npm@12.2.2 pnpm@10.29.3 bun@1.3.9 # test:package installs the generated app with all three
+      - run: npm install -g npm@12.2.2 pnpm@10.29.3
+      - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
 
       - name: Tag matches the CLI version
         run: |

@@ -22,7 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: npm install -g npm@12.2.2 pnpm@10.29.3 bun@1.3.9 # test:package installs the generated app with all three
+      - run: npm install -g npm@12.2.2 pnpm@10.29.3
+      - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
       - run: npm ci
       - run: npm ci --prefix packages/create-feedbax # the CLI package has its own install
       - run: npm run check

@@ -2,13 +2,39 @@ import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildCli } from "./cli-build.ts";
 import { viewerRpcId } from "../packages/create-feedbax/src/verify.ts";
 import { createRunner } from "../packages/create-feedbax/src/io.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const run = createRunner();
+export function parsePackedPackage(output: string) {
+  const parsed: unknown = JSON.parse(output);
+  assert(parsed && typeof parsed === "object", "npm pack returned no package metadata");
+  // npm 11 emits an array; npm 12 keys the same metadata by package name.
+  const packages: unknown[] = Array.isArray(parsed) ? parsed : Object.values(parsed);
+  assert.equal(packages.length, 1, "npm pack must return exactly one package");
+  const packed = packages[0];
+  assert(packed && typeof packed === "object", "npm pack returned invalid package metadata");
+  assert("name" in packed && packed.name === "create-feedbax", "npm pack returned another package");
+  assert(
+    "filename" in packed &&
+      typeof packed.filename === "string" &&
+      packed.filename.endsWith(".tgz") &&
+      basename(packed.filename) === packed.filename,
+    "npm pack returned an invalid tarball filename",
+  );
+  assert("files" in packed && Array.isArray(packed.files), "npm pack returned no file list");
+  const files = packed.files.map((file: unknown) => {
+    assert(
+      file && typeof file === "object" && "path" in file && typeof file.path === "string",
+      "npm pack returned an invalid file entry",
+    );
+    return { path: file.path };
+  });
+  return { filename: packed.filename, files };
+}
 async function checked(
   cmd: string,
   args: string[],
@@ -29,15 +55,15 @@ export async function testPackage(
   if (options.build !== false) await buildCli();
   const temp = await mkdtemp(join(tmpdir(), "feedbax-package-"));
   try {
-    const packed = JSON.parse(
+    const packed = parsePackedPackage(
       await checked(
         "npm",
         ["pack", "--json", "--pack-destination", temp],
         join(root, "packages/create-feedbax"),
       ),
-    ) as { filename: string; files: { path: string }[] }[];
-    const tarball = join(temp, packed[0]!.filename);
-    for (const file of packed[0]!.files)
+    );
+    const tarball = join(temp, packed.filename);
+    for (const file of packed.files)
       assert(!/(?:^|\/)(?:node_modules|tests|registry|scripts|\.dev\.vars)$/.test(file.path));
     // Install the tarball independently; validates its bin, dependencies and exports.
     const harness = join(temp, "harness");
