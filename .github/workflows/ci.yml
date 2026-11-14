@@ -30,6 +30,8 @@ jobs:
       - run: npm run build
       - name: Worker exports fetch, queue and scheduled
         run: npm run verify:build
+      - name: Built Worker request boundaries
+        run: node scripts/test-worker-entry.ts
       - name: Wrangler dry run
         run: npx --no-install wrangler deploy --dry-run
       - name: No server secret names in the portal client bundle (the public registry JSON in dist/client/r documents them)
