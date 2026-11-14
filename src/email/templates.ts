@@ -4,8 +4,8 @@ import type { RichText } from "../contracts/sync.ts";
 import { clip, escapeHtml, excerpt, textHtml } from "./content.ts";
 
 // Email bodies: a calm, minimal layout with a text/plain twin. Pure functions. Every value
-// that came from a person (titles, names, bodies) is escaped; bodies go through
-// richTextHtml, the single swap point for ticket 13's renderer.
+// that came from a person (titles, names, bodies) is escaped. Bodies are the plain-text form
+// of the stored Markdown, shown as text: never HTML built from user content.
 
 export type Rendered = { subject: string; html: string; text: string };
 export type Frame = {

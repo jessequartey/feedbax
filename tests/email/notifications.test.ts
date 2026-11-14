@@ -30,10 +30,11 @@ beforeEach(async () => {
   enableEmail();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
-afterEach(() => {
+afterEach(async () => {
   disableEmail();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  await resetEnv();
 });
 
 const statusMessage = (patch: Partial<Extract<EmailMessage, { type: "email.status" }>> = {}) =>
@@ -114,9 +115,15 @@ describe("status changes", () => {
     expect(mail.html).toContain("View post");
   });
 
-  it("sends nothing for a hidden, spam or merged post", async () => {
+  it.each([
+    ["hidden", { hiddenAt: 5 }],
+    ["spam", { spam: 1 }],
+    ["merged", { mergedInto: "22222222-2222-4222-8222-222222222222" }],
+  ] as const)("sends nothing for a %s post", async (label, patch) => {
     const author = await account("author");
-    await post(POST, author, { hiddenAt: 5 });
+    if (label === "merged")
+      await post("22222222-2222-4222-8222-222222222222", author, { title: "Kept" });
+    await post(POST, author, patch);
     const sent = stubResend();
     const { ack } = await consume(statusMessage());
     expect(ack).toHaveBeenCalledOnce();

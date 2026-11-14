@@ -3,11 +3,10 @@ import type { ChangelogPublishedEvent } from "../contracts/changelog.ts";
 import { changelogEmailSink } from "../email/changelog.ts";
 import { emitChangelogWebhook } from "./webhooks.ts";
 
-// The attachment point for "changelog.published". Tickets 07 (email) and 08 (webhooks) add a
-// sink to `changelogPublishedSinks`; today the list is empty, so publishing an entry does
-// nothing beyond the D1 update. `setChangelogStatus` (changelog.ts) calls
-// `emitChangelogPublished` once per draft → published transition and never awaits it on the
-// request path: a sink that throws is logged and skipped, it can never fail a publish.
+// The attachment point for "changelog.published". Webhooks and opt-in changelog email register
+// below. `setChangelogStatus` (changelog.ts) calls `emitChangelogPublished` once per
+// draft → published transition and never awaits it on the request path: a sink that throws
+// is logged and skipped, it can never fail a publish.
 
 export type ChangelogPublishedSink = (event: ChangelogPublishedEvent) => void | Promise<void>;
 

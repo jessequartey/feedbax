@@ -203,6 +203,18 @@ function MobileMenu({ pathname, backUrl }: { pathname: string; backUrl: string |
               {item.label}
             </Link>
           ))}
+          {config.email && user && user.kind !== "anonymous" ? (
+            <Link
+              to="/notifications"
+              onClick={close}
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-11 justify-start px-3 text-sm",
+              )}
+            >
+              Email notifications
+            </Link>
+          ) : null}
           {user?.admin ? <AdminLink onClick={close} className="justify-start" /> : null}
         </nav>
         <div className="mt-auto flex flex-col gap-2 border-t p-4">

@@ -209,7 +209,9 @@ describe("markdownToPlainText", () => {
     ],
     ["unsafe links keep only their text", "[click](javascript:alert(1))", "click"],
     ["lists", "- one\n- two\n\n1. a\n2. b", "- one\n- two\n\n1. a\n2. b"],
-    ["headings, quotes and rules", "### Title\n\n> quoted\n\n---\n\nend", "Title\n\nquoted\n\nend"],
+    ["headings and quotes", "### Title\n\n> quoted\n\nend", "Title\n\nquoted\n\nend"],
+    // Horizontal rules are outside the portal's Markdown subset, so a line of dashes stays text.
+    ["a line of dashes stays text", "---", "---"],
     ["code blocks keep their text", "```\nlet x = 1;\n```", "let x = 1;"],
     ["raw HTML stays literal text", "<b>hi</b><script>x</script>", "<b>hi</b><script>x</script>"],
     ["empty", "  \n ", ""],

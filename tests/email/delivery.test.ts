@@ -8,6 +8,7 @@ import { EMAIL_SLICE } from "../../src/email/deliver.ts";
 import { digestDue } from "../../src/email/events.ts";
 import { adminApi } from "../../src/server/admin-api.ts";
 import { changelogPublishedSinks } from "../../src/server/changelog-events.ts";
+import { emitChangelogWebhook } from "../../src/server/webhooks.ts";
 import { saveSettings } from "../../src/server/settings.ts";
 import { runScheduled } from "../../src/sync/index.ts";
 import {
@@ -29,11 +30,14 @@ beforeEach(async () => {
   enableEmail();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
-afterEach(() => {
+afterEach(async () => {
   disableEmail();
+  // Other files clear this list (isolate: false). Put the production sinks back.
   changelogPublishedSinks.length = 0;
+  changelogPublishedSinks.push(emitChangelogWebhook, changelogEmailSink);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  await resetEnv();
 });
 
 describe("changelog entries (opt-in)", () => {
@@ -214,8 +218,8 @@ describe("delivery", () => {
     expect(new Set(sent.calls.map((call) => call.headers.get("idempotency-key"))).size).toBe(1);
   });
 
-  it("drops a permanent failure instead of retrying it forever", async () => {
-    stubResend(403);
+  it.each([403, 409])("drops a permanent %i instead of retrying it", async (status) => {
+    stubResend(status);
     const { ack, retry } = await consume(message());
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
