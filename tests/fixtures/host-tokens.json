@@ -1,0 +1,231 @@
+{
+  "_comment": "Test-only secret. `valid` vectors must verify against `secret` at `now` (epoch s); invalid ones must not, and must not consume the jti. Vectors with `mint` must be reproduced byte for byte by the signer given {user, now, jti} (payload key order: sub, name, exp, jti; exp = now + 300).",
+  "secret": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw",
+  "now": 1790000000,
+  "header": "{\"alg\":\"HS256\",\"typ\":\"JWT\"}",
+  "vectors": [
+    {
+      "name": "valid-basic",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSJ9._BZxcEaGUfKIraDlcvOMQfUB26kY1jqk9YOY1FFqEAg",
+      "valid": true,
+      "claims": {
+        "sub": "host-user-1",
+        "name": "Ada Lovelace",
+        "exp": 1790000300,
+        "jti": "00000000-0000-4000-8000-000000000001"
+      },
+      "mint": {
+        "user": {
+          "id": "host-user-1",
+          "name": "Ada Lovelace"
+        },
+        "now": 1790000000,
+        "jti": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "name": "valid-unicode-name",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyL8O8bsOvLfCfjokiLCJuYW1lIjoiWm_DqyDwn5iAIOaXpeacrOiqniIsImV4cCI6MTc5MDAwMDMwMCwianRpIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAyIn0.DkTpqbPCwyhL5jrs0BEyUnqDVy9Ib7P-Fd6fr4gxALQ",
+      "valid": true,
+      "claims": {
+        "sub": "user/ünï-🎉",
+        "name": "Zoë 😀 日本語",
+        "exp": 1790000300,
+        "jti": "00000000-0000-4000-8000-000000000002"
+      },
+      "mint": {
+        "user": {
+          "id": "user/ünï-🎉",
+          "name": "Zoë 😀 日本語"
+        },
+        "now": 1790000000,
+        "jti": "00000000-0000-4000-8000-000000000002"
+      }
+    },
+    {
+      "name": "valid-max-length-sub-and-name",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NzcyIsIm5hbWUiOiJubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubiIsImV4cCI6MTc5MDAwMDMwMCwianRpIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAzIn0.y9tjvls0LQtn6bhjutnfXn3n1vbVUkgrOdmmDKj2TCQ",
+      "valid": true,
+      "claims": {
+        "sub": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+        "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+        "exp": 1790000300,
+        "jti": "00000000-0000-4000-8000-000000000003"
+      },
+      "mint": {
+        "user": {
+          "id": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+          "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+        },
+        "now": 1790000000,
+        "jti": "00000000-0000-4000-8000-000000000003"
+      }
+    },
+    {
+      "name": "valid-exp-30s-past-within-skew",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3ODk5OTk5OTAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNCJ9.4W8WI6BhpmQG-Aii1yMvUeLn8tzv0-w8smWYJqCugm8",
+      "valid": true,
+      "claims": {
+        "sub": "host-user-1",
+        "name": "Ada Lovelace",
+        "exp": 1789999990,
+        "jti": "00000000-0000-4000-8000-000000000004"
+      }
+    },
+    {
+      "name": "valid-exp-330s-ahead-limit",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMzAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNSJ9.vxCtKNASuO05ieDflKjENge03Rn7KHyoXQxuwnjVEvg",
+      "valid": true,
+      "claims": {
+        "sub": "host-user-1",
+        "name": "Ada Lovelace",
+        "exp": 1790000330,
+        "jti": "00000000-0000-4000-8000-000000000005"
+      }
+    },
+    {
+      "name": "alg-none",
+      "token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxMCJ9.",
+      "valid": false,
+      "reason": "alg none"
+    },
+    {
+      "name": "alg-hs512",
+      "token": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxMSJ9.vgG1IRIKQFuTyfb3fRPRT8mRTGzqj4gg7RDG2jQDF9PkK2Han_EWjQ6y-QujzNWg3CdWdJFpOV8SF_064qPsXQ",
+      "valid": false,
+      "reason": "alg HS512 (validly signed)"
+    },
+    {
+      "name": "header-reordered",
+      "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxMiJ9.fPeizFFM0Y2NRXLtMwLAv6Mp7PIkWGhSlWcNlLxXQS8",
+      "valid": false,
+      "reason": "header is not exactly the required bytes"
+    },
+    {
+      "name": "header-with-space",
+      "token": "eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxMyJ9.GDwpJ2LQ4kD8GfbL2b8PItXvrGwkQPtntNHKJevnYPE",
+      "valid": false,
+      "reason": "header is not exactly the required bytes"
+    },
+    {
+      "name": "two-segments",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxNCJ9",
+      "valid": false,
+      "reason": "two segments"
+    },
+    {
+      "name": "four-segments",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxNSJ9.PsPpZN6npWvSaClJmHIatUJoBX435yky0X3o4cSL6E4.extra",
+      "valid": false,
+      "reason": "four segments"
+    },
+    {
+      "name": "noncanonical-padding",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxNiJ9.-P7GBjtQZIs93hkK0UPhuyNGVag2sgjrJV-2vYLrsqA=",
+      "valid": false,
+      "reason": "base64url signature with '=' padding"
+    },
+    {
+      "name": "noncanonical-trailing-bits",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxNiJ9.-P7GBjtQZIs93hkK0UPhuyNGVag2sgjrJV-2vYLrsqB",
+      "valid": false,
+      "reason": "signature decodes to the same bytes but is not the canonical encoding"
+    },
+    {
+      "name": "standard-base64-alphabet",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxNiJ9x.-P7GBjtQZIs93hkK0UPhuyNGVag2sgjrJV-2vYLrsqA",
+      "valid": false,
+      "reason": "payload not base64url"
+    },
+    {
+      "name": "bad-signature",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxNyJ9.hf2JwlHBWCNCvOrUvAaXYKrRPOwTzi1zIsJcpmxLvoY",
+      "valid": false,
+      "reason": "signature mismatch"
+    },
+    {
+      "name": "signed-with-other-secret",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAxOCJ9.XAk2mUegoZEKOX15GMhjf_Qbw8wYQH4LnEgF3XoELxM",
+      "valid": false,
+      "reason": "wrong key"
+    },
+    {
+      "name": "expired-31s",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3ODk5OTk5NjksImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAyMCJ9.d_iG2CQUiYXARrnwaZCnymNbBzF9RcQ5D7RYipE4Wi8",
+      "valid": false,
+      "reason": "exp more than 30s in the past"
+    },
+    {
+      "name": "exp-too-far-331s",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMzEsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAyMSJ9.PQOJdYxqy5jpDI00cVXKgSqQQ4lNmJFo2OqliE3OwCE",
+      "valid": false,
+      "reason": "exp more than 330s ahead"
+    },
+    {
+      "name": "exp-string",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOiIxNzkwMDAwMzAwIiwianRpIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDIyIn0.en6efcnBpOI6cgG1RGHnp9TFIvHCmcr5CEPO2ISYfhY",
+      "valid": false,
+      "reason": "exp is not a number"
+    },
+    {
+      "name": "exp-missing",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJqdGkiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMjMifQ.VtEcheFB81bKJhc-4I8bILbCu8oxtF34dZ-sq8Wt6ks",
+      "valid": false,
+      "reason": "exp missing"
+    },
+    {
+      "name": "name-81-chars",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm4iLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAyNCJ9.mtHmMVaOhx2-KLxtHiW5AX7ILA6sNfDQJogm5xYtjNI",
+      "valid": false,
+      "reason": "name longer than 80"
+    },
+    {
+      "name": "name-empty",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiIiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAyNSJ9.meTd6NQP8d6MsQfb23A9qBRNN1kk4kFsuMKKlK7dlk8",
+      "valid": false,
+      "reason": "name empty"
+    },
+    {
+      "name": "name-number",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOjUsImV4cCI6MTc5MDAwMDMwMCwianRpIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDI2In0.NPBy_Q_pVswt4kEmPqWKFuv2v4xGFz0qzLDVUEJsgSc",
+      "valid": false,
+      "reason": "name not a string"
+    },
+    {
+      "name": "sub-newline",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0XG51c2VyIiwibmFtZSI6IkFkYSBMb3ZlbGFjZSIsImV4cCI6MTc5MDAwMDMwMCwianRpIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDI3In0.oS6zZ3UQ65KNQpzjHSdMY1RbF2YWy7sRKH_zd2VHMLg",
+      "valid": false,
+      "reason": "sub contains a newline"
+    },
+    {
+      "name": "sub-empty",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIiLCJuYW1lIjoiQWRhIExvdmVsYWNlIiwiZXhwIjoxNzkwMDAwMzAwLCJqdGkiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMjgifQ.pWCBsBTii1Jt9VPFMlI1ZWrKMu6W0xLfCbEnFWejgaY",
+      "valid": false,
+      "reason": "sub empty"
+    },
+    {
+      "name": "sub-201-chars",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3MiLCJuYW1lIjoiQWRhIExvdmVsYWNlIiwiZXhwIjoxNzkwMDAwMzAwLCJqdGkiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMjkifQ.wowpV0p_mMB4LKehmexm0Dv5ZZJk0D5VVLLc9EoJfdw",
+      "valid": false,
+      "reason": "sub longer than 200"
+    },
+    {
+      "name": "jti-missing",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDB9.hY9kvP_gQStYVXtRREPN1FveV1xw_UCv-tgx3U58X80",
+      "valid": false,
+      "reason": "jti missing"
+    },
+    {
+      "name": "jti-not-uuid",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6Im5vdC1hLXV1aWQifQ.Zc0G6RLRnhiomziyAsbTbu4RMKGhXi4bLUiqravLMdM",
+      "valid": false,
+      "reason": "jti is not a UUID"
+    },
+    {
+      "name": "token-over-4kb",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob3N0LXVzZXItMSIsIm5hbWUiOiJBZGEgTG92ZWxhY2UiLCJleHAiOjE3OTAwMDAzMDAsImp0aSI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAzMiIsInBhZCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSJ9.uIhio6KL_RSe9i2Zks0kr8BNbEpbKvhhQWS941-fC3k",
+      "valid": false,
+      "reason": "token longer than 4 KB"
+    }
+  ]
+}

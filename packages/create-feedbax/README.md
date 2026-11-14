@@ -1,25 +1,68 @@
 # create-feedbax
 
-Create an owned Feedbax portal for Cloudflare Workers. Version 0.2.2 supports Notion or Issues-only GitHub content with independent optional Connected participation.
+Create a feedback portal on Cloudflare with a Notion team dashboard.
 
 ```sh
-npx create-feedbax@0.2.2 my-feedback
-cd my-feedback
-pnpm dev
+npx create-feedbax
+pnpm create feedbax
+bun create feedbax
 ```
 
-Use Node 24 LTS and pnpm 10 for this source version. Guided setup collects product details, the selected provider, optional features and Turnstile protection. It previews provider changes, copies a flat application, installs dependencies, checks readiness and offers deployment. Provider mappings live in `src/feedbax.ts`; credentials stay in ignored `.dev.vars` and Cloudflare secrets.
+Node 24.15+ is required. Follow the prompts and choose GitHub (recommended), Google or your app's existing login. Email/password login is disabled. Run the
+same command again to finish an interrupted setup. `--help` works offline.
 
-Notion setup needs an internal integration and shared parent page. GitHub setup needs explicitly provisioned D1, a Feedback Repository and a paired App service; it uses no Notion token and disables Changelog. A public repository exposes issues immediately even before portal publication. Connected identity remains a separate existing-application integration for either provider.
+For CI, set `NOTION_TOKEN`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+Add `GITHUB_TOKEN` only for Notion + GitHub issue sync. GitHub login separately
+requires `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`; Google login requires
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. No credentials go in flags.
 
-`--template-only` copies source without service calls or dependency installation. It does not provision or connect storage. Run `create-feedbax --help` for options; guided provisioning has no `--yes` flag.
+After Cloudflare resolves the production origin, setup prints the exact OAuth App
+homepage and callback fields before creating D1, R2 or Queue resources. Register
+that callback with your provider. `--yes` needs an already registered app and the
+selected complete credential pair from the environment or private `.dev.vars`.
+Google may require consent-screen configuration, test users and publishing or
+verification depending on your audience. A configured pair does not prove login.
 
-Observed History is an explicit `history: true` configuration with D1 and a timer, independent of Connected identity. It records public changes after a baseline rather than reconstructing private provider history; see the [history guide](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/progress-history.mdx).
+`--login host --app-url https://your-app.example` deploys with host integration
+pending. Follow the main README's same-origin authenticated token endpoint and
+FeedbaxLink instructions; keep the shared host key server-side. Setup preserves
+existing signing keys and OAuth pairs. On resume it infers GitHub, then Google,
+then host from saved credentials/app URL; conflicting app URLs require an explicit
+config edit. Half-pairs are rejected rather than combined across sources.
 
-[GitHub setup](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/getting-started/github.mdx) · [Agent setup](https://github.com/jessequartey/feedbax/blob/main/docs/agent-setup.md) · [Authentication](https://github.com/jessequartey/feedbax/blob/main/docs/connected-profile.md) · [Release acceptance](https://github.com/jessequartey/feedbax/blob/main/docs/version-0.2.2-acceptance.md).
+```sh
+npx create-feedbax my-feedback --yes --template notion-github \
+  --notion-page <shared-page-id> --github-repo owner/repo --login github --anonymous false
+```
 
-Documentation: [feedbax.dev/docs](https://feedbax.dev/docs). Core is Apache-2.0.
+Setup checks health, public login capabilities and social authorization-start
+wiring. Complete a real sign-in and first feedback write before considering login
+verified. Host setup always reports the external integration as pending.
 
-[Integration checklist](https://github.com/jessequartey/feedbax/blob/main/docs/integration-checklist.md) covers product-server intake, credential locations and production verification.
+Use a separate development OAuth App for localhost. Replace local credentials in
+`.dev.vars` (mode 0600, gitignored), retain the production callback registration,
+and update production secrets explicitly. Do not deploy localhost credentials over
+production.
 
-Existing customized Installations use the separate lifecycle CLI [source upgrade flow](https://github.com/jessequartey/feedbax/blob/main/apps/docs/content/docs/guides/upgrading.mdx); do not generate a fresh template over an existing app. Full data restore/migration acceptance remains pending.
+See the [Feedbax README](https://github.com/jessequartey/feedbax) for embedding,
+theming, social login and the team workflow.
+
+## Repository development
+
+The root is not an npm workspace. Install this package's exact dependencies too:
+
+```sh
+npm ci
+npm ci --prefix packages/create-feedbax
+npm run cli:build
+npm run test:package
+```
+
+`cli:build` uses Vite+ Pack and the one `scripts/package-template.ts` allowlist.
+The real Notion and GitHub clients from `src/integrations` are bundled into
+`dist/providers.mjs`; prompts and setup accept injected implementations of the
+same interfaces for testing. The Notion schema and template guide live only in
+`src/integrations`. No provider credentials are needed for ordinary tests.
+
+The real Clack UI can be exercised safely with `node tests/cli/interactive-demo.ts`
+from the repository root. Providers and subprocesses in that demo are fakes.

@@ -1,0 +1,120 @@
+┌  Feedbax 0.3.0  ·  Feedback, connected.
+[?25l│
+◆  Project name
+│  my-feedback
+└
+[999D[4A[1B[J◇  Project name
+│  my-feedback
+[?25h[?25l│
+◇  Scaffold portal
+[?25h│
+●  Dependencies are installing in the background.
+[?25l│
+◆  Template
+│  ● Notion (Team dashboard)
+│  ○ Notion + GitHub
+│  ↑/↓ to navigate • Enter: confirm
+└
+[999D[6A[2B[J│  ○ Notion
+│  ● Notion + GitHub (Dashboard + approved issues)
+│  ↑/↓ to navigate • Enter: confirm
+└
+[999D[6A[1B[J◇  Template
+│  Notion + GitHub
+[?25h│
+◇  Connect Notion ────────────────────────────────────────────────────────────╮
+│                                                                             │
+│  1. Duplicate the Feedbax template (optional):                              │
+│     https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc                      │
+│  2. Create an integration: https://www.notion.so/profile/integrations       │
+│     New integration → Internal → copy Internal Integration Secret (ntn_…).  │
+│     You need to be a workspace owner.                                       │
+│  3. Content access → Edit access → add the Feedbax page                     │
+│     (or the page where Feedbax should create its database).                 │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────╯
+[?25l│
+◆  Open the Notion setup links in your browser?
+│  ○ Yes / ● No
+└
+[999D[4A[1B[J◇  Open the Notion setup links in your browser?
+│  No
+[?25h[?25l│
+◆  Paste your Notion secret
+│  _
+└
+[999D[4A[2B[2K[G│  ▪_[2B[999D[4A[2B[2K[G│  ▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[1B[J◇  Paste your Notion secret
+│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+[?25h│
+●  Using Feedbax in Team dashboard
+│
+◇  Connect GitHub ─────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  https://github.com/settings/personal-access-tokens/new?name=Feedbax&descri  │
+│  ption=Feedbax+issue+sync&issues=write                                       │
+│  Choose Only select repositories, select one repository,                     │
+│  then select Issues: Read and write. Copy the fine-grained token.            │
+│                                                                              │
+├──────────────────────────────────────────────────────────────────────────────╯
+[?25l│
+◆  Paste a GitHub token
+│  _
+└
+[999D[4A[2B[2K[G│  ▪_[2B[999D[4A[2B[2K[G│  ▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[2B[2K[G│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_[2B[999D[4A[1B[J◇  Paste a GitHub token
+│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+[?25h[?25l│
+◆  Which repository?
+│  ● team/app
+│  ○ Enter owner/repo
+│  ↑/↓ to navigate • Enter: confirm
+└
+[999D[6A[1B[J◇  Which repository?
+│  team/app
+[?25h│
+●  Issues: write access verified
+[?25l│
+◆  Let people post without an account?
+│  ○ Yes / ● No
+└
+[999D[4A[1B[J◇  Let people post without an account?
+│  No
+[?25h[?25l│
+◇  Install dependencies
+[?25h[?25l│
+◇  Cloudflare login / check
+[?25h[?25l│
+◇  D1 create
+[?25h[?25l│
+◇  R2 create
+[?25h[?25l│
+◇  Queue create
+[?25h[?25l│
+◇  Write config
+[?25h[?25l│
+◇  Migrate D1 (local + remote)
+[?25h[?25l│
+◇  Build + deploy
+[?25h│
+◇  You're live ────────────────────────────────────────────────────────────╮
+│                                                                          │
+│  Your feedback portal is live: https://my-feedback.team.workers.dev      │
+│  Notion database:                                                        │
+│  https://www.notion.so/12345678-1234-4234-8234-123456789abc              │
+│                                                                          │
+│  cd my-feedback                                                          │
+│  npm run dev        # http://localhost:3000                              │
+│  npm run deploy     # publish changes                                    │
+│                                                                          │
+│  Secrets: my-feedback/.dev.vars (private, gitignored)                    │
+│  FEEDBAX_HOST_SECRET is there when you embed the block.                  │
+│                                                                          │
+│  1. Submit your first post and check the Notion dashboard.               │
+│  2. Embed the feedback dialog:                                           │
+│  https://github.com/jessequartey/feedbax#add-the-feedback-dialog         │
+│  3. Set appUrl in feedbax.config.ts, then publish changes.               │
+│                                                                          │
+│  Local posts sync to your real Notion database; delete test rows there.  │
+│                                                                          │
+├──────────────────────────────────────────────────────────────────────────╯
+│
+└  Ready for feedback.

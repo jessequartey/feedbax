@@ -1,0 +1,43 @@
+
+> feedbax@0.3.0 build
+> vp build
+
+transforming...
+✓ 157 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/client/.assetsignore                                           0.02 kB
+dist/client/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2    7.42 kB
+dist/client/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2      8.00 kB
+dist/client/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2       15.08 kB
+dist/client/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2      16.51 kB
+dist/client/assets/geist-latin-wght-normal-BgDaEnEv.woff2          29.40 kB
+dist/client/assets/styles-CjarFjXT.css                             63.09 kB │ gzip:  10.82 kB
+dist/client/assets/routes-Byr1CG1c.js                               0.35 kB │ gzip:   0.25 kB
+dist/client/assets/index-DZNBZHnh.js                              345.89 kB │ gzip: 112.29 kB
+
+✓ built in 329ms
+transforming...
+✓ 203 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/server/wrangler.json                                               1.77 kB │ gzip:   0.87 kB
+dist/server/assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2        7.42 kB
+dist/server/assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2          8.00 kB
+dist/server/assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2           15.08 kB
+dist/server/assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2          16.51 kB
+dist/server/assets/geist-latin-wght-normal-BgDaEnEv.woff2              29.40 kB
+dist/server/assets/styles-CjarFjXT.css                                 63.09 kB │ gzip:  10.82 kB
+dist/server/assets/start-COmmreO7.js                                    0.17 kB │ gzip:   0.15 kB │ map:     0.25 kB
+dist/server/assets/empty-plugin-adapters-CeyhLWeJ.js                    0.26 kB │ gzip:   0.18 kB │ map:     0.49 kB
+dist/server/assets/_tanstack-start-manifest_v-BRkezkiv.js               0.57 kB │ gzip:   0.32 kB
+dist/server/assets/routes-DhxkmLea.js                                   0.75 kB │ gzip:   0.43 kB │ map:     1.07 kB
+dist/server/assets/rolldown-runtime-SbdDWaPq.js                         1.43 kB │ gzip:   0.66 kB
+dist/server/assets/functions-DTBgVHoS.js                               10.70 kB │ gzip:   3.53 kB │ map:    19.85 kB
+dist/server/assets/Match-Dko6gSSQ.js                                   13.93 kB │ gzip:   3.95 kB │ map:    27.89 kB
+dist/server/assets/createServerFn-mH-jWJXR.js                          17.51 kB │ gzip:   5.53 kB │ map:    38.47 kB
+dist/server/assets/router-DrBZxxS4.js                                  37.81 kB │ gzip:  10.61 kB │ map:    96.54 kB
+dist/server/assets/__23tanstack-start-server-fn-resolver-AgUqnSAM.js  148.18 kB │ gzip:  38.12 kB │ map:   315.38 kB
+dist/server/index.js                                                  738.47 kB │ gzip: 156.32 kB │ map: 1,370.98 kB
+
+✓ built in 230ms

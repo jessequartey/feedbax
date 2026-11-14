@@ -1,45 +1,117 @@
 name: Release
+
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    tags: ["v*.*.*"]
+
 permissions:
-  contents: read
-concurrency:
-  group: release-main
-  cancel-in-progress: false
+  contents: write # GitHub Release
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
 jobs:
-  verify:
-    uses: ./.github/workflows/ci.yml
   release:
-    if: github.ref == 'refs/heads/main'
-    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.22.0
-          cache: pnpm
-      - name: Install npm with OIDC support
-        run: npm install --global npm@11
-      - run: pnpm install --frozen-lockfile
-      - name: Create version PR or publish new package versions
-        uses: changesets/action@v1
-        with:
-          version: pnpm release:version
-          publish: pnpm release:publish
-          title: "Release Feedbax packages"
-          commit: "chore: version Feedbax packages"
-          createGithubReleases: false
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@12.2.2 pnpm@10.29.3
+      - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
+
+      - name: Tag matches the CLI version
+        run: |
+          pkg=$(node -p "require('./packages/create-feedbax/package.json').version")
+          if [ "v$pkg" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match packages/create-feedbax version $pkg" >&2
+            exit 1
+          fi
+
+      - name: Notion template URL is real and matches the README
+        run: |
+          line=$(grep -rhE "NOTION_TEMPLATE_URL\s*=\s*['\"][^'\"]+['\"]" packages/create-feedbax/src | head -n1 || true)
+          if [ -z "$line" ]; then
+            echo "NOTION_TEMPLATE_URL not found in packages/create-feedbax/src" >&2
+            exit 1
+          fi
+          url=$(printf '%s' "$line" | sed -E "s/.*NOTION_TEMPLATE_URL[[:space:]]*=[[:space:]]*['\"]([^'\"]+)['\"].*/\1/")
+          if echo "$url" | grep -qiE 'placeholder|example\.com|TODO|REPLACE|XXXX'; then
+            echo "NOTION_TEMPLATE_URL is still a placeholder: $url" >&2
+            exit 1
+          fi
+          if ! grep -qF "($url)" README.md; then
+            echo "README.md must link the Notion template as ($url)" >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm ci --prefix packages/create-feedbax # the CLI package has its own install
+      - run: npm run check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Worker exports fetch, queue and scheduled
+        run: npm run verify:build
+      - name: Built Worker request boundaries
+        run: node scripts/test-worker-entry.ts
+      - name: Built Worker auth and session isolation
+        run: node scripts/test-worker-auth.ts
+      - name: Built Worker provider sync
+        run: node scripts/test-worker-sync.ts
+      - name: Wrangler dry run
+        run: npx --no-install wrangler deploy --dry-run
+      - name: No server secret names in the portal client bundle (the public registry JSON in dist/client/r documents them)
+        run: |
+          if grep -rE --exclude-dir=r 'BETTER_AUTH_SECRET|FEEDBAX_HOST_SECRET' dist/client; then
+            echo "Server secret name found in dist/client." >&2
+            exit 1
+          fi
+      - name: Registry and template are up to date
+        run: |
+          npm run registry:build
+          git diff --exit-code -- public/r
+      - run: npm run cli:build
+      - run: npm run test:package
+
+      - name: Pack the CLI
+        working-directory: packages/create-feedbax
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP"
+          sha256sum create-feedbax-*.tgz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish to npm
+        working-directory: packages/create-feedbax
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tarball="$RUNNER_TEMP/create-feedbax-$version.tgz"
+          if npm view "create-feedbax@$version" version >/dev/null 2>&1; then
+            published=$(npm view "create-feedbax@$version" dist.integrity)
+            expected=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; import { createHash } from "node:crypto"; console.log("sha512-" + createHash("sha512").update(readFileSync(process.argv[1])).digest("base64"))' "$tarball")
+            if [ "$published" != "$expected" ]; then
+              echo "create-feedbax@$version is already on npm with different package contents; refusing to create a release." >&2
+              exit 1
+            fi
+            echo "create-feedbax@$version is already on npm with matching integrity; skipping publish."
+          else
+            npm publish "$tarball" --access public --provenance
+          fi
+
+      - name: Create the GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' \
+            "Install: \`npx create-feedbax@${GITHUB_REF_NAME#v}\`" \
+            "" \
+            "Full setup guide: see the README. Starting from 0.2.x? Create a new project (see CHANGELOG.md)." \
+            > "$RUNNER_TEMP/notes-header.md"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes-file "$RUNNER_TEMP/notes-header.md" \
+            "$RUNNER_TEMP"/create-feedbax-*.tgz \
+            "$RUNNER_TEMP/SHA256SUMS.txt"

@@ -1,6 +1,0 @@
-.dev.vars
-.env*
-.feedbax/
-dist/
-.wrangler/
-*.log

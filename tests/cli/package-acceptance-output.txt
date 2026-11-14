@@ -1,0 +1,104 @@
+
+> feedbax@0.3.0 test:package
+> node scripts/test-package.ts
+
+TEMP: W2 clients are absent; injected clients work, release provisioning requires W2.
+Template integration pending: src/server/functions.ts imports repo fixtures (W1 must replace the W0 stub).
+create-feedbax: built CLI + 52 template files
+package: npm exec, pnpm dlx and bunx tarball launch passed
+package: packed CLI non-interactive E2E + rerun + private secrets passed (fake providers and PATH binaries)
+package: generated app installs with npm
+package: generated app installs with pnpm
+package: generated app installs with bun
+Generated-app acceptance failed:
+npm: npm run build failed (1)
+✗ Build failed in 146ms
+error during build:
+Build failed with 1 error:
+
+[UNRESOLVED_IMPORT] Could not resolve '../../tests/fixtures/portal.ts' in src/server/functions.ts?tss-serverfn-split
+   ╭─[ src/server/functions.ts?tss-serverfn-split:4:176 ]
+   │
+ 4 │ import { fixtureAddComment, fixtureCreatePost, fixtureGetPost, fixtureListComments, fixtureListMyPosts, fixtureListPosts, fixtureRoadmap, fixtureSetVote, fixtureViewer } from "../../tests/fixtures/portal.ts";
+   │                                                                                                                                                                                ────────────────┬───────────────
+   │                                                                                                                                                                                                ╰───────────────── Module not found.
+   │
+   │ Help: 'src/server/functions.ts?tss-serverfn-split' is imported by the following path:
+   │         - src/server/functions.ts?tss-serverfn-split
+   │         - \0%23tanstack-start-server-fn-resolver
+   │         - node_modules/@tanstack/start-server-core/dist/esm/getServerFnById.js
+   │         - node_modules/@tanstack/start-server-core/dist/esm/serializer/ServerFunctionSerializationAdapter.js
+   │         - node_modules/@tanstack/start-server-core/dist/esm/createStartHandler.js
+   │         - node_modules/@tanstack/start-server-core/dist/esm/index.js
+   │         - node_modules/@tanstack/react-start-server/dist/esm/index.js
+   │         - node_modules/@tanstack/react-start/dist/esm/server.js
+   │         - node_modules/@tanstack/react-start/dist/default-entry/esm/server.js
+   │         - src/server.ts
+   │         - \0virtual:cloudflare/worker-entry
+───╯
+
+    at aggregateBindingErrorsIntoJsError (file:///private/var/folders/9f/wjfy2h957m33v9ktdscm_z7r0000gn/T/feedbax-package-Rpg02a/projects/my-feedback/node_modules/vite/dist/rolldown/shared/error-CEbRa698.mjs:50:18)
+    at unwrapBindingResult (file:///private/var/folders/9f/wjfy2h957m33v9ktdscm_z7r0000gn/T/feedbax-package-Rpg02a/projects/my-feedback/node_modules/vite/dist/rolldown/shared/error-CEbRa698.mjs:20:128)
+    at #build (file:///private/var/folders/9f/wjfy2h957m33v9ktdscm_z7r0000gn/T/feedbax-package-Rpg02a/projects/my-feedback/node_modules/vite/dist/rolldown/shared/rolldown-CW0sJu7q.mjs:146:34
+
+pnpm: pnpm run build failed (1)
+✗ Build failed in 164ms
+error during build:
+Build failed with 1 error:
+
+[UNRESOLVED_IMPORT] Could not resolve '../../tests/fixtures/portal.ts' in src/server/functions.ts?tss-serverfn-split
+   ╭─[ src/server/functions.ts?tss-serverfn-split:4:176 ]
+   │
+ 4 │ import { fixtureAddComment, fixtureCreatePost, fixtureGetPost, fixtureListComments, fixtureListMyPosts, fixtureListPosts, fixtureRoadmap, fixtureSetVote, fixtureViewer } from "../../tests/fixtures/portal.ts";
+   │                                                                                                                                                                                ────────────────┬───────────────
+   │                                                                                                                                                                                                ╰───────────────── Module not found.
+   │
+   │ Help: 'src/server/functions.ts?tss-serverfn-split' is imported by the following path:
+   │         - src/server/functions.ts?tss-serverfn-split
+   │         - \0%23tanstack-start-server-fn-resolver
+   │         - node_modules/.pnpm/@tanstack+start-server-core@1.169.45/node_modules/@tanstack/start-server-core/dist/esm/getServerFnById.js
+   │         - node_modules/.pnpm/@tanstack+start-server-core@1.169.45/node_modules/@tanstack/start-server-core/dist/esm/serializer/ServerFunctionSerializationAdapter.js
+   │         - node_modules/.pnpm/@tanstack+start-server-core@1.169.45/node_modules/@tanstack/start-server-core/dist/esm/createStartHandler.js
+   │         - node_modules/.pnpm/@tanstack+start-server-core@1.169.45/node_modules/@tanstack/start-server-core/dist/esm/index.js
+   │         - node_modules/.pnpm/@tanstack+react-start-server@1.167.52_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-start-server/dist/esm/index.js
+   │         - node_modules/.pnpm/@tanstack+react-start@1.169.5_@voidzero-dev+vite-plus-core@1.6.0_@types+node@24.19.2_es_49e83bb3a8081450a16aa418ea4c60de/node_modules/@tanstack/react-start/dist/esm/server.js
+   │         - node_modules/.pnpm/@tanstack+react-start@1.169.5_@voidzero-dev+vite-plus-core@1.6.0_@types+node@24.19.2_es_49e83bb3a8081450a16aa418ea4c60de/node_modules/@tanstack/react-start/dist/default-entry/esm/server.js
+   │         - src/server.ts
+   │         - \0virtual:cloudflare/worker-entry
+───╯
+
+
+
+bun: bun run build failed (1)
+$ vp build
+✗ Build failed in 156ms
+error during build:
+Build failed with 1 error:
+
+[UNRESOLVED_IMPORT] Could not resolve '../../tests/fixtures/portal.ts' in src/server/functions.ts?tss-serverfn-split
+   ╭─[ src/server/functions.ts?tss-serverfn-split:4:176 ]
+   │
+ 4 │ import { fixtureAddComment, fixtureCreatePost, fixtureGetPost, fixtureListComments, fixtureListMyPosts, fixtureListPosts, fixtureRoadmap, fixtureSetVote, fixtureViewer } from "../../tests/fixtures/portal.ts";
+   │                                                                                                                                                                                ────────────────┬───────────────
+   │                                                                                                                                                                                                ╰───────────────── Module not found.
+   │
+   │ Help: 'src/server/functions.ts?tss-serverfn-split' is imported by the following path:
+   │         - src/server/functions.ts?tss-serverfn-split
+   │         - \0%23tanstack-start-server-fn-resolver
+   │         - node_modules/@tanstack/start-server-core/dist/esm/getServerFnById.js
+   │         - node_modules/@tanstack/start-server-core/dist/esm/serializer/ServerFunctionSerializationAdapter.js
+   │         - node_modules/@tanstack/start-server-core/dist/esm/createStartHandler.js
+   │         - node_modules/@tanstack/start-server-core/dist/esm/index.js
+   │         - node_modules/@tanstack/react-start-server/dist/esm/index.js
+   │         - node_modules/@tanstack/react-start/dist/esm/server.js
+   │         - node_modules/@tanstack/react-start/dist/default-entry/esm/server.js
+   │         - src/server.ts
+   │         - \0virtual:cloudflare/worker-entry
+───╯
+
+    at aggregateBindingErrorsIntoJsError (file:///private/var/folders/9f/wjfy2h957m33v9ktdscm_z7r0000gn/T/feedbax-package-Rpg02a/projects/my-feedback/node_modules/vite/dist/rolldown/shared/error-CEbRa698.mjs:50:18)
+    at unwrapBindingResult (file:///private/var/folders/9f/wjfy2h957m33v9ktdscm_z7r0000gn/T/feedbax-package-Rpg02a/projects/my-feedback/node_modules/vite/dist/rolldown/shared/error-CEbRa698.mjs:20:128)
+    at #build (file:///private/var/folders/9f/wjfy2h957m33v9ktdscm_z7r0000gn/T/feedbax-package-Rpg02a/projects/my-feedback/node_modules/vite/dist/rolldown/shared/rolldown-CW0sJu7q
+
+W2: real setup factories are missing; fake-provider success does not satisfy the release gate.
+If src/server/functions.ts still imports tests/fixtures, W1 must replace that W0 stub before the release gate can pass.

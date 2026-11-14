@@ -1,7 +1,0 @@
-.dev.vars
-.env*
-.feedbax/
-dist/
-.wrangler/
-*.log
-node_modules/

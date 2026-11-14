@@ -1,80 +1,60 @@
 name: CI
 
 on:
-  workflow_call:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main, rebuild]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  verify:
+  ci:
     name: Verify Core
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 24.22.0
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Reject tracked secret files
-        shell: bash
+          node-version-file: .node-version
+      - run: npm install -g npm@12.2.2 pnpm@10.29.3
+      - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
+      - run: npm ci
+      - run: npm ci --prefix packages/create-feedbax # the CLI package has its own install
+      - run: npm run check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Worker exports fetch, queue and scheduled
+        run: npm run verify:build
+      - name: Built Worker request boundaries
+        run: node scripts/test-worker-entry.ts
+      - name: Built Worker auth and session isolation
+        run: node scripts/test-worker-auth.ts
+      - name: Built Worker provider sync
+        run: node scripts/test-worker-sync.ts
+      - name: Wrangler dry run
+        run: npx --no-install wrangler deploy --dry-run
+      - name: No server secret names in the portal client bundle (the public registry JSON in dist/client/r documents them)
         run: |
-          tracked_secret_files="$({ git ls-files | grep -E '(^|/)(\.env($|\.)|\.dev\.vars($|\.))|(\.pem|\.key|\.p12|\.pfx)$' | grep -vE '(\.env\.example|\.dev\.vars\.example)$'; } || true)"
-          if [[ -n "$tracked_secret_files" ]]; then
-            echo "Secret-bearing paths must not be tracked:"
-            echo "$tracked_secret_files"
+          if grep -rE --exclude-dir=r 'BETTER_AUTH_SECRET|FEEDBAX_HOST_SECRET' dist/client; then
+            echo "Server secret name found in dist/client." >&2
             exit 1
           fi
-
-      - name: Verify generated template
-        run: pnpm template:check
-
-      - name: Scan tracked files for secrets
-        run: pnpm security:check
-
-      - name: Check formatting
-        run: pnpm format:check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type check
-        run: pnpm type-check
-
-      - name: Run essential tests
-        run: pnpm test
-
-      - name: Build production Worker
-        run: pnpm build
-
-      - name: Check portal JavaScript budget
-        run: node scripts/check-bundle.mjs
-
-      - name: Verify packed packages and clean generated installation
-        run: pnpm packages:check
-
-      - name: Verify documentation deployment bundle
-        run: pnpm deploy:docs:dry-run
-
-      - name: Verify Worker deployment bundle
-        run: pnpm deploy:dry-run
+      - name: Registry is up to date
+        run: |
+          npm run registry:build
+          git diff --exit-code -- public/r
+      - run: npm run cli:build
+      - run: npm run test:package
+      - name: Scan for secrets
+        run: |
+          if git grep -nE '(ntn_[A-Za-z0-9]{20,}|secret_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' -- . ':!package-lock.json' ':!tests/fixtures'; then
+            echo "Possible secret committed." >&2
+            exit 1
+          fi

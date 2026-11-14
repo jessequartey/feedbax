@@ -1,643 +1,386 @@
-import type { EmailConfiguration, PortalFeatures } from "@feedbax/config";
-import { createHash, randomBytes } from "node:crypto";
-import { readFile, readdir, writeFile } from "node:fs/promises";
-import { defineFeedbax } from "@feedbax/config";
-import { basename, join } from "node:path";
-import { copyPackagedTemplate } from "./template";
-export {
-  assembleFlatTemplate,
-  copyPackagedTemplate,
-  templateChecksum,
-  verifyPackagedTemplate,
-} from "./template";
+#!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
-  createNotionFeedbackDataSource,
-  createFeedbackWorkflowViews,
-  validateNotionFeedbackDataSource,
-  type FeedbackDataSourceConfiguration,
-} from "@feedbax/feedback";
+  appUrlProblem,
+  Cancelled,
+  CliError,
+  detectPackageManager,
+  HELP,
+  parseFlags,
+  projectProblem,
+} from "./flags.ts";
+import { chooseNotion, chooseRepo, githubGuide, notionGuide, validatedToken } from "./flow.ts";
+import { createPrompter, createRunner, redact } from "./io.ts";
+import { NOTION_INTEGRATION_URL, NOTION_TEMPLATE_URL, README_URL, VERSION } from "./links.ts";
 import {
-  createNotionChangelogDataSource,
-  validateNotionChangelogDataSource,
-  type ChangelogDataSourceConfiguration,
-  type ChangelogPropertyIds,
-} from "@feedbax/changelog";
-
-export type FeedbackStorageSelection =
-  | { kind: "create"; parentPageId: string }
-  | { kind: "existing"; configuration: FeedbackDataSourceConfiguration };
-
-export function defaultProcessingQueueName(workerName: string) {
-  return workerName.length <= 55
-    ? `${workerName}-updates`
-    : `${workerName.slice(0, 46)}-${createHash("sha256").update(workerName).digest("hex").slice(0, 8)}-updates`;
-}
-
-export async function provisionGuidedInstallation({
-  destination,
-  product,
-  themePreset,
-  workerName,
-  commentProbePageId,
-  connected,
-  features,
-  feedbackSelection,
-  changelogSelection,
-  notionToken,
-  turnstile,
-  preview,
-  request = fetch,
-}: {
-  destination: string;
-  product: { name: string; description: string; siteUrl?: string };
-  themePreset: string;
-  workerName?: string;
-  commentProbePageId?: string;
-  connected?: {
-    processing?: "small" | "standard";
-    queueName?: string;
-    issuer: string;
-    loginUrl: string;
-    databaseId: string;
-    databaseName: string;
-    handoffSecret: string;
-    email?: EmailConfiguration & { secret?: string };
-    imageBucket?: string;
-  };
-  features: PortalFeatures;
-  feedbackSelection: FeedbackStorageSelection;
-  changelogSelection?: ChangelogStorageSelection;
-  notionToken: string;
-  turnstile: { siteKey?: string; secretKey?: string };
-  preview(message: string): Promise<boolean>;
-  request?: typeof fetch;
-}) {
-  try {
-    if ((await readdir(destination)).length)
-      throw new Error(
-        `Refusing to generate into non-empty destination: ${destination}`,
-      );
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  if (product.siteUrl && new URL(product.siteUrl).protocol !== "https:")
-    throw new Error("product.siteUrl must be an HTTPS URL.");
-  if (connected) {
-    if (
-      !product.siteUrl ||
-      connected.handoffSecret.length < 32 ||
-      !/^[0-9a-f-]{36}$/i.test(connected.databaseId) ||
-      !connected.databaseName.trim()
-    )
-      throw new Error(
-        "Connected setup requires a public site URL, dedicated D1 identifiers, and a handoff secret of at least 32 characters.",
-      );
-    for (const url of [connected.issuer, connected.loginUrl])
-      if (
-        new URL(url).protocol !== "https:" ||
-        new URL(url).username ||
-        new URL(url).password
-      )
-        throw new Error(
-          "Connected identity URLs must use HTTPS without credentials.",
-        );
-  }
-  if (connected?.email) {
-    const sender = connected.email;
-    if (
-      !["cloudflare", "resend", "custom"].includes(sender.provider) ||
-      !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(sender.from)
-    )
-      throw new Error(
-        "Choose cloudflare, resend, or custom and a plain sender email address.",
-      );
-    if (sender.provider !== "cloudflare" && !sender.secret?.trim())
-      throw new Error(
-        "Resend and custom delivery require a server-only email secret.",
-      );
-    if (
-      sender.provider === "custom" &&
-      (!sender.endpoint ||
-        new URL(sender.endpoint).protocol !== "https:" ||
-        new URL(sender.endpoint).username ||
-        new URL(sender.endpoint).password ||
-        new URL(sender.endpoint).hash)
-    )
-      throw new Error(
-        "Custom delivery requires an HTTPS endpoint without credentials or fragments.",
-      );
-  }
-  if (
-    connected?.imageBucket &&
-    !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(connected.imageBucket)
-  )
-    throw new Error(
-      "Use a dedicated private R2 bucket name of 3–63 lowercase letters, digits, or hyphens.",
-    );
-  const targetName =
-    workerName ??
-    basename(destination)
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-");
-  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(targetName))
-    throw new Error(
-      "Worker name must contain 1–63 lowercase letters, numbers, or hyphens.",
-    );
-  const processingQueue =
-    connected && connected.processing !== "standard"
-      ? (connected.queueName ?? defaultProcessingQueueName(targetName))
-      : undefined;
-  if (processingQueue && !/^[a-z0-9][a-z0-9-]{0,62}$/.test(processingQueue))
-    throw new Error(
-      "Processing queue name must contain 1–63 lowercase letters, numbers, or hyphens.",
-    );
-  const approved = await preview(
-    feedbackSelection.kind === "create"
-      ? `Create the canonical Feedback Data Source inside Notion page ${feedbackSelection.parentPageId}.`
-      : `Validate existing Feedback Data Source ${feedbackSelection.configuration.dataSourceId} without changing it.`,
-  );
-  if (!approved)
-    throw new Error(
-      "Feedback setup was not approved. No local files were created.",
-    );
-  const feedback =
-    feedbackSelection.kind === "create"
-      ? await createNotionFeedbackDataSource({
-          token: notionToken,
-          parentPageId: feedbackSelection.parentPageId,
-          request,
-        })
-      : await validateNotionFeedbackDataSource({
-          token: notionToken,
-          ...feedbackSelection.configuration,
-          request,
-        });
-  if (feedbackSelection.kind === "create") {
-    if (
-      !(await preview(
-        "Create six Notion team views: Inbox, Reviewing, Prioritization, Follow-up, Roadmap, and Shipped.",
-      ))
-    )
-      throw new Error("Workflow view creation was not approved.");
-    await createFeedbackWorkflowViews({
-      token: notionToken,
-      ...feedback,
-      request,
-    });
-  }
-  await verifySelectedCommentCapabilities(features, {
-    token: notionToken,
-    pageId:
-      commentProbePageId ??
-      (feedbackSelection.kind === "create"
-        ? feedbackSelection.parentPageId
-        : feedback.databaseId),
-    request,
-    command: "setup",
-  });
-  const changelog = await configureChangelogStorage({
-    features,
-    selection:
-      changelogSelection ??
-      (features.changelog
-        ? { kind: "create", databaseId: feedback.databaseId }
-        : undefined),
-    token: notionToken,
-    request,
-    preview,
-  });
-
-  await copyPackagedTemplate(destination);
-  const wranglerPath = join(destination, "wrangler.jsonc");
-  const wrangler = JSON.parse(await readFile(wranglerPath, "utf8"));
-  await writeFile(
-    wranglerPath,
-    JSON.stringify(
-      {
-        ...wrangler,
-        name: targetName,
-        ...(connected
-          ? {
-              triggers: { crons: ["*/5 * * * *"] },
-              ...(processingQueue
-                ? {
-                    queues: {
-                      producers: [
-                        { binding: "FEEDBAX_UPDATES", queue: processingQueue },
-                      ],
-                      consumers: [
-                        {
-                          queue: processingQueue,
-                          max_batch_size: 1,
-                          max_batch_timeout: 1,
-                          max_retries: 3,
-                          max_concurrency: 1,
-                          retry_delay: 60,
-                        },
-                      ],
-                    },
-                  }
-                : {}),
-              ...(connected.email?.provider === "cloudflare"
-                ? {
-                    send_email: [
-                      {
-                        name: "FEEDBAX_EMAIL",
-                        allowed_sender_addresses: [connected.email.from],
-                      },
-                    ],
-                  }
-                : {}),
-              ...(connected.imageBucket
-                ? {
-                    r2_buckets: [
-                      {
-                        binding: "FEEDBAX_IMAGES",
-                        bucket_name: connected.imageBucket,
-                      },
-                    ],
-                  }
-                : {}),
-              d1_databases: [
-                {
-                  binding: "FEEDBAX_DB",
-                  database_id: connected.databaseId,
-                  database_name: connected.databaseName,
-                  migrations_dir: "migrations",
-                },
-              ],
-            }
-          : {}),
-      },
-      null,
-      2,
-    ) + "\n",
-  );
-  const apiKey = randomBytes(32).toString("base64url");
-  const signingSecret = randomBytes(32).toString("base64url");
-  const values: Record<string, string> = {
-    NOTION_TOKEN: notionToken,
-    NOTION_FEEDBACK_DATABASE_ID: feedback.databaseId,
-    NOTION_FEEDBACK_DATA_SOURCE_ID: feedback.dataSourceId,
-    ...prefixProperties("NOTION_FEEDBACK", feedback.propertyIds),
-    FEEDBAX_API_KEY_HASH: createHash("sha256")
-      .update(apiKey)
-      .digest("base64url"),
-    PARTICIPATION_SIGNING_SECRET: signingSecret,
-    ...(connected ? { IDENTITY_HANDOFF_SECRET: connected.handoffSecret } : {}),
-    ...(connected?.email?.secret
-      ? { EMAIL_PROVIDER_SECRET: connected.email.secret }
-      : {}),
-    FEEDBAX_VOTING_ENABLED: String(features.voting),
-    FEEDBAX_COMMENTS_ENABLED: String(features.comments),
-    FEEDBAX_CHANGELOG_ENABLED: String(features.changelog),
-    ...(turnstile.siteKey
-      ? { VITE_TURNSTILE_SITE_KEY: turnstile.siteKey }
-      : {}),
-    ...(turnstile.secretKey
-      ? { TURNSTILE_SECRET_KEY: turnstile.secretKey }
-      : {}),
-    ...(changelog
-      ? {
-          NOTION_CHANGELOG_DATABASE_ID: changelog.databaseId,
-          NOTION_CHANGELOG_DATA_SOURCE_ID: changelog.dataSourceId,
-          ...prefixProperties("NOTION_CHANGELOG", changelog.propertyIds),
-        }
-      : {}),
-  };
-  await writeFile(
-    join(destination, ".dev.vars"),
-    Object.entries(values)
-      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-      .join("\n") + "\n",
-    { mode: 0o600 },
-  );
-  const configuration = defineFeedbax({
-    product: { ...product, logo: "/feedbax-mark.svg" },
-    theme: { preset: themePreset },
-    ...(connected
-      ? {
-          connected: {
-            processing: connected.processing ?? "small",
-            issuer: connected.issuer,
-            loginUrl: connected.loginUrl,
-            ...(connected.email
-              ? {
-                  email: {
-                    provider: connected.email.provider,
-                    from: connected.email.from,
-                    ...(connected.email.endpoint
-                      ? { endpoint: connected.email.endpoint }
-                      : {}),
-                  },
-                }
-              : {}),
-            ...(connected.imageBucket ? { images: true } : {}),
-          },
-        }
-      : {}),
-    notion: {
-      databaseId: feedback.databaseId,
-      dataSourceId: feedback.dataSourceId,
-      properties: feedback.propertyIds,
-    },
-    ...(changelog
-      ? {
-          changelog: {
-            databaseId: changelog.databaseId,
-            dataSourceId: changelog.dataSourceId,
-            properties: changelog.propertyIds,
-          },
-        }
-      : {}),
-    features,
-    submissions: {
-      moderation: "required",
-      maxTitleLength: 160,
-      maxDescriptionLength: 5000,
-    },
-    turnstile: {
-      enabled: Boolean(turnstile.siteKey),
-      ...(turnstile.siteKey ? { siteKey: turnstile.siteKey } : {}),
-    },
-  });
-  await writeFile(
-    join(destination, "src/feedbax.ts"),
-    `import { defineFeedbax } from "@feedbax/config";\n\nexport default defineFeedbax(${JSON.stringify(configuration, null, 2)});\n`,
-  );
-  const probePage =
-    commentProbePageId ??
-    (feedbackSelection.kind === "create"
-      ? feedbackSelection.parentPageId
-      : feedback.databaseId);
-  await writeFile(
-    join(destination, ".dev.vars"),
-    `NOTION_COMMENT_CAPABILITY_PROBE_PAGE_ID=${JSON.stringify(probePage)}\n`,
-    { flag: "a", mode: 0o600 },
-  );
-  return { apiKey, feedback, changelog, processingQueue };
-}
-
-function prefixProperties(prefix: string, properties: object) {
-  return Object.fromEntries(
-    (Object.entries(properties) as [string, string][]).map(([key, value]) => [
-      `${prefix}_${key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()}_PROPERTY_ID`,
-      value,
-    ]),
-  );
-}
-
-export const featureChoices = [
-  { key: "voting", label: "Voting", initialValue: true },
-  { key: "comments", label: "Comments", initialValue: true },
-  { key: "changelog", label: "Changelog", initialValue: true },
-] as const;
-
-export type CreatorPrompter = {
-  confirm(input: { message: string; initialValue: boolean }): Promise<boolean>;
+  ensureSecrets,
+  exists,
+  readVars,
+  savedAnswers,
+  scaffold,
+  writeAppConfig,
+} from "./project.ts";
+import { loadClients } from "./providers.ts";
+import { inferredLogin, oauthFields, oauthSecrets, requireLogin } from "./login.ts";
+import { setup } from "./setup.ts";
+import type { NotionSetupClient, GitHubSetupClient } from "../../../src/contracts/integrations.ts";
+import type { Clients, Prompter, Run, Secrets, SetupAnswers } from "./types.ts";
+export { setup } from "./setup.ts";
+export type CliDeps = {
+  cwd?: string;
+  env?: Record<string, string | undefined>;
+  prompt?: Prompter;
+  run?: Run;
+  fetch?: typeof fetch;
+  clients?: Clients;
+  templateDir?: string;
 };
-
-export async function collectFeatureSelection(
-  prompter: CreatorPrompter,
-): Promise<PortalFeatures> {
-  const selections: [keyof PortalFeatures, boolean][] = [];
-  for (const { key, label, initialValue } of featureChoices) {
-    selections.push([
-      key,
-      await prompter.confirm({
-        message: `Enable ${label}?`,
-        initialValue,
-      }),
-    ]);
-  }
-  return Object.fromEntries(selections) as PortalFeatures;
-}
-
-export function renderFeatureConfiguration(features: PortalFeatures): string {
-  return `features: {
-    voting: ${features.voting},
-    comments: ${features.comments},
-    changelog: ${features.changelog},
-  },`;
-}
-
-export function renderChangelogConfiguration(
-  configuration: ChangelogDataSourceConfiguration,
-): string {
-  const properties = Object.entries(configuration.propertyIds)
-    .map(([key, value]) => `      ${key}: ${JSON.stringify(value)},`)
-    .join("\n");
-  return `changelog: {
-    databaseId: ${JSON.stringify(configuration.databaseId)},
-    dataSourceId: ${JSON.stringify(configuration.dataSourceId)},
-    propertyIds: {
-${properties}
-    },
-  },`;
-}
-
-export interface NotionCommentCapabilities {
-  readComments: boolean;
-  insertComments: boolean;
-}
-
-export async function verifySelectedCommentCapabilities(
-  features: PortalFeatures,
-  {
-    token,
-    pageId,
-    request = fetch,
-    command = "setup",
-  }: {
-    token: string;
-    pageId: string;
-    request?: typeof fetch;
-    command?: "setup" | "doctor";
-  },
-): Promise<void> {
-  if (!features.comments) return;
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Notion-Version": "2026-03-11",
-  };
-  const readResponse = await request(
-    `https://api.notion.com/v1/comments?block_id=${encodeURIComponent(pageId)}&page_size=1`,
-    { headers },
-  );
-  if (!readResponse.ok) {
-    if (readResponse.status === 403)
-      assertEnabledCommentCapabilities({
-        commentsEnabled: true,
-        capabilities: { readComments: false, insertComments: true },
-        command,
-      });
-    throw new Error(
-      `Notion Comment read check failed (HTTP ${readResponse.status}). Verify a shared page ID and connection access.`,
-    );
-  }
-  if (command === "doctor") {
-    assertEnabledCommentCapabilities({
-      commentsEnabled: true,
-      capabilities: {
-        readComments: readResponse.status !== 403,
-        // Setup proves Insert comments before enabling the capability. Doctor
-        // deliberately avoids a write-method probe and verifies the live read path.
-        insertComments: true,
-      },
-      command,
-    });
-    return;
-  }
-  const insertResponse = await request("https://api.notion.com/v1/comments", {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: "{}",
-  });
-  if (insertResponse.status !== 400 && insertResponse.status !== 403)
-    throw new Error(
-      `Notion Comment insert capability check failed (HTTP ${insertResponse.status}).`,
-    );
-  const capabilities = {
-    readComments: readResponse.status !== 403,
-    insertComments: insertResponse.status !== 403,
-  };
-  assertEnabledCommentCapabilities({
-    commentsEnabled: true,
-    capabilities,
-    command,
-  });
-}
-
-export function assertEnabledCommentCapabilities({
-  commentsEnabled,
-  capabilities,
-  command = "setup",
-}: {
-  commentsEnabled: boolean;
-  capabilities: NotionCommentCapabilities;
-  command?: "setup" | "doctor";
-}): void {
-  if (!commentsEnabled) return;
-  const missing = [
-    ...(capabilities.readComments ? [] : ["Read comments"]),
-    ...(capabilities.insertComments ? [] : ["Insert comments"]),
-  ];
-  if (missing.length === 0) return;
-  const retry =
-    command === "doctor"
-      ? "rerun doctor. No changes were made."
-      : "retry setup.";
-  throw new Error(
-    `Enable ${missing.join(" and ")} in the Notion connection settings, then ${retry}`,
-  );
-}
-
-export type ChangelogStorageSelection =
-  | { kind: "create"; databaseId: string }
-  | {
-      kind: "existing";
-      dataSourceId: string;
-      propertyIds: ChangelogPropertyIds;
-    };
-
-export async function configureChangelogStorage({
-  features,
-  selection,
-  token,
-  request = fetch,
-  preview,
-}: {
-  features: PortalFeatures;
-  selection?: ChangelogStorageSelection;
-  token: string;
-  request?: typeof fetch;
-  preview(message: string): Promise<boolean>;
-}): Promise<ChangelogDataSourceConfiguration | undefined> {
-  if (!features.changelog) return;
-  if (!selection) {
-    throw new Error(
-      "Choose an existing compatible Changelog Data Source or create one beside Feedback.",
-    );
-  }
-  if (selection.kind === "existing") {
-    return validateNotionChangelogDataSource({
-      token,
-      dataSourceId: selection.dataSourceId,
-      propertyIds: selection.propertyIds,
-      request,
-    });
-  }
-  const approved = await preview(
-    `Create an empty Changelog Data Source beside Feedback in Feedbax Database ${selection.databaseId}. No sample entries will be published.`,
-  );
-  if (!approved) throw new Error("Changelog creation was not approved.");
-  return createNotionChangelogDataSource({
-    token,
-    databaseId: selection.databaseId,
-    request,
-  });
-}
-
-export async function doctorChangelogStorage({
-  enabled,
-  configuration,
-  token,
-  request = fetch,
-}: {
-  enabled: boolean;
-  configuration?: ChangelogDataSourceConfiguration;
-  token: string;
-  request?: typeof fetch;
-}): Promise<void> {
-  if (!enabled) return;
-  if (!configuration) {
-    throw new Error(
-      "Changelog is enabled without identifiers and property mappings. Create or select a compatible Changelog Data Source, configure it, then rerun doctor. No changes were made.",
-    );
-  }
-  await validateNotionChangelogDataSource({
-    token,
-    dataSourceId: configuration.dataSourceId,
-    propertyIds: configuration.propertyIds,
-    request,
-  });
-}
-
-export async function doctorInstallation({
-  features,
-  feedback,
-  changelog,
-  commentProbePageId,
-  token,
-  request = fetch,
-}: {
-  features: PortalFeatures;
-  feedback: Omit<FeedbackDataSourceConfiguration, "databaseId">;
-  changelog?: ChangelogDataSourceConfiguration;
-  commentProbePageId?: string;
-  token: string;
-  request?: typeof fetch;
-}): Promise<void> {
-  await validateNotionFeedbackDataSource({ token, ...feedback, request });
-  if (features.comments) {
-    if (!commentProbePageId) {
-      throw new Error(
-        "Comments are enabled but no Comment capability probe page is configured. Configure one, then rerun doctor. No changes were made.",
-      );
+export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}): Promise<number> {
+  const env = overrides.env ?? process.env;
+  const hidden: string[] = Object.entries(env)
+    .filter(([key]) => /TOKEN|SECRET|PASSWORD|API_KEY|CLIENT_ID/.test(key))
+    .map(([, value]) => value!)
+    .filter(Boolean);
+  let prompt = overrides.prompt ?? createPrompter(argv.includes("--yes"));
+  const controller = new AbortController();
+  const signal = () => controller.abort();
+  process.on("SIGINT", signal);
+  const run = overrides.run ?? createRunner(controller.signal);
+  const fetchFn: typeof fetch =
+    overrides.fetch ??
+    ((input, init) =>
+      fetch(input, {
+        ...init,
+        signal: AbortSignal.any([controller.signal, init?.signal ?? AbortSignal.timeout(10_000)]),
+      }));
+  let cwd = "",
+    created = false,
+    remote = false,
+    install: Promise<{ error?: unknown }> | undefined;
+  let retry = "npx create-feedbax";
+  try {
+    const flags = parseFlags(argv);
+    if (flags.help) {
+      console.log(HELP);
+      return 0;
     }
-    await verifySelectedCommentCapabilities(features, {
-      token,
-      pageId: commentProbePageId,
-      request,
-      command: "doctor",
+    if (flags.version) {
+      console.log(VERSION);
+      return 0;
+    }
+    prompt = overrides.prompt ?? createPrompter(flags.yes);
+    if (flags.yes && !flags.name)
+      throw new CliError("Non-interactive setup needs a project name.", 2);
+    if (!flags.yes && !process.stdin.isTTY && !overrides.prompt)
+      throw new CliError("Use --yes with explicit flags in a non-interactive terminal.", 2);
+    prompt.intro(`Feedbax ${VERSION}  ·  Feedback, connected.`);
+    const name =
+      flags.name ??
+      (await prompt.text("Project name", {
+        defaultValue: "my-feedback",
+        validate: projectProblem,
+      }));
+    cwd = resolve(overrides.cwd ?? process.cwd(), name);
+    retry = `npx create-feedbax ${name}${
+      flags.yes
+        ? argv
+            .filter((arg) => arg !== flags.name)
+            .map((arg) => ` '${arg.replaceAll("'", "'\\''")}'`)
+            .join("")
+        : ""
+    }`;
+    const saved = await savedAnswers(cwd);
+    if (
+      saved.notionDataSourceId &&
+      ((flags.anonymous !== undefined && flags.anonymous !== saved.anonymous) ||
+        (flags.template !== undefined && flags.template !== saved.template) ||
+        (flags.githubRepo !== undefined && flags.githubRepo !== saved.githubRepo))
+    )
+      throw new CliError(
+        "These flags conflict with an already configured project. Edit feedbax.config.ts explicitly before rerunning setup.",
+        2,
+      );
+    if (saved.notionDataSourceId && flags.notionPage) {
+      const resumeArgs: string[] = [];
+      for (let index = 0; index < argv.length; index++) {
+        const arg = argv[index]!;
+        if (arg === "--notion-page") {
+          index++;
+          continue;
+        }
+        if (!arg.startsWith("--notion-page=")) resumeArgs.push(arg);
+      }
+      if (!flags.name) resumeArgs.unshift(name);
+      retry = `npx create-feedbax${resumeArgs.map((arg) => ` '${arg.replaceAll("'", "'\\''")}'`).join("")}`;
+    }
+    const prior = await readVars(cwd);
+    hidden.push(...Object.values(prior));
+    if (
+      prior.FEEDBAX_HOST_SECRET !== undefined &&
+      (!/^[A-Za-z0-9_-]+$/.test(prior.FEEDBAX_HOST_SECRET) ||
+        Buffer.from(prior.FEEDBAX_HOST_SECRET, "base64url").length < 32 ||
+        Buffer.from(prior.FEEDBAX_HOST_SECRET, "base64url").toString("base64url") !==
+          prior.FEEDBAX_HOST_SECRET)
+    )
+      throw new CliError(
+        "FEEDBAX_HOST_SECRET must be canonical base64url encoding of at least 32 bytes. Restore the existing shared key before resuming; setup will not rotate it.",
+        2,
+      );
+    const oauth = oauthSecrets(env, prior);
+    const resume = await exists(join(cwd, "feedbax.config.ts"));
+    const savedOAuthProviders = resume
+      ? (["github", "google"] as const).filter((provider) => {
+          const [id, secret] = oauthFields[provider];
+          return Boolean(prior[id] && prior[secret] && !(env[id] && env[secret]));
+        })
+      : [];
+    const inferred = inferredLogin(oauth, saved.appUrl);
+    let login = flags.login ?? inferred ?? "github";
+    let appUrl = flags.appUrl ?? saved.appUrl;
+    if (
+      flags.appUrl !== undefined &&
+      ((saved.appUrl && flags.appUrl !== saved.appUrl) ||
+        (saved.notionDataSourceId && !saved.appUrl))
+    )
+      throw new CliError(
+        "--app-url conflicts with this configured project. Edit appUrl in feedbax.config.ts explicitly before rerunning setup.",
+        2,
+      );
+    if (flags.yes) {
+      if (savedOAuthProviders.length)
+        throw new CliError(
+          `Resume needs explicit production OAuth credentials: ${savedOAuthProviders.flatMap((provider) => oauthFields[provider]).join(", ")}. Local .dev.vars may contain localhost credentials. Set production values in the environment, or rerun interactively to confirm them.`,
+          2,
+        );
+      requireLogin({ login, appUrl }, oauth);
+      const required = [
+        !(env.NOTION_TOKEN || prior.NOTION_TOKEN) && "NOTION_TOKEN",
+        !env.CLOUDFLARE_API_TOKEN && "CLOUDFLARE_API_TOKEN",
+        !env.CLOUDFLARE_ACCOUNT_ID && "CLOUDFLARE_ACCOUNT_ID",
+        (flags.template ?? saved.template) === "notion-github" &&
+          !(env.GITHUB_TOKEN || prior.GITHUB_TOKEN) &&
+          "GITHUB_TOKEN",
+        (flags.template ?? saved.template) === "notion-github" &&
+          !(flags.githubRepo ?? saved.githubRepo) &&
+          "--github-repo",
+      ].filter(Boolean);
+      if (required.length)
+        throw new CliError(`Non-interactive setup needs ${required.join(", ")}.`, 2);
+    }
+    if (resume && !flags.yes && !(await prompt.confirm(`Finish setting up ${name}?`, true)))
+      throw new Cancelled();
+    const pm = flags.packageManager ?? detectPackageManager(env.npm_config_user_agent);
+    const begin = async () => {
+      const result = await prompt.step("Scaffold portal", () =>
+        scaffold(
+          cwd,
+          overrides.templateDir ?? resolve(dirname(fileURLToPath(import.meta.url)), "../template"),
+          name,
+        ),
+      );
+      created = result.created;
+      hidden.push(...Object.values(await ensureSecrets(cwd, {})));
+      install = run(pm, ["install"], { cwd, env: { CI: "true" } }).then(
+        (r) =>
+          r.code
+            ? {
+                error: new CliError(
+                  redact(`Dependency install failed.\n${r.stderr || r.stdout}`, hidden),
+                ),
+              }
+            : {},
+        (error: unknown) => ({ error }),
+      );
+      prompt.info("Dependencies are installing in the background.");
+    };
+    if (!flags.yes) await begin();
+    const template =
+      flags.template ??
+      saved.template ??
+      ((flags.yes
+        ? "notion"
+        : await prompt.select(
+            "Template",
+            [
+              { value: "notion", label: "Notion", hint: "Team dashboard" },
+              {
+                value: "notion-github",
+                label: "Notion + GitHub",
+                hint: "Dashboard + approved issues",
+              },
+            ],
+            "notion",
+          )) as SetupAnswers["template"]);
+    if (!flags.yes && !flags.login && (!resume || !inferred)) {
+      login = (await prompt.select(
+        "How will people sign in? GitHub login is separate from GitHub issue sync.",
+        [
+          { value: "github", label: "GitHub (recommended)" },
+          { value: "google", label: "Google" },
+          { value: "host", label: "Your app's existing login" },
+        ],
+        "github",
+      )) as SetupAnswers["login"];
+    }
+    if (!flags.yes && !appUrl) {
+      appUrl =
+        (await prompt.text(
+          login === "host"
+            ? "Your app's HTTPS URL (required for host login)"
+            : "Host app URL, if you also embed feedback (optional)",
+          {
+            defaultValue: "",
+            validate: (value) =>
+              value
+                ? appUrlProblem(value)
+                : login === "host"
+                  ? "Host login needs your app URL."
+                  : undefined,
+          },
+        )) || undefined;
+    }
+    if (login === "host") requireLogin({ login, appUrl }, oauth);
+    if (appUrl && appUrlProblem(appUrl)) throw new CliError(appUrlProblem(appUrl)!, 2);
+    if (saved.notionDataSourceId && appUrl !== saved.appUrl)
+      throw new CliError(
+        "Edit appUrl in feedbax.config.ts explicitly before resuming this configured project.",
+        2,
+      );
+    const factories = overrides.clients ?? (await loadClients());
+    const clients: Clients = {
+      notion: (token) => factories.notion(token, fetchFn),
+      github: (token) => factories.github(token, fetchFn),
+    };
+    const secrets: Secrets = {
+      ...oauth,
+      notionToken: env.NOTION_TOKEN ?? prior.NOTION_TOKEN ?? "",
+      cloudflareApiToken: env.CLOUDFLARE_API_TOKEN,
+      cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
+    };
+    if (!flags.yes) {
+      notionGuide(prompt);
+      if (await prompt.confirm("Open the Notion setup links in your browser?", false)) {
+        for (const link of [NOTION_TEMPLATE_URL, NOTION_INTEGRATION_URL]) {
+          const command =
+            process.platform === "darwin"
+              ? "open"
+              : process.platform === "win32"
+                ? "explorer.exe"
+                : "xdg-open";
+          const result = await run(command, [link], { cwd });
+          if (result.code)
+            prompt.info("Could not open the browser. Open the links above to continue.");
+        }
+      }
+    }
+    const notionAuth = await validatedToken(
+      "notion",
+      secrets.notionToken || undefined,
+      clients,
+      prompt,
+      flags.yes,
+    );
+    secrets.notionToken = notionAuth.token;
+    hidden.push(notionAuth.token);
+    if (!flags.yes) await ensureSecrets(cwd, secrets);
+    const notion = notionAuth.client as NotionSetupClient;
+    const target = await chooseNotion(
+      notion,
+      flags,
+      prompt,
+      () => {
+        remote = true;
+      },
+      saved.notionDataSourceId,
+    );
+    let github: GitHubSetupClient | null = null;
+    let githubRepo: string | undefined;
+    if (template === "notion-github") {
+      if (!flags.yes) githubGuide(prompt);
+      const githubAuth = await validatedToken(
+        "github",
+        env.GITHUB_TOKEN ?? prior.GITHUB_TOKEN,
+        clients,
+        prompt,
+        flags.yes,
+      );
+      secrets.githubToken = githubAuth.token;
+      hidden.push(githubAuth.token);
+      if (!flags.yes) await ensureSecrets(cwd, secrets);
+      github = githubAuth.client as GitHubSetupClient;
+      githubRepo = await chooseRepo(github, flags, prompt, saved.githubRepo);
+    }
+    const anonymous =
+      flags.anonymous ??
+      saved.anonymous ??
+      (flags.yes ? false : await prompt.confirm("Let people post without an account?", false)) ??
+      false;
+    if (flags.yes) await begin();
+    const answers: SetupAnswers = {
+      name,
+      login,
+      appUrl,
+      template,
+      anonymous,
+      packageManager: pm,
+      notionDataSourceId: target.dataSourceId,
+      githubRepo,
+    };
+    await ensureSecrets(cwd, secrets);
+    await writeAppConfig(cwd, answers);
+    const result = await setup(answers, secrets, {
+      run,
+      fetch: fetchFn,
+      notion,
+      github,
+      prompt,
+      cwd,
+      yes: flags.yes,
+      savedOAuthProviders,
+      install,
+      notionUrl: target.url,
+      onRemote: () => {
+        remote = true;
+      },
+      onSecret: (value) => hidden.push(value),
     });
+    const loginStatus =
+      login === "host"
+        ? `Host login integration pending. Add the same-origin authenticated token endpoint and FeedbaxLink in ${appUrl} using ${README_URL}. Share FEEDBAX_HOST_SECRET server-side only. Users can browse now; signed-in participation is ready after that connection is verified.`
+        : `${login === "github" ? "GitHub" : "Google"} sign-in is configured. Open the portal, choose Continue with ${login === "github" ? "GitHub" : "Google"}, and submit your first feedback. OAuth callback, session and first-write verification remain.`;
+    prompt.note(
+      `Portal deployed: ${result.portalUrl}\n${loginStatus}\nNotion database: ${result.notionUrl}\n\ncd ${name}\n${pm} run dev        # http://localhost:3000\n${pm} run deploy     # publish changes\n\nSecrets: ${name}/.dev.vars (private, gitignored).\nUse a separate development OAuth App for localhost; keep production callback registration unchanged. Replace local OAuth credentials in .dev.vars for development and update production secrets explicitly; do not deploy localhost credentials over production.\nLocal posts sync to your real Notion database; delete test rows there.`,
+      "Portal deployed",
+    );
+    prompt.outro(
+      login === "host"
+        ? "Host integration and first feedback verification remain."
+        : "Complete sign-in and first feedback verification in your portal.",
+    );
+    return 0;
+  } catch (error) {
+    controller.abort();
+    if (install) await install;
+    if (error instanceof Cancelled || (error as Error)?.name === "AbortError") {
+      if (created && !remote) await rm(cwd, { recursive: true, force: true });
+      prompt.info(
+        `Setup cancelled. Fix the problem above, then run the same command again.\nRetry: ${redact(retry, hidden)}`,
+      );
+      return 130;
+    }
+    prompt.error(
+      redact(
+        `${error instanceof Error ? error.message : "Setup could not finish."}\nFix the problem above, then run the same command again.\nRetry: ${retry}`,
+        hidden,
+      ),
+    );
+    return error instanceof CliError ? error.exitCode : 1;
+  } finally {
+    process.off("SIGINT", signal);
   }
-  await doctorChangelogStorage({
-    enabled: features.changelog,
-    configuration: changelog,
-    token,
-    request,
-  });
 }
-
-export { provisionGitHubInstallation } from "./github";
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url))
+  process.exitCode = await main();
