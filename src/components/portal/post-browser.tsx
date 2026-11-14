@@ -1,3 +1,4 @@
+import { ShowcaseSlot } from "./showcase-card";
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, SearchXIcon, InboxIcon } from "lucide-react";
@@ -127,6 +128,7 @@ export function PostBrowser({ title, description, kind, search, page, onChange, 
         </section>
         <aside aria-label="Filters" className="hidden border-l py-10 pl-8 lg:block">
           <FilterPanel {...panel} />
+          <ShowcaseSlot />
         </aside>
       </div>
     </div>

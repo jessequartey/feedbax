@@ -53,7 +53,7 @@ function Mascot({ className }: { className?: string }) {
  * The "Get your own Feedbax" card. Rendered only when the portal opts in with
  * `showcase: true`; once dismissed it stays hidden on this browser.
  */
-export function ShowcaseCard() {
+export function ShowcaseCard({ inline = false }: { inline?: boolean }) {
   const { config } = useViewer();
   // Read synchronously so a dismissed card never flashes. On the server there is no storage.
   const [dismissed, setDismissed] = React.useState(() =>
@@ -63,12 +63,23 @@ export function ShowcaseCard() {
 
   return (
     <>
-      {/* Keeps the bottom of the page (pagination, submit button) clear of the card. */}
-      <div aria-hidden="true" className="h-32 md:h-64" />
+      {/* Keeps the bottom of the page (pagination, submit button) clear of the floating card. */}
+      {!inline && (
+        <div
+          aria-hidden="true"
+          className="h-32 md:h-64 lg:[body:has([data-showcase-slot])_&]:hidden"
+        />
+      )}
       <div
         role="complementary"
         aria-label="Get your own Feedbax"
-        className="feedbax-hang fixed inset-x-3 bottom-3 z-40 md:inset-x-auto md:right-6 md:bottom-6 md:w-64"
+        className={cn(
+          "feedbax-hang",
+          inline
+            ? "relative mt-6"
+            : // Pages with a sidebar slot show the card there on desktop, so it never covers the filters.
+              "fixed inset-x-3 bottom-3 z-40 md:inset-x-auto md:right-6 md:bottom-6 md:w-64 lg:[body:has([data-showcase-slot])_&]:hidden",
+        )}
       >
         <span
           aria-hidden="true"
@@ -78,7 +89,13 @@ export function ShowcaseCard() {
           aria-hidden="true"
           className="pointer-events-none absolute -top-6 right-6 hidden h-6 w-px bg-foreground/25 md:block"
         />
-        <Card className="relative max-md:flex-row max-md:items-start max-md:gap-3 max-md:px-3 max-md:py-3 md:gap-3 md:px-4 md:shadow-sm">
+        <Card
+          className={cn(
+            "relative",
+            !inline && "max-md:flex-row max-md:items-start max-md:gap-3 max-md:px-3 max-md:py-3",
+            "md:gap-3 md:px-4 md:shadow-sm",
+          )}
+        >
           <Button
             variant="ghost"
             size="icon-xs"
@@ -107,5 +124,19 @@ export function ShowcaseCard() {
         </Card>
       </div>
     </>
+  );
+}
+
+/**
+ * Sidebar home for the card on desktop. While a slot is on the page, the floating card hides at
+ * `lg` and up (the slot stays mounted after dismissal, so the floating card never reappears).
+ */
+export function ShowcaseSlot() {
+  const { config } = useViewer();
+  if (!config.showcase) return null;
+  return (
+    <div data-showcase-slot="" className="hidden pt-4 lg:block">
+      <ShowcaseCard inline />
+    </div>
   );
 }

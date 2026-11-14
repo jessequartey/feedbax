@@ -1,3 +1,4 @@
+import { ShowcaseSlot } from "./showcase-card";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
 import { ArrowLeftIcon, ExternalLinkIcon, MessageSquareIcon } from "lucide-react";
@@ -105,6 +106,7 @@ export function PostDetailView({
               </Detail>
             ) : null}
           </dl>
+          <ShowcaseSlot />
         </aside>
       </div>
     </div>
