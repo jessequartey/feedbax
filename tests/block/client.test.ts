@@ -203,6 +203,8 @@ describe("submitFeedback: retries and errors", () => {
     await expect(submitFeedback(draft({ signal: controller.signal }))).rejects.toMatchObject({
       name: "AbortError",
     });
+    expect(tokensIssued).toBe(0);
+    expect(portal.log).toEqual([]);
   });
 });
 
@@ -292,7 +294,10 @@ describe("token getter and sign-in URL", () => {
     expect(first.headers.get("set-cookie")).toMatch(/HttpOnly/);
     expect(first.headers.get("cache-control")).toBe("no-store");
     expect(first.headers.get("referrer-policy")).toBe("no-referrer");
-    expect((await fetch(url, { redirect: "manual" })).status).toBe(401); // single use
+    await first.arrayBuffer();
+    const replay = await fetch(url, { redirect: "manual" });
+    expect(replay.status).toBe(401); // single use
+    await replay.arrayBuffer();
   });
 
   test("normalizePortalUrl rejects non-http(s) URLs", () => {

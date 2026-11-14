@@ -188,3 +188,18 @@ it("leaves the current session in place when an SSO link is invalid", async () =
   expect(response.headers.has("set-cookie")).toBe(false);
   expect(await response.text()).not.toContain("evil.example");
 });
+it.each(["127.0.0.1", "[::1]"])(
+  "permits same-host loopback development CORS for %s",
+  (hostname) => {
+    const portal = env.PORTAL_URL;
+    try {
+      env.PORTAL_URL = `http://${hostname}:3000`;
+      expect(allowedOrigin(`http://${hostname}:5173`)).toBe(true);
+      expect(allowedOrigin("http://localhost:5173")).toBe(false);
+      env.PORTAL_URL = "https://feedback.example.com";
+      expect(allowedOrigin(`http://${hostname}:5173`)).toBe(false);
+    } finally {
+      env.PORTAL_URL = portal;
+    }
+  },
+);

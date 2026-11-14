@@ -112,7 +112,8 @@ it("transfers anonymous content when the browser signs in through a host link", 
   await createPostForUser(data, anonymous, enabled);
   const signedIn = await auth.handler(
     new Request(`${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${await mintToken()}`, {
-      headers: { cookie },
+      method: "POST",
+      headers: { cookie, origin: env.PORTAL_URL },
     }),
   );
   expect(signedIn.status).toBe(302);
@@ -125,4 +126,64 @@ it("transfers anonymous content when the browser signs in through a host link", 
   expect(
     await env.DB.prepare("SELECT id FROM user WHERE id = ?").bind(anonymous.id).first(),
   ).toBeNull();
+});
+
+it("disables anonymous deletion without revoking an active session that owns feedback", async () => {
+  const auth = createAuth(enabled);
+  const initial = await auth.handler(request("sign-in/anonymous", {}));
+  const cookie = initial.headers.get("set-cookie")!.split(";")[0];
+  const user = (await viewerUser(new Headers({ cookie }), enabled))!;
+  await createPostForUser(form(), user, enabled);
+  const response = await auth.handler(request("delete-anonymous-user", {}, cookie));
+  expect(response.status).toBe(400);
+  expect(await viewerUser(new Headers({ cookie }), enabled)).toMatchObject({ id: user.id });
+});
+it("an anonymous write racing cleanup cannot burn SSO and prevent the cookie redirect", async () => {
+  const { vi } = await import("vite-plus/test");
+  const auth = createAuth(enabled);
+  const initial = await auth.handler(request("sign-in/anonymous", {}));
+  const cookie = initial.headers.get("set-cookie")!.split(";")[0];
+  const user = (await viewerUser(new Headers({ cookie }), enabled))!;
+  const data = form();
+  await createPostForUser(data, user, enabled);
+  const adapter = (await auth.$context).internalAdapter;
+  const remove = adapter.deleteUser.bind(adapter);
+  const deletion = vi.spyOn(adapter, "deleteUser").mockImplementation(async (id) => {
+    if (id === user.id) await createPostForUser(form(), user, enabled);
+    return remove(id);
+  });
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const url = `${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${await mintToken()}`;
+    let response = await auth.handler(new Request(url, { headers: { cookie } }));
+    if (response.status === 200) {
+      expect((await getPostDetail(data.get("id") as string, user)).author.id).toBe(user.id);
+      response = await auth.handler(
+        new Request(url, {
+          method: "POST",
+          headers: {
+            cookie,
+            origin: env.PORTAL_URL,
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: "",
+        }),
+      );
+    }
+    expect(response.status).toBe(302);
+    const host = await viewerUser(
+      new Headers({ cookie: response.headers.get("set-cookie")!.split(";")[0] }),
+      enabled,
+    );
+    expect(host?.kind).toBe("host");
+    expect((await getPostDetail(data.get("id") as string, host)).author.id).toBe(host!.id);
+    expect(
+      await env.DB.prepare("SELECT count(*) AS n FROM posts WHERE author_id = ?")
+        .bind(user.id)
+        .first(),
+    ).toEqual({ n: 1 });
+  } finally {
+    deletion.mockRestore();
+    log.mockRestore();
+  }
 });

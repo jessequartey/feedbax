@@ -5,7 +5,7 @@ import type { HostTokenClaims } from "../contracts/host-token.ts";
 import { createDb } from "../db/client.ts";
 import { usedTokens, user } from "../db/schema.ts";
 import { decode64 } from "./encoding.ts";
-import { DomainError } from "./errors.ts";
+import { DomainError, reportHostConfiguration } from "./errors.ts";
 import { record, text, uuid } from "./validation.ts";
 import type { AuthContext } from "better-auth";
 
@@ -14,6 +14,14 @@ export async function verifyHostToken(
   secret = env.FEEDBAX_HOST_SECRET,
   now = Math.floor(Date.now() / 1000),
 ): Promise<HostTokenClaims> {
+  let keyBytes: Uint8Array<ArrayBuffer>;
+  try {
+    keyBytes = decode64(secret);
+    if (keyBytes.length < 32) throw new Error();
+  } catch {
+    reportHostConfiguration();
+    throw new DomainError("unavailable", "Invalid FEEDBAX_HOST_SECRET configuration.");
+  }
   try {
     if (typeof token !== "string" || token.length > 4096) throw new Error();
     const parts = token.split(".");
@@ -23,7 +31,7 @@ export async function verifyHostToken(
     if (decoder.decode(header) !== HOST_TOKEN_HEADER || signature.length !== 32) throw new Error();
     const key = await crypto.subtle.importKey(
       "raw",
-      decode64(secret),
+      keyBytes,
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["verify"],
@@ -74,11 +82,19 @@ export async function resolveHostUser(
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("")
       .slice(0, 32);
+    // Old public accounts may have squatted the historical deterministic email.
+    // Preserve their data and create a distinct internal identity; never link by email.
+    const email = `host-${suffix}@users.feedbax.invalid`;
+    const collision = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, email))
+      .get();
     try {
       await adapter.createUser(
         {
           name: claims.name,
-          email: `host-${suffix}@users.feedbax.invalid`,
+          email: collision ? `host-${suffix}-${crypto.randomUUID()}@users.feedbax.invalid` : email,
           emailVerified: false,
           hostSubject: claims.sub,
           isAnonymous: false,
@@ -91,9 +107,8 @@ export async function resolveHostUser(
       if (!existing) throw error;
     }
   }
-  const updated = await adapter.updateUser(
-    (existing ?? (await db.select().from(user).where(eq(user.hostSubject, claims.sub)).get()))!.id,
-    { name: claims.name },
-  );
-  return updated;
+  const resolved =
+    existing ?? (await db.select().from(user).where(eq(user.hostSubject, claims.sub)).get())!;
+  if (resolved.name === claims.name) return resolved;
+  return adapter.updateUser(resolved.id, { name: claims.name });
 }

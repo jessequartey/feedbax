@@ -81,15 +81,15 @@ export const getRoadmap = createServerFn({ method: "GET" })
 export const createPost = createServerFn({ method: "POST" })
   .validator((data: FormData) => data)
   .handler(async ({ data }): Promise<ApiResult<CreatePostResult>> =>
-    result(async () => (await createPostForUser(data, await viewer())).data),
+    result(async () => (await createPostForUser(data, await viewer())).data, "posts.create"),
   );
 export const addComment = createServerFn({ method: "POST" })
   .validator((data: { id: string; postId: string; body: string }) => data)
   .handler(async ({ data }): Promise<ApiResult<CommentView>> =>
-    result(async () => addCommentForUser(data, await viewer())),
+    result(async () => addCommentForUser(data, await viewer()), "comments.create"),
   );
 export const setVote = createServerFn({ method: "POST" })
   .validator((data: { postId: string; voted: boolean }) => data)
   .handler(async ({ data }): Promise<ApiResult<VoteResult>> =>
-    result(async () => setVoteForUser(data, await viewer())),
+    result(async () => setVoteForUser(data, await viewer()), "votes.set"),
   );

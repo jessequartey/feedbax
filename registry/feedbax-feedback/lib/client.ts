@@ -129,6 +129,7 @@ export type SubmitFeedbackOptions = {
  * The post `id` never changes here, which makes the retry safe (the portal treats a replay as a no-op).
  */
 export async function submitFeedback(o: SubmitFeedbackOptions): Promise<CreatePostResult> {
+  o.signal?.throwIfAborted();
   const endpoint = `${normalizePortalUrl(o.portalUrl)}/api/posts`;
   const form = new FormData();
   form.set("id", o.id);
@@ -142,7 +143,9 @@ export async function submitFeedback(o: SubmitFeedbackOptions): Promise<CreatePo
   });
 
   const attempt = async (): Promise<Response> => {
+    o.signal?.throwIfAborted();
     const { token } = await o.getToken();
+    o.signal?.throwIfAborted();
     try {
       return await fetch(endpoint, {
         method: "POST",

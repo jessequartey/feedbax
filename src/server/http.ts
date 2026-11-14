@@ -1,14 +1,15 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
-import { LIMITS } from "../contracts/domain.ts";
+import { boundedBody, MULTIPART_BYTES } from "./request.ts";
 import type { ErrorCode } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
 import { syncState } from "../db/schema.ts";
 import { createAuth } from "./auth.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
 import { createPostForUser } from "./posts.ts";
-import { apiError, DomainError } from "./errors.ts";
+import type { Operation } from "./errors.ts";
+import { apiError, DomainError, reportUnexpected } from "./errors.ts";
 
 const STATUS: Record<ErrorCode, number> = {
   invalid_input: 400,
@@ -21,14 +22,16 @@ const STATUS: Record<ErrorCode, number> = {
   rate_limited: 429,
   unavailable: 503,
 };
-export function errorResponse(error: unknown) {
-  const body = apiError(error);
+export function errorResponse(error: unknown, operation: Operation = "request") {
+  const correlationId = crypto.randomUUID();
+  const body = apiError(error, operation, correlationId);
   return Response.json(
     { error: body },
     {
       status: STATUS[body.code],
       headers: {
         "Cache-Control": "no-store",
+        "X-Request-ID": correlationId,
         ...(error instanceof DomainError && error.retryAfter
           ? { "Retry-After": String(error.retryAfter) }
           : {}),
@@ -42,8 +45,9 @@ export function allowedOrigin(origin: string, settings = config): boolean {
     if (parsed.origin !== origin) return false;
     if (settings.appUrl && origin === new URL(settings.appUrl).origin) return true;
     return (
-      new URL(env.PORTAL_URL).hostname === "localhost" &&
-      parsed.hostname === "localhost" &&
+      new URL(env.PORTAL_URL).protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname) &&
+      parsed.hostname === new URL(env.PORTAL_URL).hostname &&
       parsed.protocol === "http:"
     );
   } catch {
@@ -51,37 +55,18 @@ export function allowedOrigin(origin: string, settings = config): boolean {
   }
 }
 async function multipart(request: Request) {
-  // Bound the body even when Content-Length is omitted or forged.
-  const max = LIMITS.images * LIMITS.imageBytes + 65536;
-  const length = Number(request.headers.get("content-length"));
-  if (length > max) throw new DomainError("too_large", "The submission is too large.");
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data;"))
     throw new DomainError("invalid_input", "Use multipart form data.");
-  const reader = request.body?.getReader();
-  if (!reader) throw new DomainError("invalid_input", "A submission is required.");
-  const chunks: Uint8Array<ArrayBuffer>[] = [];
-  let size = 0;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > max) {
-        await reader.cancel();
-        throw new DomainError("too_large", "The submission is too large.");
-      }
-      chunks.push(value);
-    }
-    return await new Response(new Blob(chunks), {
+    return await new Response(await boundedBody(request, MULTIPART_BYTES), {
       headers: { "Content-Type": request.headers.get("content-type")! },
     }).formData();
   } catch (error) {
     if (error instanceof DomainError) throw error;
     throw new DomainError("invalid_input", "Invalid multipart form data.");
-  } finally {
-    reader.releaseLock();
   }
 }
+
 export async function handlePosts(request: Request, settings = config): Promise<Response> {
   const origin = request.headers.get("origin");
   const cors = origin !== null && allowedOrigin(origin, settings);
@@ -111,7 +96,7 @@ export async function handlePosts(request: Request, settings = config): Promise<
       });
     }
   } catch (error) {
-    response = errorResponse(error);
+    response = errorResponse(error, "posts.create");
   }
   response.headers.set("Vary", "Origin");
   if (cors) {
@@ -127,11 +112,19 @@ export async function handleAuth(request: Request): Promise<Response> {
   try {
     const response = await createAuth().handler(request);
     response.headers.set("Cache-Control", "no-store");
+    if (response.status >= 500) {
+      const correlationId = crypto.randomUUID();
+      reportUnexpected(undefined, "auth.request", correlationId);
+      return Response.json(
+        { error: { code: "unavailable", message: "Please try again shortly." } },
+        { status: 503, headers: { "Cache-Control": "no-store", "X-Request-ID": correlationId } },
+      );
+    }
     const retryAfter = response.headers.get("X-Retry-After");
     if (response.status === 429 && retryAfter) response.headers.set("Retry-After", retryAfter);
     return response;
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(error, "auth.request");
   }
 }
 export async function handleHealth(settings = config): Promise<Response> {
@@ -157,7 +150,8 @@ export async function handleHealth(settings = config): Promise<Response> {
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    reportUnexpected(error, "health.read");
     return Response.json(
       { ok: false, notion: "failing", github: settings.integrations.github ? "failing" : "off" },
       { status: 503, headers: { "Cache-Control": "no-store" } },

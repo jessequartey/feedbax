@@ -41,7 +41,9 @@ it("signs a host in through Better Auth and rejects replays without a replacemen
   const token = await mintToken();
   const to = `/posts/${crypto.randomUUID()}`;
   const url = `${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${token}&to=${to}`;
-  const response = await handleAuth(new Request(url));
+  const response = await handleAuth(
+    new Request(url, { method: "POST", headers: { origin: env.PORTAL_URL } }),
+  );
   expect(response.status).toBe(302);
   expect(response.headers.get("location")).toBe(to);
   expect(response.headers.get("cache-control")).toBe("no-store");
@@ -51,7 +53,9 @@ it("signs a host in through Better Auth and rejects replays without a replacemen
     name: "Host user",
     kind: "host",
   });
-  const replay = await handleAuth(new Request(url));
+  const replay = await handleAuth(
+    new Request(url, { method: "POST", headers: { origin: env.PORTAL_URL } }),
+  );
   expect(replay.status).toBe(401);
   expect(replay.headers.has("set-cookie")).toBe(false);
   expect(await replay.text()).toContain("This link expired");
@@ -64,6 +68,7 @@ it("concurrent host arrivals converge on one user, and unsafe redirects fall bac
       auth.handler(
         new Request(
           `${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${token}&to=https://evil.example`,
+          { method: "POST", headers: { origin: env.PORTAL_URL } },
         ),
       ),
     ),
