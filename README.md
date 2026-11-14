@@ -246,6 +246,20 @@ Local data is separate, but local posts sync to your real Notion database if `NO
 
 For a custom domain, update the route in `wrangler.jsonc` and `PORTAL_URL` together, then deploy. Updates are source-level in 0.3.0: review and copy upstream changes into your project, keeping your config, resource IDs and secrets. Running create-feedbax again resumes setup; it does not upgrade an existing project. There is no automatic migration from 0.2.x; start a new project (see [CHANGELOG.md](CHANGELOG.md)).
 
+**Removing a test or spam post:** there is no moderation screen in 0.3.0. Copy the post's UUID from its portal URL and inspect the matching records first:
+
+```sh
+npx wrangler d1 execute DB --remote --command "SELECT id, title, notion_page_id, github_number FROM posts WHERE id = '<post UUID>'; SELECT object_key FROM images WHERE post_id = '<post UUID>'"
+```
+
+Keep the image keys, then delete only that post and its dependent rows:
+
+```sh
+npx wrangler d1 execute DB --remote --command "DELETE FROM comments WHERE post_id = '<post UUID>'; DELETE FROM votes WHERE post_id = '<post UUID>'; DELETE FROM images WHERE post_id = '<post UUID>'; DELETE FROM posts WHERE id = '<post UUID>'"
+```
+
+Move its matching Notion row to Trash and remove any test GitHub issue separately. Deleting database rows leaves image files in R2; delete the saved keys from the project's images bucket in the Cloudflare dashboard. Use these steps for each test post while keeping real feedback.
+
 ## Free plan
 
 Feedbax uses one Worker, one D1 database, one R2 bucket, one Queue and one of your account's five free Cron triggers. For a typical portal with 50 visitors, 5 new posts and 20 votes a day, 300 total posts and GitHub enabled:
