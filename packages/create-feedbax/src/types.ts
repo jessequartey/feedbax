@@ -4,7 +4,7 @@ export type SetupAnswers = {
   name: string;
   template: "notion" | "notion-github";
   anonymous: boolean;
-  login: "github" | "google" | "host";
+  login?: "github" | "google" | "host";
   appUrl?: string;
   packageManager: PackageManager;
   notionDataSourceId: string;

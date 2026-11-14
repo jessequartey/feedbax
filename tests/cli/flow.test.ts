@@ -84,19 +84,17 @@ describe("setup", () => {
   });
   it("collects questions in order while installing; deploys and preserves private secrets on rerun", async () => {
     const f = await fixture();
-    f.prompt = scripted(["my-feedback", "notion-github", "github", "", false, "team/app", false]);
-    expect(await main([], f)).toBe(0);
+    f.prompt = scripted(["my-feedback", false, "team/app"]);
+    expect(await main(["--template", "notion-github"], f)).toBe(0);
     const log = f.prompt.log.join("\n");
     const order = [
       "Project name",
       "Scaffold portal",
       "Dependencies are installing",
-      "Template",
       "Connect Notion",
       "Using Feedbax",
       "Connect GitHub",
       "Which repository?",
-      "Let people post without an account?",
       "Cloudflare login / check",
       "D1 create",
       "R2 create",
@@ -128,7 +126,7 @@ describe("setup", () => {
     const count = f.state.calls.filter((c) =>
       /(?:d1 create|r2 bucket create|queues create)/.test(c),
     ).length;
-    f.prompt = scripted([true, "", false]);
+    f.prompt = scripted([true, false]);
     expect(await main(["my-feedback"], f)).toBe(0);
     expect(await readVars(project)).toEqual(before);
     expect(
@@ -149,17 +147,7 @@ describe("setup", () => {
     f.state.taken = 1;
     f.state.login = false;
     f.env = { ...f.env, CLOUDFLARE_API_TOKEN: "", CLOUDFLARE_ACCOUNT_ID: "" };
-    f.prompt = scripted([
-      "my-feedback",
-      "notion",
-      "github",
-      "",
-      false,
-      false,
-      "",
-      "taken",
-      "available",
-    ]);
+    f.prompt = scripted(["my-feedback", false, "", "taken", "available"]);
     expect(await main([], f)).toBe(0);
     const log = f.prompt.log.join("\n");
     expect(log).toContain("Opening your browser");
@@ -392,13 +380,13 @@ describe("failure boundaries", () => {
   });
 });
 
-it("asks anonymous choice after a partial scaffold and clearly rejects conflicting reruns", async () => {
+it("defaults anonymous on without asking, and clearly rejects conflicting reruns", async () => {
   const f = await fixture();
   const { scaffold } = await import("../../packages/create-feedbax/src/project.ts");
   await scaffold(join(f.cwd, "my-feedback"), f.templateDir, "my-feedback");
-  f.prompt = scripted([true, "notion", "", false, true]);
+  f.prompt = scripted([true, false]);
   expect(await main(["my-feedback"], f)).toBe(0);
-  expect(f.prompt.log.join("\n")).toContain("Let people post without an account?");
+  expect(f.prompt.log.join("\n")).not.toContain("Let people post without an account?");
   expect(await readFile(join(f.cwd, "my-feedback", "feedbax.config.ts"), "utf8")).toContain(
     "anonymous: true",
   );
@@ -487,6 +475,50 @@ it("provides an actionable resume command omitting only --notion-page when its p
   expect(retry).not.toContain("--notion-page");
 });
 
+describe("minimal default setup", () => {
+  async function minimal() {
+    const f = await fixture();
+    f.env = {
+      NOTION_TOKEN: "sentinel-secret-token",
+      CLOUDFLARE_API_TOKEN: "sentinel-cloudflare-token",
+      CLOUDFLARE_ACCOUNT_ID: "account",
+    } as typeof f.env;
+    return f;
+  }
+  it("--yes needs only NOTION_TOKEN and Cloudflare credentials", async () => {
+    const f = await minimal();
+    f.clients.github = () => {
+      throw new Error("Issues client must not be called");
+    };
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    const project = join(f.cwd, "my-feedback");
+    const config = await readFile(join(project, "feedbax.config.ts"), "utf8");
+    expect(config).toContain("anonymous: true");
+    expect(config).toMatch(/github: false/);
+    expect(Object.keys(f.state.deploySecrets).sort()).toEqual(
+      ["BETTER_AUTH_SECRET", "FEEDBAX_HOST_SECRET", "NOTION_TOKEN"].sort(),
+    );
+    const log = f.prompt.log.join("\n");
+    expect(log).not.toContain("Configure sign-in");
+    expect(log).toContain("Anyone can post without an account");
+    expect(log).toContain("npx feedbax add github-login");
+  });
+  it("interactive setup asks for the project name and the Notion link choice, nothing else", async () => {
+    const f = await minimal();
+    f.prompt = scripted(["my-feedback", false]);
+    expect(await main([], f)).toBe(0);
+    const questions = f.prompt.log.filter((line) => /\[default /.test(line));
+    expect(questions).toEqual([
+      "Project name [default my-feedback]",
+      "Open the Notion setup links in your browser? [default No]",
+    ]);
+  });
+  it("warns that nobody can post when anonymous is turned off without a provider", async () => {
+    const f = await minimal();
+    expect(await main(["my-feedback", "--yes", "--anonymous=false"], f)).toBe(0);
+    expect(f.prompt.log.join("\n")).toContain("nobody can post");
+  });
+});
 describe("selected login checkpoint", () => {
   it.each(["github", "google"] as const)(
     "requires the exact %s pair before noninteractive writes, never using an Issues PAT",
@@ -506,7 +538,7 @@ describe("selected login checkpoint", () => {
       expect(log).not.toContain("Ready for feedback");
     },
   );
-  it("Notion-only plus default GitHub login does not use the Issues client or PAT", async () => {
+  it("Notion-only plus GitHub login from env does not use the Issues client or PAT", async () => {
     const f = await fixture();
     f.env.GITHUB_TOKEN = "";
     f.clients.github = () => {
@@ -538,16 +570,7 @@ describe("selected login checkpoint", () => {
     await writeFile(join(project, "wrangler.jsonc"), JSON.stringify(config));
     delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
     delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
-    f.prompt = scripted([
-      true,
-      "notion",
-      "github",
-      "",
-      false,
-      false,
-      "entered-client",
-      "entered-oauth-secret",
-    ]);
+    f.prompt = scripted([true, false, "entered-client", "entered-oauth-secret"]);
     const text = f.prompt.text.bind(f.prompt);
     f.prompt.text = async (message, options) => {
       if (message === "OAuth client secret") {
@@ -560,7 +583,7 @@ describe("selected login checkpoint", () => {
       }
       return text(message, options);
     };
-    expect(await main(["my-feedback"], f)).toBe(0);
+    expect(await main(["my-feedback", "--login=github"], f)).toBe(0);
     expect(f.state.deploySecrets.GITHUB_CLIENT_ID).toBe("entered-client");
     expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe("entered-oauth-secret");
     expect(f.state.deploySecrets.PORTAL_URL).toBeUndefined();
@@ -577,16 +600,7 @@ describe("selected login checkpoint", () => {
     const f = await fixture();
     delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
     delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
-    f.prompt = scripted([
-      "my-feedback",
-      "notion",
-      "github",
-      "",
-      false,
-      false,
-      "captured-client",
-      "captured-secret",
-    ]);
+    f.prompt = scripted(["my-feedback", false, "captured-client", "captured-secret"]);
     const run = f.run;
     f.run = async (cmd, args, opts) => {
       if (args.includes("create") && args.includes("d1")) {
@@ -596,7 +610,7 @@ describe("selected login checkpoint", () => {
       }
       return run(cmd, args, opts);
     };
-    expect(await main([], f)).toBe(1);
+    expect(await main(["--login=github"], f)).toBe(1);
     expect(f.prompt.log.join("\n")).not.toMatch(/captured-client|captured-secret/);
     f.run = run;
     f.env.GITHUB_CLIENT_ID = "captured-client";
@@ -982,7 +996,7 @@ it.each(["callback", "client", "provider", "state", "cookie"])(
   },
 );
 
-it("requires login setup for a completed legacy config without OAuth or appUrl", async () => {
+it("resumes a completed config without OAuth or appUrl with no sign-in, and adds one on request", async () => {
   const f = await fixture();
   expect(await main(["my-feedback", "--yes"], f)).toBe(0);
   const project = join(f.cwd, "my-feedback"),
@@ -994,11 +1008,12 @@ it("requires login setup for a completed legacy config without OAuth or appUrl",
   delete env.GITHUB_CLIENT_ID;
   delete env.GITHUB_CLIENT_SECRET;
   const calls = f.state.calls.length;
-  expect(await main(["my-feedback", "--yes"], f)).toBe(2);
-  expect(f.state.calls).toHaveLength(calls);
-  f.prompt = scripted([true, "github", "", false, "legacy-client", "legacy-secret"]);
-  expect(await main(["my-feedback"], f)).toBe(0);
-  expect(f.prompt.log.join("\n")).toContain("How will people sign in?");
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  expect(f.state.calls.length).toBeGreaterThan(calls);
+  expect(f.state.deploySecrets.GITHUB_CLIENT_ID).toBeUndefined();
+  f.prompt = scripted([true, false, "legacy-client", "legacy-secret"]);
+  expect(await main(["my-feedback", "--login=github"], f)).toBe(0);
+  expect(f.prompt.log.join("\n")).not.toContain("How will people sign in?");
   expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe("legacy-secret");
 });
 

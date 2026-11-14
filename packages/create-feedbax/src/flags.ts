@@ -189,16 +189,18 @@ Usage: create-feedbax [name] [options]
   --template notion|notion-github
   --notion-page <id-or-url>      Fallback if no unique template is found
   --github-repo owner/repo
-  --login github|google|host     Default: GitHub (separate from issue sync)
+  --login github|google|host     Optional; default: none (add later: npx feedbax add github-login)
   --app-url <https-url>          Required for host login
-  --anonymous true|false         Default: false
+  --anonymous true|false         Default: true
   --package-manager npm|pnpm|bun  Default: your package manager
   --help                        Offline help
   --version                     Offline version
 
-Node 24.15+ is required. CI: set NOTION_TOKEN, CLOUDFLARE_API_TOKEN,
-CLOUDFLARE_ACCOUNT_ID, and GITHUB_TOKEN for notion-github (Issues only). GitHub login needs
-GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET; Google uses GOOGLE_CLIENT_ID +
-GOOGLE_CLIENT_SECRET. Register the exact callback printed after Cloudflare
-origin discovery. Run interactively for OAuth App setup fields. Secrets never go in flags.
-Run the same command again to finish an interrupted setup.`;
+Defaults: Notion template, anonymous feedback on, no sign-in provider.
+Node 24.15+ is required. CI: set NOTION_TOKEN, CLOUDFLARE_API_TOKEN and
+CLOUDFLARE_ACCOUNT_ID, then run with --yes. That is all.
+Add-ons come after, from the project: npx feedbax add github | github-login |
+google-login | host-login | email | webhooks. (--template notion-github and
+--login are shortcuts for the first two; they need GITHUB_TOKEN, or GITHUB_CLIENT_ID +
+GITHUB_CLIENT_SECRET / GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET.)
+Secrets never go in flags. Run the same command again to finish an interrupted setup.`;
