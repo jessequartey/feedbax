@@ -7,7 +7,7 @@ import { exampleDate } from "../../src/integrations/notion-template.ts";
 import type { NotionSetupClient } from "../../src/contracts/integrations.ts";
 import { DATABASE, PARENT, SOURCE, list, text } from "./helpers.ts";
 
-const TOKEN = "ntn_sentinelSecretToken123";
+const TOKEN = "ntn_test_only_sentinel";
 const NEW_PAGE = "55555555-5555-4555-8555-555555555555";
 const pageUrl = (id: string) => `https://www.notion.so/${id.replaceAll("-", "")}`;
 const parentPage = {
@@ -377,7 +377,7 @@ describe("script flags and secrets", () => {
       { NOTION_TOKEN: TOKEN },
       failing,
     ).catch((e: Error) => e);
-    expect((error as Error).message).not.toContain("sentinelSecretToken");
+    expect((error as Error).message).not.toContain("test_only_sentinel");
     expect((error as Error).message).toContain("Retry: npm run notion:template -- --page");
     expect((error as Error).message).toContain("--examples");
   });
