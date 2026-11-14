@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, rebuild]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install -g npm@12.2.2
+      - run: npm ci
+      - run: npm run check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Registry is up to date
+        run: |
+          npm run registry:build
+          git diff --exit-code -- public/r
+      - run: npm run cli:build
+      - run: npm run test:package
+      - name: Scan for secrets
+        run: |
+          if git grep -nE '(ntn_[A-Za-z0-9]{20,}|secret_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' -- . ':!package-lock.json' ':!tests/fixtures'; then
+            echo "Possible secret committed." >&2
+            exit 1
+          fi
