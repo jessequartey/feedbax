@@ -1,8 +1,8 @@
-import { eq, isNull, lt, or, and } from "drizzle-orm";
+import { inArray, lt, sql } from "drizzle-orm";
 import { IntegrationError } from "../contracts/integrations.ts";
-import type { SyncMessage } from "../contracts/sync.ts";
-import { usedTokens } from "../db/schema.ts";
-import { config, db, env, posts, providerPaused, readState, writeState } from "./shared.ts";
+import type { SyncErrorState, SyncMessage } from "../contracts/sync.ts";
+import { syncState, usedTokens } from "../db/schema.ts";
+import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
 import { mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
 
@@ -47,19 +47,26 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
       if (transient) {
         const backoff = Math.min(30 * 2 ** Math.min(Math.max(message.attempts - 1, 0), 7), 3600);
         // Cloudflare caps a per-message retry delay at 24 hours.
-        message.retry({
-          delaySeconds: Math.min(
-            86_400,
-            Math.max(backoff, Math.ceil((failure.retryAfterMs ?? 0) / 1000)),
-          ),
-        });
+        const delaySeconds = Math.min(
+          86_400,
+          Math.max(backoff, Math.ceil((failure.retryAfterMs ?? 0) / 1000)),
+        );
+        message.retry({ delaySeconds });
+        // While this message backs off, the cron sends this provider nothing new: the retry
+        // is the probe, and its success clears the backoff. Capped at an hour so polling
+        // resumes even if the retry is lost. Best effort: D1 itself may be what failed.
+        await advanceState(
+          `${provider}.backoff`,
+          new Date(Date.now() + Math.min(delaySeconds, 3600) * 1000).toISOString(),
+        ).catch(() => undefined);
       } else {
         await writeState(`${provider}.error`, {
           status: failure.status,
           code: failure.kind,
           message: failure.message,
           at: new Date().toISOString(),
-        });
+          type: body.type,
+        } satisfies SyncErrorState);
         console.error({
           type: body.type,
           ...("postId" in body ? { postId: body.postId } : {}),
@@ -71,44 +78,72 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
   }
 }
 
+const STATE_KEYS = ["notion", "github"].flatMap((provider) =>
+  ["error", "backoff", "watermark"].map((name) => `${provider}.${name}`),
+);
+
+/**
+ * Cron: cheap D1 reads and at most one Queue call. External I/O stays in the consumer.
+ * An idle tick is 2 D1 statements (4–5 with GitHub) and one `sendBatch` of the polls.
+ */
 export async function runScheduled(controller: ScheduledController): Promise<void> {
   const now = controller.scheduledTime;
   const database = db();
-  await database.delete(usedTokens).where(lt(usedTokens.expiresAt, now));
-  if (!(await providerPaused("notion", now))) {
-    const pending = await database
-      .select({ id: posts.id })
-      .from(posts)
-      .where(or(isNull(posts.notionPageId), lt(posts.notionRevision, posts.revision)))
-      .limit(25);
-    for (const post of pending)
-      await env.SYNC_QUEUE.send({ type: "notion.post", postId: post.id } satisfies SyncMessage);
-  }
-  if (config.integrations.github && !(await providerPaused("github", now))) {
-    const pending = await database
-      .select({ id: posts.id })
-      .from(posts)
-      .where(and(eq(posts.githubRequested, 1), isNull(posts.githubNumber)))
-      .limit(10);
-    for (const post of pending)
-      await env.SYNC_QUEUE.send({ type: "github.issue", postId: post.id } satisfies SyncMessage);
-  }
-  const until = new Date(now).toISOString();
-  const since = async (provider: string) => {
-    const previous = await readState<string>(`${provider}.watermark`);
+  const [, rows] = await database.batch([
+    database.delete(usedTokens).where(lt(usedTokens.expiresAt, now)),
+    database.select().from(syncState).where(inArray(syncState.key, STATE_KEYS)),
+  ]);
+  const state = new Map(rows.map((row) => [row.key, JSON.parse(row.value) as unknown]));
+  const error = (provider: string) => state.get(`${provider}.error`) as SyncErrorState | undefined;
+  const backedOff = (provider: string) =>
+    Date.parse((state.get(`${provider}.backoff`) as string | undefined) ?? "") > now;
+  const since = (provider: string) => {
+    const previous = state.get(`${provider}.watermark`) as string | undefined;
     return new Date(Math.max(0, (previous ? Date.parse(previous) : 0) - 120_000)).toISOString();
   };
-  await env.SYNC_QUEUE.send({
-    type: "notion.poll",
-    since: await since("notion"),
-    until,
-    cursor: null,
-  } satisfies SyncMessage);
-  if (config.integrations.github)
-    await env.SYNC_QUEUE.send({
-      type: "github.poll",
-      since: await since("github"),
-      until,
-      page: 1,
-    } satisfies SyncMessage);
+  const until = new Date(now).toISOString();
+  // INDEXED BY pins the partial indexes: SQLite would otherwise pick a full-width index
+  // (e.g. github_number IS NULL) and read every unsynced row.
+  const pendingIds = async (query: ReturnType<typeof sql>) =>
+    (await database.all<{ id: string }>(query)).map((row) => row.id);
+  const notion = !backedOff("notion");
+  const github = !!config.integrations.github && !backedOff("github");
+  const sweep: SyncMessage[] = [];
+  if (notion && !providerPaused(error("notion"), now))
+    for (const postId of await pendingIds(
+      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_page_id IS NULL OR notion_revision < revision LIMIT 25`,
+    ))
+      sweep.push({ type: "notion.post", postId });
+  let githubWork = false;
+  if (github) {
+    if (!providerPaused(error("github"), now))
+      for (const postId of await pendingIds(
+        sql`SELECT id FROM posts INDEXED BY posts_github_pending WHERE github_requested = 1 AND github_number IS NULL LIMIT 10`,
+      )) {
+        sweep.push({ type: "github.issue", postId });
+        githubWork = true;
+      }
+    // Only an open linked issue can be closed into Done. With none (and no pending approval
+    // or recorded error to probe), skip the GitHub call and move its watermark instead, so
+    // the next real poll starts from now rather than paging through old closed issues.
+    githubWork ||=
+      !!error("github") ||
+      (
+        await pendingIds(
+          sql`SELECT id FROM posts INDEXED BY posts_github_open WHERE github_number IS NOT NULL AND github_closed_at IS NULL LIMIT 1`,
+        )
+      ).length > 0;
+    if (!githubWork) await watermark("github", until);
+  }
+  const messages: SyncMessage[] = [
+    ...sweep,
+    ...(notion
+      ? [{ type: "notion.poll", since: since("notion"), until, cursor: null } as const]
+      : []),
+    ...(github && githubWork
+      ? [{ type: "github.poll", since: since("github"), until, page: 1 } as const]
+      : []),
+  ];
+  // One Queue call per tick: every send is a subrequest on Workers Free (50 per invocation).
+  if (messages.length) await env.SYNC_QUEUE.sendBatch(messages.map((body) => ({ body })));
 }

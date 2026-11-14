@@ -620,7 +620,8 @@ describe("cron and failures", () => {
     await deliver({ type: "notion.post", postId: ID });
     const actualNow = Date.now();
     await runScheduled({ ...controller, scheduledTime: actualNow });
-    expect(queue.sent.map((m) => m.type)).toEqual(["notion.poll", "github.poll"]);
+    // No GitHub poll: nothing links to an open issue (see the resource tests).
+    expect(queue.sent.map((m) => m.type)).toEqual(["notion.poll"]);
     queue.reset();
     await runScheduled({ ...controller, scheduledTime: actualNow + 3_600_001 });
     expect(queue.sent).toContainEqual({ type: "notion.post", postId: ID });

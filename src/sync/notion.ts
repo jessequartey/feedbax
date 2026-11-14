@@ -103,7 +103,7 @@ export async function pollNotion(
   message: Extract<SyncMessage, { type: "notion.poll" }>,
 ): Promise<void> {
   const database = db();
-  const request = providerRequest("notion");
+  const request = providerRequest("notion", "poll");
   const path = `/data_sources/${config.integrations.notion.dataSourceId}`;
   const source = await request<{ properties: NotionProperties; in_trash?: boolean }>(path);
   if (source.in_trash) throw schemaError("The Feedbax Notion data source is in trash.");

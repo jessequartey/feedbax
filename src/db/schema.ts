@@ -54,6 +54,10 @@ export const posts = sqliteTable(
     index("posts_github_pending")
       .on(t.id)
       .where(sql`${t.githubRequested} = 1 AND ${t.githubNumber} IS NULL`),
+    // 0001: lets the cron skip the GitHub poll when no linked issue is open.
+    index("posts_github_open")
+      .on(t.id)
+      .where(sql`${t.githubNumber} IS NOT NULL AND ${t.githubClosedAt} IS NULL`),
   ],
 );
 
@@ -89,7 +93,12 @@ export const votes = sqliteTable(
       .references(() => user.id),
     createdAt: integer("created_at").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.postId, t.userId] }), index("votes_user_idx").on(t.userId)],
+  (t) => [
+    primaryKey({ columns: [t.postId, t.userId] }),
+    index("votes_user_idx").on(t.userId),
+    // 0001: the trending sort counts a post's recent votes from this index alone.
+    index("votes_post_created_idx").on(t.postId, t.createdAt),
+  ],
 );
 
 export const images = sqliteTable(

@@ -8,4 +8,6 @@ export type SyncErrorState = {
   code: string;
   message: string;
   at: string;
+  /** The message type that failed; post-write failures survive a successful poll. */
+  type?: SyncMessage["type"];
 };

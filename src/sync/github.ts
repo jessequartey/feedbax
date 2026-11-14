@@ -69,7 +69,7 @@ export async function pollGitHub(
 ): Promise<void> {
   if (!config.integrations.github) return;
   const database = db();
-  const request = providerRequest("github");
+  const request = providerRequest("github", "poll");
   const path = `${githubRepoPath(config.integrations.github.repo)}/issues`;
   const query = new URLSearchParams({
     state: "closed",
