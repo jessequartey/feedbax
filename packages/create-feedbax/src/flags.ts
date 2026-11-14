@@ -1,4 +1,4 @@
-import type { PackageManager } from "./types.ts";
+import type { PackageManager, SetupAnswers } from "./types.ts";
 export class CliError extends Error {
   exitCode: number;
   constructor(message: string, exitCode = 1) {
@@ -43,8 +43,46 @@ export function pageProblem(value: string): string | undefined {
   }
   return "Paste a Notion page link or its 32-character page ID.";
 }
+export function appUrlProblem(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return "appUrl must not contain credentials.";
+    if (
+      url.protocol === "https:" ||
+      (url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
+    )
+      return;
+  } catch {
+    /* field-only error below */
+  }
+  return "appUrl must be an HTTPS URL (HTTP is allowed only for localhost development).";
+}
+export function portalOrigin(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      !value.includes("?") &&
+      !value.includes("#") &&
+      url.pathname === "/"
+    )
+      return url.origin;
+  } catch {
+    /* field-only error below */
+  }
+  throw new CliError(
+    "PORTAL_URL must be an HTTPS origin without credentials, query, fragment or a non-root path.",
+    2,
+  );
+}
 export type Flags = {
   name?: string;
+  login?: SetupAnswers["login"];
+  appUrl?: string;
   yes: boolean;
   template?: "notion" | "notion-github";
   notionPage?: string;
@@ -76,6 +114,8 @@ export function parseFlags(argv: string[]): Flags {
     const [key, ...rest] = arg.split("=");
     if (
       ![
+        "--login",
+        "--app-url",
         "--template",
         "--notion-page",
         "--github-repo",
@@ -104,6 +144,17 @@ export function parseFlags(argv: string[]): Flags {
       "--template must be notion or notion-github.",
     );
     result.template = values["--template"] as Flags["template"];
+  }
+  if (values["--login"]) {
+    check(
+      ["github", "google", "host"].includes(values["--login"]),
+      "--login must be github, google or host.",
+    );
+    result.login = values["--login"] as SetupAnswers["login"];
+  }
+  if (values["--app-url"]) {
+    check(!appUrlProblem(values["--app-url"]), appUrlProblem(values["--app-url"])!);
+    result.appUrl = values["--app-url"];
   }
   if (values["--package-manager"]) {
     check(
@@ -138,11 +189,16 @@ Usage: create-feedbax [name] [options]
   --template notion|notion-github
   --notion-page <id-or-url>      Fallback if no unique template is found
   --github-repo owner/repo
+  --login github|google|host     Default: GitHub (separate from issue sync)
+  --app-url <https-url>          Required for host login
   --anonymous true|false         Default: false
   --package-manager npm|pnpm|bun  Default: your package manager
   --help                        Offline help
   --version                     Offline version
 
 Node 24.15+ is required. CI: set NOTION_TOKEN, CLOUDFLARE_API_TOKEN,
-CLOUDFLARE_ACCOUNT_ID, and GITHUB_TOKEN for notion-github. Secrets never go in flags.
+CLOUDFLARE_ACCOUNT_ID, and GITHUB_TOKEN for notion-github (Issues only). GitHub login needs
+GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET; Google uses GOOGLE_CLIENT_ID +
+GOOGLE_CLIENT_SECRET. Register the exact callback printed after Cloudflare
+origin discovery. Run interactively for OAuth App setup fields. Secrets never go in flags.
 Run the same command again to finish an interrupted setup.`;

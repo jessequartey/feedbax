@@ -4,6 +4,8 @@ export type SetupAnswers = {
   name: string;
   template: "notion" | "notion-github";
   anonymous: boolean;
+  login: "github" | "google" | "host";
+  appUrl?: string;
   packageManager: PackageManager;
   notionDataSourceId: string;
   githubRepo?: string;
@@ -11,6 +13,10 @@ export type SetupAnswers = {
 export type Secrets = {
   notionToken: string;
   githubToken?: string;
+  githubClientId?: string;
+  githubClientSecret?: string;
+  googleClientId?: string;
+  googleClientSecret?: string;
   cloudflareApiToken?: string;
   cloudflareAccountId?: string;
 };

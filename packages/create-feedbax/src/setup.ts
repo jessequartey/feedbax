@@ -2,9 +2,11 @@ import { mkdtemp, chmod, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GitHubSetupClient, NotionSetupClient } from "../../../src/contracts/integrations.ts";
-import { CliError, subdomainProblem } from "./flags.ts";
+import { CliError, portalOrigin, subdomainProblem } from "./flags.ts";
 import { redact } from "./io.ts";
 import { parseJsonc } from "./jsonc.ts";
+import { verifyDeployment, viewerRpcId } from "./verify.ts";
+import { loginCheckpoint } from "./login.ts";
 import { ensureSecrets } from "./project.ts";
 import type { PackageManager, Prompter, Run, Secrets, SetupAnswers } from "./types.ts";
 
@@ -34,6 +36,7 @@ type Account = { id: string; name: string };
 type WranglerConfig = {
   name: string;
   account_id?: string;
+  observability?: Record<string, unknown>;
   vars: { PORTAL_URL: string };
   d1_databases: {
     binding: string;
@@ -64,6 +67,7 @@ export type SetupDeps = {
   install?: Promise<void | { error?: unknown }>;
   notionUrl?: string;
   onRemote?: () => void;
+  onSecret?: (value: string) => void;
 };
 const R2_GUIDE =
   "R2 isn't enabled on this account. Open https://dash.cloudflare.com/?to=/:account/r2/overview and click Enable R2 (the free tier needs a payment method on file). Press Enter when done.";
@@ -74,7 +78,7 @@ export async function setup(
 ): Promise<{ portalUrl: string; notionUrl: string }> {
   const cwd = deps.cwd ?? process.cwd();
   const { prompt, yes } = deps;
-  const vars = await ensureSecrets(cwd, secrets);
+  let vars = await ensureSecrets(cwd, secrets);
   const hidden = [...Object.values(vars), secrets.cloudflareApiToken ?? ""];
   const clean = (value: string) => redact(value, hidden);
   const env: Record<string, string> = { CI: "true", WRANGLER_SEND_METRICS: "false" };
@@ -231,7 +235,7 @@ export async function setup(
     prompt.note(guide, "Finish registering your subdomain");
     await prompt.text("Press Enter when your subdomain is ready", { defaultValue: "" });
   }
-  const portalUrl = `https://${answers.name}.${subdomain}.workers.dev`;
+  const workersUrl = `https://${answers.name}.${subdomain}.workers.dev`;
   let config: WranglerConfig | undefined;
   try {
     config = parseJsonc(await readFile(join(cwd, "wrangler.jsonc"), "utf8")) as WranglerConfig;
@@ -243,6 +247,30 @@ export async function setup(
       );
   }
   const ownsResources = config?.name === answers.name && config?.account_id === accountId;
+  const savedPortal = ownsResources ? config?.vars?.PORTAL_URL : undefined;
+  const portalUrl = portalOrigin(
+    savedPortal && /^https:/i.test(savedPortal) ? savedPortal : workersUrl,
+  );
+  await prompt.step("Configure sign-in", () =>
+    loginCheckpoint(
+      answers,
+      secrets,
+      portalUrl,
+      prompt,
+      Boolean(yes),
+      (value) => {
+        hidden.push(value);
+        deps.onSecret?.(value);
+      },
+      async () => {
+        vars = await ensureSecrets(cwd, secrets);
+        hidden.push(...Object.values(vars));
+      },
+    ),
+  );
+  // Refresh the early snapshot even when credentials came from saved vars or explicit env.
+  vars = await ensureSecrets(cwd, secrets);
+  hidden.push(...Object.values(vars));
   const dbName = ownsResources ? config!.d1_databases[0]!.database_name : `${answers.name}-db`;
   const bucketName = ownsResources ? config!.r2_buckets[0]!.bucket_name : `${answers.name}-images`;
   const queueName = ownsResources ? config!.queues.producers[0]!.queue : `${answers.name}-sync`;
@@ -277,13 +305,14 @@ export async function setup(
     main: "src/server.ts",
     compatibility_date: "2026-11-13",
     compatibility_flags: ["nodejs_compat"],
-    observability: { enabled: true },
+    observability: {
+      ...(ownsResources ? config?.observability : {}),
+      enabled: true,
+      redact_query_string: true,
+    },
     vars: {
       ...(ownsResources ? config!.vars : {}),
-      PORTAL_URL:
-        ownsResources && config!.vars.PORTAL_URL.startsWith("https://")
-          ? config!.vars.PORTAL_URL
-          : portalUrl,
+      PORTAL_URL: portalUrl,
     },
     d1_databases: [
       {
@@ -355,6 +384,7 @@ export async function setup(
   await prompt.step("Build + deploy", async () => {
     const build = await deps.run(answers.packageManager, ["run", "build"], { cwd, env });
     if (build.code) throw new CliError(clean(`Build failed.\n${build.stderr || build.stdout}`));
+    await viewerRpcId(cwd);
     const secretDir = await mkdtemp(join(tmpdir(), "feedbax-secrets-"));
     await chmod(secretDir, 0o700);
     const secretFile = join(secretDir, "secrets.json");
@@ -366,6 +396,15 @@ export async function setup(
       await wrangler(["deploy", "--secrets-file", secretFile]);
     } finally {
       await rm(secretDir, { recursive: true, force: true });
+    }
+  });
+  await prompt.step("Check deployed health and sign-in wiring", async () => {
+    try {
+      await verifyDeployment(cwd, portalUrl, answers, secrets, deps.fetch);
+    } catch {
+      throw new CliError(
+        "Portal deployed, but health/sign-in wiring verification failed. Check the production URL, provider credentials and deployment, then retry. OAuth session and first-write verification remain.",
+      );
     }
   });
   return {

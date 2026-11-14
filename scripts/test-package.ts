@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildCli } from "./cli-build.ts";
+import { viewerRpcId } from "../packages/create-feedbax/src/verify.ts";
 import { createRunner } from "../packages/create-feedbax/src/io.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const run = createRunner();
@@ -21,8 +22,11 @@ async function checked(
     );
   return result.stdout;
 }
-export async function testPackage(): Promise<void> {
-  await buildCli();
+// Root may prepare the final template separately; CLI-only acceptance can reuse that snapshot.
+export async function testPackage(
+  options: { build?: boolean; apps?: boolean } = {},
+): Promise<void> {
+  if (options.build !== false) await buildCli();
   const temp = await mkdtemp(join(tmpdir(), "feedbax-package-"));
   try {
     const packed = JSON.parse(
@@ -81,6 +85,10 @@ export async function testPackage(): Promise<void> {
       FEEDBAX_TEST_LOG: log,
       NOTION_TOKEN: "sentinel-notion-token",
       GITHUB_TOKEN: "sentinel-github-token",
+      GITHUB_CLIENT_ID: "sentinel-oauth-client",
+      GITHUB_CLIENT_SECRET: "sentinel-oauth-secret",
+      GOOGLE_CLIENT_ID: "",
+      GOOGLE_CLIENT_SECRET: "",
       CLOUDFLARE_API_TOKEN: "sentinel-cf-token",
       CLOUDFLARE_ACCOUNT_ID: "account",
     };
@@ -96,9 +104,13 @@ export async function testPackage(): Promise<void> {
       "--anonymous",
       "false",
     ];
-    const output = await checked(process.execPath, argv, projects, env);
+    const output = stripVTControlCharacters(await checked(process.execPath, argv, projects, env));
     assert(output.includes("https://my-feedback.team.workers.dev"));
     assert(!output.includes("sentinel-"));
+    assert(output.includes("https://my-feedback.team.workers.dev/api/auth/callback/github"));
+    assert(output.includes("GitHub sign-in is configured"));
+    assert(output.includes("verification remain"));
+    assert(!output.includes("Ready for feedback"));
     const project = join(projects, "my-feedback");
     const config = await readFile(join(project, "feedbax.config.ts"), "utf8");
     assert(config.includes("team/app"));
@@ -110,6 +122,7 @@ export async function testPackage(): Promise<void> {
     await assert.rejects(stat(join(project, "_gitignore")));
     const vars = await readFile(join(project, ".dev.vars"), "utf8");
     const bindings = JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8"));
+    assert.deepEqual(bindings.observability, { enabled: true, redact_query_string: true });
     assert.equal(bindings.d1_databases[0].binding, "DB");
     assert.equal(bindings.r2_buckets[0].binding, "IMAGES");
     assert.equal(bindings.queues.producers[0].binding, "SYNC_QUEUE");
@@ -126,12 +139,79 @@ export async function testPackage(): Promise<void> {
     await assert.rejects(stat(complete.secretPath));
     await checked(process.execPath, argv, projects, env);
     assert.equal(await readFile(join(project, ".dev.vars"), "utf8"), vars);
+    assert.equal(
+      JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8")).observability
+        .redact_query_string,
+      true,
+    );
     const commands = await readFile(log, "utf8");
     assert(!commands.includes("sentinel-"));
     assert.equal(commands.match(/"create"/g)?.length, 3);
     console.log(
       "package: packed CLI non-interactive E2E + rerun + private secrets passed (fake providers and PATH binaries)",
     );
+    // Exercise the packed entry's selected-login contract with independent fresh projects.
+    for (const login of ["github", "google", "host"] as const) {
+      const caseDir = join(temp, `login-${login}`);
+      await mkdir(caseDir);
+      const caseState = join(caseDir, "state.json"),
+        caseLog = join(caseDir, "commands.jsonl");
+      await writeFile(caseState, "{}");
+      await writeFile(caseLog, "");
+      const caseEnv = {
+        ...env,
+        FEEDBAX_TEST_STATE: caseState,
+        FEEDBAX_TEST_LOG: caseLog,
+        GITHUB_TOKEN: "",
+        GITHUB_CLIENT_ID: login === "github" ? env.GITHUB_CLIENT_ID : "",
+        GITHUB_CLIENT_SECRET: login === "github" ? env.GITHUB_CLIENT_SECRET : "",
+        GOOGLE_CLIENT_ID: login === "google" ? "sentinel-google-client" : "",
+        GOOGLE_CLIENT_SECRET: login === "google" ? "sentinel-google-secret" : "",
+      };
+      const args = [argv[0]!, packedCli, "my-feedback", "--yes", `--login=${login}`];
+      if (login === "host") args.push("--app-url=https://app.example");
+      const output = stripVTControlCharacters(
+        await checked(process.execPath, args, caseDir, caseEnv),
+      );
+      assert(!output.includes("sentinel-"));
+      assert(!output.includes("Ready for feedback"));
+      assert(
+        output.includes(
+          login === "host"
+            ? "Host login integration pending"
+            : `${login === "github" ? "GitHub" : "Google"} sign-in is configured`,
+        ),
+      );
+      const deployed = JSON.parse(await readFile(caseState, "utf8"));
+      assert(deployed.deployed);
+      assert.equal(deployed.githubOAuth, login === "github");
+      assert.equal(deployed.googleOAuth, login === "google");
+      assert.equal(deployed.hostConfigured, login === "host");
+      await assert.rejects(stat(deployed.secretPath));
+      await checked(process.execPath, [argv[0]!, packedCli, "my-feedback", "--yes"], caseDir, {
+        ...caseEnv,
+        GITHUB_CLIENT_ID: "",
+        GITHUB_CLIENT_SECRET: "",
+        GOOGLE_CLIENT_ID: "",
+        GOOGLE_CLIENT_SECRET: "",
+      });
+    }
+    const rejectedDir = join(temp, "rejected");
+    await mkdir(rejectedDir);
+    for (const args of [["--login=google"], ["--login=host"], ["--login=github"]]) {
+      const result = await run(
+        process.execPath,
+        [argv[0]!, packedCli, "my-feedback", "--yes", ...args],
+        { cwd: rejectedDir, env: { ...env, GITHUB_CLIENT_ID: "", GITHUB_CLIENT_SECRET: "" } },
+      );
+      assert.equal(result.code, 2);
+      assert.deepEqual(await readdir(rejectedDir), []);
+      assert(!(result.stdout + result.stderr).includes("sentinel-"));
+    }
+    console.log(
+      "package: packed GitHub/Google/host selection + saved resume + missing-login preflight passed",
+    );
+    if (options.apps === false) return;
     // All real installs/builds use the generated tree, never a second template.
     const failures: string[] = [];
     for (const pm of ["npm", "pnpm", "bun"]) {
@@ -140,6 +220,11 @@ export async function testPackage(): Promise<void> {
         await checked(pm, ["install"], project, { CI: "true" });
         console.log(`package: generated app installs with ${pm}`);
         await checked(pm, ["run", "build"], project, { CI: "true" });
+        assert(await viewerRpcId(project), "generated build exposes its actual getViewer RPC ID");
+        const emitted = JSON.parse(
+          await readFile(join(project, "dist/server/wrangler.json"), "utf8"),
+        );
+        assert.equal(emitted.observability.redact_query_string, true);
         console.log(`package: generated app installs and builds with ${pm}`);
       } catch (error) {
         failures.push(`${pm}: ${error instanceof Error ? error.message : String(error)}`);

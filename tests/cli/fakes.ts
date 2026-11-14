@@ -1,6 +1,9 @@
-import { readFileSync, statSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { toCrossJSON } from "seroval";
 import type { Clients, Prompter, Run } from "../../packages/create-feedbax/src/types.ts";
 import type { NotionSetupClient, NotionTarget } from "../../src/contracts/integrations.ts";
+import { withoutComments } from "../../packages/create-feedbax/src/jsonc.ts";
 import { Cancelled } from "../../packages/create-feedbax/src/flags.ts";
 export const ID = "12345678-1234-4234-8234-123456789abc";
 export const target: NotionTarget = {
@@ -94,8 +97,11 @@ export function fakeCloudflare() {
     deploySecrets: {} as Record<string, string>,
     secretFile: "",
     login: true,
+    cwd: "",
   };
-  const run: Run = async (cmd, args) => {
+  const run: Run = async (cmd, args, options) => {
+    state.cwd = options.cwd;
+    if (args.join(" ") === "run build") writeBuildFixture(options.cwd);
     const action = args.slice(args.indexOf("wrangler") + 1);
     const key = action.join(" ");
     state.calls.push(`${cmd} ${args.join(" ")}`);
@@ -137,6 +143,8 @@ export function fakeCloudflare() {
     if (key.startsWith("deploy")) {
       state.secretFile = action[2]!;
       state.deploySecrets = JSON.parse(readFileSync(state.secretFile, "utf8"));
+      if ((statSync(dirname(state.secretFile)).mode & 0o777) !== 0o700)
+        throw new Error("secrets directory must be private");
       if ((statSync(state.secretFile).mode & 0o777) !== 0o600)
         throw new Error("secrets-file must be private");
     }
@@ -145,6 +153,7 @@ export function fakeCloudflare() {
   const fetch: typeof globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : input.toString();
     state.calls.push(`${init?.method ?? "GET"} ${url}`);
+    if (!url.startsWith("https://api.cloudflare.com/")) return portalResponse(state.cwd, url, init);
     if (url.includes("/r2/buckets") && state.disabled-- > 0)
       return Response.json(
         { success: false, result: null, errors: [{ code: 10042, message: "Please enable R2" }] },
@@ -171,3 +180,58 @@ export function fakeCloudflare() {
   return { state, run, fetch };
 }
 export const cancel = () => new Cancelled();
+
+export function writeBuildFixture(cwd: string): void {
+  mkdirSync(join(cwd, "dist/server/assets"), { recursive: true });
+  writeFileSync(
+    join(cwd, "dist/server/assets/functions-fixture.js"),
+    'var getViewer_createServerFn_handler = createServerRpc({ id: "fixture-viewer" });',
+  );
+}
+export function portalResponse(cwd: string, url: string, init?: RequestInit): Response {
+  if (url.endsWith("/api/health")) return Response.json({ ok: true });
+  const vars = Object.fromEntries(
+    readFileSync(join(cwd, ".dev.vars"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const i = line.indexOf("=");
+        return [line.slice(0, i), JSON.parse(line.slice(i + 1))];
+      }),
+  );
+  if (url.includes("/_serverFn/fixture-viewer")) {
+    const config = withoutComments(readFileSync(join(cwd, "feedbax.config.ts"), "utf8"));
+    const appUrl = /["']?appUrl["']?\s*:\s*["']([^"']+)["']/.exec(config)?.[1] ?? null;
+    return Response.json(
+      toCrossJSON({
+        result: {
+          user: null,
+          config: {
+            appUrl,
+            hostLogin: Boolean(appUrl && vars.FEEDBAX_HOST_SECRET),
+            oauth: {
+              github: Boolean(vars.GITHUB_CLIENT_ID && vars.GITHUB_CLIENT_SECRET),
+              google: Boolean(vars.GOOGLE_CLIENT_ID && vars.GOOGLE_CLIENT_SECRET),
+            },
+          },
+        },
+      }),
+    );
+  }
+  if (url.endsWith("/api/auth/sign-in/social")) {
+    const provider = JSON.parse(init?.body as string).provider;
+    const target = new URL(
+      provider === "github"
+        ? "https://github.com/login/oauth/authorize"
+        : "https://accounts.google.com/o/oauth2/v2/auth",
+    );
+    target.searchParams.set("client_id", vars[`${provider.toUpperCase()}_CLIENT_ID`]);
+    target.searchParams.set("redirect_uri", `${new URL(url).origin}/api/auth/callback/${provider}`);
+    target.searchParams.set("state", "test-only-state");
+    return Response.json(
+      { url: target.href },
+      { headers: { "set-cookie": "test-only-state=fixture; HttpOnly; Secure; SameSite=Lax" } },
+    );
+  }
+  return new Response(null, { status: 404 });
+}

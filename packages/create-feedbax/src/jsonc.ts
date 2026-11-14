@@ -1,5 +1,5 @@
 /** Strip comments without altering quoted URLs, escaped quotes, or comment-like text. */
-export function withoutComments(input: string): string {
+export function withoutComments(input: string, preserveLength = false): string {
   let output = "",
     quote = "",
     escaped = false;
@@ -14,12 +14,15 @@ export function withoutComments(input: string): string {
       quote = c;
       output += c;
     } else if (c === "/" && input[i + 1] === "/") {
-      while (i < input.length && input[i] !== "\n") i++;
-      output += "\n";
+      while (i < input.length && input[i] !== "\n") {
+        if (preserveLength) output += " ";
+        i++;
+      }
+      if (i < input.length) output += "\n";
     } else if (c === "/" && input[i + 1] === "*") {
       const end = input.indexOf("*/", i + 2);
       if (end < 0) throw new Error("Unclosed comment");
-      output += " ";
+      output += preserveLength ? input.slice(i, end + 2).replace(/[^\n\r]/g, " ") : " ";
       i = end + 1;
     } else output += c;
   }

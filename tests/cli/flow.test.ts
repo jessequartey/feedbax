@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { parseJsonc } from "../../packages/create-feedbax/src/jsonc.ts";
 import { main } from "../../packages/create-feedbax/src/index.ts";
 import {
   chooseNotion,
@@ -10,7 +11,13 @@ import {
 } from "../../packages/create-feedbax/src/flow.ts";
 import { IntegrationError } from "../../src/contracts/integrations.ts";
 import { buildTemplate } from "../../scripts/package-template.ts";
-import { readVars } from "../../packages/create-feedbax/src/project.ts";
+import {
+  ensureSecrets,
+  readVars,
+  savedAnswers,
+  scaffold,
+  writeVars,
+} from "../../packages/create-feedbax/src/project.ts";
 import { createNotionTemplate } from "../../scripts/create-notion-template.ts";
 import { cancel, fakeClients, fakeCloudflare, ID, scripted, target } from "./fakes.ts";
 const dirs: string[] = [];
@@ -25,6 +32,8 @@ async function fixture() {
   const env = {
     NOTION_TOKEN: "sentinel-secret-token",
     GITHUB_TOKEN: "sentinel-github-token",
+    GITHUB_CLIENT_ID: "sentinel-oauth-client",
+    GITHUB_CLIENT_SECRET: "sentinel-oauth-secret",
     CLOUDFLARE_API_TOKEN: "sentinel-cloudflare-token",
     CLOUDFLARE_ACCOUNT_ID: "account",
   };
@@ -55,7 +64,7 @@ describe("setup", () => {
   });
   it("collects questions in order while installing; deploys and preserves private secrets on rerun", async () => {
     const f = await fixture();
-    f.prompt = scripted(["my-feedback", "notion-github", false, "team/app", false]);
+    f.prompt = scripted(["my-feedback", "notion-github", "github", "", false, "team/app", false]);
     expect(await main([], f)).toBe(0);
     const log = f.prompt.log.join("\n");
     const order = [
@@ -75,7 +84,7 @@ describe("setup", () => {
       "Write config",
       "Migrate",
       "Build + deploy",
-      "You're live",
+      "Portal deployed",
     ];
     let previous = -1;
     for (const item of order) {
@@ -99,7 +108,7 @@ describe("setup", () => {
     const count = f.state.calls.filter((c) =>
       /(?:d1 create|r2 bucket create|queues create)/.test(c),
     ).length;
-    f.prompt = scripted([true, "notion-github", false]);
+    f.prompt = scripted([true, "", false]);
     expect(await main(["my-feedback"], f)).toBe(0);
     expect(await readVars(project)).toEqual(before);
     expect(
@@ -120,7 +129,17 @@ describe("setup", () => {
     f.state.taken = 1;
     f.state.login = false;
     f.env = { ...f.env, CLOUDFLARE_API_TOKEN: "", CLOUDFLARE_ACCOUNT_ID: "" };
-    f.prompt = scripted(["my-feedback", "notion", false, false, "", "taken", "available"]);
+    f.prompt = scripted([
+      "my-feedback",
+      "notion",
+      "github",
+      "",
+      false,
+      false,
+      "",
+      "taken",
+      "available",
+    ]);
     expect(await main([], f)).toBe(0);
     const log = f.prompt.log.join("\n");
     expect(log).toContain("Opening your browser");
@@ -357,11 +376,11 @@ it("asks anonymous choice after a partial scaffold and clearly rejects conflicti
   const f = await fixture();
   const { scaffold } = await import("../../packages/create-feedbax/src/project.ts");
   await scaffold(join(f.cwd, "my-feedback"), f.templateDir, "my-feedback");
-  f.prompt = scripted([true, "notion", false, true]);
+  f.prompt = scripted([true, "notion", "", false, true]);
   expect(await main(["my-feedback"], f)).toBe(0);
   expect(f.prompt.log.join("\n")).toContain("Let people post without an account?");
   expect(await readFile(join(f.cwd, "my-feedback", "feedbax.config.ts"), "utf8")).toContain(
-    '"anonymous": true',
+    "anonymous: true",
   );
   f.prompt = scripted();
   expect(await main(["my-feedback", "--yes", "--anonymous=false"], f)).toBe(2);
@@ -446,4 +465,420 @@ it("provides an actionable resume command omitting only --notion-page when its p
   expect(retry).toContain("--template=notion");
   expect(retry).toContain("--anonymous=false");
   expect(retry).not.toContain("--notion-page");
+});
+
+describe("selected login checkpoint", () => {
+  it.each(["github", "google"] as const)(
+    "requires the exact %s pair before noninteractive writes, never using an Issues PAT",
+    async (login) => {
+      const f = await fixture();
+      delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
+      delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
+      expect(await main(["my-feedback", "--yes", `--login=${login}`, "--anonymous=true"], f)).toBe(
+        2,
+      );
+      expect(await readdir(f.cwd)).toEqual(["template"]);
+      expect(f.state.calls).toEqual([]);
+      const log = f.prompt.log.join("\n");
+      expect(log).toContain(`${login.toUpperCase()}_CLIENT_ID`);
+      expect(log).toContain(`${login.toUpperCase()}_CLIENT_SECRET`);
+      expect(log).toContain("Run interactively");
+      expect(log).not.toContain("Ready for feedback");
+    },
+  );
+  it("Notion-only plus default GitHub login does not use the Issues client or PAT", async () => {
+    const f = await fixture();
+    f.env.GITHUB_TOKEN = "";
+    f.clients.github = () => {
+      throw new Error("Issues client must not be called");
+    };
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(f.state.deploySecrets.GITHUB_CLIENT_ID).toBe(f.env.GITHUB_CLIENT_ID);
+    expect(f.state.deploySecrets.GITHUB_TOKEN).toBeUndefined();
+    expect(f.prompt.log.join("\n")).toContain("GitHub sign-in is configured");
+    expect(f.prompt.log.join("\n")).not.toContain("Ready for feedback");
+  });
+  it("discovers the exact custom callback before masked entry and refreshes deployment secrets", async () => {
+    const f = await fixture();
+    const project = join(f.cwd, "my-feedback");
+    await scaffold(project, f.templateDir, "my-feedback");
+    const config = parseJsonc(
+      (await readFile(join(project, "wrangler.jsonc"), "utf8"))
+        .replaceAll("feedbax-db", "my-feedback-db")
+        .replaceAll("feedbax-images", "my-feedback-images")
+        .replaceAll("feedbax-sync", "my-feedback-sync"),
+    ) as {
+      name: string;
+      account_id: string;
+      vars: { PORTAL_URL: string };
+    };
+    config.name = "my-feedback";
+    config.account_id = "account";
+    config.vars.PORTAL_URL = "https://feedback.example";
+    await writeFile(join(project, "wrangler.jsonc"), JSON.stringify(config));
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
+    f.prompt = scripted([
+      true,
+      "notion",
+      "github",
+      "",
+      false,
+      false,
+      "entered-client",
+      "entered-oauth-secret",
+    ]);
+    const text = f.prompt.text.bind(f.prompt);
+    f.prompt.text = async (message, options) => {
+      if (message === "OAuth client secret") {
+        expect(options?.secret).toBe(true);
+        expect(f.state.calls.join("\n")).not.toMatch(/d1 create|r2 bucket create|queues create/);
+        expect(f.prompt.log.join("\n")).toContain("Homepage URL: https://feedback.example");
+        expect(f.prompt.log.join("\n")).toContain(
+          "Authorization callback URL: https://feedback.example/api/auth/callback/github",
+        );
+      }
+      return text(message, options);
+    };
+    expect(await main(["my-feedback"], f)).toBe(0);
+    expect(f.state.deploySecrets.GITHUB_CLIENT_ID).toBe("entered-client");
+    expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe("entered-oauth-secret");
+    expect(f.state.deploySecrets.PORTAL_URL).toBeUndefined();
+    expect((await readVars(project)).PORTAL_URL).toBe("http://localhost:3000");
+    expect((await stat(join(project, ".dev.vars"))).mode & 0o777).toBe(0o600);
+    expect(
+      JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8")).vars.PORTAL_URL,
+    ).toBe("https://feedback.example");
+    expect(f.prompt.log.join("\n")).not.toContain("entered-oauth-secret");
+    const configText = await readFile(join(project, "feedbax.config.ts"), "utf8");
+    expect(configText).not.toMatch(/entered-client|entered-oauth-secret|login:/);
+  });
+  it("persists and redacts new credentials immediately when the next resource command fails", async () => {
+    const f = await fixture();
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
+    f.prompt = scripted([
+      "my-feedback",
+      "notion",
+      "github",
+      "",
+      false,
+      false,
+      "captured-client",
+      "captured-secret",
+    ]);
+    const run = f.run;
+    f.run = async (cmd, args, opts) => {
+      if (args.includes("create") && args.includes("d1")) {
+        expect((await stat(join(opts.cwd, ".dev.vars"))).mode & 0o777).toBe(0o600);
+        expect((await readVars(opts.cwd)).GITHUB_CLIENT_SECRET).toBe("captured-secret");
+        return { code: 1, stdout: "", stderr: "captured-client captured-secret" };
+      }
+      return run(cmd, args, opts);
+    };
+    expect(await main([], f)).toBe(1);
+    expect(f.prompt.log.join("\n")).not.toMatch(/captured-client|captured-secret/);
+    f.run = run;
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe("captured-secret");
+  });
+  it.each(["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"])(
+    "rejects a new half-pair %s even when saved credentials could fill it",
+    async (key) => {
+      const f = await fixture();
+      expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+      const project = join(f.cwd, "my-feedback"),
+        before = await readFile(join(project, ".dev.vars"), "utf8");
+      const env: Record<string, string> = { ...f.env, [key]: "new-half" };
+      delete env[
+        key.endsWith("_SECRET") ? key.replace("_SECRET", "_ID") : key.replace("_ID", "_SECRET")
+      ];
+      const callCount = f.state.calls.length;
+      expect(await main(["my-feedback", "--yes"], { ...f, env })).toBe(2);
+      expect(f.state.calls).toHaveLength(callCount);
+      expect(await readFile(join(project, ".dev.vars"), "utf8")).toBe(before);
+      expect(f.prompt.log.join("\n")).not.toContain("new-half");
+    },
+  );
+  it("rejects saved half-pairs even when the explicit environment pair is complete", async () => {
+    const f = await fixture(),
+      project = join(f.cwd, "my-feedback");
+    await scaffold(project, f.templateDir, "my-feedback");
+    await writeVars(project, { GITHUB_CLIENT_ID: "stale-half" });
+    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+    expect(f.state.calls).toEqual([]);
+    expect(await readVars(project)).toEqual({ GITHUB_CLIENT_ID: "stale-half" });
+  });
+  it("preserves both providers across explicit addition and infers Google or GitHub on resume", async () => {
+    const f = await fixture();
+    const env = f.env as Record<string, string>;
+    delete env.GITHUB_CLIENT_ID;
+    delete env.GITHUB_CLIENT_SECRET;
+    env.GOOGLE_CLIENT_ID = "google-client";
+    env.GOOGLE_CLIENT_SECRET = "google-secret";
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(f.prompt.log.join("\n")).toContain(
+      "Authorized redirect URI: https://my-feedback.team.workers.dev/api/auth/callback/google",
+    );
+    expect(f.prompt.log.join("\n")).toContain("consent screen and test users");
+    delete env.GOOGLE_CLIENT_ID;
+    delete env.GOOGLE_CLIENT_SECRET;
+    f.prompt = scripted();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(f.prompt.log.join("\n")).toContain("Google sign-in setup");
+    env.GITHUB_CLIENT_ID = "github-client";
+    env.GITHUB_CLIENT_SECRET = "github-secret";
+    expect(await main(["my-feedback", "--yes", "--login=github"], f)).toBe(0);
+    delete env.GITHUB_CLIENT_ID;
+    delete env.GITHUB_CLIENT_SECRET;
+    f.prompt = scripted();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(f.prompt.log.join("\n")).toContain("GitHub sign-in setup");
+    expect(f.state.deploySecrets).toMatchObject({
+      GITHUB_CLIENT_ID: "github-client",
+      GOOGLE_CLIENT_ID: "google-client",
+      GOOGLE_CLIENT_SECRET: "google-secret",
+    });
+  });
+  it.each([undefined, "http://localhost:3000", "https://localhost:3000"])(
+    "host setup rejects missing or local production app URL %s before writes",
+    async (app) => {
+      const f = await fixture();
+      expect(
+        await main(
+          ["my-feedback", "--yes", "--login=host", ...(app ? [`--app-url=${app}`] : [])],
+          f,
+        ),
+      ).toBe(2);
+      expect(await readdir(f.cwd)).toEqual(["template"]);
+      expect(f.state.calls).toEqual([]);
+    },
+  );
+  it("host-only resume preserves appUrl and keys and reports the pending host integration", async () => {
+    const f = await fixture(),
+      env = f.env as Record<string, string>;
+    delete env.GITHUB_CLIENT_ID;
+    delete env.GITHUB_CLIENT_SECRET;
+    expect(
+      await main(["my-feedback", "--yes", "--login=host", "--app-url=https://app.example"], f),
+    ).toBe(0);
+    const project = join(f.cwd, "my-feedback"),
+      before = await readVars(project);
+    expect((await savedAnswers(project)).appUrl).toBe("https://app.example");
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(await readVars(project)).toEqual(before);
+    expect(f.prompt.log.join("\n")).toContain("Host login integration pending");
+    expect(f.prompt.log.join("\n")).toContain("FeedbaxLink in https://app.example");
+    expect(f.prompt.log.join("\n")).not.toContain("Ready for feedback");
+    const commands = f.state.calls.join("\n");
+    expect(commands).not.toContain("sign-in/social");
+    expect(commands).not.toMatch(/ open | login/);
+  });
+  it("preserves providers in a hybrid host configuration", async () => {
+    const f = await fixture();
+    expect(
+      await main(["my-feedback", "--yes", "--login=host", "--app-url=https://app.example"], f),
+    ).toBe(0);
+    expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe(f.env.GITHUB_CLIENT_SECRET);
+  });
+  it("preserves customized completed TS config and rejects appUrl conflicts or additions before writes", async () => {
+    const f = await fixture(),
+      project = join(f.cwd, "my-feedback");
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    const configPath = join(project, "feedbax.config.ts");
+    let custom = (await readFile(configPath, "utf8")).replace(
+      'name: "Feedbax"',
+      'name: "Custom team"',
+    );
+    custom = "// keep customized configuration\n" + custom;
+    await writeFile(configPath, custom);
+    const before = await readFile(join(project, ".dev.vars"), "utf8"),
+      calls = f.state.calls.length;
+    expect(await main(["my-feedback", "--yes", "--app-url=https://app.example"], f)).toBe(2);
+    expect(f.state.calls).toHaveLength(calls);
+    expect(await readFile(configPath, "utf8")).toBe(custom);
+    expect(await readFile(join(project, ".dev.vars"), "utf8")).toBe(before);
+    custom = custom.replace("defineConfig({", 'defineConfig({ appUrl: "https://app.example",');
+    await writeFile(configPath, custom);
+    expect(await main(["my-feedback", "--yes", "--app-url=https://other.example"], f)).toBe(2);
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(await readFile(configPath, "utf8")).toBe(custom);
+  });
+  it("preserves settings and comments in zero-ID config while filling its literals", async () => {
+    const f = await fixture(),
+      project = join(f.cwd, "my-feedback");
+    await scaffold(project, f.templateDir, "my-feedback");
+    const path = join(project, "feedbax.config.ts");
+    const custom = (await readFile(path, "utf8"))
+      .replace('name: "Feedbax"', 'name: "Custom team"')
+      .replace("  auth:", '  appUrl: "https://app.example",\n  auth:');
+    await writeFile(path, "// anonymous: false\n" + custom);
+    expect(await main(["my-feedback", "--yes", "--anonymous=true"], f)).toBe(0);
+    const result = await readFile(path, "utf8");
+    expect(result).toContain("// anonymous: false");
+    expect(result).toContain('name: "Custom team"');
+    expect(result).toContain("auth: { anonymous: true }");
+    expect((await savedAnswers(project)).appUrl).toBe("https://app.example");
+  });
+  it("rejects dynamic appUrl instead of evaluating or overwriting TS", async () => {
+    const f = await fixture(),
+      project = join(f.cwd, "my-feedback");
+    await scaffold(project, f.templateDir, "my-feedback");
+    const path = join(project, "feedbax.config.ts"),
+      original = await readFile(path, "utf8");
+    const custom = original.replace("  auth:", "  appUrl: process.env.APP_URL,\n  auth:");
+    await writeFile(path, custom);
+    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+    expect(f.state.calls).toEqual([]);
+    expect(await readFile(path, "utf8")).toBe(custom);
+  });
+  it("refuses malformed existing host keys without rotating or echoing them", async () => {
+    const f = await fixture(),
+      project = join(f.cwd, "my-feedback");
+    await scaffold(project, f.templateDir, "my-feedback");
+    await writeVars(project, { FEEDBAX_HOST_SECRET: "existing-invalid-key" });
+    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+    expect((await readVars(project)).FEEDBAX_HOST_SECRET).toBe("existing-invalid-key");
+    expect(f.prompt.log.join("\n")).not.toContain("existing-invalid-key");
+    expect(f.state.calls).toEqual([]);
+  });
+  it("tightens private vars permissions while preserving both pairs and signing keys", async () => {
+    const f = await fixture(),
+      project = join(f.cwd, "private");
+    await mkdir(project);
+    const initial = await ensureSecrets(project, {
+      githubClientId: "gh-id",
+      githubClientSecret: "gh-secret",
+      googleClientId: "go-id",
+      googleClientSecret: "go-secret",
+    });
+    await chmod(join(project, ".dev.vars"), 0o644);
+    expect(await ensureSecrets(project, {})).toEqual(initial);
+    expect((await stat(join(project, ".dev.vars"))).mode & 0o777).toBe(0o600);
+    expect(await readFile(join(project, ".gitignore"), "utf8")).toContain(".dev.vars");
+  });
+  it("forces query-string redaction on fresh and resumed Wrangler configs", async () => {
+    const f = await fixture();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    const path = join(f.cwd, "my-feedback", "wrangler.jsonc"),
+      config = JSON.parse(await readFile(path, "utf8"));
+    expect(config.observability).toMatchObject({ enabled: true, redact_query_string: true });
+    config.observability.redact_query_string = false;
+    config.observability.logs = { enabled: true, invocation_logs: false };
+    await writeFile(path, JSON.stringify(config));
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect(JSON.parse(await readFile(path, "utf8")).observability).toMatchObject({
+      enabled: true,
+      redact_query_string: true,
+      logs: { enabled: true, invocation_logs: false },
+    });
+  });
+  it.each(["health", "viewer", "start"])(
+    "does not report success after failed %s wiring verification",
+    async (step) => {
+      const f = await fixture(),
+        fetch = f.fetch;
+      f.fetch = async (input, init) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        if (
+          (step === "health" && url.endsWith("/api/health")) ||
+          (step === "viewer" && url.includes("/_serverFn/")) ||
+          (step === "start" && url.endsWith("/api/auth/sign-in/social"))
+        )
+          return Response.json({ error: "verification failed" }, { status: 503 });
+        return fetch(input, init);
+      };
+      expect(await main(["my-feedback", "--yes"], f)).toBe(1);
+      expect(f.prompt.log.join("\n")).toContain("wiring verification failed");
+      expect(f.prompt.log.join("\n")).not.toContain("GitHub sign-in is configured");
+    },
+  );
+});
+
+it("never asks a question or launches a browser during successful --yes setup", async () => {
+  const f = await fixture();
+  f.prompt.text = async () => {
+    throw new Error("Unexpected text prompt");
+  };
+  f.prompt.select = async () => {
+    throw new Error("Unexpected select prompt");
+  };
+  f.prompt.confirm = async () => {
+    throw new Error("Unexpected confirmation prompt");
+  };
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  expect(f.state.calls.join("\n")).not.toMatch(/ open |xdg-open|explorer.exe|wrangler login/);
+});
+it("rejects a malformed canonical OAuth origin before resource creation", async () => {
+  const f = await fixture();
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  const path = join(f.cwd, "my-feedback", "wrangler.jsonc"),
+    config = JSON.parse(await readFile(path, "utf8"));
+  config.vars.PORTAL_URL = "https://feedback.example/path?private-value";
+  await writeFile(path, JSON.stringify(config));
+  f.state.calls.length = 0;
+  f.prompt = scripted();
+  expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+  expect(f.state.calls.join("\n")).not.toMatch(/d1 create|r2 bucket create|queues create|deploy/);
+  expect(f.prompt.log.join("\n")).toContain("PORTAL_URL");
+  expect(f.prompt.log.join("\n")).not.toContain("private-value");
+});
+
+it.each(["callback", "client", "provider", "state", "cookie"])(
+  "rejects social start wiring with an incorrect %s",
+  async (field) => {
+    const f = await fixture(),
+      fetch = f.fetch;
+    f.fetch = async (input, init) => {
+      const response = await fetch(input, init);
+      const url = input instanceof Request ? input.url : input.toString();
+      if (!url.endsWith("/api/auth/sign-in/social")) return response;
+      const body = (await response.json()) as { url: string };
+      const authorize = new URL(body.url);
+      if (field === "callback")
+        authorize.searchParams.set(
+          "redirect_uri",
+          "https://other.example/api/auth/callback/github",
+        );
+      if (field === "client") authorize.searchParams.set("client_id", "other-client");
+      if (field === "provider") authorize.hostname = "other.example";
+      if (field === "state") authorize.searchParams.delete("state");
+      return Response.json(
+        { url: authorize.href },
+        { headers: field === "cookie" ? {} : response.headers },
+      );
+    };
+    expect(await main(["my-feedback", "--yes"], f)).toBe(1);
+    expect(f.prompt.log.join("\n")).not.toContain("GitHub sign-in is configured");
+    expect(f.state.calls.join("\n")).not.toContain("GET https://github.com");
+  },
+);
+
+it("requires login setup for a completed legacy config without OAuth or appUrl", async () => {
+  const f = await fixture();
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  const project = join(f.cwd, "my-feedback"),
+    vars = await readVars(project);
+  delete vars.GITHUB_CLIENT_ID;
+  delete vars.GITHUB_CLIENT_SECRET;
+  await writeVars(project, vars);
+  const env = f.env as Record<string, string>;
+  delete env.GITHUB_CLIENT_ID;
+  delete env.GITHUB_CLIENT_SECRET;
+  const calls = f.state.calls.length;
+  expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+  expect(f.state.calls).toHaveLength(calls);
+  f.prompt = scripted([true, "github", "", false, "legacy-client", "legacy-secret"]);
+  expect(await main(["my-feedback"], f)).toBe(0);
+  expect(f.prompt.log.join("\n")).toContain("How will people sign in?");
+  expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe("legacy-secret");
+});
+
+it("round-trips app URLs containing replacement syntax without corrupting TS", async () => {
+  const f = await fixture(),
+    appUrl = "https://app.example/path?return=$&value=$1";
+  expect(await main(["my-feedback", "--yes", `--app-url=${appUrl}`], f)).toBe(0);
+  const project = join(f.cwd, "my-feedback");
+  expect((await savedAnswers(project)).appUrl).toBe(appUrl);
+  expect(await main(["my-feedback", "--yes"], f)).toBe(0);
 });

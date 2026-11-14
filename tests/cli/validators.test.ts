@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  appUrlProblem,
+  portalOrigin,
   detectPackageManager,
   pageProblem,
   parseFlags,
@@ -130,4 +132,42 @@ describe("flags", () => {
     expect(parseJsonOutput('[{"uuid":"id","name":"db"}]')).toEqual([{ uuid: "id", name: "db" }]);
     expect(() => parseJsonOutput("Not logged in")).toThrow();
   });
+});
+
+describe("login flags and origins", () => {
+  it("accepts provider choice independently of content template", () => {
+    expect(
+      parseFlags(["--template=notion", "--login=github", "--app-url=https://app.example/app"]),
+    ).toMatchObject({ template: "notion", login: "github", appUrl: "https://app.example/app" });
+    expect(parseFlags(["--login=host", "--app-url", "http://localhost:3000"])).toMatchObject({
+      login: "host",
+      appUrl: "http://localhost:3000",
+    });
+    expect(parseFlags([]).login).toBeUndefined(); // resume inference happens before the fresh default
+  });
+  it.each([
+    ["--login=none"],
+    ["--login=email"],
+    ["--login=github", "--login=google"],
+    ["--app-url=http://app.example"],
+    ["--app-url=https://user:pass@app.example"],
+    ["--app-url=javascript:alert(1)"],
+  ])("rejects unsupported login flags %s", (...args) => expect(() => parseFlags(args)).toThrow());
+});
+
+it.each([
+  "https://portal.example/path",
+  "https://portal.example/?code=value",
+  "https://portal.example/#fragment",
+  "https://user:pass@portal.example",
+  "http://portal.example",
+  "https://portal.example/?",
+  "https://portal.example/#",
+])("rejects non-origin portal URL %s", (value) =>
+  expect(() => portalOrigin(value)).toThrow("PORTAL_URL"),
+);
+it("normalizes a valid portal origin and retains local development app URLs", () => {
+  expect(portalOrigin("https://portal.example/")).toBe("https://portal.example");
+  expect(appUrlProblem("http://127.0.0.1:3000/app")).toBeUndefined();
+  expect(appUrlProblem("http://[::1]:3000")).toBeUndefined();
 });

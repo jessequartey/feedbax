@@ -4,6 +4,7 @@ import { rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  appUrlProblem,
   Cancelled,
   CliError,
   detectPackageManager,
@@ -23,6 +24,7 @@ import {
   writeAppConfig,
 } from "./project.ts";
 import { loadClients } from "./providers.ts";
+import { inferredLogin, oauthSecrets, requireLogin } from "./login.ts";
 import { setup } from "./setup.ts";
 import type { NotionSetupClient, GitHubSetupClient } from "../../../src/contracts/integrations.ts";
 import type { Clients, Prompter, Run, Secrets, SetupAnswers } from "./types.ts";
@@ -39,7 +41,7 @@ export type CliDeps = {
 export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}): Promise<number> {
   const env = overrides.env ?? process.env;
   const hidden: string[] = Object.entries(env)
-    .filter(([key]) => /TOKEN|SECRET|PASSWORD|API_KEY/.test(key))
+    .filter(([key]) => /TOKEN|SECRET|PASSWORD|API_KEY|CLIENT_ID/.test(key))
     .map(([, value]) => value!)
     .filter(Boolean);
   let prompt = overrides.prompt ?? createPrompter(argv.includes("--yes"));
@@ -70,27 +72,9 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       return 0;
     }
     prompt = overrides.prompt ?? createPrompter(flags.yes);
-    if (flags.yes) {
-      const missing = [
-        !flags.name && "a project name",
-        !env.NOTION_TOKEN && "NOTION_TOKEN",
-        !env.CLOUDFLARE_API_TOKEN && "CLOUDFLARE_API_TOKEN",
-        !env.CLOUDFLARE_ACCOUNT_ID && "CLOUDFLARE_ACCOUNT_ID",
-        flags.template === "notion-github" && !env.GITHUB_TOKEN && "GITHUB_TOKEN",
-        flags.template === "notion-github" && !flags.githubRepo && "--github-repo",
-      ].filter(Boolean);
-      // Saved .dev.vars may supply provider tokens on a rerun.
-      const saved = flags.name
-        ? await readVars(join(overrides.cwd ?? process.cwd(), flags.name))
-        : {};
-      const required = missing.filter(
-        (item) =>
-          !(item === "NOTION_TOKEN" && saved.NOTION_TOKEN) &&
-          !(item === "GITHUB_TOKEN" && saved.GITHUB_TOKEN),
-      );
-      if (required.length)
-        throw new CliError(`Non-interactive setup needs ${required.join(", ")}.`, 2);
-    } else if (!process.stdin.isTTY && !overrides.prompt)
+    if (flags.yes && !flags.name)
+      throw new CliError("Non-interactive setup needs a project name.", 2);
+    if (!flags.yes && !process.stdin.isTTY && !overrides.prompt)
       throw new CliError("Use --yes with explicit flags in a non-interactive terminal.", 2);
     prompt.intro(`Feedbax ${VERSION}  ·  Feedback, connected.`);
     const name =
@@ -134,6 +118,45 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
     }
     const prior = await readVars(cwd);
     hidden.push(...Object.values(prior));
+    if (
+      prior.FEEDBAX_HOST_SECRET !== undefined &&
+      (!/^[A-Za-z0-9_-]{43}$/.test(prior.FEEDBAX_HOST_SECRET) ||
+        Buffer.from(prior.FEEDBAX_HOST_SECRET, "base64url").toString("base64url") !==
+          prior.FEEDBAX_HOST_SECRET)
+    )
+      throw new CliError(
+        "FEEDBAX_HOST_SECRET must be canonical base64url encoding of 32 bytes. Restore the existing shared key before resuming; setup will not rotate it.",
+        2,
+      );
+    const oauth = oauthSecrets(env, prior);
+    const inferred = inferredLogin(oauth, saved.appUrl);
+    let login = flags.login ?? inferred ?? "github";
+    let appUrl = flags.appUrl ?? saved.appUrl;
+    if (
+      flags.appUrl !== undefined &&
+      ((saved.appUrl && flags.appUrl !== saved.appUrl) ||
+        (saved.notionDataSourceId && !saved.appUrl))
+    )
+      throw new CliError(
+        "--app-url conflicts with this configured project. Edit appUrl in feedbax.config.ts explicitly before rerunning setup.",
+        2,
+      );
+    if (flags.yes) {
+      requireLogin({ login, appUrl }, oauth);
+      const required = [
+        !(env.NOTION_TOKEN || prior.NOTION_TOKEN) && "NOTION_TOKEN",
+        !env.CLOUDFLARE_API_TOKEN && "CLOUDFLARE_API_TOKEN",
+        !env.CLOUDFLARE_ACCOUNT_ID && "CLOUDFLARE_ACCOUNT_ID",
+        (flags.template ?? saved.template) === "notion-github" &&
+          !(env.GITHUB_TOKEN || prior.GITHUB_TOKEN) &&
+          "GITHUB_TOKEN",
+        (flags.template ?? saved.template) === "notion-github" &&
+          !(flags.githubRepo ?? saved.githubRepo) &&
+          "--github-repo",
+      ].filter(Boolean);
+      if (required.length)
+        throw new CliError(`Non-interactive setup needs ${required.join(", ")}.`, 2);
+    }
     const resume = await exists(join(cwd, "feedbax.config.ts"));
     if (resume && !flags.yes && !(await prompt.confirm(`Finish setting up ${name}?`, true)))
       throw new Cancelled();
@@ -179,12 +202,48 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
             ],
             "notion",
           )) as SetupAnswers["template"]);
+    if (!flags.yes && !flags.login && (!resume || !inferred)) {
+      login = (await prompt.select(
+        "How will people sign in? GitHub login is separate from GitHub issue sync.",
+        [
+          { value: "github", label: "GitHub (recommended)" },
+          { value: "google", label: "Google" },
+          { value: "host", label: "Your app's existing login" },
+        ],
+        "github",
+      )) as SetupAnswers["login"];
+    }
+    if (!flags.yes && !appUrl) {
+      appUrl =
+        (await prompt.text(
+          login === "host"
+            ? "Your app's HTTPS URL (required for host login)"
+            : "Host app URL, if you also embed feedback (optional)",
+          {
+            defaultValue: "",
+            validate: (value) =>
+              value
+                ? appUrlProblem(value)
+                : login === "host"
+                  ? "Host login needs your app URL."
+                  : undefined,
+          },
+        )) || undefined;
+    }
+    if (login === "host") requireLogin({ login, appUrl }, oauth);
+    if (appUrl && appUrlProblem(appUrl)) throw new CliError(appUrlProblem(appUrl)!, 2);
+    if (saved.notionDataSourceId && appUrl !== saved.appUrl)
+      throw new CliError(
+        "Edit appUrl in feedbax.config.ts explicitly before resuming this configured project.",
+        2,
+      );
     const factories = overrides.clients ?? (await loadClients());
     const clients: Clients = {
       notion: (token) => factories.notion(token, fetchFn),
       github: (token) => factories.github(token, fetchFn),
     };
     const secrets: Secrets = {
+      ...oauth,
       notionToken: env.NOTION_TOKEN ?? prior.NOTION_TOKEN ?? "",
       cloudflareApiToken: env.CLOUDFLARE_API_TOKEN,
       cloudflareAccountId: env.CLOUDFLARE_ACCOUNT_ID,
@@ -250,6 +309,8 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
     if (flags.yes) await begin();
     const answers: SetupAnswers = {
       name,
+      login,
+      appUrl,
       template,
       anonymous,
       packageManager: pm,
@@ -271,12 +332,21 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       onRemote: () => {
         remote = true;
       },
+      onSecret: (value) => hidden.push(value),
     });
+    const loginStatus =
+      login === "host"
+        ? `Host login integration pending. Add the same-origin authenticated token endpoint and FeedbaxLink in ${appUrl} using ${README_URL}. Share FEEDBAX_HOST_SECRET server-side only. Users can browse now; signed-in participation is ready after that connection is verified.`
+        : `${login === "github" ? "GitHub" : "Google"} sign-in is configured. Open the portal, choose Continue with ${login === "github" ? "GitHub" : "Google"}, and submit your first feedback. OAuth callback, session and first-write verification remain.`;
     prompt.note(
-      `Your feedback portal is live: ${result.portalUrl}\nNotion database: ${result.notionUrl}\n\ncd ${name}\n${pm} run dev        # http://localhost:3000\n${pm} run deploy     # publish changes\n\nSecrets: ${name}/.dev.vars (private, gitignored)\nFEEDBAX_HOST_SECRET is there when you embed the block.\n\n1. Submit your first post and check the Notion dashboard.\n2. Embed the feedback dialog: ${README_URL}\n3. Set appUrl in feedbax.config.ts, then publish changes.\n\nLocal posts sync to your real Notion database; delete test rows there.`,
-      "You're live",
+      `Portal deployed: ${result.portalUrl}\n${loginStatus}\nNotion database: ${result.notionUrl}\n\ncd ${name}\n${pm} run dev        # http://localhost:3000\n${pm} run deploy     # publish changes\n\nSecrets: ${name}/.dev.vars (private, gitignored).\nUse a separate development OAuth App for localhost; keep production callback registration unchanged. Replace local OAuth credentials in .dev.vars for development and update production secrets explicitly; do not deploy localhost credentials over production.\nLocal posts sync to your real Notion database; delete test rows there.`,
+      "Portal deployed",
     );
-    prompt.outro("Ready for feedback.");
+    prompt.outro(
+      login === "host"
+        ? "Host integration and first feedback verification remain."
+        : "Complete sign-in and first feedback verification in your portal.",
+    );
     return 0;
   } catch (error) {
     controller.abort();

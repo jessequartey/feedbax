@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { withoutComments } from "./jsonc.ts";
 import { CliError } from "./flags.ts";
-import type { SetupAnswers } from "./types.ts";
+import type { Secrets, SetupAnswers } from "./types.ts";
 export async function exists(path: string): Promise<boolean> {
   try {
     await stat(path);
@@ -83,7 +83,7 @@ export async function scaffold(
 }
 export async function ensureSecrets(
   cwd: string,
-  tokens: { notionToken?: string; githubToken?: string },
+  tokens: Partial<Secrets>,
 ): Promise<Record<string, string>> {
   const vars = await readVars(cwd);
   vars.BETTER_AUTH_SECRET ||= randomBytes(32).toString("base64url");
@@ -91,24 +91,104 @@ export async function ensureSecrets(
   vars.PORTAL_URL = "http://localhost:3000";
   if (tokens.notionToken) vars.NOTION_TOKEN = tokens.notionToken;
   if (tokens.githubToken) vars.GITHUB_TOKEN = tokens.githubToken;
+  for (const [field, key] of Object.entries({
+    githubClientId: "GITHUB_CLIENT_ID",
+    githubClientSecret: "GITHUB_CLIENT_SECRET",
+    googleClientId: "GOOGLE_CLIENT_ID",
+    googleClientSecret: "GOOGLE_CLIENT_SECRET",
+  })) {
+    const value = tokens[field as keyof Secrets];
+    if (value) vars[key] = value;
+  }
   await writeVars(cwd, vars);
   return vars;
 }
 export async function writeAppConfig(cwd: string, answers: SetupAnswers): Promise<void> {
   const path = join(cwd, "feedbax.config.ts");
   const original = await readFile(path, "utf8");
-  // On a completed configuration a rerun keeps the user's appUrl, name and comments.
-  if (!/dataSourceId:\s*["']0{8}-0{4}-0{4}-0{4}-0{12}["']/.test(original)) return;
-  const config = `import { defineConfig } from "./src/contracts/config.ts";\n\nexport default defineConfig(${JSON.stringify({ name: answers.name, auth: { anonymous: answers.anonymous }, integrations: { notion: { dataSourceId: answers.notionDataSourceId }, github: answers.githubRepo ? { repo: answers.githubRepo } : false } }, null, 2)});\n`;
+  const saved = await savedAnswers(cwd);
+  if (saved.notionDataSourceId) {
+    if (answers.appUrl !== saved.appUrl)
+      throw new CliError(
+        "Edit appUrl in feedbax.config.ts explicitly before resuming this configured project.",
+        2,
+      );
+    return;
+  }
+  if (/\.\.\./.test(withoutComments(original)))
+    throw new CliError(
+      "Edit the customized feedbax.config.ts explicitly; setup cannot safely fill a scaffold containing spreads.",
+      2,
+    );
+  let config = original;
+  const replace = (pattern: RegExp, replacement: (match: RegExpExecArray) => string) => {
+    const clean = withoutComments(config, true);
+    const matches = [...clean.matchAll(new RegExp(pattern.source, "g"))];
+    if (matches.length !== 1)
+      throw new CliError(
+        "Customized feedbax.config.ts needs an explicit edit before setup can resume safely.",
+        2,
+      );
+    const match = matches[0]!;
+    config =
+      config.slice(0, match.index) +
+      replacement(match) +
+      config.slice(match.index! + match[0].length);
+  };
+  if (/["']?name["']?\s*:\s*["']Feedbax["']/.test(withoutComments(config)))
+    replace(
+      /(["']?name["']?\s*:\s*)["']Feedbax["']/,
+      (match) => `${match[1]}${JSON.stringify(answers.name)}`,
+    );
+  replace(
+    /(["']?dataSourceId["']?\s*:\s*)["']0{8}-0{4}-0{4}-0{4}-0{12}["']/,
+    (match) => `${match[1]}${JSON.stringify(answers.notionDataSourceId)}`,
+  );
+  replace(
+    /(["']?anonymous["']?\s*:\s*)(?:true|false)/,
+    (match) => `${match[1]}${answers.anonymous}`,
+  );
+  if (answers.githubRepo)
+    replace(
+      /(["']?github["']?\s*:\s*)false/,
+      (match) => `${match[1]}${JSON.stringify({ repo: answers.githubRepo })}`,
+    );
+  // Insertion is safe only at the unambiguous literal defineConfig object opening.
+  if (answers.appUrl && !saved.appUrl)
+    replace(
+      /defineConfig\(\{/,
+      () => `defineConfig({\n  appUrl: ${JSON.stringify(answers.appUrl)},`,
+    );
   await writeFile(path, config);
 }
+
 export async function savedAnswers(cwd: string): Promise<Partial<SetupAnswers>> {
   if (!(await exists(join(cwd, "feedbax.config.ts")))) return {};
   const config = withoutComments(await readFile(join(cwd, "feedbax.config.ts"), "utf8"));
   const id = /["']?dataSourceId["']?\s*:\s*["']([a-f0-9-]+)["']/i.exec(config)?.[1];
-  if (!id || id.replaceAll("-", "") === "0".repeat(32)) return {};
+  const appField = /["']?appUrl["']?\s*:/.test(config);
+  const appLiteral = /["']?appUrl["']?\s*:\s*("(?:[^"\\]|\\.)*"|'[^'\\]*')\s*(?:,|})/.exec(
+    config,
+  )?.[1];
+  let appUrl: string | undefined;
+  if (appLiteral) {
+    try {
+      appUrl = appLiteral.startsWith('"')
+        ? (JSON.parse(appLiteral) as string)
+        : appLiteral.slice(1, -1);
+    } catch {
+      /* require an explicit literal below */
+    }
+  }
+  if (appField && !appUrl)
+    throw new CliError(
+      "Cannot safely read appUrl in feedbax.config.ts. Use a plain URL string before resuming setup.",
+      2,
+    );
+  if (!id || id.replaceAll("-", "") === "0".repeat(32)) return { appUrl };
   const repo = /["']?repo["']?\s*:\s*["']([^"']+)["']/.exec(config)?.[1];
   return {
+    appUrl,
     notionDataSourceId: id?.replace(/-/g, "") !== "0".repeat(32) ? id : undefined,
     githubRepo: repo,
     template: repo ? "notion-github" : "notion",
