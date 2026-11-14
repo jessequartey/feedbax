@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable release tag to publish or retry
+        required: true
+        type: string
 
 permissions:
   contents: write # GitHub Release
@@ -12,8 +18,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
+      - name: Validate release tag
+        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
@@ -24,19 +36,14 @@ jobs:
       - name: Tag matches the CLI version
         run: |
           pkg=$(node -p "require('./packages/create-feedbax/package.json').version")
-          if [ "v$pkg" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match packages/create-feedbax version $pkg" >&2
+          if [ "v$pkg" != "$RELEASE_TAG" ]; then
+            echo "Tag $RELEASE_TAG does not match packages/create-feedbax version $pkg" >&2
             exit 1
           fi
 
       - name: Notion template URL is real and matches the README
         run: |
-          line=$(grep -rhE "NOTION_TEMPLATE_URL\s*=\s*['\"][^'\"]+['\"]" packages/create-feedbax/src | head -n1 || true)
-          if [ -z "$line" ]; then
-            echo "NOTION_TEMPLATE_URL not found in packages/create-feedbax/src" >&2
-            exit 1
-          fi
-          url=$(printf '%s' "$line" | sed -E "s/.*NOTION_TEMPLATE_URL[[:space:]]*=[[:space:]]*['\"]([^'\"]+)['\"].*/\1/")
+          url=$(node --input-type=module -e 'import { NOTION_TEMPLATE_URL } from "./packages/create-feedbax/src/links.ts"; console.log(NOTION_TEMPLATE_URL)')
           if echo "$url" | grep -qiE 'placeholder|example\.com|TODO|REPLACE|XXXX'; then
             echo "NOTION_TEMPLATE_URL is still a placeholder: $url" >&2
             exit 1
@@ -105,12 +112,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           printf '%s\n' \
-            "Install: \`npx create-feedbax@${GITHUB_REF_NAME#v}\`" \
+            "Install: \`npx create-feedbax@${RELEASE_TAG#v}\`" \
             "" \
             "Full setup guide: see the README. Starting from 0.2.x? Create a new project (see CHANGELOG.md)." \
             > "$RUNNER_TEMP/notes-header.md"
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
+          gh release create "$RELEASE_TAG" \
+            --title "$RELEASE_TAG" \
             --generate-notes \
             --notes-file "$RUNNER_TEMP/notes-header.md" \
             "$RUNNER_TEMP"/create-feedbax-*.tgz \
