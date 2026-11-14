@@ -124,6 +124,25 @@ try {
   assert.equal(bearer.status, 201, "cross-origin bearer endpoint remains usable");
   assert.equal(bearer.headers.get("access-control-allow-origin"), "http://localhost:5173");
   await bearer.arrayBuffer();
+  const oversizedBearer = await worker.fetch(
+    new Request(`${env.PORTAL_URL}/api/posts`, {
+      method: "POST",
+      headers: {
+        origin: "http://localhost:5173",
+        authorization: `Bearer ${await mintToken()}`,
+        "content-type": "multipart/form-data; boundary=x",
+        "content-length": "16000000",
+      },
+      body: "invalid",
+    }),
+  );
+  assert.equal(oversizedBearer.status, 413);
+  assert.equal(
+    oversizedBearer.headers.get("access-control-allow-origin"),
+    "http://localhost:5173",
+    "bearer size errors retain readable CORS responses",
+  );
+  await oversizedBearer.arrayBuffer();
   console.log(
     "ok: real built Start handler rejects sibling-origin cookie mutations by default; worker also rejects missing Origin, bounds chunked/forged-length multipart and JSON before parsing, accepts portal mutation and cross-origin bearer",
   );

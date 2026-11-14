@@ -8,7 +8,12 @@ import type { SyncMessage } from "./contracts/sync.ts";
 export default {
   fetch: async (request: Request) => {
     try {
-      if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      // The bearer route bounds its own stream after origin/auth checks and adds CORS
+      // to size errors. Start does not parse server-route bodies before dispatch.
+      if (
+        new URL(request.url).pathname !== "/api/posts" &&
+        !["GET", "HEAD", "OPTIONS"].includes(request.method)
+      ) {
         if (new URL(request.url).pathname.startsWith("/_serverFn/"))
           requireSameOrigin(request, env.PORTAL_URL);
         const max = request.headers
