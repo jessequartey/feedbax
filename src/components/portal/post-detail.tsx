@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import * as React from "react";
 import { ArrowLeftIcon, ExternalLinkIcon, MessageSquareIcon } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +34,7 @@ export function PostDetailView({
   post: PostDetail;
   comments: Page<CommentView>;
 }) {
+  const [commentTotal, setCommentTotal] = React.useState(comments.total);
   return (
     <div className={`${layout} py-6 md:py-10`}>
       <Link
@@ -74,10 +76,10 @@ export function PostDetailView({
             />
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <MessageSquareIcon className="size-4" aria-hidden="true" />
-              {plural(comments.total, "comment")}
+              {plural(commentTotal, "comment")}
             </span>
           </div>
-          <CommentSection postId={post.id} initial={comments} />
+          <CommentSection postId={post.id} initial={comments} onTotalChange={setCommentTotal} />
         </article>
         <aside aria-labelledby="details-heading" className="lg:border-l lg:pl-8">
           <h2 id="details-heading" className="text-sm font-medium">
