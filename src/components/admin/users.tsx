@@ -93,7 +93,7 @@ function UserRow({ user, onChange }: { user: AdminUser; onChange: (change: Chang
           ) : null}
         </div>
         <p className="mt-1 text-xs break-all text-muted-foreground">
-          {[user.email, user.builtIn ? "Signs in with `npx feedbax admin`" : KIND_LABEL[user.kind]]
+          {[user.email, user.builtIn ? "Signs in with npx feedbax admin" : KIND_LABEL[user.kind]]
             .filter(Boolean)
             .join(" · ")}{" "}
           · joined {formatDate(user.createdAt)}

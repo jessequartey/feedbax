@@ -384,19 +384,15 @@ For a custom domain, update the route in `wrangler.jsonc` and `PORTAL_URL` toget
 
 Edit an existing project's options in `feedbax.config.ts` and redeploy. Conflicting setup flags stop with an explanation instead of overwriting your config. The deploy command applies additive migrations while preserving existing data.
 
-**Removing a test or spam post:** there is no moderation screen in 0.3.0. Copy the post's UUID from its portal URL and inspect the matching records first:
+## Moderation
 
-```sh
-npx wrangler d1 execute DB --remote --command "SELECT id, title, notion_page_id, github_number FROM posts WHERE id = '<post UUID>'; SELECT object_key FROM images WHERE post_id = '<post UUID>'"
-```
+Run `npx feedbax admin` from your project folder. It prints a sign-in link that works once and expires after 15 minutes. Open it, confirm, and you land on `/admin/moderation`.
 
-Keep the image keys, then delete only that post and its dependent rows:
+- **Moderation** lists recent posts and comments, newest first. Hide or restore a post, mark spam, merge a duplicate into another post (its votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post also removes its images and archives its Notion row.
+- **Users** lists people with search. Ban or unban them, and grant or revoke admin.
+- **Settings** changes the portal name, anonymous feedback, the categories offered and the notification switches without a redeploy. Secrets never appear there.
 
-```sh
-npx wrangler d1 execute DB --remote --command "DELETE FROM comments WHERE post_id = '<post UUID>'; DELETE FROM votes WHERE post_id = '<post UUID>'; DELETE FROM images WHERE post_id = '<post UUID>'; DELETE FROM posts WHERE id = '<post UUID>'"
-```
-
-Move its matching Notion row to Trash and remove any test GitHub issue separately. Deleting database rows leaves image files in R2; delete the saved keys from the project's images bucket in the Cloudflare dashboard. Use these steps for each test post while keeping real feedback.
+Hidden, spam and merged posts disappear from the board, roadmap and search, but their authors still see them under **My feedback**. The signed-in admin sees an **Admin** link in the header. Everyone else gets an ordinary "not found" for `/admin`.
 
 ## Free plan
 
