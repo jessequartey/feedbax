@@ -43,6 +43,20 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((p) => rm(p, { recursive: true, force: true })));
 });
 describe("setup", () => {
+  it("verifies the real viewer RPC with the portal origin", async () => {
+    const f = await fixture();
+    const fetch = f.fetch;
+    f.fetch = async (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input);
+      if (
+        url.pathname.startsWith("/_serverFn/") &&
+        new Headers(init?.headers).get("origin") !== "https://my-feedback.team.workers.dev"
+      )
+        return new Response("Forbidden", { status: 403 });
+      return fetch(input, init);
+    };
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+  });
   it("persists the created D1 ID before Wrangler resolves its configured database binding", async () => {
     const f = await fixture();
     const originalRun = f.run;

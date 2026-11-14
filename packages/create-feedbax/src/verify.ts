@@ -40,7 +40,7 @@ export async function verifyDeployment(
   const health = await request("/api/health");
   if (!health.ok || ((await health.json()) as { ok?: boolean }).ok !== true) throw failed();
   const viewer = await request(`/_serverFn/${await viewerRpcId(cwd)}`, {
-    headers: { accept: "application/json", "x-tsr-serverfn": "true" },
+    headers: { accept: "application/json", "x-tsr-serverfn": "true", origin: portal },
   });
   if (!viewer.ok || !viewer.headers.get("content-type")?.includes("application/json"))
     throw failed();
