@@ -10,6 +10,8 @@ import { toJSONAsync, fromCrossJSON } from "seroval";
 // @ts-expect-error ws is the Inspector transport supplied by Miniflare.
 import WebSocket from "ws";
 
+const authOnly = process.argv.includes("--auth");
+const requestCount = authOnly ? 50 : 150;
 const root = resolve("dist/server");
 const files = (await readdir(root, { recursive: true })).filter((p) => p.endsWith(".js"));
 const modules = await Promise.all(
@@ -29,13 +31,35 @@ const runtime = new Miniflare(
     bindings: {
       PORTAL_URL: "https://portal.example.com",
       BETTER_AUTH_SECRET: "local-profile-secret-at-least-32-characters",
+      ...(authOnly
+        ? { GITHUB_CLIENT_ID: "fixture-client", GITHUB_CLIENT_SECRET: "fixture-secret" }
+        : {}),
       FEEDBAX_HOST_SECRET: "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE",
     },
     d1Databases: ["DB"],
     r2Buckets: ["IMAGES"],
     queueProducers: { SYNC_QUEUE: "sync" },
-    outboundService: () => {
-      throw new Error("unexpected provider I/O");
+    outboundService: (request: Request) => {
+      if (!authOnly) throw new Error("unexpected provider I/O");
+      const url = new URL(request.url);
+      if (url.origin === "https://github.com" && url.pathname === "/login/oauth/access_token")
+        return Response.json({
+          access_token: "fixture-only-access",
+          token_type: "bearer",
+          scope: "read:user,user:email",
+        });
+      if (url.origin === "https://api.github.com" && url.pathname === "/user")
+        return Response.json({
+          id: 123,
+          name: "OAuth profile",
+          login: "fixture",
+          email: "oauth-profile@example.invalid",
+        });
+      if (url.origin === "https://api.github.com" && url.pathname === "/user/emails")
+        return Response.json([
+          { email: "oauth-profile@example.invalid", primary: true, verified: true },
+        ]);
+      throw new Error("unexpected provider transport");
     },
   }),
 );
@@ -151,6 +175,47 @@ try {
     .getSetCookie()
     .map((value) => value.split(";")[0])
     .join("; ");
+  const cookieOf = (response: { headers: { getSetCookie(): string[] } }) =>
+    response.headers
+      .getSetCookie()
+      .map((value) => value.split(";")[0])
+      .join("; ");
+  const startSocial = async (n: number) => {
+    const response = await runtime.dispatchFetch(
+      "https://portal.example.com/api/auth/sign-in/social",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://portal.example.com",
+          "content-type": "application/json",
+          "cf-connecting-ip": `192.0.${Math.floor(n / 250)}.${(n % 250) + 1}`,
+        },
+        body: JSON.stringify({ provider: "github", callbackURL: "/" }),
+        redirect: "manual",
+      },
+    );
+    assert.equal(response.status, 200, "controlled social start");
+    const authorization = new URL(((await response.json()) as { url: string }).url);
+    return {
+      path: `/api/auth/callback/github?${new URLSearchParams({ state: authorization.searchParams.get("state")!, code: `fixture-only-code-${n}` })}`,
+      cookie: cookieOf(response),
+    };
+  };
+  const callbackInputs: { path: string; cookie: string }[] = [];
+  const signoutCookies: string[] = [];
+  if (authOnly) {
+    for (let i = 0; i < requestCount + 12; i++) {
+      // Setup is outside sampled windows: callback and sign-out are measured individually.
+      const start = await startSocial(i + 500);
+      const response = await runtime.dispatchFetch(`https://portal.example.com${start.path}`, {
+        headers: { cookie: start.cookie, "cf-connecting-ip": `192.0.20.${i + 1}` },
+        redirect: "manual",
+      });
+      assert.equal(response.status, 302, "controlled callback session");
+      signoutCookies.push(cookieOf(response));
+      callbackInputs.push(await startSocial(i + 1000));
+    }
+  }
   await send("Profiler.enable");
   await send("Profiler.setSamplingInterval", { interval: 100 });
   const output = [];
@@ -174,17 +239,48 @@ try {
     ] as const)
       operations.push([name + suffix, await rpcPath(name, data), signedIn]);
   }
+  if (authOnly)
+    operations.splice(
+      0,
+      operations.length,
+      ["social-start", "/api/auth/sign-in/social", false],
+      ["social-callback-returning", "/api/auth/callback/github", false],
+      ["sign-out", "/api/auth/sign-out", false],
+      ["getViewer-signed-in", await rpcPath("getViewer"), true],
+    );
   for (const [operation, path, signedIn] of operations) {
+    let iteration = 0;
     const run = async () => {
-      const response = await runtime.dispatchFetch(`https://portal.example.com${path}`, {
-        headers: {
-          ...(signedIn ? { cookie: sessionCookie } : {}),
-          "x-tsr-serverFn": "true",
-          origin: "https://portal.example.com",
-          "sec-fetch-site": "same-origin",
+      const current = iteration++;
+      if (operation === "social-start") {
+        await startSocial(current + 1500);
+        return;
+      }
+      const callback =
+        operation === "social-callback-returning" ? callbackInputs[current] : undefined;
+      const response = await runtime.dispatchFetch(
+        `https://portal.example.com${callback?.path ?? path}`,
+        {
+          ...(operation === "sign-out" ? { method: "POST", body: "{}" } : {}),
+          redirect: "manual",
+          headers: {
+            ...(callback
+              ? { cookie: callback.cookie }
+              : operation === "sign-out"
+                ? { cookie: signoutCookies[current], "content-type": "application/json" }
+                : signedIn
+                  ? { cookie: sessionCookie }
+                  : {}),
+            ...(authOnly
+              ? { "cf-connecting-ip": `192.0.${operation === "sign-out" ? 22 : 21}.${current + 1}` }
+              : {}),
+            "x-tsr-serverFn": "true",
+            origin: "https://portal.example.com",
+            "sec-fetch-site": "same-origin",
+          },
         },
-      });
-      assert.equal(response.status, 200, operation);
+      );
+      assert.equal(response.status, callback ? 302 : 200, operation);
       const body = await response.text();
       if (path.startsWith("/_serverFn/")) {
         assert.match(response.headers.get("cache-control") ?? "", /private.*no-store/);
@@ -199,7 +295,7 @@ try {
     for (let i = 0; i < 12; i++) await run();
     await send("Profiler.start");
     const start = performance.now();
-    for (let i = 0; i < 150; i++) await run();
+    for (let i = 0; i < requestCount; i++) await run();
     const elapsedMs = performance.now() - start;
     const { profile } = await send("Profiler.stop");
     const nodes = new Map<number, any>(profile.nodes.map((n: any) => [n.id, n]));
@@ -247,10 +343,10 @@ try {
       .reduce((sum, [, v]) => sum + v, 0);
     output.push({
       operation,
-      requests: 150,
+      requests: requestCount,
       elapsedMs,
       sampledNonIdleMs,
-      sampledNonIdleMsPerRequest: sampledNonIdleMs / 150,
+      sampledNonIdleMsPerRequest: sampledNonIdleMs / requestCount,
       groupsMs,
       extractTablesRelationalConfigSelfMs: self.extractTablesRelationalConfig ?? 0,
       topSelf: Object.entries(self)
@@ -258,7 +354,7 @@ try {
         .slice(0, 12)
         .map(([name, ms]) => ({ name, ms })),
     });
-    console.log(operation, (sampledNonIdleMs / 150).toFixed(3), "sampled ms/request");
+    console.log(operation, (sampledNonIdleMs / requestCount).toFixed(3), "sampled ms/request");
   }
   const destination = process.argv[2];
   assert(destination, "pass sanitized output JSON path");
@@ -270,8 +366,9 @@ try {
         builtModulesSha256: createHash("sha256")
           .update(modules.map((m) => m.contents).join("\n"))
           .digest("hex"),
+        authOnly,
         method:
-          "V8 Inspector 100us; 12 warmup, 150 sequential successful requests each; one local D1 binding, 5 Planned fixture posts; no cookies unless operation labeled signed-in; source-map disjoint stacks; not CF billed CPU",
+          "V8 Inspector 100us; 12 warmup; 150 read requests or 50 auth requests per operation, sequential successful requests; auth setup outside sampled windows; fixture provider HTTP; IPs vary per social start to retain enabled database rate limits; one local D1 binding, 5 Planned fixture posts; no cookies unless operation labeled signed-in; source-map disjoint stacks; not CF billed CPU",
         results: output,
       },
       null,
