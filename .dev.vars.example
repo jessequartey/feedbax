@@ -6,7 +6,9 @@ FEEDBAX_HOST_SECRET=replace-with-32-random-bytes-base64url
 NOTION_TOKEN=ntn_replace_me
 # GitHub template only: fine-grained token, one repo, Issues read/write.
 # GITHUB_TOKEN=github_pat_replace_me
-# Optional social login (set both of a pair, or neither):
+# Sign-in uses GitHub, Google or your app's host integration; no email/password login.
+# Set both credentials for a chosen provider; use a separate localhost OAuth app.
+# Without a provider pair, configure appUrl and the host token endpoint to sign in.
 # GITHUB_CLIENT_ID=
 # GITHUB_CLIENT_SECRET=
 # GOOGLE_CLIENT_ID=

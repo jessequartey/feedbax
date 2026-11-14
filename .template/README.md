@@ -22,6 +22,10 @@ npm run deploy   # build, apply migrations, deploy
 
 Edit `feedbax.config.ts`: `name`, `appUrl` (your app's URL, for **Back to app** and the dialog), `auth.anonymous` and `integrations.github`. Run `npm run deploy` after a change.
 
+Sign in with GitHub, Google or your app's existing login; email/password login is disabled. OAuth login needs both client credentials and your portal's exact callback registered with the provider. For local OAuth testing, use separate development credentials in `.dev.vars`, leaving production credentials unchanged. See [login configuration](https://github.com/jessequartey/feedbax#configuration).
+
+With host login, finish the server token endpoint and `FeedbaxLink` integration in your app before expecting signed-in participation. Setting `appUrl` adds **Back to app** but does not establish a session.
+
 To rotate a production secret, run `npx wrangler secret put NOTION_TOKEN` (replace the name for other secrets).
 
 ## Theme

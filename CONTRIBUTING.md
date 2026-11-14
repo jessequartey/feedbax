@@ -14,7 +14,7 @@ npm ci --prefix packages/create-feedbax
 cp .dev.vars.example .dev.vars
 ```
 
-Fill `.dev.vars` with your own test values, then run `npm run dev`. The local portal opens at http://localhost:3000. Local posts sync to your real Notion database when `NOTION_TOKEN` is set; remove test rows afterwards.
+Fill `.dev.vars` with your own test values, then run `npm run dev`. The local portal opens at http://localhost:3000. Use a separate development OAuth app with its callback registered for localhost, or a test host integration; email/password login is disabled. Local posts sync to your real Notion database when `NOTION_TOKEN` is set; remove test rows afterwards.
 
 The repo uses [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, tests and builds.
 
@@ -25,6 +25,9 @@ npm run check
 npm run typecheck
 npm test
 npm run build
+npm run verify:build
+node scripts/test-worker-entry.ts
+node scripts/test-worker-sync.ts
 ```
 
 Changed the CLI or generated template? Also run:
@@ -47,10 +50,10 @@ The package test installs a generated app with npm, pnpm and bun. After changing
 
 Maintainers only. Publish `create-feedbax`; there is no runtime `feedbax` package.
 
-1. Verify the public Notion template can be duplicated from a signed-out browser. Its URL must match `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` and the README link.
+1. Verify the public Notion template loads in a signed-out browser, then sign in and verify its Duplicate icon opens the workspace picker. Its URL must match `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` and the README link.
 2. If rebuilding the template, set `NOTION_TOKEN` in your environment and run `npm run notion:template -- --page` followed by the URL of an empty page connected to that integration, optionally adding `--examples`. Use `--parent-page` instead to create a child page. Follow the printed steps for column order and publication.
 3. On npm, configure the package's **Settings → Trusted Publisher → GitHub Actions**: owner `jessequartey`, repository `feedbax`, workflow `release.yml`.
-4. Update `packages/create-feedbax/package.json` and [CHANGELOG.md](CHANGELOG.md), and complete the checks above.
+4. Update `packages/create-feedbax/package.json` and [CHANGELOG.md](CHANGELOG.md), complete the checks above, and verify the deployed social/host login, sync and Free CPU gates. Local timings alone do not satisfy the production CPU gate.
 5. Commit the release, then tag and push the version. For 0.3.0:
 
    ```sh

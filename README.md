@@ -26,7 +26,7 @@ You need **Node 24.15 or newer 24.x**, a Notion workspace where you are an **own
 
    **If setup says it can't see your page, the integration isn't connected yet.** Setup accepts `app.notion.com/p/…` page links too.
 
-3. **Optional: create a GitHub token.** For the **Notion + GitHub** template, open [the token form](https://github.com/settings/personal-access-tokens/new?name=Feedbax&description=Feedbax+issue+sync&issues=write). Choose **Only select repositories**, pick your repository, and set **Issues → Read and write**. Copy the generated token. Skip this for **Notion** only.
+3. **Optional: create a GitHub Issues token.** For the **Notion + GitHub** template, open [the token form](https://github.com/settings/personal-access-tokens/new?name=Feedbax&description=Feedbax+issue+sync&issues=write). Choose **Only select repositories**, pick your repository, and set **Issues → Read and write**. Copy the generated token. Skip this for **Notion** only. This token is separate from GitHub sign-in.
 
 4. **Run setup.** Choose one command:
 
@@ -42,11 +42,13 @@ You need **Node 24.15 or newer 24.x**, a Notion workspace where you are an **own
    bunx create-feedbax@latest
    ```
 
-   Answer **Project name**, **Template**, **Paste your Notion secret**, the GitHub questions if selected, and **Let people post without an account?** Setup finds your database, or offers **Paste a page link** and **I just shared one — search again**. Log in to Cloudflare when the browser opens.
+   Choose your project name, content template, sign-in method and whether to allow anonymous feedback. **GitHub login is recommended**; Google and your app's existing login are also supported. Provide your Notion integration secret and, for issue sync, the separate GitHub Issues token. Setup finds your database, or offers **Paste a page link** and **I just shared one — search again**. Log in to Cloudflare when the browser opens.
 
    R2 needs enabling once. If needed, the CLI says: “R2 isn't enabled on this account. Open https://dash.cloudflare.com/?to=/:account/r2/overview and click Enable R2 (the free tier needs a payment method on file). Press Enter when done.” It also asks **Pick your workers.dev subdomain** if you don't have one.
 
-5. **You're live.** Setup creates storage, applies migrations and prints **Your feedback portal is live:** followed by your URL. Open it and submit a post; it should reach Notion within about 5 minutes. If setup stops, fix the reported problem and rerun the same command from the same folder. Answer yes to **Finish setting up …?** to resume.
+   Once setup knows your portal URL, it prints the exact OAuth homepage and callback to register. For GitHub login, create an **OAuth App** at [GitHub Developer settings](https://github.com/settings/applications/new), then enter its client ID and client secret in the CLI. These are not your Issues token. For Google, use a Web application OAuth client with the printed redirect URI and complete Google's consent-screen requirements. For your app's existing login, provide its real HTTPS URL and finish the [host integration](#add-the-feedback-dialog-to-your-app).
+
+5. **Verify your portal.** Setup creates storage, applies migrations and prints your deployed URL. Open it, complete the selected sign-in flow and submit a post; it should reach Notion within about 5 minutes. Host-only setup lets people browse immediately, but signed-in participation needs the host integration before it is ready. If setup stops, fix the reported problem and rerun the same command from the same folder. Answer yes to **Finish setting up …?** to resume.
 
 ## Set up with an agent
 
@@ -64,7 +66,9 @@ options; use the published create-feedbax package to create the app.
 My preferences (ask once for anything missing):
 - Parent folder and project name: [where to create the project]
 - Template: [Notion / Notion + GitHub]
+- Sign-in: [GitHub (default) / Google / my app's existing login]
 - Product name and app URL: [name; URL for Back to app, or standalone]
+- Host project folder, if using its existing login: [folder; real HTTPS app URL]
 - GitHub repository, if selected: [owner/repo]
 - Anonymous feedback: false unless I choose otherwise.
 - Package manager: use my existing choice, otherwise npm.
@@ -110,32 +114,45 @@ you need a credential only I can provide.
    real terminal so Cloudflare browser login can work. Use --yes only
    when non-interactive setup is necessary: it never prompts or opens
    a browser and requires NOTION_TOKEN, CLOUDFLARE_API_TOKEN and
-   CLOUDFLARE_ACCOUNT_ID in the environment, plus GITHUB_TOKEN and
-   --github-repo for notion-github. Supply project/template/anonymous
-   choices using the current --help. Secrets belong in secure inputs
+   CLOUDFLARE_ACCOUNT_ID, plus GITHUB_TOKEN and --github-repo for
+   notion-github. It also requires the selected provider's complete
+   OAuth client ID/secret pair, or host login with a real HTTPS app URL.
+   Supply --login, --app-url and other choices using current --help.
+   Secrets belong in secure inputs
    or environment variables, never command arguments, chat, logs,
    screenshots or Git. Preserve the generated secrets and restricted
    .dev.vars permissions.
 
-5. Confirm the intended Cloudflare account. Let the CLI provision its
-   Worker, D1 database, R2 bucket, Queue and Cron, apply migrations and
+5. Confirm the intended Cloudflare account. After the CLI determines
+   the effective portal origin, register the chosen provider's OAuth
+   application using the exact homepage and callback it prints. Keep
+   GitHub OAuth client credentials separate from the Issues token.
+   With browser permission, complete provider setup; leave account
+   reauthentication to me. Collect credentials through secure input
+   (T3's request_secret when available) or protected local files. Check
+   Google's consent/test-user/publishing requirements when selected.
+   Preserve an existing canonical domain and working credentials.
+   Let the CLI provision its Worker, D1 database, R2 bucket, Queue and Cron, apply migrations and
    deploy. Follow its R2 enablement and workers.dev subdomain guidance;
    pause for me if payment details or a paid plan would be required.
    Record created resource IDs and the actual portal URL. On failure,
    diagnose and resume the same project; keep its data and secrets.
 
 6. Apply my product name and appUrl in feedbax.config.ts and redeploy
-   if changed. Keep standalone account login and my anonymous choice.
-   If I request social login, configure only the chosen provider and
-   its documented callback. If I request the dialog in my existing app,
+   if changed. Keep my selected social/host login and anonymous choice.
+   Feedbax has no email/password login. If using my existing app's login,
+   or adding the dialog to it,
    follow the README block instructions: server-only signing secret,
    authenticated same-origin token endpoint, dialog, sign-in link and
-   Back to app. Never derive a signed identity from client-supplied user
+   Back to app. Verify the host session before minting each token.
+   Report host integration pending until it works from my real app.
+   Never derive a signed identity from client-supplied user
    details. Notifications and admin features are roadmap items, with
    nothing to configure today.
 
 7. Verify the live URL and /api/health. Use clearly identified temporary
-   test data to check sign-up/sign-in, a post with an image, voting,
+   test data to complete an actual OAuth callback or host confirmation,
+   establish a session, and check a post with an image, voting,
    comments, and the post reaching Notion. Change its Notion status and
    wait for it to reach the portal/roadmap. For GitHub, approve that
    test post, verify one linked issue, close it and verify Done returns
@@ -322,8 +339,8 @@ export default defineConfig({
 | `FEEDBAX_HOST_SECRET`                      | Generated by setup; copy to your app's server for the dialog               |
 | `NOTION_TOKEN`                             | Your Notion connection's API token                                         |
 | `GITHUB_TOKEN`                             | Optional issue sync: fine-grained token, Issues read/write for one repo    |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Optional GitHub login                                                      |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google login                                                      |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub login; both required when selected                                  |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google login; both required when selected                                  |
 
 Secrets live in git-ignored `.dev.vars` locally and Cloudflare secrets in production. Never put them in `VITE_*` variables or `feedbax.config.ts`. To set or rotate one in production:
 
@@ -331,7 +348,13 @@ Secrets live in git-ignored `.dev.vars` locally and Cloudflare secrets in produc
 npx wrangler secret put NOTION_TOKEN
 ```
 
-For OAuth login, set both values of the provider's pair; an incomplete pair stops startup. Register your portal URL followed by `/api/auth/callback/github` or `/api/auth/callback/google` as the callback. Email/password login needs a 12–128 character password; there is no verification email or password reset in 0.3.0.
+Feedbax uses **GitHub, Google or your app's existing login**. Email/password login is disabled. Anonymous participation is off by default and can be enabled with `auth.anonymous`. Existing account data is preserved; social identities are not automatically linked to a legacy account by matching email.
+
+For OAuth login, set both values of the provider's pair; an incomplete pair stops startup. Register your portal URL followed by `/api/auth/callback/github` or `/api/auth/callback/google` as the callback. Follow [GitHub's OAuth App registration guide](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) for GitHub login. An Issues token cannot replace these credentials. Provider credentials configure login; verify it by completing a real callback and submitting feedback.
+
+For host login, set `appUrl` and finish the [server token endpoint and sign-in link](#add-the-feedback-dialog-to-your-app). **Back to app** alone does not sign anyone in. Social and host login can coexist.
+
+Use a separate development OAuth app with `http://localhost:3000/api/auth/callback/github` (or `/google`) for local testing. Put its credentials in local `.dev.vars`; keep the production callback and Cloudflare secrets unchanged. Updating `.dev.vars` alone does not rotate a production secret.
 
 ## Theming
 
@@ -375,20 +398,11 @@ Move its matching Notion row to Trash and remove any test GitHub issue separatel
 
 ## Free plan
 
-Feedbax uses one Worker, one D1 database, one R2 bucket, one Queue and one of your account's five free Cron triggers. For a typical portal with 50 visitors, 5 new posts and 20 votes a day, 300 total posts and GitHub enabled:
+Feedbax targets Cloudflare's Free plan with one Worker, one D1 database, one R2 bucket, one Queue and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking; failures back off instead of retrying in a loop.
 
-| Daily resource   | Estimated use | Free allowance |
-| ---------------- | ------------- | -------------- |
-| Worker requests  | ~1.5k         | 100k           |
-| D1 rows read     | ~0.4M         | 5M             |
-| D1 rows written  | ~1k           | 100k           |
-| Queue operations | ~1.8k         | 10k            |
+**CPU is the release gate.** Workers Free allows 10 ms of CPU per HTTP request. The previous password/SSR implementation exceeded it in production, so this release disables password login and is being revalidated with social/host login and runtime improvements. Local timings and successful HTTP responses alone do not establish that a deployment fits the Free budget. Final production CPU measurements remain pending; this candidate is not yet verified for Free hosting.
 
-That leaves at least 80% headroom on these daily limits. R2 use is a few uploads and a few thousand image reads a month, against millions free. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking; failures back off instead of retrying in a loop. See Cloudflare's [Workers](https://developers.cloudflare.com/workers/platform/limits/), [D1](https://developers.cloudflare.com/d1/platform/pricing/), [Queues](https://developers.cloudflare.com/queues/platform/pricing/) and [R2](https://developers.cloudflare.com/r2/pricing/) limits for your traffic.
-
-**CPU is the tight limit:** sign-in password work and board rendering use about **6.5–7.5 ms of the 10 ms Free CPU budget in local measurements**. These are local component measurements, not complete production requests; live numbers are pending. Watch your Worker's CPU metrics and consider [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) if requests exceed the budget. OAuth and host login avoid password hashing.
-
-Password login uses PBKDF2-SHA256 with 50,000 iterations to fit that budget, below [OWASP's recommendation](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2). Long passwords and sign-in rate limits help, but do not remove that tradeoff.
+Check CPU, request volume, database activity and storage for your traffic against Cloudflare's [Workers](https://developers.cloudflare.com/workers/platform/limits/), [D1](https://developers.cloudflare.com/d1/platform/pricing/), [Queues](https://developers.cloudflare.com/queues/platform/pricing/) and [R2](https://developers.cloudflare.com/r2/pricing/) limits. R2 activation may require a payment method even when usage stays within its free allowance.
 
 ## Notifications (coming later)
 
