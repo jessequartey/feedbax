@@ -50,6 +50,7 @@ export function publicConfig(settings = config, bindings: Cloudflare.Env = env):
     name: settings.name,
     appUrl: settings.appUrl,
     anonymous: settings.auth.anonymous,
+    showcase: settings.showcase,
     oauth: {
       github: Boolean(bindings.GITHUB_CLIENT_ID && bindings.GITHUB_CLIENT_SECRET),
       google: Boolean(bindings.GOOGLE_CLIENT_ID && bindings.GOOGLE_CLIENT_SECRET),

@@ -161,6 +161,7 @@ it("projects only public capabilities, validates host keys and keeps host login 
     "hostLogin",
     "name",
     "oauth",
+    "showcase",
   ]);
   expect(publicConfig(settings).hostLogin).toBe(true);
   expect(publicConfig(settings, { ...env, FEEDBAX_HOST_SECRET: "" }).hostLogin).toBe(false);

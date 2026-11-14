@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { Toaster } from "@/components/ui/sonner";
+import { ShowcaseCard } from "@/components/portal/showcase-card";
 import { SiteHeader } from "@/components/portal/site-header";
 import { ThemeProvider, useTheme } from "@/components/portal/theme";
 import { ViewerProvider } from "@/components/portal/viewer";
@@ -38,6 +39,7 @@ function PortalLayout() {
         <main id="main-content" tabIndex={-1} className="outline-none">
           <Outlet />
         </main>
+        <ShowcaseCard />
         <ThemedToaster />
       </ViewerProvider>
     </ThemeProvider>

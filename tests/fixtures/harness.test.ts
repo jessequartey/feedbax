@@ -121,6 +121,7 @@ describe("contracts", () => {
     expect(defineConfig(base)).toEqual({
       name: "Feedbax",
       appUrl: null,
+      showcase: false,
       auth: { anonymous: false },
       integrations: {
         notion: { dataSourceId: base.integrations.notion.dataSourceId },

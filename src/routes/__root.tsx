@@ -1,6 +1,7 @@
 import * as React from "react";
 import { HeadContent, Outlet, Scripts, createRootRoute, useRouter } from "@tanstack/react-router";
 
+import { FEEDBAX_DESCRIPTION } from "@/contracts/brand";
 import { ErrorState, NotFoundState } from "@/components/portal/states";
 import { themeInitScript } from "@/components/portal/theme";
 import appCss from "../styles.css?url";
@@ -13,6 +14,11 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "color-scheme", content: "light dark" },
       { title: "Feedbax" },
+      { name: "description", content: FEEDBAX_DESCRIPTION },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: "Feedbax" },
+      { property: "og:description", content: FEEDBAX_DESCRIPTION },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

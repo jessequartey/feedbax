@@ -49,6 +49,7 @@ export const publicConfig: PublicConfig = {
   appUrl: "https://app.example.com",
   anonymous: true,
   hostLogin: false,
+  showcase: false,
   oauth: { github: true, google: false },
 };
 

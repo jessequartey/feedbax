@@ -18,6 +18,7 @@ export const baseConfig: PublicConfig = {
   appUrl: null,
   anonymous: false,
   hostLogin: false,
+  showcase: false,
   oauth: { github: false, google: false },
 };
 

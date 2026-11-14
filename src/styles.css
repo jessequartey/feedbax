@@ -128,3 +128,24 @@
     @apply font-sans;
     }
 }
+/* "Get your own Feedbax" showcase card: hangs from two strings on desktop, sways once on load. */
+@keyframes feedbax-sway {
+    0% { transform: rotate(-3deg); }
+    35% { transform: rotate(3.5deg); }
+    65% { transform: rotate(1.2deg); }
+    100% { transform: rotate(2deg); }
+}
+
+@media (min-width: 48rem) and (prefers-reduced-motion: no-preference) {
+    .feedbax-hang {
+        transform: rotate(2deg);
+        transform-origin: 50% -1.5rem;
+        animation: feedbax-sway 1.8s ease-out 1;
+        transition: transform 0.25s ease;
+    }
+    .feedbax-hang:hover,
+    .feedbax-hang:focus-within {
+        transform: rotate(0deg) translateY(-0.25rem);
+        animation: none;
+    }
+}

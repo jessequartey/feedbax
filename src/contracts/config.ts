@@ -2,12 +2,14 @@ export type FeedbaxConfigInput = {
   name?: string;
   appUrl?: string;
   auth?: { anonymous?: boolean };
+  showcase?: boolean;
   integrations: { notion: { dataSourceId: string }; github?: false | { repo: string } };
 };
 export type FeedbaxConfig = {
   name: string;
   appUrl: string | null;
   auth: { anonymous: boolean };
+  showcase: boolean;
   integrations: { notion: { dataSourceId: string }; github: false | { repo: string } };
 };
 export type PublicConfig = {
@@ -16,6 +18,7 @@ export type PublicConfig = {
   anonymous: boolean;
   oauth: { github: boolean; google: boolean };
   hostLogin: boolean;
+  showcase: boolean;
 };
 
 const NOTION_ID =
@@ -82,6 +85,15 @@ export function defineConfig(input: FeedbaxConfigInput): FeedbaxConfig {
     }
   }
 
+  let showcase = false;
+  if (root.showcase !== undefined) {
+    if (typeof root.showcase !== "boolean") {
+      problems.push("showcase: must be true or false");
+    } else {
+      showcase = root.showcase;
+    }
+  }
+
   let dataSourceId = "";
   let github: false | { repo: string } = false;
   const integrations = root.integrations;
@@ -116,6 +128,7 @@ export function defineConfig(input: FeedbaxConfigInput): FeedbaxConfig {
     name,
     appUrl,
     auth: { anonymous },
+    showcase,
     integrations: { notion: { dataSourceId }, github },
   };
 }
