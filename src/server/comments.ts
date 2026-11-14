@@ -9,6 +9,8 @@ import { requireWriter } from "./auth.ts";
 import { DomainError } from "./errors.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
 import { enqueuePost } from "./posts.ts";
+import { emailEnabled, queueEmailsLater } from "../email/events.ts";
+import { richText } from "./rich-text.ts";
 import { runtimeConfig } from "./settings.ts";
 import { publiclyVisible } from "./visibility.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
@@ -56,14 +58,12 @@ export async function addCommentForUser(
   const replay = await existingComment();
   if (replay) return replay;
   // Hidden, spam and merged posts take no new comments: to everyone else they do not exist.
-  if (
-    !(await db
-      .select({ id: posts.id })
-      .from(posts)
-      .where(and(eq(posts.id, postId), publiclyVisible))
-      .get())
-  )
-    throw new DomainError("not_found", "Post not found.");
+  const post = await db
+    .select({ title: posts.title })
+    .from(posts)
+    .where(and(eq(posts.id, postId), publiclyVisible))
+    .get();
+  if (!post) throw new DomainError("not_found", "Post not found.");
   const now = Date.now();
   const [inserted] = await db.batch([
     db
@@ -81,7 +81,18 @@ export async function addCommentForUser(
   const comment = await existingComment();
   if (!comment)
     throw new DomainError("rate_limited", "You can submit 30 comments per hour.", undefined, 3600);
-  if (inserted.length) enqueuePost(postId);
+  if (inserted.length) {
+    enqueuePost(postId);
+    if (emailEnabled())
+      queueEmailsLater([
+        {
+          type: "email.reply",
+          id: crypto.randomUUID(),
+          post: { id: postId, title: post.title },
+          comment: { id, authorId: writer.id, authorName: comment.author.name, body: richText(body) },
+        },
+      ]);
+  }
   return comment;
 }
 /**

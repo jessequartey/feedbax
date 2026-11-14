@@ -16,6 +16,8 @@ import {
 
 import { authenticMarker, issueMarker } from "./github-marker.ts";
 import type { ProviderRequest } from "../integrations/request.ts";
+import { queueEmails, statusEmails } from "../email/events.ts";
+import { richText } from "../server/rich-text.ts";
 let actor: { token: string; id: number } | undefined;
 async function actorId(request: ProviderRequest): Promise<number> {
   if (actor && actor.token === env.GITHUB_TOKEN) return actor.id;
@@ -70,7 +72,8 @@ export async function createIssue(postId: string): Promise<void> {
   if (!Number.isSafeInteger(issue.user?.id)) throw new Error("Invalid GitHub issue creator");
   const closedAt =
     issue.state === "closed" ? Date.parse(issue.closed_at ?? issue.updated_at) : null;
-  await database
+  const closes = closedAt !== null && Number.isFinite(closedAt);
+  const linked = await database
     .update(posts)
     .set({
       githubNumber: issue.number,
@@ -78,11 +81,20 @@ export async function createIssue(postId: string): Promise<void> {
       githubUrl: issue.html_url,
       revision: sql`${posts.revision} + 1`,
       updatedAt: Date.now(),
-      ...(closedAt !== null && Number.isFinite(closedAt)
-        ? { githubClosedAt: closedAt, status: "done" as const }
-        : {}),
+      ...(closes ? { githubClosedAt: closedAt, status: "done" as const } : {}),
     })
-    .where(and(eq(posts.id, postId), isNull(posts.githubNumber)));
+    .where(and(eq(posts.id, postId), isNull(posts.githubNumber)))
+    .returning({ id: posts.id });
+  if (closes && linked.length && post.status !== "done")
+    await queueEmails(
+      statusEmails([
+        {
+          post: { id: post.id, title: post.title, body: richText(post.body) },
+          from: post.status,
+          to: "done",
+        },
+      ]),
+    );
 }
 
 export async function pollGitHub(
@@ -109,7 +121,14 @@ export async function pollGitHub(
   );
   const linked = closed.length
     ? await database
-        .select({ id: posts.id, number: posts.githubNumber, creator: posts.githubCreatorId })
+        .select({
+          id: posts.id,
+          number: posts.githubNumber,
+          creator: posts.githubCreatorId,
+          status: posts.status,
+          title: posts.title,
+          body: posts.body,
+        })
         .from(posts)
         .where(
           and(
@@ -148,8 +167,26 @@ export async function pollGitHub(
         .where(and(eq(posts.githubNumber, issue.number), isNull(posts.githubClosedAt))),
     ];
   });
-  if (updates.length)
+  if (updates.length) {
     await database.batch(updates as [(typeof updates)[number], ...typeof updates]);
+    // Closed issues set Done. Best effort, after the batch; never fails the poll.
+    await queueEmails(
+      statusEmails(
+        verified.flatMap((issue) => {
+          const post = linked.find((post) => post.number === issue.number);
+          return post && post.status !== "done"
+            ? [
+                {
+                  post: { id: post.id, title: post.title, body: richText(post.body) },
+                  from: post.status,
+                  to: "done" as const,
+                },
+              ]
+            : [];
+        }),
+      ),
+    );
+  }
   if (
     issues.length === 100 &&
     Date.parse(issues[issues.length - 1]!.updated_at) <= Date.parse(message.until)

@@ -241,7 +241,10 @@ export const webhookDeliveries = sqliteTable(
   ],
 );
 
-// One row per user, created lazily. Changelog email is opt-in; the others default on.
+// One row per user, created lazily (src/email/prefs.ts). No row = the defaults: changelog
+// email is opt-in, the others are on. `unsubscribe_token` is a random per-row value kept for
+// the column's NOT NULL UNIQUE contract; unsubscribe links are HMAC-signed instead
+// (src/email/unsubscribe.ts), so sending never has to write a row first.
 export const emailPrefs = sqliteTable("email_prefs", {
   userId: text("user_id")
     .primaryKey()
@@ -251,6 +254,8 @@ export const emailPrefs = sqliteTable("email_prefs", {
   changelog: integer("changelog").notNull().default(0),
   unsubscribeToken: text("unsubscribe_token").notNull().unique(),
   updatedAt: integer("updated_at").notNull(),
+  // 0006: the daily admin digest. Only read for admins.
+  digest: integer("digest").notNull().default(1),
 });
 
 // Single-use markers for signed admin sign-in links. A row exists only once a link is used.

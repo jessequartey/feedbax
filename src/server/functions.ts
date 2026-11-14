@@ -20,6 +20,9 @@ import { createPostForUser, getPostDetail, listPostPage } from "./posts.ts";
 import { addCommentForUser, listCommentPage } from "./comments.ts";
 import { setVoteForUser } from "./votes.ts";
 import { result } from "./errors.ts";
+import type { EmailSettings } from "../contracts/portal.ts";
+import { getEmailSettings, saveEmailPrefs, unsubscribeWithLink } from "../email/prefs.ts";
+import type { EmailKind } from "../email/unsubscribe.ts";
 import { category, listInput, record, text, uuid } from "./validation.ts";
 
 // One session lookup per HTTP request: during SSR the root loader and the page loaders all
@@ -95,6 +98,27 @@ export const setVote = createServerFn({ method: "POST" })
   .validator((data: { postId: string; voted: boolean }) => data)
   .handler(async ({ data }): Promise<ApiResult<VoteResult>> =>
     result(async () => setVoteForUser(data, await viewer()), "votes.set"),
+  );
+
+// ---- Email notifications (/notifications, /unsubscribe) ----
+export const getEmailPreferences = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ApiResult<EmailSettings>> =>
+    result(async () => getEmailSettings(await viewer()), "email.prefs"),
+);
+export const saveEmailPreferences = createServerFn({ method: "POST" })
+  .validator(
+    (data: Partial<Record<EmailKind, boolean>>) => data as Partial<Record<EmailKind, boolean>>,
+  )
+  .handler(
+    async ({ data }): Promise<ApiResult<EmailSettings>> =>
+      result(async () => saveEmailPrefs(data, await viewer()), "email.prefs"),
+  );
+/** The footer link's page posts here. Signed links need no session. */
+export const unsubscribeEmail = createServerFn({ method: "POST" })
+  .validator((data: { u?: string; k?: string; t?: string }) => record(data))
+  .handler(
+    async ({ data }): Promise<ApiResult<{ kind: EmailKind }>> =>
+      result(async () => unsubscribeWithLink(data), "email.prefs"),
   );
 
 // ---- Admin (/admin/*) ----
