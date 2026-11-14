@@ -124,8 +124,10 @@ try {
       )
       .bind(id)
       .run();
-  const fnFile = files.find((p) => p.startsWith("assets/functions-"))!;
-  const fnText = await readFile(resolve(root, fnFile), "utf8");
+  const fnFiles = files.filter((path) => path.startsWith("assets/functions-"));
+  const fnText = (
+    await Promise.all(fnFiles.map((path) => readFile(resolve(root, path), "utf8")))
+  ).join("\n");
   const rpcIds = Object.fromEntries(
     ["getViewer", "listPosts", "getPost", "listComments", "getRoadmap", "listMyPosts"].map(
       (name) => {

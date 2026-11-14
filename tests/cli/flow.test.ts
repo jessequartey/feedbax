@@ -579,6 +579,8 @@ describe("selected login checkpoint", () => {
     expect(await main([], f)).toBe(1);
     expect(f.prompt.log.join("\n")).not.toMatch(/captured-client|captured-secret/);
     f.run = run;
+    f.env.GITHUB_CLIENT_ID = "captured-client";
+    f.env.GITHUB_CLIENT_SECRET = "captured-secret";
     expect(await main(["my-feedback", "--yes"], f)).toBe(0);
     expect(f.state.deploySecrets.GITHUB_CLIENT_SECRET).toBe("captured-secret");
   });
@@ -624,6 +626,9 @@ describe("selected login checkpoint", () => {
     delete env.GOOGLE_CLIENT_ID;
     delete env.GOOGLE_CLIENT_SECRET;
     f.prompt = scripted();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+    env.GOOGLE_CLIENT_ID = "google-client";
+    env.GOOGLE_CLIENT_SECRET = "google-secret";
     expect(await main(["my-feedback", "--yes"], f)).toBe(0);
     expect(f.prompt.log.join("\n")).toContain("Google sign-in setup");
     env.GITHUB_CLIENT_ID = "github-client";
@@ -632,6 +637,9 @@ describe("selected login checkpoint", () => {
     delete env.GITHUB_CLIENT_ID;
     delete env.GITHUB_CLIENT_SECRET;
     f.prompt = scripted();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+    env.GITHUB_CLIENT_ID = "github-client";
+    env.GITHUB_CLIENT_SECRET = "github-secret";
     expect(await main(["my-feedback", "--yes"], f)).toBe(0);
     expect(f.prompt.log.join("\n")).toContain("GitHub sign-in setup");
     expect(f.state.deploySecrets).toMatchObject({
@@ -741,6 +749,58 @@ describe("selected login checkpoint", () => {
     expect((await readVars(project)).FEEDBAX_HOST_SECRET).toBe("existing-invalid-key");
     expect(f.prompt.log.join("\n")).not.toContain("existing-invalid-key");
     expect(f.state.calls).toEqual([]);
+  });
+  it("preserves a canonical host key longer than the minimum on resume", async () => {
+    const f = await fixture();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    const project = join(f.cwd, "my-feedback");
+    const key = Buffer.alloc(64, 7).toString("base64url");
+    await writeVars(project, { ...(await readVars(project)), FEEDBAX_HOST_SECRET: key });
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    expect((await readVars(project)).FEEDBAX_HOST_SECRET).toBe(key);
+    expect(f.state.deploySecrets.FEEDBAX_HOST_SECRET).toBe(key);
+  });
+  it("blocks unattended deployment of saved localhost OAuth credentials on resume", async () => {
+    const f = await fixture();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    const project = join(f.cwd, "my-feedback");
+    await writeVars(project, {
+      ...(await readVars(project)),
+      GITHUB_CLIENT_ID: "development-client",
+      GITHUB_CLIENT_SECRET: "development-secret",
+    });
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
+    const calls = f.state.calls.length;
+    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+    expect(f.state.calls).toHaveLength(calls);
+    expect(f.state.deploySecrets.GITHUB_CLIENT_ID).toBe("sentinel-oauth-client");
+    expect(f.prompt.log.join("\n")).toContain("production OAuth credentials");
+    expect(f.prompt.log.join("\n")).not.toContain("development-secret");
+  });
+  it("requires an explicit confirmation of saved OAuth credentials for the production URL", async () => {
+    const f = await fixture();
+    expect(await main(["my-feedback", "--yes"], f)).toBe(0);
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_ID;
+    delete (f.env as Record<string, string>).GITHUB_CLIENT_SECRET;
+    f.prompt = scripted();
+    const confirm = f.prompt.confirm.bind(f.prompt);
+    let approveProduction = false;
+    f.prompt.confirm = async (message, initial) => {
+      if (message.startsWith("Deploy the saved")) {
+        f.prompt.log.push(message);
+        return approveProduction;
+      }
+      return confirm(message, initial);
+    };
+    const deployments = f.state.calls.filter((call) => call.includes("deploy")).length;
+    expect(await main(["my-feedback"], f)).toBe(2);
+    expect(f.state.calls.filter((call) => call.includes("deploy"))).toHaveLength(deployments);
+    expect(f.prompt.log.join("\n")).toContain(
+      "Deploy the saved GitHub OAuth credentials to https://my-feedback.team.workers.dev?",
+    );
+    approveProduction = true;
+    expect(await main(["my-feedback"], f)).toBe(0);
   });
   it("tightens private vars permissions while preserving both pairs and signing keys", async () => {
     const f = await fixture(),

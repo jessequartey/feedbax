@@ -69,6 +69,7 @@ export type SetupDeps = {
   notionUrl?: string;
   onRemote?: () => void;
   onSecret?: (value: string) => void;
+  savedOAuthProviders?: ("github" | "google")[];
 };
 const R2_GUIDE =
   "R2 isn't enabled on this account. Open https://dash.cloudflare.com/?to=/:account/r2/overview and click Enable R2 (the free tier needs a payment method on file). Press Enter when done.";
@@ -252,6 +253,22 @@ export async function setup(
   const portalUrl = portalOrigin(
     savedPortal && /^https:/i.test(savedPortal) ? savedPortal : workersUrl,
   );
+  if (deps.savedOAuthProviders?.length) {
+    const providers = deps.savedOAuthProviders
+      .map((provider) => (provider === "github" ? "GitHub" : "Google"))
+      .join(" and ");
+    if (
+      yes ||
+      !(await prompt.confirm(
+        `Deploy the saved ${providers} OAuth credentials to ${portalUrl}? .dev.vars may contain localhost credentials. Confirm only if these are production OAuth credentials registered for this portal.`,
+        false,
+      ))
+    )
+      throw new CliError(
+        "Production OAuth credentials were not confirmed. Set the production client ID and secret pairs explicitly in the environment, then resume. Existing production credentials have not been changed.",
+        2,
+      );
+  }
   await prompt.step("Configure sign-in", () =>
     loginCheckpoint(
       answers,

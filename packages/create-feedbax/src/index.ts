@@ -24,7 +24,7 @@ import {
   writeAppConfig,
 } from "./project.ts";
 import { loadClients } from "./providers.ts";
-import { inferredLogin, oauthSecrets, requireLogin } from "./login.ts";
+import { inferredLogin, oauthFields, oauthSecrets, requireLogin } from "./login.ts";
 import { setup } from "./setup.ts";
 import type { NotionSetupClient, GitHubSetupClient } from "../../../src/contracts/integrations.ts";
 import type { Clients, Prompter, Run, Secrets, SetupAnswers } from "./types.ts";
@@ -120,15 +120,23 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
     hidden.push(...Object.values(prior));
     if (
       prior.FEEDBAX_HOST_SECRET !== undefined &&
-      (!/^[A-Za-z0-9_-]{43}$/.test(prior.FEEDBAX_HOST_SECRET) ||
+      (!/^[A-Za-z0-9_-]+$/.test(prior.FEEDBAX_HOST_SECRET) ||
+        Buffer.from(prior.FEEDBAX_HOST_SECRET, "base64url").length < 32 ||
         Buffer.from(prior.FEEDBAX_HOST_SECRET, "base64url").toString("base64url") !==
           prior.FEEDBAX_HOST_SECRET)
     )
       throw new CliError(
-        "FEEDBAX_HOST_SECRET must be canonical base64url encoding of 32 bytes. Restore the existing shared key before resuming; setup will not rotate it.",
+        "FEEDBAX_HOST_SECRET must be canonical base64url encoding of at least 32 bytes. Restore the existing shared key before resuming; setup will not rotate it.",
         2,
       );
     const oauth = oauthSecrets(env, prior);
+    const resume = await exists(join(cwd, "feedbax.config.ts"));
+    const savedOAuthProviders = resume
+      ? (["github", "google"] as const).filter((provider) => {
+          const [id, secret] = oauthFields[provider];
+          return Boolean(prior[id] && prior[secret] && !(env[id] && env[secret]));
+        })
+      : [];
     const inferred = inferredLogin(oauth, saved.appUrl);
     let login = flags.login ?? inferred ?? "github";
     let appUrl = flags.appUrl ?? saved.appUrl;
@@ -142,6 +150,11 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
         2,
       );
     if (flags.yes) {
+      if (savedOAuthProviders.length)
+        throw new CliError(
+          `Resume needs explicit production OAuth credentials: ${savedOAuthProviders.flatMap((provider) => oauthFields[provider]).join(", ")}. Local .dev.vars may contain localhost credentials. Set production values in the environment, or rerun interactively to confirm them.`,
+          2,
+        );
       requireLogin({ login, appUrl }, oauth);
       const required = [
         !(env.NOTION_TOKEN || prior.NOTION_TOKEN) && "NOTION_TOKEN",
@@ -157,7 +170,6 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       if (required.length)
         throw new CliError(`Non-interactive setup needs ${required.join(", ")}.`, 2);
     }
-    const resume = await exists(join(cwd, "feedbax.config.ts"));
     if (resume && !flags.yes && !(await prompt.confirm(`Finish setting up ${name}?`, true)))
       throw new Cancelled();
     const pm = flags.packageManager ?? detectPackageManager(env.npm_config_user_agent);
@@ -327,6 +339,7 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       prompt,
       cwd,
       yes: flags.yes,
+      savedOAuthProviders,
       install,
       notionUrl: target.url,
       onRemote: () => {

@@ -356,6 +356,8 @@ For host login, set `appUrl` and finish the [server token endpoint and sign-in l
 
 Use a separate development OAuth app with `http://localhost:3000/api/auth/callback/github` (or `/google`) for local testing. Put its credentials in local `.dev.vars`; keep the production callback and Cloudflare secrets unchanged. Updating `.dev.vars` alone does not rotate a production secret.
 
+When resuming setup, confirm that saved OAuth credentials belong to the printed production URL. With `--yes`, supply production client ID/secret pairs explicitly in the environment for every configured provider; setup refuses to upload saved development credentials without confirmation.
+
 ## Theming
 
 Choose a preset at [shadcn Create](https://ui.shadcn.com/create). These commands use Feedbax's default preset; replace `buFyyzw` with your chosen code:

@@ -196,13 +196,27 @@ export async function testPackage(
       assert.equal(deployed.googleOAuth, login === "google");
       assert.equal(deployed.hostConfigured, login === "host");
       await assert.rejects(stat(deployed.secretPath));
-      await checked(process.execPath, [argv[0]!, packedCli, "my-feedback", "--yes"], caseDir, {
+      const savedOnlyEnv = {
         ...caseEnv,
         GITHUB_CLIENT_ID: "",
         GITHUB_CLIENT_SECRET: "",
         GOOGLE_CLIENT_ID: "",
         GOOGLE_CLIENT_SECRET: "",
+      };
+      const resumed = await run(process.execPath, [argv[0]!, packedCli, "my-feedback", "--yes"], {
+        cwd: caseDir,
+        env: savedOnlyEnv,
       });
+      assert.equal(resumed.code, login === "host" ? 0 : 2);
+      if (login !== "host") {
+        assert((resumed.stdout + resumed.stderr).includes("production OAuth credentials"));
+        await checked(
+          process.execPath,
+          [argv[0]!, packedCli, "my-feedback", "--yes"],
+          caseDir,
+          caseEnv,
+        );
+      }
     }
     const rejectedDir = join(temp, "rejected");
     await mkdir(rejectedDir);
