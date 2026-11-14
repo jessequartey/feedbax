@@ -1,18 +1,40 @@
-// W0 placeholder. W3 replaces this with the board.
 import { createFileRoute } from "@tanstack/react-router";
-import { listPosts } from "../server/functions.ts";
+
+import { PostBrowser, PostBrowserSkeleton } from "@/components/portal/post-browser";
+import {
+  clearFilters,
+  parseBoardSearch,
+  patchSearch,
+  toListInput,
+} from "@/components/portal/portal-search";
+import { pageTitle } from "@/components/portal/route-head";
+import { listPosts } from "@/server/functions";
+
+const TITLE = "Feedback";
+const DESCRIPTION = "Share ideas and vote on what matters.";
 
 export const Route = createFileRoute("/")({
-  loader: () => listPosts({ data: { sort: "trending" } }),
-  component: Home,
+  validateSearch: (search: Record<string, unknown>) => parseBoardSearch(search),
+  loaderDeps: ({ search }) => search,
+  loader: ({ deps }) => listPosts({ data: toListInput(deps) }),
+  head: ({ matches }) => pageTitle(matches),
+  pendingComponent: () => <PostBrowserSkeleton title={TITLE} description={DESCRIPTION} />,
+  component: BoardPage,
 });
 
-function Home() {
+function BoardPage() {
+  const search = Route.useSearch();
   const page = Route.useLoaderData();
+  const navigate = Route.useNavigate();
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-semibold">Feedbax</h1>
-      <p className="text-muted-foreground">{page.total} posts (fixture data)</p>
-    </main>
+    <PostBrowser
+      title={TITLE}
+      description={DESCRIPTION}
+      kind="board"
+      search={search}
+      page={page}
+      onChange={(patch) => void navigate({ search: (prev) => patchSearch(prev, patch) })}
+      onClear={() => void navigate({ search: (prev) => clearFilters(prev) })}
+    />
   );
 }
