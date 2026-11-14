@@ -1,0 +1,13 @@
+# Copy to .dev.vars (git-ignored, mode 0600). create-feedbax writes the real file for you.
+# Placeholders only: never commit real secrets.
+PORTAL_URL=http://localhost:3000
+BETTER_AUTH_SECRET=replace-with-32-random-bytes-base64url
+FEEDBAX_HOST_SECRET=replace-with-32-random-bytes-base64url
+NOTION_TOKEN=ntn_replace_me
+# GitHub template only: fine-grained token, one repo, Issues read/write.
+# GITHUB_TOKEN=github_pat_replace_me
+# Optional social login (set both of a pair, or neither):
+# GITHUB_CLIENT_ID=
+# GITHUB_CLIENT_SECRET=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
