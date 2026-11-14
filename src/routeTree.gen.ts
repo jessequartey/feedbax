@@ -16,6 +16,7 @@ import { Route as PortalMyFeedbackRouteImport } from './routes/_portal.my-feedba
 import { Route as PortalRoadmapRouteImport } from './routes/_portal.roadmap'
 import { Route as PortalSignupRouteImport } from './routes/_portal.signup'
 import { Route as PortalSubmitRouteImport } from './routes/_portal.submit'
+import { Route as AdminEnterRouteImport } from './routes/admin.enter'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
 import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
@@ -56,6 +57,11 @@ const PortalSubmitRoute = PortalSubmitRouteImport.update({
   path: '/submit',
   getParentRoute: () => PortalRoute,
 } as any)
+const AdminEnterRoute = AdminEnterRouteImport.update({
+  id: '/admin/enter',
+  path: '/admin/enter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/roadmap': typeof PortalRoadmapRoute
   '/signup': typeof PortalSignupRoute
   '/submit': typeof PortalSubmitRoute
+  '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/roadmap': typeof PortalRoadmapRoute
   '/signup': typeof PortalSignupRoute
   '/submit': typeof PortalSubmitRoute
+  '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/': typeof PortalIndexRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/_portal/roadmap': typeof PortalRoadmapRoute
   '/_portal/signup': typeof PortalSignupRoute
   '/_portal/submit': typeof PortalSubmitRoute
+  '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/_portal/': typeof PortalIndexRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/admin/enter'
     | '/api/health'
     | '/api/posts'
     | '/posts/$postId'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/admin/enter'
     | '/api/health'
     | '/api/posts'
     | '/'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/_portal/roadmap'
     | '/_portal/signup'
     | '/_portal/submit'
+    | '/admin/enter'
     | '/api/health'
     | '/api/posts'
     | '/_portal/'
@@ -168,6 +180,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   PortalRoute: typeof PortalRouteWithChildren
+  AdminEnterRoute: typeof AdminEnterRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPostsRoute: typeof ApiPostsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/submit'
       preLoaderRoute: typeof PortalSubmitRouteImport
       parentRoute: typeof PortalRoute
+    }
+    '/admin/enter': {
+      id: '/admin/enter'
+      path: '/admin/enter'
+      fullPath: '/admin/enter'
+      preLoaderRoute: typeof AdminEnterRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/health': {
       id: '/api/health'
@@ -288,6 +308,7 @@ const PortalRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRouteWithChildren,
+  AdminEnterRoute: AdminEnterRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPostsRoute: ApiPostsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

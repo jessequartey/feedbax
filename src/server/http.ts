@@ -8,6 +8,7 @@ import { syncState } from "../db/schema.ts";
 import { createAuth, publicConfig } from "./auth.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
 import { createPostForUser } from "./posts.ts";
+import { isBanned } from "./admin.ts";
 import type { Operation } from "./errors.ts";
 import { apiError, DomainError, reportUnexpected } from "./errors.ts";
 
@@ -87,7 +88,12 @@ export async function handlePosts(request: Request, settings = config): Promise<
       );
       const result = await createPostForUser(
         await multipart(request),
-        { id: user.id, name: user.name, kind: "host" },
+        {
+          id: user.id,
+          name: user.name,
+          kind: "host",
+          ...((await isBanned(user.id)) ? { banned: true } : {}),
+        },
         settings,
       );
       response = Response.json(result.data, {
@@ -130,22 +136,47 @@ export async function handleAuth(request: Request): Promise<Response> {
       });
     if (request.method === "POST" && !path.startsWith("/callback/"))
       requireSameOrigin(request, env.PORTAL_URL);
-    const response = await createAuth().handler(request);
-    response.headers.set("Cache-Control", "no-store");
-    if (response.status >= 500) {
-      const correlationId = crypto.randomUUID();
-      reportUnexpected(undefined, "auth.request", correlationId);
-      return Response.json(
-        { error: { code: "unavailable", message: "Please try again shortly." } },
-        { status: 503, headers: { "Cache-Control": "no-store", "X-Request-ID": correlationId } },
-      );
-    }
-    const retryAfter = response.headers.get("X-Retry-After");
-    if (response.status === 429 && retryAfter) response.headers.set("Retry-After", retryAfter);
-    return response;
+    return await callAuth(request);
   } catch (error) {
     return errorResponse(error, "auth.request");
   }
+}
+/**
+ * GET /admin/enter?t=… shows a confirmation page; POST consumes the single-use link and
+ * signs in as admin. See src/server/admin-link.ts. The page path is the public URL the
+ * CLI prints; the work happens in Better Auth's `/feedbax/admin-enter` endpoint so it
+ * can create sessions and cookies the same way as host sign-in.
+ */
+export async function handleAdminEnter(request: Request): Promise<Response> {
+  try {
+    if (request.method !== "GET" && request.method !== "POST")
+      return new Response(null, {
+        status: 405,
+        headers: { "Cache-Control": "no-store", Allow: "GET, POST" },
+      });
+    if (request.method === "POST") requireSameOrigin(request, env.PORTAL_URL);
+    const url = new URL(request.url);
+    return await callAuth(
+      new Request(new URL(`/api/auth/feedbax/admin-enter${url.search}`, url), request),
+    );
+  } catch (error) {
+    return errorResponse(error, "auth.request");
+  }
+}
+async function callAuth(request: Request): Promise<Response> {
+  const response = await createAuth().handler(request);
+  response.headers.set("Cache-Control", "no-store");
+  if (response.status >= 500) {
+    const correlationId = crypto.randomUUID();
+    reportUnexpected(undefined, "auth.request", correlationId);
+    return Response.json(
+      { error: { code: "unavailable", message: "Please try again shortly." } },
+      { status: 503, headers: { "Cache-Control": "no-store", "X-Request-ID": correlationId } },
+    );
+  }
+  const retryAfter = response.headers.get("X-Retry-After");
+  if (response.status === 429 && retryAfter) response.headers.set("Retry-After", retryAfter);
+  return response;
 }
 export async function handleHealth(settings = config): Promise<Response> {
   try {

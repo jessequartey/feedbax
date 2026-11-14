@@ -856,7 +856,7 @@ describe("selected login checkpoint", () => {
         const config = JSON.parse(await readFile(join(options.cwd, "wrangler.jsonc"), "utf8"));
         expect(config.assets).toEqual({
           not_found_handling: "single-page-application",
-          run_worker_first: ["/api/*", "/_serverFn/*"],
+          run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter"],
         });
         checked = true;
       }
@@ -888,7 +888,7 @@ describe("selected login checkpoint", () => {
           ? {}
           : { directory: "./public", html_handling: "force-trailing-slash" }),
         not_found_handling: "single-page-application",
-        run_worker_first: ["/api/*", "/_serverFn/*"],
+        run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter"],
       };
       expect(JSON.parse(await readFile(path, "utf8")).assets).toEqual(expected);
       expect(await main(["my-feedback", "--yes"], f)).toBe(0);

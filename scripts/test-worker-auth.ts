@@ -84,7 +84,7 @@ const common = {
 };
 const emittedConfig = JSON.parse(await readFile(resolve(root, "wrangler.json"), "utf8"));
 assert.equal(emittedConfig.assets.not_found_handling, "single-page-application");
-assert.deepEqual(emittedConfig.assets.run_worker_first, ["/api/*", "/_serverFn/*"]);
+assert.deepEqual(emittedConfig.assets.run_worker_first, ["/api/*", "/_serverFn/*", "/admin/enter"]);
 const staticAssets = {
   directory: resolve(root, emittedConfig.assets.directory),
   run_worker_first: emittedConfig.assets.run_worker_first,
@@ -375,6 +375,12 @@ try {
       "host GET remains its confirmation handler",
     );
     assert.equal(confirmation.headers.has("set-cookie"), false, "GET never consumes host token");
+    // The admin sign-in link is a page path, not /api/*: run_worker_first must route it.
+    const adminEnter = await app.fetch("https://portal.example.com/admin/enter?t=invalid", {
+      headers,
+    });
+    assert.equal(adminEnter.status, 401, "admin link navigation reaches the Worker");
+    assert.match(await adminEnter.text(), /admin link expired/);
     for (const path of [
       "/api/auth/sign-up/email",
       "/api/auth/callback/google",

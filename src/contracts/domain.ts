@@ -26,7 +26,15 @@ export const LIMITS = {
 } as const;
 
 export type PublicAuthor = { id: string; name: string; anonymous: boolean };
-export type ViewerUser = { id: string; name: string; kind: "account" | "host" | "anonymous" };
+export type ViewerUser = {
+  id: string;
+  name: string;
+  kind: "account" | "host" | "anonymous";
+  /** Present (true) only for admins. */
+  admin?: boolean;
+  /** Present (true) only for banned users: they can read but not post, vote or comment. */
+  banned?: boolean;
+};
 export type ImageView = { id: string; url: string; width: number; height: number };
 export type PostSummary = {
   id: string;

@@ -64,10 +64,12 @@ export async function createPostForUser(
     validated.map((image, i) => storeImage(image, id, i, writer.id)),
   );
   // The quota predicate is in the INSERT too, so concurrent requests cannot exceed it.
+  // Drizzle lists every `posts` column in schema order: a new column needs a value here
+  // (the last three are 0005's hidden_at, spam, merged_into).
   const insert = db
     .insert(posts)
     .select(
-      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
+      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
     )
     .onConflictDoNothing()
     .returning({ id: posts.id });
