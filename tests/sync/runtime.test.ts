@@ -600,7 +600,9 @@ describe("cron and failures", () => {
       const result = await deliver({ type: "notion.post", postId: ID }, false, attempts);
       expect(result.retry).toHaveBeenCalledWith({ delaySeconds });
       expect(result.ack).not.toHaveBeenCalled();
-      expect(await readState("notion.error")).toBeNull();
+      expect(await readState<SyncErrorState>("notion.error")).toMatchObject({
+        code: status === 429 ? "rate_limit" : "transient",
+      });
     },
   );
   test("GitHub 403 with rate-limit reset is transient", async () => {
@@ -627,7 +629,14 @@ describe("cron and failures", () => {
       expect(error?.status).toBe(status);
       expect(JSON.stringify(error)).not.toContain("SECRET");
       expect(JSON.stringify(error)).not.toContain("private@");
-      expect(console.error).toHaveBeenCalledWith({ type: "notion.post", postId: ID, status });
+      expect(console.error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "sync.failure",
+          operation: "notion.post",
+          postId: ID,
+          status,
+        }),
+      );
     },
   );
   test("auth failure pauses sweep for an hour, polls probe, success clears error", async () => {
@@ -649,7 +658,15 @@ describe("cron and failures", () => {
     mock(new Error("token=SECRET https://x/?private"));
     const result = await deliver({ type: "notion.post", postId: ID }, false);
     expect(result.retry).toHaveBeenCalledWith({ delaySeconds: 30 });
-    expect(console.error).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "sync.failure",
+        code: "transient",
+        classification: "network",
+      }),
+    );
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("SECRET");
+    expect(await readState("notion.error")).toMatchObject({ code: "transient" });
   });
 });
 
@@ -798,4 +815,27 @@ test("persisted issue creator authenticates closes without extra calls after con
     env.PORTAL_URL = originalUrl;
     env.BETTER_AUTH_SECRET = originalSecret;
   }
+});
+
+test.each([
+  [
+    new TypeError('Invalid redirect value, must be one of "follow" or "manual"'),
+    "runtime_redirect",
+  ],
+  [new Error("Cannot perform I/O on behalf of a different request. SECRET"), "runtime_io_context"],
+  [new TypeError("Illegal invocation"), "illegal_invocation"],
+  [new DOMException("SECRET", "TimeoutError"), "timeout"],
+])("queue retains only a safe classification for %s", async (error, classification) => {
+  await seed();
+  mock(error);
+  await deliver({ type: "notion.post", postId: ID }, false);
+  expect(console.error).toHaveBeenCalledWith(
+    expect.objectContaining({
+      type: "sync.failure",
+      classification,
+      code: "transient",
+    }),
+  );
+  expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("SECRET");
+  expect(JSON.stringify(await readState("notion.error"))).not.toContain("SECRET");
 });

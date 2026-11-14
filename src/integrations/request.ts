@@ -1,6 +1,26 @@
 import { IntegrationError } from "../contracts/integrations.ts";
-import type { FetchFn, IntegrationErrorKind } from "../contracts/integrations.ts";
+import type {
+  FailureClassification,
+  FetchFn,
+  IntegrationErrorKind,
+} from "../contracts/integrations.ts";
 import { GITHUB_API_VERSION, NOTION_VERSION } from "./notion-schema.ts";
+
+// Recognize fixed runtime signatures; never retain exception text, URLs or supplied data.
+function fetchFailure(error: unknown): FailureClassification {
+  if (error instanceof Error) {
+    if (error.message.startsWith("Invalid redirect value, must be one of"))
+      return "runtime_redirect";
+    if (
+      error.message.includes("Cannot perform I/O on behalf of a different request") ||
+      error.message.includes("Some functionality, such as asynchronous I/O, timeouts")
+    )
+      return "runtime_io_context";
+    if (error.message === "Illegal invocation") return "illegal_invocation";
+    if (error.name === "TimeoutError" || error.name === "AbortError") return "timeout";
+  }
+  return "network";
+}
 
 export type ProviderRequest = <T>(path: string, method?: string, body?: unknown) => Promise<T>;
 
@@ -35,7 +55,9 @@ export function createProviderRequest(
         `${provider === "notion" ? "https://api.notion.com/v1" : "https://api.github.com"}${path}`,
         {
           method,
-          redirect: "error",
+          // workerd supports follow/manual only. Reject non-ok redirects below without
+          // following Location or forwarding the integration credential.
+          redirect: "manual",
           signal: AbortSignal.timeout(10_000),
           headers: {
             Authorization: `Bearer ${token}`,
@@ -51,7 +73,7 @@ export function createProviderRequest(
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         },
       );
-    } catch {
+    } catch (error) {
       // Never propagate a fetch error, which may contain a URL, body or token.
       throw new IntegrationError(
         provider,
@@ -59,6 +81,7 @@ export function createProviderRequest(
         null,
         null,
         `${provider} request failed or timed out.`,
+        fetchFailure(error),
       );
     }
     if (!response.ok) {
@@ -106,6 +129,7 @@ export function createProviderRequest(
         response.status,
         null,
         `${provider} returned an invalid response.`,
+        "invalid_response",
       );
     }
     await onSuccess?.();

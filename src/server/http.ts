@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import { boundedBody, MULTIPART_BYTES } from "./request.ts";
 import type { ErrorCode } from "../contracts/domain.ts";
@@ -130,23 +130,28 @@ export async function handleAuth(request: Request): Promise<Response> {
 export async function handleHealth(settings = config): Promise<Response> {
   try {
     const db = createDb(env.DB);
-    const [notion, github] = await Promise.all([
-      db
-        .select({ key: syncState.key })
-        .from(syncState)
-        .where(eq(syncState.key, "notion.error"))
-        .get(),
-      db
-        .select({ key: syncState.key })
-        .from(syncState)
-        .where(eq(syncState.key, "github.error"))
-        .get(),
-    ]);
+    const states = await db
+      .select()
+      .from(syncState)
+      .where(
+        inArray(syncState.key, [
+          "notion.error",
+          "notion.backoff",
+          "github.error",
+          "github.backoff",
+        ]),
+      );
+    const failing = (provider: string) =>
+      states.some(
+        (state) =>
+          state.key === `${provider}.error` ||
+          (state.key === `${provider}.backoff` && Date.parse(JSON.parse(state.value)) > Date.now()),
+      );
     return Response.json(
       {
         ok: true,
-        notion: notion ? "failing" : "ok",
-        github: settings.integrations.github ? (github ? "failing" : "ok") : "off",
+        notion: failing("notion") ? "failing" : "ok",
+        github: settings.integrations.github ? (failing("github") ? "failing" : "ok") : "off",
       },
       { headers: { "Cache-Control": "no-store" } },
     );

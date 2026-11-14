@@ -16,17 +16,28 @@ export type IntegrationErrorKind =
   | "schema"
   | "rate_limit"
   | "transient";
+export type FailureClassification =
+  | "runtime_redirect"
+  | "runtime_io_context"
+  | "illegal_invocation"
+  | "timeout"
+  | "network"
+  | "invalid_response"
+  | "provider"
+  | "storage";
 export class IntegrationError extends Error {
   readonly provider: "notion" | "github";
   readonly kind: IntegrationErrorKind;
   readonly status: number | null;
   readonly retryAfterMs: number | null;
+  readonly classification: FailureClassification;
   constructor(
     provider: "notion" | "github",
     kind: IntegrationErrorKind,
     status: number | null,
     retryAfterMs: number | null,
     message: string,
+    classification: FailureClassification = "provider",
   ) {
     super(message);
     this.name = "IntegrationError";
@@ -34,6 +45,7 @@ export class IntegrationError extends Error {
     this.kind = kind;
     this.status = status;
     this.retryAfterMs = retryAfterMs;
+    this.classification = classification;
   }
 }
 export type NotionTemplateOptions = {

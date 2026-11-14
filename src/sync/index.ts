@@ -42,7 +42,25 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
               null,
               null,
               "Sync storage or queue operation failed.",
+              "storage",
             );
+      const diagnostic = {
+        type: "sync.failure",
+        operation: body.type,
+        ...("postId" in body ? { postId: body.postId } : {}),
+        status: failure.status,
+        code: failure.kind,
+        classification: failure.classification,
+        correlationId: crypto.randomUUID(),
+      };
+      console.error(diagnostic);
+      const state = {
+        status: failure.status,
+        code: failure.kind,
+        message: failure.message,
+        at: new Date().toISOString(),
+        type: body.type,
+      } satisfies SyncErrorState;
       const transient = failure.kind === "transient" || failure.kind === "rate_limit";
       if (transient) {
         const backoff = Math.min(30 * 2 ** Math.min(Math.max(message.attempts - 1, 0), 7), 3600);
@@ -59,19 +77,9 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
           `${provider}.backoff`,
           new Date(Date.now() + Math.min(delaySeconds, 3600) * 1000).toISOString(),
         ).catch(() => undefined);
+        await writeState(`${provider}.error`, state).catch(() => undefined);
       } else {
-        await writeState(`${provider}.error`, {
-          status: failure.status,
-          code: failure.kind,
-          message: failure.message,
-          at: new Date().toISOString(),
-          type: body.type,
-        } satisfies SyncErrorState);
-        console.error({
-          type: body.type,
-          ...("postId" in body ? { postId: body.postId } : {}),
-          status: failure.status,
-        });
+        await writeState(`${provider}.error`, state);
         message.ack();
       }
     }

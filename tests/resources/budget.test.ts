@@ -177,7 +177,7 @@ describe("failures never loop", () => {
     );
     const message = await deliver({ type: "notion.post", postId: postId(0) }, 5);
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 480 });
-    expect(await readState("notion.error")).toBeNull();
+    expect(await readState("notion.error")).toMatchObject({ code: "transient" });
     // Inside the backoff window the cron sends Notion nothing; afterwards it resumes.
     await runScheduled(tick(Date.now() + 300_000));
     expect(queue.sent).toEqual([]);

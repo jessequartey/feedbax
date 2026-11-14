@@ -436,7 +436,7 @@ describe("provider errors and Node compatibility", () => {
     }).me();
     expect(signal).toBeInstanceOf(AbortSignal);
     expect(signal?.aborted).toBe(false);
-    expect(redirect).toBe("error");
+    expect(redirect).toBe("manual");
   });
   test("both setup modules load unbundled with Node 24 type stripping and no Cloudflare runtime", async () => {
     const { stdout } = await promisify(execFile)(

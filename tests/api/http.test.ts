@@ -93,3 +93,18 @@ it("health reports provider failures without exposing details", async () => {
     github: "off",
   });
 });
+
+it("health exposes active transient backoff without provider details", async () => {
+  await env.DB.prepare("INSERT INTO sync_state VALUES (?, ?, ?)")
+    .bind("notion.backoff", JSON.stringify(new Date(Date.now() + 60_000).toISOString()), Date.now())
+    .run();
+  expect(await (await handleHealth()).json()).toEqual({
+    ok: true,
+    notion: "failing",
+    github: "off",
+  });
+  await env.DB.prepare("UPDATE sync_state SET value = ? WHERE key = 'notion.backoff'")
+    .bind(JSON.stringify(new Date(Date.now() - 1).toISOString()))
+    .run();
+  expect(await (await handleHealth()).json()).toEqual({ ok: true, notion: "ok", github: "off" });
+});

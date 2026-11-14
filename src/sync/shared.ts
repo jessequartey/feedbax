@@ -47,7 +47,7 @@ export async function watermark(provider: "notion" | "github", until: string): P
  * error (and so unpause the sweep every tick). Auth errors are about the token, which any
  * successful call proves.
  */
-const notSticky = sql`coalesce(json_extract(${syncState.value}, '$.type'), '') NOT IN ('notion.post', 'github.issue') OR coalesce(json_extract(${syncState.value}, '$.code'), '') = 'auth'`;
+const notSticky = sql`coalesce(json_extract(${syncState.value}, '$.type'), '') NOT IN ('notion.post', 'github.issue') OR coalesce(json_extract(${syncState.value}, '$.code'), '') IN ('auth', 'transient', 'rate_limit')`;
 
 /**
  * `scope` is the kind of message making the calls. The first successful call of a message
