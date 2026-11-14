@@ -2,5 +2,85 @@
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "feedbax",
   "homepage": "https://github.com/jessequartey/feedbax",
-  "items": []
+  "items": [
+    {
+      "name": "feedbax-feedback",
+      "type": "registry:block",
+      "title": "Feedbax Feedback",
+      "description": "A roomy feedback dialog with one-click screenshot capture, an annotation editor (pen, arrow, rectangle, highlight, redact) and single sign-on to your Feedbax portal.",
+      "registryDependencies": [
+        "button",
+        "dialog",
+        "dropdown-menu",
+        "input",
+        "label",
+        "textarea",
+        "tooltip"
+      ],
+      "dependencies": ["modern-screenshot@4.7.0", "lucide-react"],
+      "files": [
+        {
+          "path": "registry/feedbax-feedback/components/feedback-dialog.tsx",
+          "type": "registry:component",
+          "target": "@components/feedbax/feedback-dialog.tsx"
+        },
+        {
+          "path": "registry/feedbax-feedback/components/annotation-editor.tsx",
+          "type": "registry:component",
+          "target": "@components/feedbax/annotation-editor.tsx"
+        },
+        {
+          "path": "registry/feedbax-feedback/components/attachments.tsx",
+          "type": "registry:component",
+          "target": "@components/feedbax/attachments.tsx"
+        },
+        {
+          "path": "registry/feedbax-feedback/components/parts.tsx",
+          "type": "registry:component",
+          "target": "@components/feedbax/parts.tsx"
+        },
+        {
+          "path": "registry/feedbax-feedback/components/feedbax-link.tsx",
+          "type": "registry:component",
+          "target": "@components/feedbax/feedbax-link.tsx"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/annotation.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/annotation.ts"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/capture.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/capture.ts"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/client.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/client.ts"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/draft.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/draft.ts"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/images.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/images.ts"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/token.server.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/token.server.ts"
+        },
+        {
+          "path": "registry/feedbax-feedback/lib/types.ts",
+          "type": "registry:lib",
+          "target": "@lib/feedbax/types.ts"
+        }
+      ],
+      "docs": "1) Server: set FEEDBAX_HOST_SECRET (from the portal's .dev.vars) in your server env and add an authenticated POST /api/feedbax-token route that returns { token: await mintFeedbaxToken({ secret, user: { id, name } }) } with Cache-Control: no-store. Take the user from your own session, never from the request body, and import lib/feedbax/token.server.ts from server code only. 2) Render <FeedbaxDialog portalUrl=\"https://your-portal\" /> (and optionally <FeedbaxLink portalUrl=\"https://your-portal\">Go to feedback</FeedbaxLink>). 3) Set appUrl in the portal's feedbax.config.ts to your app's URL and redeploy the portal. Mark anything that must not appear in screenshots with data-feedbax-ignore."
+    }
+  ]
 }
