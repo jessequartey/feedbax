@@ -1,3 +1,84 @@
-// W0 placeholder for cli-build: the real script lands with the workstream that owns it.
-console.error("not implemented: W5 (scripts/cli-build.ts)");
-process.exit(1);
+// Node 24 type stripping; only erasable TypeScript.
+import { chmod, copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildTemplate } from "./package-template.ts";
+import { createRunner } from "../packages/create-feedbax/src/io.ts";
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+export async function buildCli(): Promise<void> {
+  const cwd = join(root, "packages/create-feedbax");
+  const run = createRunner();
+  const packed = await run(
+    join(root, "node_modules/.bin/vp"),
+    [
+      "pack",
+      "src/index.ts",
+      "--no-config",
+      "--format",
+      "esm",
+      "--target",
+      "node24",
+      "--out-dir",
+      "dist",
+    ],
+    { cwd },
+  );
+  if (packed.code) throw new Error(packed.stderr || packed.stdout);
+  await chmod(join(cwd, "dist/index.mjs"), 0o755);
+  const entry = join(cwd, "provider-entry.ts");
+  try {
+    if (
+      existsSync(join(root, "src/integrations/notion.ts")) &&
+      existsSync(join(root, "src/integrations/github.ts"))
+    ) {
+      await writeFile(
+        entry,
+        'export { createNotionSetupClient } from "../../src/integrations/notion.ts";\nexport { createGitHubSetupClient } from "../../src/integrations/github.ts";\n',
+      );
+      const providers = await run(
+        join(root, "node_modules/.bin/vp"),
+        [
+          "pack",
+          "provider-entry.ts",
+          "--no-config",
+          "--format",
+          "esm",
+          "--target",
+          "node24",
+          "--out-dir",
+          "dist",
+          "--no-clean",
+        ],
+        { cwd },
+      );
+      if (providers.code) throw new Error(providers.stderr || providers.stdout);
+      await copyFile(join(cwd, "dist/provider-entry.mjs"), join(cwd, "dist/providers.mjs"));
+      await rm(join(cwd, "dist/provider-entry.mjs"));
+    } else {
+      // TEMP until W2 merges. No duplicate Notion schema or provider implementation.
+      await mkdir(join(cwd, "dist"), { recursive: true });
+      await writeFile(
+        join(cwd, "dist/providers.mjs"),
+        'const unavailable = () => { throw new Error("Notion/GitHub setup clients are unavailable in this development build. Merge W2 and run npm run cli:build before releasing."); };\nexport { unavailable as createNotionSetupClient, unavailable as createGitHubSetupClient };\n',
+      );
+      console.warn(
+        "TEMP: W2 clients are absent; injected clients work, release provisioning requires W2.",
+      );
+    }
+  } finally {
+    await rm(entry, { force: true });
+  }
+  const template = buildTemplate();
+  // npm always omits .gitignore, including nested ones. Transport the exact W0
+  // allowlisted file under a neutral name, then restore it when scaffolding.
+  await copyFile(join(template.out, ".gitignore"), join(template.out, "_gitignore"));
+  if (template.forbiddenImports.length)
+    console.warn(
+      `Template integration pending: ${template.forbiddenImports.join(", ")} imports repo fixtures (W1 must replace the W0 stub).`,
+    );
+  await copyFile(join(root, "LICENSE"), join(cwd, "LICENSE"));
+  console.log(`create-feedbax: built CLI + ${template.files.length} template files`);
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  await buildCli();

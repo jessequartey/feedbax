@@ -1,0 +1,61 @@
+Real @clack/prompts recording, with test-only provider clients and subprocesses.
+Captured with: script -q tests/cli/interactive-flow.raw.txt node tests/cli/interactive-demo.ts
+This excerpt removes cursor redraws and condenses the guide boxes. No credentials
+were used, no provider resources were created, and no real portal was deployed.
+
+┌  Feedbax 0.3.0  ·  Feedback, connected.
+│
+◇  Project name
+│  my-feedback
+◇  Scaffold portal
+●  Dependencies are installing in the background.
+◇  Template
+│  Notion + GitHub
+◇  Connect Notion
+│  1. Duplicate the Feedbax template (optional).
+│  2. Create an integration: https://www.notion.so/profile/integrations
+│     New integration → Internal → copy Internal Integration Secret (ntn_…).
+│     You need to be a workspace owner.
+│  3. Content access → Edit access → add the Feedbax page.
+◇  Open the Notion setup links in your browser?
+│  No
+◇  Paste your Notion secret
+│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+●  Using Feedbax in Team dashboard
+◇  Connect GitHub
+│  https://github.com/settings/personal-access-tokens/new?name=Feedbax&description=Feedbax+issue+sync&issues=write
+│  Choose Only select repositories, select one repository,
+│  then select Issues: Read and write. Copy the fine-grained token.
+◇  Paste a GitHub token
+│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+◇  Which repository?
+│  team/app
+●  Read access verified; write access is checked when the first issue is created
+◇  Let people post without an account?
+│  No
+◇  Install dependencies
+◇  Cloudflare login / check
+◇  D1 create
+◇  R2 create
+◇  Queue create
+◇  Write config
+◇  Migrate D1 (local + remote)
+◇  Build + deploy
+◇  You're live
+│  Your feedback portal is live: https://my-feedback.team.workers.dev
+│  Notion database: https://www.notion.so/12345678-1234-4234-8234-123456789abc
+│
+│  cd my-feedback
+│  npm run dev        # http://localhost:3000
+│  npm run deploy     # publish changes
+│
+│  Secrets: my-feedback/.dev.vars (private, gitignored)
+│  FEEDBAX_HOST_SECRET is there when you embed the block.
+│
+│  1. Submit your first post and check the Notion dashboard.
+│  2. Embed the feedback dialog:
+│     https://github.com/jessequartey/feedbax#add-the-feedback-dialog
+│  3. Set appUrl in feedbax.config.ts, then publish changes.
+│
+│  Local posts sync to your real Notion database; delete test rows there.
+└  Ready for feedback.
