@@ -204,7 +204,7 @@ describe("hot query plans", () => {
   test("cron sweeps read only their partial indexes", async () => {
     expect(
       await plan(
-        "SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_page_id IS NULL OR notion_revision < revision LIMIT 25",
+        "SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_blocked = 0 AND (notion_page_id IS NULL OR notion_revision < revision) ORDER BY updated_at, id LIMIT 25",
       ),
     ).toContain("USING INDEX posts_notion_pending");
     expect(

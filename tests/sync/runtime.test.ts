@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import config from "../../feedbax.config.ts";
 import { consumeQueue, runScheduled } from "../../src/sync/index.ts";
@@ -19,6 +19,7 @@ import {
   notionRow,
   githubIssue,
   text,
+  signedMarker,
 } from "./helpers.ts";
 
 const poll: SyncMessage = { type: "notion.poll", since: SINCE, until: UNTIL, cursor: null };
@@ -73,7 +74,21 @@ async function deliver(body: SyncMessage, success = true, attempts = 1) {
 }
 function mock(...replies: Parameters<typeof fakeFetch>) {
   const fake = fakeFetch(...replies);
-  vi.stubGlobal("fetch", fake.fetch);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input, init) => {
+      if (String(input) === "https://api.github.com/user") {
+        fake.requests.push({
+          url: String(input),
+          method: "GET",
+          headers: new Headers(init?.headers),
+          body: {},
+        });
+        return Response.json({ id: 123 });
+      }
+      return fake.fetch(input, init);
+    }),
+  );
   return fake;
 }
 beforeEach(async () => {
@@ -107,7 +122,8 @@ describe("Notion mirror", () => {
     await deliver({ type: "notion.post", postId: ID });
     expect(fake.requests).toHaveLength(1);
     expect(await post()).toBeDefined();
-    expect(await readState("notion.error")).toMatchObject({ code: "schema" });
+    expect(await post()).toMatchObject({ notionBlocked: 1 });
+    expect(await readState("notion.error")).toBeNull();
   });
   test("finds before create and sends all schema properties, public counts, images and explicit headers", async () => {
     await seed({ body: "😀".repeat(2200) });
@@ -388,7 +404,7 @@ describe("GitHub", () => {
     ]);
     expect(fake.requests[1].body.title).toBe("Feedback title");
     expect(fake.requests[1].body.body).toContain("Hello \\*\\*world\\*\\* &lt;script&gt;\\!");
-    expect(fake.requests[1].body.body).toContain(`<!-- feedbax:${ID} -->`);
+    expect(fake.requests[1].body.body).toContain(signedMarker());
     expect(fake.requests[1].body).not.toHaveProperty("labels");
     expect(fake.requests[1].headers.get("X-GitHub-Api-Version")).toBe("2026-03-10");
     expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.0");
@@ -463,7 +479,7 @@ describe("GitHub", () => {
       page: "1",
     });
     await deliver({ type: "notion.post", postId: ID });
-    expect(fake.requests[2].body).toMatchObject({
+    expect(fake.requests.filter((r) => !r.url.endsWith("/user"))[2].body).toMatchObject({
       properties: { Status: { select: { name: "Done" } } },
     });
     expect(fake.requests[2].body.properties).not.toHaveProperty("Send to GitHub");
@@ -635,4 +651,151 @@ describe("cron and failures", () => {
     expect(result.retry).toHaveBeenCalledWith({ delaySeconds: 30 });
     expect(console.error).not.toHaveBeenCalled();
   });
+});
+
+test("one trashed or missing mirror cannot pause healthy posts at 5 or 61 minutes", async () => {
+  await seed();
+  const healthy = crypto.randomUUID();
+  await db().insert(posts).values({
+    id: healthy,
+    authorId: "author",
+    title: "Healthy",
+    body: "Body",
+    category: "bug",
+    createdAt: 2,
+    updatedAt: 2,
+  });
+  const fake = mock(
+    list([{ ...notionRow(), in_trash: true }]),
+    list(),
+    { id: "healthy-page" },
+    { id: "healthy-page" },
+    { id: "healthy-page" },
+  );
+  await deliver({ type: "notion.post", postId: ID });
+  expect(await readState("notion.error")).toBeNull();
+  for (const minutes of [5, 61]) {
+    queue.reset();
+    await db()
+      .update(posts)
+      .set({ revision: sql`${posts.revision} + 1` })
+      .where(eq(posts.id, healthy));
+    await runScheduled({ ...controller, scheduledTime: Date.now() + minutes * 60000 });
+    expect(queue.sent).toContainEqual({ type: "notion.post", postId: healthy });
+    expect(queue.sent).not.toContainEqual({ type: "notion.post", postId: ID });
+    await deliver({ type: "notion.post", postId: healthy });
+  }
+  expect(fake.requests.filter((r) => r.method === "POST" && r.url.endsWith("/pages"))).toHaveLength(
+    1,
+  );
+  expect((await db().select().from(posts).where(eq(posts.id, healthy)).get())!.notionRevision).toBe(
+    3,
+  );
+});
+
+test("a linked page 404 is isolated only after the global source is verified accessible", async () => {
+  await seed({ notionPageId: PAGE });
+  mock(
+    new Response("missing row", { status: 404 }),
+    new Response("missing row", { status: 404 }),
+    schema,
+  );
+  await deliver({ type: "notion.post", postId: ID });
+  expect(await readState("notion.error")).toBeNull();
+  await runScheduled({ ...controller, scheduledTime: Date.now() + 61 * 60000 });
+  expect(queue.sent).not.toContainEqual({ type: "notion.post", postId: ID });
+});
+
+test("forged public UUID markers cannot be adopted or set Done", async () => {
+  await seed({ githubRequested: 1 });
+  const fake = mock(
+    [{ ...githubIssue(9, "closed"), body: `<!-- feedbax:${ID} -->`, user: { id: 999 } }],
+    githubIssue(),
+  );
+  await deliver({ type: "github.issue", postId: ID });
+  expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(1);
+  expect(await post()).toMatchObject({ githubNumber: 7, status: "open" });
+});
+test("GitHub descriptions neutralize mentions and cannot forge the adoption marker", async () => {
+  await seed({
+    githubRequested: 1,
+    body: `@alice @org/team [link](https://evil.example) <b>html</b> \`\`\` <!-- feedbax:${ID} -->`,
+  });
+  const fake = mock([], githubIssue());
+  await deliver({ type: "github.issue", postId: ID });
+  const body = String(fake.requests[1].body.body);
+  expect(body).not.toMatch(/@[A-Za-z0-9]/);
+  expect(body).not.toContain(`<b>`);
+  expect(body).not.toContain(`<!-- feedbax:${ID} -->`);
+  expect(body).toMatch(/<!-- feedbax:v1:/);
+});
+test("GitHub polling stops as soon as an ascending page passes until", async () => {
+  mock(
+    Array.from({ length: 100 }, (_, i) => ({
+      ...githubIssue(i + 1, "closed"),
+      updated_at: i === 99 ? "2026-11-14T12:01:00Z" : SINCE,
+    })),
+  );
+  await deliver(ghPoll);
+  expect(queue.sent).toEqual([]);
+  expect(await readState("github.watermark")).toBe(UNTIL);
+});
+test("copied genuine markers from outsider creators cannot be adopted or close linked posts", async () => {
+  await seed({ githubRequested: 1 });
+  const forged = { ...githubIssue(9, "closed"), user: { id: 999 } };
+  const fake = mock([forged], githubIssue());
+  await deliver({ type: "github.issue", postId: ID });
+  expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(1);
+  expect(await post()).toMatchObject({ githubNumber: 7, status: "open" });
+  // Protect even an outsider linkage left behind by an older implementation.
+  await db().update(posts).set({ githubNumber: 9 }).where(eq(posts.id, ID));
+  mock([forged]);
+  await deliver(ghPoll);
+  expect(await post()).toMatchObject({ status: "open", githubClosedAt: null });
+});
+test("global source access/schema failures remain provider-wide instead of tombstoning one row", async () => {
+  await seed({ notionPageId: PAGE });
+  mock(
+    new Response("page gone", { status: 404 }),
+    new Response("page gone", { status: 404 }),
+    new Response("database inaccessible", { status: 404 }),
+  );
+  await deliver({ type: "notion.post", postId: ID });
+  expect(await post()).toMatchObject({ notionBlocked: 0 });
+  expect(await readState("notion.error")).toMatchObject({ code: "not_found" });
+});
+test("a linked trashed page 400 is isolated, then restoration is observed without Feedbax restoring it", async () => {
+  await seed({ notionPageId: PAGE });
+  const fake = mock(
+    new Response("trashed", { status: 400 }),
+    { ...notionRow(), in_trash: true },
+    schema,
+    schema,
+    list([notionRow()]),
+  );
+  await deliver({ type: "notion.post", postId: ID });
+  expect(await post()).toMatchObject({ notionBlocked: 1 });
+  expect(await readState("notion.error")).toBeNull();
+  await deliver(poll);
+  expect(await post()).toMatchObject({ notionBlocked: 0 });
+  expect(fake.requests.some((r) => r.body.in_trash === false || r.body.archived === false)).toBe(
+    false,
+  );
+});
+test("persisted issue creator authenticates closes without extra calls after configuration rotation", async () => {
+  await seed({ githubRequested: 1 });
+  const fake = mock([], githubIssue(), [githubIssue(7, "closed")]);
+  await deliver({ type: "github.issue", postId: ID });
+  const originalUrl = env.PORTAL_URL,
+    originalSecret = env.BETTER_AUTH_SECRET;
+  try {
+    env.PORTAL_URL = "https://new-portal.example.com";
+    env.BETTER_AUTH_SECRET = "rotated-test-auth-secret-0123456789abcdef";
+    await deliver(ghPoll);
+    expect(await post()).toMatchObject({ status: "done", githubCreatorId: 123 });
+    expect(fake.requests.map((r) => r.method)).toEqual(["GET", "POST", "GET"]);
+  } finally {
+    env.PORTAL_URL = originalUrl;
+    env.BETTER_AUTH_SECRET = originalSecret;
+  }
 });

@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+import { TEST_SECRETS } from "../fixtures/cloudflare-workers.ts";
 import { vi } from "vite-plus/test";
 import type { FetchFn } from "../../src/contracts/integrations.ts";
 
@@ -53,7 +55,12 @@ export const notionRow = (
     "Send to GitHub": { type: "checkbox", checkbox: approved },
   },
 });
-export const githubIssue = (number = 7, state = "open", body = `<!-- feedbax:${ID} -->`) => ({
+export const signedMarker = (postId = ID) =>
+  `<!-- feedbax:v1:${postId}:${createHmac("sha256", TEST_SECRETS.BETTER_AUTH_SECRET)
+    .update(JSON.stringify(["feedbax-github-v1", "http://localhost:3000", "acme/app", postId]))
+    .digest("base64url")} -->`;
+export const githubIssue = (number = 7, state = "open", body = signedMarker()) => ({
+  user: { id: 123 },
   number,
   state,
   body,

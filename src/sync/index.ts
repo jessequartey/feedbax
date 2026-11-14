@@ -111,7 +111,7 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const sweep: SyncMessage[] = [];
   if (notion && !providerPaused(error("notion"), now))
     for (const postId of await pendingIds(
-      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_page_id IS NULL OR notion_revision < revision LIMIT 25`,
+      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_blocked = 0 AND (notion_page_id IS NULL OR notion_revision < revision) ORDER BY updated_at, id LIMIT 25`,
     ))
       sweep.push({ type: "notion.post", postId });
   let githubWork = false;

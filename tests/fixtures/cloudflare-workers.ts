@@ -111,6 +111,7 @@ await applyMigrations();
 
 const TABLES_IN_DELETE_ORDER = [
   "votes",
+  "vote_budget",
   "comments",
   "images",
   "posts",
@@ -135,3 +136,6 @@ export async function resetEnv(): Promise<void> {
     cursor = listed.truncated ? listed.cursor : undefined;
   } while (cursor);
 }
+
+/** Standalone built-worker tests release the local platform proxy when complete. */
+export const disposeEnv = () => proxy.dispose();

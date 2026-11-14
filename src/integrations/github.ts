@@ -11,6 +11,7 @@ export type GitHubIssue = {
   closed_at: string | null;
   updated_at: string;
   pull_request?: unknown;
+  user?: { id: number };
 };
 const repoView = (repo: Repository): GitHubRepo => ({
   fullName: repo.full_name,

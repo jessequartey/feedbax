@@ -67,7 +67,7 @@ export async function createPostForUser(
   const insert = db
     .insert(posts)
     .select(
-      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, NULL, NULL, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
+      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
     )
     .onConflictDoNothing()
     .returning({ id: posts.id });

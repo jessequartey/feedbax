@@ -1,3 +1,4 @@
+import { IntegrationError } from "../contracts/integrations.ts";
 import type { BatchItem } from "drizzle-orm/batch";
 import { eq, inArray, sql } from "drizzle-orm";
 import { CATEGORY_LABELS, STATUS_LABELS } from "../contracts/domain.ts";
@@ -43,9 +44,44 @@ function mirrorProperties(post: SyncPost) {
 export async function mirrorPost(postId: string): Promise<void> {
   const database = db();
   const post = await readPost(postId);
-  if (!post || (post.notionPageId && post.notionRevision >= post.revision)) return;
+  if (!post || post.notionBlocked || (post.notionPageId && post.notionRevision >= post.revision))
+    return;
   const request = providerRequest("notion");
   let pageId = post.notionPageId;
+  const block = async (id: string | null) => {
+    await database
+      .update(posts)
+      .set({ notionBlocked: 1, notionPageId: id })
+      .where(eq(posts.id, post.id));
+    console.warn({ type: "notion.mirror.blocked", postId: post.id });
+  };
+  const patch = async (id: string, body: unknown) => {
+    try {
+      await request(`/pages/${id}`, "PATCH", body);
+      return true;
+    } catch (error) {
+      if (!(error instanceof IntegrationError) || ![400, 404].includes(error.status ?? 0))
+        throw error;
+      let missing = false;
+      let row: NotionPage | undefined;
+      try {
+        row = await request<NotionPage>(`/pages/${id}`);
+      } catch (readError) {
+        if (!(readError instanceof IntegrationError) || readError.status !== 404) throw readError;
+        missing = true;
+      }
+      if (!missing && !row?.in_trash && !row?.archived && !row?.is_archived) throw error;
+      // A page-local 404 can also mean the entire database lost access. Verify the
+      // source and schema before suppressing the individual row. Extra I/O only on failure.
+      const source = await request<{ properties: NotionProperties; in_trash?: boolean }>(
+        `/data_sources/${config.integrations.notion.dataSourceId}`,
+      );
+      if (source.in_trash) throw schemaError("The Feedbax Notion data source is in trash.");
+      notionSchemaChanges(source.properties);
+      await block(id);
+      return false;
+    }
+  };
   if (!pageId) {
     const found = await request<NotionList<NotionPage>>(
       `/data_sources/${config.integrations.notion.dataSourceId}/query`,
@@ -57,8 +93,10 @@ export async function mirrorPost(postId: string): Promise<void> {
     );
     // A trashed row is still the same mirror. Never create a replacement or restore it.
     const existing = found.results[0];
-    if (existing?.in_trash)
-      throw schemaError("The mirrored Notion page is in trash; restore it to resume sync.");
+    if (existing?.in_trash || existing?.archived || existing?.is_archived) {
+      await block(existing.id);
+      return;
+    }
     pageId = existing?.id ?? null;
     if (!pageId) {
       const created = await request<NotionPage>("/pages", "POST", {
@@ -74,24 +112,29 @@ export async function mirrorPost(postId: string): Promise<void> {
       if (!pageId) throw schemaError("Notion did not return the created page ID.");
       // A late create can follow a GitHub close. Its final status still needs repair.
       if (post.githubClosedAt !== null)
-        await request(`/pages/${pageId}`, "PATCH", {
-          properties: { Status: { select: { name: "Done" } } },
-        });
+        if (!(await patch(pageId, { properties: { Status: { select: { name: "Done" } } } })))
+          return;
     } else {
-      await request(`/pages/${pageId}`, "PATCH", {
+      if (
+        !(await patch(pageId, {
+          properties: {
+            ...mirrorProperties(post),
+            ...(post.githubClosedAt !== null ? { Status: { select: { name: "Done" } } } : {}),
+          },
+        }))
+      )
+        return;
+    }
+  } else {
+    if (
+      !(await patch(pageId, {
         properties: {
           ...mirrorProperties(post),
           ...(post.githubClosedAt !== null ? { Status: { select: { name: "Done" } } } : {}),
         },
-      });
-    }
-  } else {
-    await request(`/pages/${pageId}`, "PATCH", {
-      properties: {
-        ...mirrorProperties(post),
-        ...(post.githubClosedAt !== null ? { Status: { select: { name: "Done" } } } : {}),
-      },
-    });
+      }))
+    )
+      return;
   }
   await database
     .update(posts)
@@ -130,7 +173,7 @@ export async function pollNotion(
   const approvals = new Set<string>();
   const seen = new Set<string>();
   for (const page of result.results) {
-    if (page.in_trash || seen.has(page.id)) continue;
+    if (page.in_trash || page.archived || page.is_archived || seen.has(page.id)) continue;
     seen.add(page.id);
     const id = notionText(page.properties["Feedbax ID"]?.rich_text);
     if (!id) continue;
@@ -152,6 +195,7 @@ export async function pollNotion(
     )?.[0];
     if (!status) console.warn({ type: "notion.status.ignored", postId: post.id, status: null });
     const changes: Partial<typeof posts.$inferInsert> = {};
+    if (post.notionBlocked) changes.notionBlocked = 0;
     if (post.githubClosedAt !== null) {
       if (status !== "done" && post.notionRevision >= post.revision)
         changes.revision = post.revision + 1;

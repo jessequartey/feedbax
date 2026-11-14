@@ -31,11 +31,14 @@ export const posts = sqliteTable(
     updatedAt: integer("updated_at").notNull(),
     revision: integer("revision").notNull().default(1),
     notionPageId: text("notion_page_id").unique(),
+    notionBlocked: integer("notion_blocked").notNull().default(0),
     notionRevision: integer("notion_revision").notNull().default(0),
     githubRequested: integer("github_requested").notNull().default(0),
     githubNumber: integer("github_number").unique(),
     githubUrl: text("github_url"),
     githubClosedAt: integer("github_closed_at"),
+    syncQueuedAt: integer("sync_queued_at").notNull().default(0),
+    githubCreatorId: integer("github_creator_id"),
   },
   (t) => [
     check("posts_title_len", sql`length(${t.title}) BETWEEN 1 AND 120`),
@@ -49,8 +52,10 @@ export const posts = sqliteTable(
     index("posts_author_created_idx").on(t.authorId, t.createdAt, t.id),
     // Cron sweep: the posts columns double as the sync outbox.
     index("posts_notion_pending")
-      .on(t.id)
-      .where(sql`${t.notionPageId} IS NULL OR ${t.notionRevision} < ${t.revision}`),
+      .on(t.updatedAt, t.id)
+      .where(
+        sql`${t.notionBlocked} = 0 AND (${t.notionPageId} IS NULL OR ${t.notionRevision} < ${t.revision})`,
+      ),
     index("posts_github_pending")
       .on(t.id)
       .where(sql`${t.githubRequested} = 1 AND ${t.githubNumber} IS NULL`),
@@ -133,4 +138,14 @@ export const syncState = sqliteTable("sync_state", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
   updatedAt: integer("updated_at").notNull(),
+});
+
+export const voteBudget = sqliteTable("vote_budget", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  burstStart: integer("burst_start").notNull(),
+  burstCount: integer("burst_count").notNull(),
+  hourStart: integer("hour_start").notNull(),
+  hourCount: integer("hour_count").notNull(),
 });
