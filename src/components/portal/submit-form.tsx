@@ -6,13 +6,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CATEGORY_LABELS, LIMITS, type Category } from "@/contracts/domain";
 import { createPost } from "@/server/functions";
 import { clearDraft, loadDraft, parsePostDraft, POST_DRAFT_KEY, saveDraft } from "./draft";
 import { ImageAttachments, extensionFor, useImageAttachments } from "./image-attachments";
 import { CATEGORY_ICONS } from "./post-badges";
+import { RichTextField } from "./rich-text-field";
 import { useWriteGate } from "./viewer";
 
 type Errors = Partial<Record<"title" | "body" | "category" | "image", string>>;
@@ -150,17 +150,17 @@ export function SubmitForm() {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`${ids}-body`}>Description</Label>
-        <Textarea
+        <RichTextField
           id={`${ids}-body`}
           name="body"
+          variant="post"
           value={body}
-          rows={7}
+          onChange={(markdown) => update({ body: markdown })}
           maxLength={LIMITS.body}
           placeholder="What should change, and why?"
           aria-invalid={Boolean(errors.body)}
           aria-describedby={errors.body ? `${ids}-body-error` : undefined}
-          onChange={(event) => update({ body: event.target.value })}
-          className="min-h-36 max-md:text-base"
+          className="min-h-36"
         />
         <div className="flex items-start justify-between gap-3">
           <p

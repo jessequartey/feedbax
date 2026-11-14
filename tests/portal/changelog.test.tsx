@@ -66,22 +66,21 @@ describe("markdown safety", () => {
     }
   });
 
-  it("keeps safe links and gives every one rel noopener nofollow", () => {
+  it("keeps safe links and gives every one rel noopener nofollow ugc", () => {
     for (const [href, expected] of [
       ["https://example.com/a?b=1&c=2", "https://example.com/a?b=1&amp;c=2"],
       ["http://example.com", "http://example.com"],
       ["mailto:team@example.com", "mailto:team@example.com"],
-      ["/posts/abc", "/posts/abc"],
     ] as const) {
       expect(safeHref(href)).toBe(href);
       for (const output of [html(`[x](${href})`), markdownToHtml(`[x](${href})`)]) {
         expect(output).toContain(`href="${expected}"`);
-        expect(output).toContain('rel="noopener nofollow"');
+        expect(output).toContain('rel="noopener nofollow ugc"');
       }
     }
-    // External links open in a new tab, site links do not.
+    // Links open in a new tab; relative paths are not links at all.
     expect(html("[x](https://example.com)")).toContain('target="_blank"');
-    expect(html("[x](/posts/abc)")).not.toContain("target=");
+    expect(html("[x](/posts/abc)")).not.toContain("href=");
   });
 
   it("cannot break out of an attribute with quotes in the URL", () => {
@@ -98,7 +97,7 @@ describe("markdown safety", () => {
 
   it("renders the supported subset", () => {
     const output = html(
-      "# Title\n\nSome **bold**, *italic* and `code`.\n\n- one\n- two\n\n1. first\n2. second\n\n> quote\n\n```\nblock <b>\n```\n\n---",
+      "# Title\n\nSome **bold**, *italic* and `code`.\n\n- one\n- two\n\n1. first\n2. second\n\n> quote\n\n```\nblock <b>\n```",
     );
     for (const part of [
       "<h3",
@@ -109,7 +108,6 @@ describe("markdown safety", () => {
       "<ol",
       "<blockquote",
       "<pre",
-      "<hr",
     ])
       expect(output).toContain(part);
     expect(output).toContain("block &lt;b&gt;");
@@ -135,7 +133,7 @@ describe("markdown safety", () => {
     expect(
       markdownToText("# Hi\n\n**Bold** [link](https://x.example) and `code`.\n\n- a\n- b"),
     ).toBe("Hi Bold link and code. a b");
-    expect(markdownToText("x".repeat(500)).length).toBe(160);
+    expect(markdownToText("x".repeat(500)).length).toBe(161);
   });
 });
 

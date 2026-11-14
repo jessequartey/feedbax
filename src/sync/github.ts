@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { CATEGORY_LABELS } from "../contracts/domain.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
 import { githubRepoPath } from "../integrations/github.ts";
+import { markdownToGitHub } from "../lib/markdown.ts";
 import type { GitHubIssue } from "../integrations/github.ts";
 import {
   config,
@@ -25,15 +26,6 @@ async function actorId(request: ProviderRequest): Promise<number> {
   actor = { token: env.GITHUB_TOKEN!, id: user.id };
   return user.id;
 }
-function escapeMarkdown(text: string): string {
-  return text
-    .replaceAll("@", "@\u200b")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replace(/[\\`*_{}[\]()#+\-.!|~]/g, "\\$&");
-}
-
 export async function createIssue(postId: string): Promise<void> {
   if (!config.integrations.github) return;
   const post = await readPost(postId);
@@ -58,7 +50,8 @@ export async function createIssue(postId: string): Promise<void> {
   }
   if (!issue) {
     const body = [
-      escapeMarkdown(post.body),
+      // Sanitized Markdown, not escaped text: formatting survives, HTML and mentions do not.
+      markdownToGitHub(post.body),
       `Category: ${CATEGORY_LABELS[post.category]}`,
       `[View feedback](${portalUrl()}/posts/${post.id})`,
       ...post.images.map(

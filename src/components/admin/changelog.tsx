@@ -32,7 +32,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import {
   CHANGELOG_LIMITS,
   type AdminChangelogEntry,
@@ -43,6 +42,7 @@ import {
 import { formatDate, plural } from "@/components/portal/format";
 import { Markdown } from "@/components/portal/markdown";
 import { PaginationBar } from "@/components/portal/pagination-bar";
+import { RichTextField } from "@/components/portal/rich-text-field";
 import { StatusBadge } from "@/components/portal/post-badges";
 import { EmptyState } from "@/components/portal/states";
 import { markdownToText } from "@/lib/markdown";
@@ -270,14 +270,15 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
                 <TabsTrigger value="preview">Preview</TabsTrigger>
               </TabsList>
               <TabsContent value="write">
-                <Textarea
+                <RichTextField
                   id={`${ids}-body`}
+                  variant="changelog"
                   value={body}
                   maxLength={CHANGELOG_LIMITS.body}
                   rows={9}
-                  placeholder="Markdown: **bold**, *italic*, [links](https://…), lists, > quotes and `code`."
-                  onChange={(event) => setBody(event.target.value)}
-                  className="max-md:text-base"
+                  placeholder="What changed, and why it matters."
+                  onChange={setBody}
+                  hideHint
                 />
               </TabsContent>
               <TabsContent value="preview">
@@ -291,7 +292,8 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
               </TabsContent>
             </Tabs>
             <p className="text-xs text-muted-foreground">
-              Raw HTML is shown as text. Links open only for http, https and mailto addresses.
+              Markdown supported. Raw HTML is shown as text. Links open only for http, https and
+              mailto addresses.
             </p>
           </div>
           <div className="flex flex-col gap-1.5">

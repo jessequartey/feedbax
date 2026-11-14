@@ -20,6 +20,7 @@ import {
 import { CommentSection } from "./comments";
 import { formatDate, plural } from "./format";
 import { ImageGallery } from "./image-gallery";
+import { Markdown } from "./markdown";
 import { CategoryBadge, StatusBadge } from "./post-badges";
 import { VoteButton } from "./vote-button";
 
@@ -92,9 +93,7 @@ export function PostDetailView({
           <p className="mt-2 text-sm text-muted-foreground">
             {post.author.name} · <time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time>
           </p>
-          <p className="mt-5 text-base leading-relaxed break-words whitespace-pre-wrap">
-            {post.body}
-          </p>
+          <Markdown source={post.body} className="mt-5" />
           {post.images.length > 0 ? (
             <div className="mt-6">
               <ImageGallery images={post.images} title={post.title} />

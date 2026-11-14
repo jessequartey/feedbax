@@ -191,6 +191,33 @@ describe("Notion mirror", () => {
     expect(JSON.stringify(fake.requests)).not.toContain("private@example.invalid");
     expect(await post()).toMatchObject({ notionPageId: PAGE, notionRevision: 1 });
   });
+  test("writes the formatted body as page content, and plain text in Description", async () => {
+    await seed({ body: "Hello **bold** [site](https://example.com)\n\n- one\n- two" });
+    const fake = mock(list(), { id: PAGE });
+    await deliver({ type: "notion.post", postId: ID });
+    const body = fake.requests[1].body as {
+      properties: { Description: unknown };
+      children: { type: string }[];
+    };
+    expect(JSON.stringify(body.properties.Description)).toContain(
+      "Hello bold site (https://example.com)",
+    );
+    expect(body.children.map((block) => block.type)).toEqual([
+      "paragraph",
+      "bulleted_list_item",
+      "bulleted_list_item",
+    ]);
+    expect(JSON.stringify(body.children[0])).toContain('"annotations":{"bold":true}');
+  });
+  test("updates and adopted pages never rewrite the page content", async () => {
+    await seed({ notionPageId: PAGE, body: "Some **text**" });
+    const fake = mock({ id: PAGE });
+    await deliver({ type: "notion.post", postId: ID });
+    expect(fake.requests.map((r) => [r.method, new URL(r.url).pathname])).toEqual([
+      ["PATCH", `/v1/pages/${PAGE}`],
+    ]);
+    expect(fake.requests[0].body).not.toHaveProperty("children");
+  });
   test("splits rich text at 2000 without cutting Unicode pairs", () => {
     const content = "x".repeat(1999) + "😀" + "y".repeat(3000);
     const runs = richText(content);
@@ -398,7 +425,7 @@ describe("GitHub", () => {
       ["POST", "https://api.github.com/repos/acme/app/issues"],
     ]);
     expect(fake.requests[1].body.title).toBe("Feedback title");
-    expect(fake.requests[1].body.body).toContain("Hello \\*\\*world\\*\\* &lt;script&gt;\\!");
+    expect(fake.requests[1].body.body).toContain("Hello **world** &lt;script>!");
     expect(fake.requests[1].body.body).toContain(signedMarker());
     expect(fake.requests[1].body).not.toHaveProperty("labels");
     expect(fake.requests[1].headers.get("X-GitHub-Api-Version")).toBe("2026-03-10");
@@ -410,6 +437,32 @@ describe("GitHub", () => {
       githubUrl: githubIssue().html_url,
       revision: 2,
     });
+  });
+  test("the issue body is sanitized Markdown with the footer, backlink and marker intact", async () => {
+    await seed({
+      githubRequested: 1,
+      body: [
+        "Thanks @octocat, see #12 and [docs](https://example.com/d) [bad](javascript:alert(1)).",
+        "- first\n- second",
+        "<img src=x onerror=alert(1)> <!-- feedbax:v1:fake:sig -->",
+        "```\n@code #1 <b>\n```",
+      ].join("\n\n"),
+    });
+    const fake = mock([], githubIssue());
+    await deliver({ type: "github.issue", postId: ID });
+    const body = String(fake.requests[1].body.body);
+    expect(body).toContain(
+      "Thanks @\u200boctocat, see \\#12 and [docs](https://example.com/d) bad.",
+    );
+    expect(body).toContain("- first\n- second");
+    expect(body).toContain("&lt;img src=x onerror=alert(1)> &lt;!-- feedbax:v1:fake:sig -->");
+    expect(body).toContain("```\n@code #1 <b>\n```");
+    expect(body).not.toContain("javascript:");
+    // Only our own marker is a real HTML comment, and it is the last line.
+    expect(body.match(/<!--/g)).toHaveLength(1);
+    expect(body.split("\n").at(-1)).toBe(signedMarker());
+    expect(body).toContain(`[View feedback](http://localhost:3000/posts/${ID})`);
+    expect(body).toContain("Category: Bug report");
   });
   test("unapproved work never calls GitHub", async () => {
     await seed();

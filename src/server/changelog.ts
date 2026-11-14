@@ -16,7 +16,7 @@ import { createDb, type Db } from "../db/client.ts";
 import { changelogEntries, changelogPosts, posts } from "../db/schema.ts";
 import { emitChangelogPublished } from "./changelog-events.ts";
 import { DomainError, invalid } from "./errors.ts";
-import { pageNumber, record, text, uuid } from "./validation.ts";
+import { markdownText, pageNumber, record, text, uuid } from "./validation.ts";
 import { publiclyVisible } from "./visibility.ts";
 
 // The changelog: public reads (published entries only, linked posts filtered through
@@ -234,7 +234,7 @@ async function checkLinkable(db: Db, ids: string[], entryId?: string) {
 function entryInput(data: Record<string, unknown>) {
   return {
     title: text(data.title, CHANGELOG_LIMITS.title, "title"),
-    body: text(data.body ?? "", CHANGELOG_LIMITS.body, "body", 0),
+    body: markdownText(data.body ?? "", CHANGELOG_LIMITS.body, "body", 0),
     postIds: postIdList(data.postIds),
   };
 }

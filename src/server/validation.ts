@@ -1,3 +1,4 @@
+import { normalizeMarkdown } from "../lib/markdown.ts";
 import { invalid } from "./errors.ts";
 import type { Category, ListPostsInput, Status } from "../contracts/domain.ts";
 
@@ -15,6 +16,18 @@ export function text(value: unknown, max: number, field: string, min = 1): strin
   )
     invalid(field);
   return value;
+}
+/**
+ * A post, comment or changelog body: Markdown in the portal's restricted subset (src/lib/markdown.ts).
+ * The raw text is checked against the limit first (that bounds the work), then it is normalized to
+ * the canonical stored form, which is checked again: the limit applies to what is stored. Disallowed
+ * syntax never gets in: unsafe links lose their URL, HTML and images stay inert text.
+ */
+export function markdownText(value: unknown, max: number, field: string, min = 1): string {
+  const raw = text(value, max, field, min);
+  const stored = normalizeMarkdown(raw);
+  if (Array.from(stored).length > max || (min > 0 && !stored)) invalid(field);
+  return stored;
 }
 export function uuid(value: unknown, field = "id"): string {
   if (
