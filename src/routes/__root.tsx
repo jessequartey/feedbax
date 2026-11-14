@@ -4,6 +4,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute, useRouter } from "@tanst
 import { FEEDBAX_DESCRIPTION } from "@/contracts/brand";
 import { ErrorState, NotFoundState } from "@/components/portal/states";
 import { themeInitScript } from "@/components/portal/theme";
+import { socialBuild, socialMeta } from "@/lib/social-meta";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -13,12 +14,10 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "color-scheme", content: "light dark" },
-      { title: "Feedbax" },
+      { title: socialBuild()?.name || "Feedbax" },
       { name: "description", content: FEEDBAX_DESCRIPTION },
-      { property: "og:type", content: "website" },
-      { property: "og:title", content: "Feedbax" },
-      { property: "og:description", content: FEEDBAX_DESCRIPTION },
-      { name: "twitter:card", content: "summary" },
+      // Open Graph and X cards. Crawlers read the static shell, so these are fixed at build time.
+      ...socialMeta(FEEDBAX_DESCRIPTION, socialBuild()),
     ],
     links: [
       { rel: "stylesheet", href: appCss },

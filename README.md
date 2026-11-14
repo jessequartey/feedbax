@@ -377,6 +377,8 @@ export default defineConfig({
 
 The add-on commands edit `appUrl`, `notifications.email` and `integrations.github` for you.
 
+**Link previews.** Shared links show `public/og.png` (1200×600) as the card on X, Facebook, LinkedIn, Slack and Discord. Replace that file with your own PNG, keeping the size. The card uses `name` from `feedbax.config.ts` and the `PORTAL_URL` in `wrangler.jsonc`, both read at build time, so run `npm run deploy` after changing either. Crawlers need an absolute https URL: with a localhost `PORTAL_URL` the tags fall back to a relative `/og.png`.
+
 `appUrl` must be an absolute HTTPS URL (HTTP is allowed for localhost). Omit it for a standalone portal. GitHub issue sync and **Sign in with GitHub** are separate; either can be enabled independently.
 
 | Secret or variable                         | Purpose                                                                    |
