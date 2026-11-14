@@ -350,7 +350,7 @@ export function AnnotationEditor({
                 ? "Colour (hide sensitive info always uses the text colour)"
                 : "Colour"
             }
-            className={cn("flex items-center gap-1.5 px-1", tool === "redact" && "opacity-40")}
+            className="flex items-center gap-1.5 px-1"
           >
             {swatches.map((key, i) => {
               const candidate = SWATCH_CANDIDATES.find((c) => c.key === key)!;

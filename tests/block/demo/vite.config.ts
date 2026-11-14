@@ -98,10 +98,17 @@ export default defineConfig(({ command }) => {
             `http://localhost:${server.config.server.port ?? 5300}`;
           hostOrigin = portalHost;
           if (command === "serve") {
-            portal = await startStubPortal({ hostOrigin: portalHost, secret, port: portalPort });
-            server.config.logger.info(
-              `  Feedbax portal stub: ${portal.url} (allows ${portalHost})`,
-            );
+            try {
+              portal = await startStubPortal({ hostOrigin: portalHost, secret, port: portalPort });
+              server.config.logger.info(
+                `  Feedbax portal stub: ${portal.url} (allows ${portalHost})`,
+              );
+            } catch (error) {
+              // A dev-server restart can race the previous stub's shutdown; the old one keeps serving.
+              server.config.logger.warn(
+                `  Feedbax portal stub not started on ${portalPort}: ${String(error)}`,
+              );
+            }
           }
           server.middlewares.use(demoApi(() => hostOrigin));
           server.httpServer?.once("close", () => void portal?.close());
