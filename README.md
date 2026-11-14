@@ -1,134 +1,118 @@
+<img src="docs/hero.png" alt="Feedbax feedback board and Notion dashboard" width="100%" />
+
 # Feedbax
 
-A self-hosted feedback portal for your product. People post ideas, vote and comment. Your team triages in Notion and, if you want, approves posts into GitHub issues.
+A self-hosted feedback portal: collect ideas, votes and comments, triage in Notion, and turn approved posts into GitHub issues.
 
 [![npm version](https://img.shields.io/npm/v/create-feedbax.svg)](https://www.npmjs.com/package/create-feedbax)
 [![license](https://img.shields.io/npm/l/create-feedbax.svg)](LICENSE)
 
-Two templates, one app:
-
-- **Notion**: posts show up in a Notion database. You change Status there.
-- **Notion + GitHub**: the same, plus a **Send to GitHub** tickbox that creates one issue per post.
-
-You need:
-
-- **Node 24.15** or newer 24.x.
-- A **Notion workspace** where you are an owner.
-- A **Cloudflare account** (free). The CLI walks you through enabling R2 and picking a workers.dev subdomain.
-- Optional: a GitHub account and a repository, for the GitHub template.
+[Try the demo](https://feedbax-demo.DEMO_SUBDOMAIN.workers.dev)
 
 ## Get started
 
-**1. Duplicate the Notion template.**
-Open [the Feedbax template](https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc) and click **Duplicate** (top right). This step is optional: without it, Feedbax creates the database for you on a page you choose.
+You need **Node 24.15 or newer 24.x**, a Notion workspace where you are an **owner**, and a [free Cloudflare account](https://dash.cloudflare.com/sign-up).
 
-**2. Create a Notion integration.**
+1. **Duplicate the Notion template.** Open [the Feedbax template](https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc) and choose **Duplicate** into your workspace. You can also skip the template: setup can create a database on a page you own.
 
-1. Go to [notion.so/profile/integrations](https://www.notion.so/profile/integrations).
-2. Click **New integration**, choose your workspace, set the type to **Internal** and save.
-3. Copy the **Internal Integration Secret**. It starts with `ntn_`.
-4. Open the integration's **Content access** tab, choose **Edit access** and select the duplicated Feedbax page (or the page where Feedbax should create its database).
-5. If the page isn't listed, open it in Notion and click `•••` → **Connections** → add your integration.
+2. **Create a Notion connection and give it page access.** Open [Developer connections](https://app.notion.com/developers/connections), choose **New connection → API token**, select your workspace and copy its token. The CLI calls this your **Notion secret**. Allow reading, inserting and updating content.
 
-Creating an integration needs a workspace owner.
+   Connect it to your duplicated page (or the page where setup should create the database) using either route:
 
-**3. (GitHub template only) Create a GitHub token.**
-Open [this prefilled link](https://github.com/settings/personal-access-tokens/new?name=Feedbax&description=Feedbax+issue+sync&issues=write). Under **Repository access** choose **Only select repositories** and pick your repo. Under **Permissions** make sure **Issues** is **Read and write**. Generate the token and copy it.
+   - **On the page:** **•••** (top right) → **Connections** → search your integration → **Confirm**. In the current app, look under **Actions → More → Connections → Add connections**.
+   - **From settings:** **Settings → Connections → Develop or manage integrations →** your integration → **Access** tab → **Edit access** → tick the page → **Save**. Some screens label the tab **Content access**; the developer link may open **Developer connections**.
 
-**4. Run the CLI.**
+   Select the parent page in your workspace, checking its location if names repeat. Reopen access settings to check that the page is listed, rather than **No page access**. If the page menu only shows **Connections — None**, try the settings route. [Notion's connection guide](https://www.notion.com/help/add-and-manage-connections-with-the-api) covers workspace permissions.
 
-```sh
-npx create-feedbax@latest
-```
+   **If setup says it can't see your page, the integration isn't connected yet.** Setup accepts `app.notion.com/p/…` page links too.
 
-```sh
-pnpm dlx create-feedbax@latest
-```
+3. **Optional: create a GitHub token.** For the **Notion + GitHub** template, open [the token form](https://github.com/settings/personal-access-tokens/new?name=Feedbax&description=Feedbax+issue+sync&issues=write). Choose **Only select repositories**, pick your repository, and set **Issues → Read and write**. Copy the generated token. Skip this for **Notion** only.
 
-```sh
-bunx create-feedbax@latest
-```
+4. **Run setup.** Choose one command:
 
-The CLI asks every question first:
+   ```sh
+   npx create-feedbax@latest
+   ```
 
-1. Project name.
-2. Template: Notion, or Notion + GitHub.
-3. Your Notion secret (masked). Feedbax finds the database on its own; if it finds none, it lists your shared pages so you can pick where to create one.
-4. GitHub token and repository (GitHub template only).
-5. Whether people can post without an account.
-6. Cloudflare login. A browser window opens.
+   ```sh
+   pnpm dlx create-feedbax@latest
+   ```
 
-Then it creates the database, storage bucket and queue, runs the migrations and deploys. Nothing else to answer.
+   ```sh
+   bunx create-feedbax@latest
+   ```
 
-If R2 isn't enabled on your Cloudflare account, the CLI shows a link. Open it, click **Enable R2** (the free tier needs a payment method on file) and press Enter. If you have no workers.dev subdomain yet, the CLI asks you to pick one.
+   Answer **Project name**, **Template**, **Paste your Notion secret**, the GitHub questions if selected, and **Let people post without an account?** Setup finds your database, or offers **Paste a page link** and **I just shared one — search again**. Log in to Cloudflare when the browser opens.
 
-**5. You're live.**
+   R2 needs enabling once. If needed, the CLI says: “R2 isn't enabled on this account. Open https://dash.cloudflare.com/?to=/:account/r2/overview and click Enable R2 (the free tier needs a payment method on file). Press Enter when done.” It also asks **Pick your workers.dev subdomain** if you don't have one.
 
-```text
-✔ Your feedback portal is live: https://my-feedback.<subdomain>.workers.dev
-  Notion database: <url>
-```
-
-Submit a post. It appears in Notion within about 5 minutes.
-
-If setup stops for any reason, fix the problem and run the same command again. It asks `Finish setting up my-feedback?` and continues from where it stopped. It never deletes anything.
+5. **You're live.** Setup creates storage, applies migrations and prints **Your feedback portal is live:** followed by your URL. Open it and submit a post; it should reach Notion within about 5 minutes. If setup stops, fix the reported problem and rerun the same command from the same folder. Answer yes to **Finish setting up …?** to resume.
 
 ## How it works
 
 ```text
-   people ──> your portal (one Cloudflare Worker)
-                  │
-                  ▼
-      D1 database  = source of truth (users, posts, comments, votes)
-      R2 bucket    = image files
-                  │
-        every 5 minutes (and right after a post)
-                  │
-                  ▼
-      Notion       = your team's dashboard
-                  │  you tick "Send to GitHub"
-                  ▼
-      GitHub issue = created once, per approved post
-                  │  issue closed
-                  ▼
-      post becomes Done on the portal
+People → Cloudflare portal → D1 (source of truth)
+                               │ sync every 5 minutes
+                               ▼
+                         Notion dashboard
+                               │ “Send to GitHub” checked
+                               ▼
+                           GitHub issue
 ```
 
-- The portal keeps working if Notion or GitHub is down. Sync catches up later.
-- Posts and images are public as soon as they are submitted.
-- Everything runs on Cloudflare's free plan (see [the free plan note](#free-plan-note)).
+Images live in R2. The portal keeps working during a Notion or GitHub outage; sync catches up later. Posts and images are public as soon as they're submitted.
 
-### Team workflow
-
-- Change **Status** in Notion (Open, Planned, In progress, Done, Closed). The portal updates in about 5 minutes. **Closed** means declined, a duplicate or out of scope. **Done** means delivered.
-- Tick **Send to GitHub** (GitHub template) to create one issue. Unticking later does nothing.
-- Closing the linked issue sets the post to **Done**. That is final: reopening the issue does not undo it.
-- Don't rename the database's columns. You can add your own columns and views.
-- Votes, comments, author and links are written by Feedbax. Status and Send to GitHub are yours.
+- Change **Status** in Notion: Open, Planned, In progress, Done or Closed. **Done** means delivered; **Closed** means declined, duplicate or out of scope. Allow about 5 minutes for changes to appear.
+- With GitHub enabled, tick **Send to GitHub** to create one issue. Changing Status alone creates nothing. Unticking later does nothing. Closing the issue marks the post **Done**; reopening it does not undo that.
+- Keep the database's property names and types. Extra properties and views are welcome. Feedbax writes the author, counts and links; your team changes Status and Send to GitHub.
 
 ## Add the feedback dialog to your app
 
-Embed a "Send feedback" dialog, with screenshot and annotation, in your own product. Signed-in users in your app post as themselves, with no second login.
+Let signed-in users send feedback with an annotated screenshot, without a second login. Your app needs React and shadcn/ui (CLI 4.7 or newer).
 
-**1. Install the block** (needs shadcn 4.7 or newer):
+**1. Install today (works now):**
 
 ```sh
-npx shadcn@latest add https://raw.githubusercontent.com/jessequartey/feedbax/v0.3.0/public/r/feedbax-feedback.json
+npx shadcn@latest add https://raw.githubusercontent.com/jessequartey/feedbax/main/public/r/feedbax-feedback.json
 ```
 
-This copies the components into `components/feedbax/` and helpers into `lib/feedbax/`. It follows your theme.
+**Install by name:** merge this field into your app's `components.json`:
 
-**2. Add a token endpoint on your server.**
-Copy `FEEDBAX_HOST_SECRET` from your portal's `.dev.vars` into your app's server environment. Then add one authenticated route, `POST /api/feedbax-token`. It must read the user from your own session, never from the request body, and reject anonymous or cross-origin requests.
+```json
+{
+  "registries": {
+    "@feedbax": "https://raw.githubusercontent.com/jessequartey/feedbax/main/public/r/{name}.json"
+  }
+}
+```
 
-A plain Web handler:
+Then run:
+
+```sh
+npx shadcn@latest add @feedbax/feedbax-feedback
+```
+
+Once Feedbax is listed in the [shadcn registry directory](https://ui.shadcn.com/docs/registry/registry-index), the `components.json` step won't be needed. The block copies components to `components/feedbax/` and helpers to `lib/feedbax/`, using your aliases and theme.
+
+**2. Add a token endpoint on your server.** Copy `FEEDBAX_HOST_SECRET` from the portal's `.dev.vars` into your app's server environment; keep the generated value unchanged. Keep `token.server` imports on the server only.
+
+Adapt `getSessionUser` to your own authentication: it must read the session, never the request body, and return `{ id, name, isAnonymous }` or `null`. Set `isAnonymous` explicitly from your auth system's guest/anonymous flag; only a registered, signed-in user should return `false`. Replace `https://app.example.com` with your app's trusted origin (your localhost origin for development).
+
+A Web handler for `POST /api/feedbax-token`:
 
 ```ts
 import { mintFeedbaxToken } from "@/lib/feedbax/token.server";
 
+const APP_ORIGIN = "https://app.example.com";
+
 export async function POST(request: Request): Promise<Response> {
+  if (request.headers.get("Origin") !== APP_ORIGIN) {
+    return new Response("Forbidden", { status: 403 });
+  }
   const user = await getSessionUser(request); // your own auth
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  if (!user || user.isAnonymous !== false) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const token = await mintFeedbaxToken({
     secret: process.env.FEEDBAX_HOST_SECRET!,
     user: { id: user.id, name: user.name },
@@ -137,18 +121,25 @@ export async function POST(request: Request): Promise<Response> {
 }
 ```
 
-The same thing as a TanStack Start server route (`src/routes/api/feedbax-token.ts`):
+Or a TanStack Start route at `src/routes/api/feedbax-token.ts`, with the same auth adapter and origin:
 
 ```ts
 import { createFileRoute } from "@tanstack/react-router";
 import { mintFeedbaxToken } from "@/lib/feedbax/token.server";
 
+const APP_ORIGIN = "https://app.example.com";
+
 export const Route = createFileRoute("/api/feedbax-token")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (request.headers.get("Origin") !== APP_ORIGIN) {
+          return new Response("Forbidden", { status: 403 });
+        }
         const user = await getSessionUser(request); // your own auth
-        if (!user) return new Response("Unauthorized", { status: 401 });
+        if (!user || user.isAnonymous !== false) {
+          return new Response("Unauthorized", { status: 401 });
+        }
         const token = await mintFeedbaxToken({
           secret: process.env.FEEDBAX_HOST_SECRET!,
           user: { id: user.id, name: user.name },
@@ -160,185 +151,159 @@ export const Route = createFileRoute("/api/feedbax-token")({
 });
 ```
 
-On Cloudflare Workers read the secret from `env.FEEDBAX_HOST_SECRET` (`import { env } from "cloudflare:workers"`) instead of `process.env`.
+On Cloudflare Workers, use `env.FEEDBAX_HOST_SECRET` from `import { env } from "cloudflare:workers"` instead of `process.env`.
 
-Not using JavaScript? Any library that signs an HS256 JWT works. Header exactly `{"alg":"HS256","typ":"JWT"}`. Key: the base64url-decoded `FEEDBAX_HOST_SECRET`. Claims: `sub` (your stable user ID, 1–200 chars), `name` (1–80 chars), `exp` (at most 5 minutes ahead) and `jti` (a fresh UUID). Every token works once.
+For other backends, sign an HS256 JWT with the base64url-decoded secret. Use header `{"alg":"HS256","typ":"JWT"}` and claims `sub` (stable user ID, 1–200 characters), `name` (1–80 characters), `exp` (at most 5 minutes ahead) and `jti` (fresh UUID). Each token works once.
 
-**3. Render the dialog and the link.**
+**3. Render the dialog and link.** The exported component is named `FeedbaxDialog`:
 
 ```tsx
 import { FeedbaxDialog } from "@/components/feedbax/feedback-dialog";
 import { FeedbaxLink } from "@/components/feedbax/feedbax-link";
 
-<FeedbaxDialog portalUrl="https://my-feedback.<subdomain>.workers.dev" />
+<FeedbaxDialog portalUrl="https://feedback.example.com" />
 
-<FeedbaxLink portalUrl="https://my-feedback.<subdomain>.workers.dev">
-  Go to feedbax
+<FeedbaxLink portalUrl="https://feedback.example.com">
+  Go to feedback
 </FeedbaxLink>
 ```
 
-`<FeedbaxLink>` signs the user in on the portal and opens the board. Then set `appUrl` in the portal's `feedbax.config.ts` to your app's URL and run `npm run deploy`. That also enables the **Back to app** link and allows your app's origin to post.
+Replace the URL with your portal's. In the portal's `feedbax.config.ts`, set `appUrl` to your app's URL and redeploy. This allows your app's origin to submit and adds **Back to app**. `FeedbaxLink` opens the portal sign-in flow and then the board. Host identities and standalone portal accounts are separate; the block always requires a signed-in host user.
 
-`FeedbaxDialog` props:
+| `FeedbaxDialog` prop   | Default              | Purpose                                                  |
+| ---------------------- | -------------------- | -------------------------------------------------------- |
+| `portalUrl`            | required             | Your portal's origin                                     |
+| `tokenUrl`             | `/api/feedbax-token` | Your token route                                         |
+| `getToken`             | none                 | Override with `() => Promise<{ token: string }>`         |
+| `trigger`              | Feedback button      | Custom element, or `null` for controlled use             |
+| `redirectOnSubmit`     | `true`               | Open the new post; `false` shows a View your post button |
+| `onSubmitted`          | none                 | Receives `{ postId, postUrl }`                           |
+| `open`, `onOpenChange` | none                 | Controlled state                                         |
 
-| Prop                   | Default              | What it does                                                                                     |
-| ---------------------- | -------------------- | ------------------------------------------------------------------------------------------------ |
-| `portalUrl`            | required             | Your portal's URL                                                                                |
-| `tokenUrl`             | `/api/feedbax-token` | Your token endpoint                                                                              |
-| `getToken`             | none                 | Overrides `tokenUrl` with your own function                                                      |
-| `trigger`              | a "Feedback" button  | Your own trigger element, or `null` for none (then control it with `open` / `onOpenChange`)      |
-| `redirectOnSubmit`     | `true`               | After submitting, sign in and open the new post. When `false`, shows a **View your post** button |
-| `onSubmitted`          | none                 | Called with the result                                                                           |
-| `open`, `onOpenChange` | none                 | Optional controlled state                                                                        |
+`FeedbaxLink` accepts `portalUrl`, `tokenUrl`, `getToken`, `children`, `to` (`/` or `/posts/<id>`) and `target` (`_self` or `_blank`).
 
-`FeedbaxLink` props: `portalUrl`, `tokenUrl`, `getToken`, `to` (`/` or `/posts/<id>`), `target` (`_self` or `_blank`) and `children`.
-
-**Screenshots.** The Screenshot button takes a snapshot of the page's DOM. Cross-origin images without CORS headers, iframes, video frames and some CSS effects may come out blank or different. Add `data-feedbax-ignore` to any element you want left out. Sticky and fixed headers can look un-stuck in a DOM snapshot. If that matters, use **Capture screen instead…** (in the screenshot menu, where the browser supports it), which captures what the browser shows. Upload and paste work too. Upload, paste (⌘/Ctrl+V) and drag-and-drop always work. The dialog never captures by itself and never attaches your page URL.
-
-Host users always need to be signed in to your app, even if the portal allows anonymous posts. Host identities and standalone portal accounts are separate in 0.3.
+**Screenshots:** the default captures the page's DOM. Cross-origin images without CORS, iframes, video and some CSS effects may look different or blank; sticky headers may shift. Mark excluded elements with `data-feedbax-ignore`. **Capture screen instead…** uses the browser's screen picker where supported. Upload, paste (⌘/Ctrl+V) and drag-and-drop also work. Capture never starts automatically or attaches your page URL. Users can annotate and hide sensitive information before sending.
 
 ## Configuration
 
-Edit `feedbax.config.ts` in your project:
+Edit your generated `feedbax.config.ts`, then run `npm run deploy`:
 
 ```ts
+import { defineConfig } from "./src/contracts/config.ts";
+
 export default defineConfig({
-  name: "Feedbax", // shown in the header, 1–60 chars
-  appUrl: undefined, // your app's URL
-  auth: { anonymous: false },
+  name: "My feedback",
+  appUrl: "https://app.example.com", // optional: Back to app and allowed host origin
+  auth: { anonymous: false }, // true allows posting, comments and votes without an account
   integrations: {
-    notion: { dataSourceId: "…" }, // filled in by the CLI
-    github: false, // or { repo: "owner/repo" }
+    notion: { dataSourceId: "…" }, // keep the value setup generated
+    github: false, // or { repo: "owner/repo" }, with GITHUB_TOKEN set
   },
 });
 ```
 
-| Option                             | What it does                                                                                                                                              |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                             | The portal name.                                                                                                                                          |
-| `appUrl`                           | Absolute HTTPS URL of your app (`http` is fine for localhost). Shows **Back to app** and is the only origin allowed to post from the block. No wildcards. |
-| `auth.anonymous`                   | `true`: people can post, comment and vote without an account. Their posts follow them if they sign up later.                                              |
-| `integrations.github`              | `false`, or `{ repo: "owner/repo" }`. Needs the `GITHUB_TOKEN` secret.                                                                                    |
-| `integrations.notion.dataSourceId` | Set by the CLI. Don't change it by hand.                                                                                                                  |
+`appUrl` must be an absolute HTTPS URL (HTTP is allowed for localhost). Omit it for a standalone portal. GitHub issue sync and **Sign in with GitHub** are separate; either can be enabled independently.
 
-Run `npm run deploy` after any change.
+| Secret or variable                         | Purpose                                                                    |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| `PORTAL_URL`                               | Portal URL; setup writes this variable to `wrangler.jsonc` and `.dev.vars` |
+| `BETTER_AUTH_SECRET`                       | Generated by setup                                                         |
+| `FEEDBAX_HOST_SECRET`                      | Generated by setup; copy to your app's server for the dialog               |
+| `NOTION_TOKEN`                             | Your Notion connection's API token                                         |
+| `GITHUB_TOKEN`                             | Optional issue sync: fine-grained token, Issues read/write for one repo    |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Optional GitHub login                                                      |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google login                                                      |
 
-### Secrets and variables
-
-| Name                                       | Kind     | Where it comes from                                                                                                   |
-| ------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------- |
-| `PORTAL_URL`                               | variable | The CLI writes it to `wrangler.jsonc` (and `.dev.vars` for local).                                                    |
-| `BETTER_AUTH_SECRET`                       | secret   | Generated by the CLI.                                                                                                 |
-| `FEEDBAX_HOST_SECRET`                      | secret   | Generated by the CLI. Copy it to your app's server when you embed the dialog.                                         |
-| `NOTION_TOKEN`                             | secret   | The Notion secret you pasted.                                                                                         |
-| `GITHUB_TOKEN`                             | secret   | GitHub template only. A fine-grained token for one repository with Issues read/write. It is only used to sync issues. |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | optional | Only for "Sign in with GitHub". Separate from `GITHUB_TOKEN`.                                                         |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional | Only for "Sign in with Google".                                                                                       |
-
-Locally, secrets live in `.dev.vars` (git-ignored). In production they are Cloudflare secrets. Never put secrets in `VITE_*` variables or in the config file.
-
-Social login appears when both values of a pair are set; setting only one stops the portal at startup. The callback URLs are `${PORTAL_URL}/api/auth/callback/github` and `${PORTAL_URL}/api/auth/callback/google`.
-
-To set or rotate a production secret:
+Secrets live in git-ignored `.dev.vars` locally and Cloudflare secrets in production. Never put them in `VITE_*` variables or `feedbax.config.ts`. To set or rotate one in production:
 
 ```sh
 npx wrangler secret put NOTION_TOKEN
 ```
 
-Good to know:
-
-- There is no email service. No verification mail and no password reset. Passwords are 12–128 characters.
-- The `GITHUB_TOKEN` (issue sync) and the GitHub OAuth keys (login) are different things. You can use either, both or neither.
+For OAuth login, set both values of the provider's pair; an incomplete pair stops startup. Register your portal URL followed by `/api/auth/callback/github` or `/api/auth/callback/google` as the callback. Email/password login needs a 12–128 character password; there is no verification email or password reset in 0.3.0.
 
 ## Theming
 
-The portal uses shadcn/ui. Change the look with the shadcn CLI:
+Choose a preset at [shadcn Create](https://ui.shadcn.com/create). These commands use Feedbax's default preset; replace `buFyyzw` with your chosen code:
 
 ```sh
-npx shadcn@latest apply --preset <code> --only theme   # colors only
-npx shadcn@latest apply --preset <code>                # full style
+npx shadcn@latest apply --preset buFyyzw --only theme  # colors only
+npx shadcn@latest apply --preset buFyyzw               # full style
 ```
 
-Pick a preset at [ui.shadcn.com/create](https://ui.shadcn.com/create) and copy its code. The default is `buFyyzw`. The dialog in your app follows your own theme.
+Redeploy afterwards. The dialog follows your app's theme.
 
 ## Deploy and update
 
+From your generated project folder:
+
 ```sh
-npm run dev      # local portal on http://localhost:3000
-npm run deploy   # build, apply migrations, deploy
+npm run dev      # local portal at http://localhost:3000
+npm run deploy   # build, migrate production database, deploy
 ```
 
-- **Local data is separate.** `npm run dev` uses a local database. If `NOTION_TOKEN` is set, local posts also sync to your real Notion database. Delete the test rows afterwards. To trigger a sync locally: `curl "http://localhost:3000/cdn-cgi/handler/scheduled"`.
-- **Custom domain.** Change the route in `wrangler.jsonc` and `PORTAL_URL` together, then deploy.
-- **Updating.** Updates are source-level in 0.3. Run `npx create-feedbax@latest` into a new folder and copy your `feedbax.config.ts` and `wrangler.jsonc` across, or copy changed files by hand.
-- **Removing spam.** There is no moderation screen. Use SQL (children first, because of foreign keys), then archive the row in Notion. Uploaded image files stay in R2.
+Local data is separate, but local posts sync to your real Notion database if `NOTION_TOKEN` is set. Remove test rows afterwards.
 
-  ```sh
-  npx wrangler d1 execute DB --remote --command "DELETE FROM comments WHERE post_id = '<post id>'; DELETE FROM votes WHERE post_id = '<post id>'; DELETE FROM images WHERE post_id = '<post id>'; DELETE FROM posts WHERE id = '<post id>'"
-  ```
+For a custom domain, update the route in `wrangler.jsonc` and `PORTAL_URL` together, then deploy. Updates are source-level in 0.3.0: review and copy upstream changes into your project, keeping your config, resource IDs and secrets. Running create-feedbax again resumes setup; it does not upgrade an existing project. There is no automatic migration from 0.2.x; start a new project (see [CHANGELOG.md](CHANGELOG.md)).
+
+## Free plan
+
+Feedbax uses one Worker, one D1 database, one R2 bucket, one Queue and one of your account's five free Cron triggers. For a typical portal with 50 visitors, 5 new posts and 20 votes a day, 300 total posts and GitHub enabled:
+
+| Daily resource   | Estimated use | Free allowance |
+| ---------------- | ------------- | -------------- |
+| Worker requests  | ~1.5k         | 100k           |
+| D1 rows read     | ~0.4M         | 5M             |
+| D1 rows written  | ~1k           | 100k           |
+| Queue operations | ~1.8k         | 10k            |
+
+That leaves at least 80% headroom on these daily limits. R2 use is a few uploads and a few thousand image reads a month, against millions free. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking; failures back off instead of retrying in a loop. See Cloudflare's [Workers](https://developers.cloudflare.com/workers/platform/limits/), [D1](https://developers.cloudflare.com/d1/platform/pricing/), [Queues](https://developers.cloudflare.com/queues/platform/pricing/) and [R2](https://developers.cloudflare.com/r2/pricing/) limits for your traffic.
+
+**CPU is the tight limit:** sign-in password work and board rendering use about **6.5–7.5 ms of the 10 ms Free CPU budget in local measurements**. These are local component measurements, not complete production requests; live numbers are pending. Watch your Worker's CPU metrics and consider [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) if requests exceed the budget. OAuth and host login avoid password hashing.
+
+Password login uses PBKDF2-SHA256 with 50,000 iterations to fit that budget, below [OWASP's recommendation](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#pbkdf2). Long passwords and sign-in rate limits help, but do not remove that tradeoff.
+
+## Notifications (coming later)
+
+Nothing to configure today. When notifications ship, you'll add an email provider key and turn them on in `feedbax.config.ts`.
+Follow the [roadmap](#roadmap) for updates.
+
+## Roadmap
+
+These features are **Planned**. [Vote on the demo roadmap](https://feedbax-demo.DEMO_SUBDOMAIN.workers.dev/roadmap) to help prioritize them:
+
+- Admin: manage users
+- Webhooks
+- Changelog & product updates
+- Admin settings
+- Email notifications
 
 ## Troubleshooting
 
-**First, check health and logs.** Open `https://<your portal>/api/health`. It reports `ok`, `notion` and `github` (`ok`, `failing` or `off`). For details run `npx wrangler tail` or open Workers Logs in the Cloudflare dashboard. Logs never contain tokens or post text.
+Open your portal's `/api/health` for `notion` and `github` status (`ok`, `failing` or `off`). For details, run `npx wrangler tail` from your project or open Workers Logs in Cloudflare.
 
-| Problem                                               | Fix                                                                                                                                                                                                                                                                          |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI: "check you copied the whole secret" (Notion 401) | Copy the full **Internal Integration Secret** (starts with `ntn_`) from [notion.so/profile/integrations](https://www.notion.so/profile/integrations).                                                                                                                        |
-| CLI: finds no database                                | In the integration's **Content access** tab choose **Edit access** and add the Feedbax page. Or open the page → `•••` → **Connections** → add the integration. Then choose "I just shared one — search again" or paste the page link. Notion's search can lag a few seconds. |
-| CLI: "R2 isn't enabled on this account"               | Open the link, click **Enable R2** (the free tier needs a payment method on file), then press Enter.                                                                                                                                                                         |
-| CLI: workers.dev subdomain                            | Pick one when asked. If the CLI can't register it, open Workers & Pages in the Cloudflare dashboard, set your subdomain and press Enter.                                                                                                                                     |
-| CLI: resource name already exists                     | Another project in your account uses `<name>-db`, `<name>-images` or `<name>-sync`. Choose a different project name.                                                                                                                                                         |
-| CLI stopped halfway                                   | Run the same command again and answer yes to `Finish setting up …?`. Your secrets and resources are reused.                                                                                                                                                                  |
-| GitHub: repo rejected                                 | The repo must be `owner/repo`, not archived, with Issues turned on. The token must be limited to that repo with Issues read and write.                                                                                                                                       |
-| Posts don't reach Notion                              | `/api/health` shows `notion: failing`. Check the integration still has access to the page and that nobody renamed or changed the type of a required column. Fix it; the next sync clears the error.                                                                          |
-| Status changes in Notion don't show                   | Wait up to 5 minutes. Make sure Status is one of Open, Planned, In progress, Done or Closed.                                                                                                                                                                                 |
-| No GitHub issue appeared                              | Tick **Send to GitHub** and wait up to 5 minutes. Check `/api/health` for `github: failing`.                                                                                                                                                                                 |
-| Block says the link expired / 401                     | Tokens last 5 minutes and work once. Reload and try again. Check that `FEEDBAX_HOST_SECRET` matches the portal's and that your server clock is correct.                                                                                                                      |
-| Block blocked by CORS                                 | Set `appUrl` in `feedbax.config.ts` to your app's exact origin and run `npm run deploy`.                                                                                                                                                                                     |
-| Can't reset a password                                | There is no reset flow in 0.3. Sign in with GitHub, Google or your app (the dialog's link), or register again with a different email.                                                                                                                                        |
+| Problem                                       | Fix                                                                                                                                                                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| “check you copied the whole secret”           | Copy the full API token from your Notion connection, without spaces or line breaks.                                                                                                                                                   |
+| Setup can't see your page/database            | Recheck both access routes in [step 2](#get-started), then choose **I just shared one — search again** or paste the page link. Search can lag. If settings still say **No page access**, ask the workspace owner to connect the page. |
+| Public template missing or shows “No results” | You can continue with a blank page you own: connect it in step 2 and let setup create the database. Report the template link through [GitHub issues](https://github.com/jessequartey/feedbax/issues).                                 |
+| “R2 isn't enabled on this account”            | Follow the CLI's link, click **Enable R2**, then press Enter. A payment method is required even on the free tier.                                                                                                                     |
+| workers.dev subdomain fails                   | Pick another name, or follow the CLI's Workers & Pages dashboard link and press Enter when ready.                                                                                                                                     |
+| Resource name already exists                  | Choose another project name; `<name>-db`, `<name>-images` and `<name>-sync` must be unused for a new project.                                                                                                                         |
+| Setup stopped halfway                         | Rerun the same command and accept **Finish setting up …?** Secrets and resources are reused.                                                                                                                                          |
+| GitHub repo rejected                          | Use `owner/repo`, enable Issues, unarchive the repo, and give the token Issues read/write for that repo.                                                                                                                              |
+| Notion sync fails                             | Check page access and required property names/types. Restore them and wait for the next sync.                                                                                                                                         |
+| No GitHub issue                               | Tick **Send to GitHub** in Notion and allow 5 minutes; check `/api/health`.                                                                                                                                                           |
+| Dialog gets 401 / expired link                | Tokens last 5 minutes and work once. Retry; check that host secrets match and the server clock is correct.                                                                                                                            |
+| Dialog blocked by CORS                        | Set `appUrl` to your app's exact origin and redeploy the portal.                                                                                                                                                                      |
 
-## Free plan note
+## Community templates
 
-Feedbax runs on Cloudflare's free tier: one Worker, one D1 database, one R2 bucket, one Queue and one of your account's 5 free Cron triggers. Idle, it uses about 1.7k Queue operations a day against 10k free. Check [Cloudflare's current limits](https://developers.cloudflare.com/workers/platform/pricing/) for your own traffic.
-
-Workers Free allows 10 ms of CPU per request. Hashing passwords is the heavy part, so Feedbax uses PBKDF2 (Web Crypto) with 50,000 iterations, the lowest count it supports. That is weaker than the 600,000 OWASP suggests for PBKDF2. To compensate, passwords need 12+ characters, sign-in attempts are rate-limited and the database is private. Each hash stores its own iteration count, so the default can be raised later without breaking existing accounts.
-
-Measured CPU time on a Workers Free account: _to be filled in from the release measurement_. Locally, one 50,000-iteration hash takes about 8 ms of CPU, and a whole sign-up or sign-in request must stay under 10 ms on the Free plan, so it is close. Until the release measurement is recorded, treat email/password sign-up on Free as unconfirmed.
-
-Consider [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) ($5/month) if email/password sign-ups time out, or if you want a higher margin on page rendering. Social login and host login don't hash passwords.
+Share your own Notion layout or find alternatives in [TEMPLATES.md](TEMPLATES.md).
 
 ## Contributing
 
-```sh
-git clone https://github.com/jessequartey/feedbax.git
-cd feedbax
-npm ci
-npm ci --prefix packages/create-feedbax   # the CLI package has its own install
-cp .dev.vars.example .dev.vars   # fill in values
-npm run dev
-```
-
-The repo uses [Vite+](https://viteplus.dev) (`vp`). Before sending a PR:
-
-```sh
-npm run check       # format, lint
-npm run typecheck
-npm test
-npm run build
-```
-
-Other scripts: `registry:build` (regenerates `public/r/feedbax-feedback.json`; commit the result), `cli:build`, `test:package`. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-### Releasing
-
-Maintainers only. Only `create-feedbax` is published.
-
-1. One-time: publish the Notion template (Share → Publish, turn on **Allow duplicate as template**) and set `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` (`NOTION_TOKEN=… npm run notion:template -- --page <url> --examples` fills an empty page you shared with the integration; `--parent-page <url>` creates a child page instead. It builds the guide, database and views through the API). Use the same URL in the "Duplicate the Notion template" link above. The release fails while it is a placeholder or the two differ.
-2. One-time: on npmjs.com open `create-feedbax` → **Settings** → **Trusted Publisher** → GitHub Actions. Enter owner `jessequartey`, repository `feedbax`, workflow `release.yml`.
-3. Set the version in `packages/create-feedbax/package.json` and update `CHANGELOG.md`.
-4. Tag and push: `git tag v0.3.0 && git push origin v0.3.0`.
-
-The workflow checks the tag against the package version, builds, publishes with provenance and creates the GitHub Release.
+Bug reports, fixes and templates are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, checks and release instructions.
 
 ## License
 

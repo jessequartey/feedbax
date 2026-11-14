@@ -1,19 +1,22 @@
 # Contributing
 
-Thanks for helping. Bug reports and pull requests are welcome.
+Bug reports, pull requests and [community Notion templates](TEMPLATES.md) are welcome. The [README](README.md) is the user guide; keep setup instructions there.
 
 ## Setup
 
-Node 24 and npm.
+Use Node 24.15 or newer 24.x and npm. If you use nvm, run `nvm use` in the repo first.
 
 ```sh
+git clone https://github.com/jessequartey/feedbax.git
+cd feedbax
 npm ci
-npm ci --prefix packages/create-feedbax   # the CLI package has its own install
-cp .dev.vars.example .dev.vars   # placeholders only; use your own test values
-npm run dev                      # http://localhost:3000
+npm ci --prefix packages/create-feedbax
+cp .dev.vars.example .dev.vars
 ```
 
-The repo uses [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, tests and builds. Don't add ESLint, Prettier or another test runner.
+Fill `.dev.vars` with your own test values, then run `npm run dev`. The local portal opens at http://localhost:3000. Local posts sync to your real Notion database when `NOTION_TOKEN` is set; remove test rows afterwards.
+
+The repo uses [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, tests and builds.
 
 ## Before you open a PR
 
@@ -24,17 +27,35 @@ npm test
 npm run build
 ```
 
-Changed the CLI or the template? Also run `npm run cli:build && npm run test:package` (it installs a generated app with npm, pnpm and bun).
+Changed the CLI or generated template? Also run:
 
-If you changed anything under `registry/`, run `npm run registry:build` and commit `public/r/`. CI fails on a diff.
+```sh
+npm run cli:build
+npm run test:package
+```
+
+The package test installs a generated app with npm, pnpm and bun. After changing `registry/` or `registry.json`, run `npm run registry:build` and commit the generated `public/r/` files. CI fails if they are stale.
 
 ## Guidelines
 
-- Keep changes small and focused.
-- Files in `src/components/ui/` come from shadcn. Don't edit them by hand.
-- Never commit secrets. Test secrets live in `tests/fixtures` only.
-- Use `fetch` and Web Crypto. Avoid new dependencies unless needed.
+- Keep changes small and focused, with setup language a first-time user can follow.
+- Files in `src/components/ui/` come from shadcn; use its CLI to update them.
+- Never commit secrets. Use dummy credentials in tests and your own secrets in `.dev.vars`.
+- Use `fetch` and Web Crypto; avoid new dependencies unless needed.
 
 ## Releasing
 
-See "Releasing" in the [README](README.md#releasing). Maintainers only.
+Maintainers only. Publish `create-feedbax`; there is no runtime `feedbax` package.
+
+1. Verify the public Notion template can be duplicated from a signed-out browser. Its URL must match `NOTION_TEMPLATE_URL` in `packages/create-feedbax/src/links.ts` and the README link.
+2. If rebuilding the template, set `NOTION_TOKEN` in your environment and run `npm run notion:template -- --page` followed by the URL of an empty page connected to that integration, optionally adding `--examples`. Use `--parent-page` instead to create a child page. Follow the printed steps for column order and publication.
+3. On npm, configure the package's **Settings → Trusted Publisher → GitHub Actions**: owner `jessequartey`, repository `feedbax`, workflow `release.yml`.
+4. Update `packages/create-feedbax/package.json` and [CHANGELOG.md](CHANGELOG.md), and complete the checks above.
+5. Commit the release, then tag and push the version. For 0.3.0:
+
+   ```sh
+   git tag v0.3.0
+   git push origin v0.3.0
+   ```
+
+The release workflow checks the version, builds, tests, publishes with provenance and creates the GitHub Release with the CLI tarball and checksums.

@@ -278,6 +278,7 @@ export const MANUAL_VIEW_STEPS = [
   "Create these views in Notion (open the Feedbax database, then + Add a view next to the tabs).",
   'Rename the default table view to "🗂 All feedback" and drag the tabs into this order:',
   "1. 📋 Board: layout Board, Group by Status. Make it the first tab.",
+  "Board: drag the columns into Open, Planned, In progress, Done, Closed.",
   "2. 📥 Inbox: layout List. Filter: Status is Open. Sort: Created, descending.",
   "3. 🗂 All feedback: layout Table (the default view, just renamed).",
   "4. 📅 Calendar: layout Calendar, Show calendar by Created.",

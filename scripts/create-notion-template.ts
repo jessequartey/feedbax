@@ -40,7 +40,7 @@ export async function createNotionTemplate(
   const token = env.NOTION_TOKEN;
   if (!token || tokenProblem(token))
     throw new Error(
-      "Set NOTION_TOKEN to the integration's complete Internal Integration Secret. Share the page in Content access → Edit access.",
+      "Set NOTION_TOKEN to the connection's complete API token. Connect the page in the connection's Access (or Content access) tab → Edit access.",
     );
   // src/integrations owns the one schema, the template's blocks and its views. No local copy.
   const moduleUrl = new URL("../src/integrations/notion.ts", import.meta.url);
@@ -65,7 +65,7 @@ export async function createNotionTemplate(
         views
           ? `Created through the API: the guide, the Feedbax database and its 7 views${rows}.`
           : `Created through the API: the guide and the Feedbax database${rows}.`,
-        "Then, in Notion:\n1. Share → Publish → Publish to web.\n2. Turn on Allow duplicate as template.\n3. Copy the public URL into NOTION_TEMPLATE_URL in packages/create-feedbax/src/links.ts.\n4. Use the same URL in README.md before releasing.\n(Optional: ••• → Full width on the page. The API cannot set it.)",
+        "Then, in Notion:\nBoard: drag the columns into Open, Planned, In progress, Done, Closed. The API cannot set their order.\n1. Share → Publish → Publish to web.\n2. Turn on Allow duplicate as template.\n3. Copy the public URL into NOTION_TEMPLATE_URL in packages/create-feedbax/src/links.ts.\n4. Use the same URL in README.md before releasing.\n(Optional: ••• → Full width on the page. The API cannot set it.)",
         ...(views
           ? []
           : [

@@ -20,20 +20,22 @@ npm run deploy   # build, apply migrations, deploy
 
 Edit `feedbax.config.ts`: `name`, `appUrl` (your app's URL, for **Back to app** and the dialog), `auth.anonymous` and `integrations.github`. Run `npm run deploy` after a change.
 
-Rotate a production secret with `npx wrangler secret put <NAME>`.
+To rotate a production secret, run `npx wrangler secret put NOTION_TOKEN` (replace the name for other secrets).
 
 ## Theme
 
 ```sh
-npx shadcn@latest apply --preset <code> --only theme
+npx shadcn@latest apply --preset buFyyzw --only theme
 ```
+
+Choose another preset at [shadcn Create](https://ui.shadcn.com/create) and replace `buFyyzw` with its code.
 
 ## Add the feedback dialog to your app
 
 In your app, run:
 
 ```sh
-npx shadcn@latest add https://raw.githubusercontent.com/jessequartey/feedbax/v0.3.0/public/r/feedbax-feedback.json
+npx shadcn@latest add https://raw.githubusercontent.com/jessequartey/feedbax/main/public/r/feedbax-feedback.json
 ```
 
 Copy `FEEDBAX_HOST_SECRET` from `.dev.vars` to your app's server and add a token route. The steps are in the [main README](https://github.com/jessequartey/feedbax#add-the-feedback-dialog-to-your-app).
