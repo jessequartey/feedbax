@@ -29,7 +29,7 @@ jobs:
       - run: npm install -g npm@12.2.2
       - run: npm ci
       - run: npm ci --prefix packages/create-feedbax # the CLI package has its own install
-      # The packed-CLI test is network-bound (it installs and builds a generated app), so it runs
+      # The packed-CLI test (create-feedbax + feedbax) is network-bound (it installs and builds a generated app), so it runs
       # alongside the CPU-bound steps below and is joined in the last step. PR CI installs and
       # builds the generated app with npm only; release.yml sets FULL_PM_MATRIX=1 for npm/pnpm/bun.
       - name: Start packed-CLI test in the background

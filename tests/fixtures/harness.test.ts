@@ -123,6 +123,7 @@ describe("contracts", () => {
       appUrl: null,
       showcase: false,
       auth: { anonymous: false },
+      notifications: { email: false },
       integrations: {
         notion: { dataSourceId: base.integrations.notion.dataSourceId },
         github: false,

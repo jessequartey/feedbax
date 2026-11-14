@@ -37,13 +37,15 @@ jobs:
       - run: npm install -g npm@12.2.2 pnpm@10.29.3
       - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
 
-      - name: Tag matches the CLI version
+      - name: Tag matches both CLI versions
         run: |
-          pkg=$(node -p "require('./packages/create-feedbax/package.json').version")
-          if [ "v$pkg" != "$RELEASE_TAG" ]; then
-            echo "Tag $RELEASE_TAG does not match packages/create-feedbax version $pkg" >&2
-            exit 1
-          fi
+          for name in create-feedbax feedbax; do
+            pkg=$(node -p "require('./packages/$name/package.json').version")
+            if [ "v$pkg" != "$RELEASE_TAG" ]; then
+              echo "Tag $RELEASE_TAG does not match packages/$name version $pkg" >&2
+              exit 1
+            fi
+          done
 
       - name: Notion template URL is real and matches the README
         run: |
@@ -67,30 +69,32 @@ jobs:
         env:
           FULL_PM_MATRIX: "1"
 
-      - name: Pack the CLI
-        working-directory: packages/create-feedbax
+      - name: Pack the CLIs
         run: |
-          npm pack --pack-destination "$RUNNER_TEMP"
+          npm pack ./packages/create-feedbax ./packages/feedbax --pack-destination "$RUNNER_TEMP"
           cd "$RUNNER_TEMP"
-          sha256sum create-feedbax-*.tgz > SHA256SUMS.txt
+          sha256sum create-feedbax-*.tgz feedbax-*.tgz > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # Each package is published (or its existing upload verified) independently, so a retry
+      # after a partial failure finishes the release instead of republishing.
       - name: Publish to npm
-        working-directory: packages/create-feedbax
         run: |
-          version=$(node -p "require('./package.json').version")
-          tarball="$RUNNER_TEMP/create-feedbax-$version.tgz"
-          if npm view "create-feedbax@$version" version >/dev/null 2>&1; then
-            published=$(npm view "create-feedbax@$version" dist.integrity)
-            expected=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; import { createHash } from "node:crypto"; console.log("sha512-" + createHash("sha512").update(readFileSync(process.argv[1])).digest("base64"))' "$tarball")
-            if [ "$published" != "$expected" ]; then
-              echo "create-feedbax@$version is already on npm with different package contents; refusing to create a release." >&2
-              exit 1
+          for name in create-feedbax feedbax; do
+            version=$(node -p "require('./packages/$name/package.json').version")
+            tarball="$RUNNER_TEMP/$name-$version.tgz"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              published=$(npm view "$name@$version" dist.integrity)
+              expected=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; import { createHash } from "node:crypto"; console.log("sha512-" + createHash("sha512").update(readFileSync(process.argv[1])).digest("base64"))' "$tarball")
+              if [ "$published" != "$expected" ]; then
+                echo "$name@$version is already on npm with different package contents; refusing to create a release." >&2
+                exit 1
+              fi
+              echo "$name@$version is already on npm with matching integrity; skipping publish."
+            else
+              npm publish "$tarball" --access public --provenance
             fi
-            echo "create-feedbax@$version is already on npm with matching integrity; skipping publish."
-          else
-            npm publish "$tarball" --access public --provenance
-          fi
+          done
 
       - name: Create the GitHub Release
         env:
@@ -98,6 +102,7 @@ jobs:
         run: |
           printf '%s\n' \
             "Install: \`npx create-feedbax@${RELEASE_TAG#v}\`" \
+            "Upgrade an existing 0.3.0+ project: \`npx feedbax@${RELEASE_TAG#v} migrate\`" \
             "" \
             "Full setup guide: see the README. Starting from 0.2.x? Create a new project (see CHANGELOG.md)." \
             > "$RUNNER_TEMP/notes-header.md"
@@ -106,4 +111,5 @@ jobs:
             --generate-notes \
             --notes-file "$RUNNER_TEMP/notes-header.md" \
             "$RUNNER_TEMP"/create-feedbax-*.tgz \
+            "$RUNNER_TEMP"/feedbax-*.tgz \
             "$RUNNER_TEMP/SHA256SUMS.txt"

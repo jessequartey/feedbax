@@ -18,6 +18,19 @@ Secrets live in `.dev.vars` (git-ignored). Local data is separate from productio
 npm run deploy   # build, apply migrations, deploy
 ```
 
+## Manage
+
+The `feedbax` CLI is a dev dependency of this project:
+
+```sh
+npm run admin              # print a single-use admin sign-in link (15 minutes)
+npm run doctor             # check config, secrets, bindings, health, Notion and GitHub
+npm run migrate            # upgrade to the latest Feedbax release (--dry-run to preview)
+npx feedbax add github     # or github-login, google-login, host-login, email, webhooks
+```
+
+`migrate` merges upstream changes into your source, keeps your `feedbax.config.ts` values, `wrangler.jsonc` resources and secrets, then applies new database migrations and redeploys after asking. Commit your work first; it refuses to run on uncommitted changes.
+
 ## Configure
 
 Edit `feedbax.config.ts`: `name`, `appUrl` (your app's URL, for **Back to app** and the dialog), `auth.anonymous` and `integrations.github`. Run `npm run deploy` after a change.

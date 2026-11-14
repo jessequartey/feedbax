@@ -13,5 +13,7 @@ declare namespace Cloudflare {
     GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
+    /** Email notifications (`npx feedbax add email`); email is off without it. */
+    RESEND_API_KEY?: string;
   }
 }

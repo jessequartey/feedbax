@@ -36,8 +36,16 @@ export const COPY_FILES = [
 ];
 /** Dependencies that exist only for repo work (migrations, the block, the CLI). */
 export const REPO_ONLY_DEPENDENCIES = ["drizzle-kit", "modern-screenshot", "@clack/prompts"];
-/** The only scripts a generated project has (spec §12). */
+/** The root scripts a generated project keeps (spec §12). */
 export const TEMPLATE_SCRIPTS = ["dev", "build", "deploy", "check", "cf-typegen"];
+/** Scripts that run the project's pinned `feedbax` CLI (0.4.0 spec §2). */
+export const FEEDBAX_SCRIPTS = {
+  migrate: "feedbax migrate",
+  doctor: "feedbax doctor",
+  admin: "feedbax admin",
+};
+/** Where a generated project records the create-feedbax template version it is on. */
+export const VERSION_FILE = ".feedbax/version";
 const VITE_ALIAS = "npm:@voidzero-dev/vite-plus-core@1.6.0";
 /** Paths and packages a template file must never reach for. */
 const FORBIDDEN_IMPORT =
@@ -56,21 +64,38 @@ function pick<T>(source: Record<string, T>, keys: string[]): Record<string, T> {
   return out;
 }
 
-export function templatePackageJson(root: Pkg): Record<string, unknown> {
+function packageVersion(root: string, name: string): string {
+  return (
+    JSON.parse(readFileSync(join(root, "packages", name, "package.json"), "utf8")) as {
+      version: string;
+    }
+  ).version;
+}
+
+/** The template's version is create-feedbax's; the `feedbax` CLI is pinned to its own. */
+export function templatePackageJson(
+  root: Pkg,
+  versions: { template: string; feedbax: string },
+): Record<string, unknown> {
   const devDependencies = Object.fromEntries(
-    Object.entries(root.devDependencies).filter(([name]) => !REPO_ONLY_DEPENDENCIES.includes(name)),
+    [
+      ...Object.entries(root.devDependencies).filter(
+        ([name]) => !REPO_ONLY_DEPENDENCIES.includes(name),
+      ),
+      ["feedbax", versions.feedbax],
+    ].sort(([a], [b]) => (a! < b! ? -1 : 1)),
   );
   const dependencies = Object.fromEntries(
     Object.entries(root.dependencies).filter(([name]) => !REPO_ONLY_DEPENDENCIES.includes(name)),
   );
   return {
     name: "feedbax-portal",
-    version: "0.3.0",
+    version: versions.template,
     private: true,
     type: "module",
     imports: root.imports,
     engines: root.engines,
-    scripts: pick(root.scripts, TEMPLATE_SCRIPTS),
+    scripts: { ...pick(root.scripts, TEMPLATE_SCRIPTS), ...FEEDBAX_SCRIPTS },
     dependencies,
     devDependencies,
     // npm and bun read `overrides`; pnpm reads `pnpm.overrides`. No devEngines.packageManager.
@@ -121,10 +146,17 @@ export function buildTemplate(options: { out?: string; root?: string } = {}): {
   cpSync(readme, join(out, "README.md"));
 
   const rootPackage = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as Pkg;
+  const versions = {
+    template: packageVersion(root, "create-feedbax"),
+    feedbax: packageVersion(root, "feedbax"),
+  };
   writeFileSync(
     join(out, "package.json"),
-    `${JSON.stringify(templatePackageJson(rootPackage), null, 2)}\n`,
+    `${JSON.stringify(templatePackageJson(rootPackage, versions), null, 2)}\n`,
   );
+  // `feedbax migrate` reads this to pick the exact published template to merge against.
+  mkdirSync(join(out, ".feedbax"), { recursive: true });
+  writeFileSync(join(out, VERSION_FILE), `${versions.template}\n`);
 
   const files = walk(out)
     .map((file) => relative(out, file).split(sep).join("/"))

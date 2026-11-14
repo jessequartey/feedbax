@@ -63,7 +63,19 @@ describe("scripts/package-template.ts", () => {
   });
 
   test("package.json keeps only the app's scripts and dependencies", () => {
-    expect(Object.keys(pkg.scripts)).toEqual(["dev", "build", "deploy", "check", "cf-typegen"]);
+    expect(Object.keys(pkg.scripts)).toEqual([
+      "dev",
+      "build",
+      "deploy",
+      "check",
+      "cf-typegen",
+      "migrate",
+      "doctor",
+      "admin",
+    ]);
+    expect(pkg.scripts.migrate).toBe("feedbax migrate");
+    expect(pkg.scripts.doctor).toBe("feedbax doctor");
+    expect(pkg.scripts.admin).toBe("feedbax admin");
     expect(pkg.scripts.deploy).toBe(
       "vp build && wrangler d1 migrations apply DB --remote && wrangler deploy",
     );
@@ -82,6 +94,20 @@ describe("scripts/package-template.ts", () => {
     expect(pkg.overrides.vite).toBe("npm:@voidzero-dev/vite-plus-core@1.6.0");
     expect(pkg.pnpm.overrides.vite).toBe("npm:@voidzero-dev/vite-plus-core@1.6.0");
     expect(pkg.devEngines).toBeUndefined();
+  });
+
+  test("pins the feedbax CLI and records the template version", () => {
+    const version = (name: string) =>
+      (
+        JSON.parse(
+          readFileSync(new URL(`../../packages/${name}/package.json`, import.meta.url), "utf8"),
+        ) as { version: string }
+      ).version;
+    expect(pkg.devDependencies.feedbax).toBe(version("feedbax"));
+    expect((pkg as unknown as { version: string }).version).toBe(version("create-feedbax"));
+    expect(readFileSync(join(result.out, ".feedbax/version"), "utf8")).toBe(
+      `${version("create-feedbax")}\n`,
+    );
   });
 
   test("forbidden-import guard flags tests/scripts/registry imports", () => {
