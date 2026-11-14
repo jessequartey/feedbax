@@ -194,15 +194,20 @@ export async function serveImage(request: Request, id: string): Promise<Response
     .where(eq(images.id, id))
     .get();
   if (!image) return imageNotFound();
-  const object = await env.IMAGES.get(image.image.objectKey);
-  if (!object) return imageNotFound();
+  // An image ID always names the same bytes: storeImage is write-once (first upload wins)
+  // and nothing deletes images. So the ID is the ETag, the response is immutable, and a
+  // revalidation is answered from D1 alone without an R2 read (Class B operation).
+  const etag = `"${image.image.id}"`;
   const headers = {
     "Content-Type": image.image.mime,
     "X-Content-Type-Options": "nosniff",
-    ETag: object.httpEtag,
-    "Cache-Control": "public, max-age=86400",
+    ETag: etag,
+    "Cache-Control": "public, max-age=31536000, immutable",
   };
-  if (request.headers.get("if-none-match") === object.httpEtag)
+  const match = request.headers.get("if-none-match");
+  if (match && match.split(",").some((value) => value.trim().replace(/^W\//, "") === etag))
     return new Response(null, { status: 304, headers });
+  const object = await env.IMAGES.get(image.image.objectKey);
+  if (!object) return imageNotFound();
   return new Response(object.body, { headers });
 }
