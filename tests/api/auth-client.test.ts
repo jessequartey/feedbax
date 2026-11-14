@@ -29,26 +29,27 @@ beforeEach(async () => {
     return response;
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete env.GITHUB_CLIENT_ID;
+  delete env.GITHUB_CLIENT_SECRET;
+});
 
-it("signs up, signs out and signs in through the facade", async () => {
-  const credentials = { email: "ada@example.com", password: "a long test password" };
-  const up = await authClient.signUp.email({ name: "Ada", ...credentials });
-  expect(up.error).toBeNull();
-  expect(cookie).toContain("better-auth.session_token=");
+it("signs out a real host session through the facade", async () => {
+  const { mintToken } = await import("./helpers.ts");
+  const response = await handleAuth(
+    new Request(`${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${await mintToken()}`, {
+      method: "POST",
+      headers: { origin: env.PORTAL_URL },
+    }),
+  );
+  cookie = response.headers.get("set-cookie")!.split(";")[0];
   expect((await createAuth().api.getSession({ headers: new Headers({ cookie }) }))?.user.name).toBe(
-    "Ada",
+    "Host user",
   );
   expect((await authClient.signOut()).error).toBeNull();
   expect(await createAuth().api.getSession({ headers: new Headers({ cookie }) })).toBeNull();
-  cookie = "";
-  const bad = await authClient.signIn.email({ ...credentials, password: "wrong password!!" });
-  expect(bad.data).toBeNull();
-  expect(bad.error).toMatchObject({ status: 401, code: "INVALID_EMAIL_OR_PASSWORD" });
-  expect((await authClient.signIn.email(credentials)).error).toBeNull();
-  expect(cookie).toContain("better-auth.session_token=");
 });
-
 it("returns a redirect URL for social sign-in when a provider is configured", async () => {
   Object.assign(env, { GITHUB_CLIENT_ID: "client", GITHUB_CLIENT_SECRET: "secret" });
   const assign = vi.fn();

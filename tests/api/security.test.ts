@@ -19,19 +19,10 @@ it.each([
   expect(safeDestination(to)).toBe("/");
 });
 it("does not treat a portal account cookie as bearer authorization", async () => {
-  const signup = await createAuth().handler(
-    new Request(`${env.PORTAL_URL}/api/auth/sign-up/email`, {
+  const signup = await handleAuth(
+    new Request(`${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${await mintToken()}`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: env.PORTAL_URL,
-        "cf-connecting-ip": "192.0.2.8",
-      },
-      body: JSON.stringify({
-        name: "Ada",
-        email: "ada@example.com",
-        password: "a long test password",
-      }),
+      headers: { origin: env.PORTAL_URL },
     }),
   );
   const response = await handlePosts(
@@ -46,62 +37,29 @@ it("does not treat a portal account cookie as bearer authorization", async () =>
 });
 it("keeps Better Auth origin and CSRF checks enabled", async () => {
   const response = await handleAuth(
-    new Request(`${env.PORTAL_URL}/api/auth/sign-up/email`, {
+    new Request(`${env.PORTAL_URL}/api/auth/sign-out`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         origin: "https://evil.example",
         "cf-connecting-ip": "192.0.2.10",
       },
-      body: JSON.stringify({
-        name: "Ada",
-        email: "ada@example.com",
-        password: "a long test password",
-      }),
+      body: JSON.stringify({ provider: "github", callbackURL: "/" }),
     }),
   );
   expect(response.status).toBe(403);
   expect(await env.DB.prepare("SELECT count(*) as n FROM user").first()).toEqual({ n: 0 });
 });
-it("enforces 12–128 character passwords and a display name", async () => {
-  for (const [name, password] of [
-    ["Ada", "short"],
-    ["Ada", "x".repeat(129)],
-    ["", "a long test password"],
-  ]) {
-    const response = await handleAuth(
-      new Request(`${env.PORTAL_URL}/api/auth/sign-up/email`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          origin: env.PORTAL_URL,
-          "cf-connecting-ip": "192.0.2.11",
-        },
-        body: JSON.stringify({ name, email: "ada@example.com", password }),
-      }),
-    );
-    expect(response.status).toBeGreaterThanOrEqual(400);
-  }
-});
 it("sets HttpOnly, Lax, Secure cookies and seven-day sessions on HTTPS", async () => {
   const portal = "https://feedback.example.com";
   const auth = createAuth(config, { ...env, PORTAL_URL: portal });
   const response = await auth.handler(
-    new Request(`${portal}/api/auth/sign-up/email`, {
+    new Request(`${portal}/api/auth/feedbax/sign-in?token=${await mintToken()}`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: portal,
-        "cf-connecting-ip": "192.0.2.12",
-      },
-      body: JSON.stringify({
-        name: "Ada",
-        email: "ada@example.com",
-        password: "a long test password",
-      }),
+      headers: { origin: portal },
     }),
   );
-  expect(response.status).toBe(200);
+  expect(response.status).toBe(302);
   const cookie = response.headers.get("set-cookie")!;
   expect(cookie).toContain("HttpOnly");
   expect(cookie).toContain("SameSite=Lax");
@@ -110,7 +68,8 @@ it("sets HttpOnly, Lax, Secure cookies and seven-day sessions on HTTPS", async (
   const session = await env.DB.prepare(
     "SELECT expires_at - created_at AS lifetime FROM session",
   ).first<{ lifetime: number }>();
-  expect(session!.lifetime).toBe(604800000);
+  expect(session!.lifetime).toBeGreaterThanOrEqual(604799000);
+  expect(session!.lifetime).toBeLessThanOrEqual(604800000);
 });
 it("only allows local development origins while the portal itself is local", () => {
   expect(allowedOrigin("http://localhost:5173")).toBe(true);

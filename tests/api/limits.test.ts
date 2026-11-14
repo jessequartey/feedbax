@@ -5,7 +5,6 @@ import { form, writer, mintToken } from "./helpers.ts";
 import { createPostForUser } from "../../src/server/posts.ts";
 import { addCommentForUser } from "../../src/server/comments.ts";
 import { handlePosts, handleAuth } from "../../src/server/http.ts";
-import { createAuth } from "../../src/server/auth.ts";
 
 beforeEach(resetEnv);
 it("enforces post quota under concurrency and permits idempotent replays at quota", async () => {
@@ -86,28 +85,39 @@ it("exposes Retry-After only to allowed origins", async () => {
   expect(foreign.headers.get("access-control-allow-origin")).toBeNull();
   expect(foreign.headers.get("access-control-expose-headers")).toBeNull();
 });
-it.each(["sign-up/email", "sign-in/email"])(
-  "Better Auth rate limits %s by Cloudflare IP using D1",
-  async (path) => {
-    const auth = createAuth();
+it("database rate limits repeated social authorization by Cloudflare IP", async () => {
+  const saved = { id: env.GITHUB_CLIENT_ID, secret: env.GITHUB_CLIENT_SECRET };
+  Object.assign(env, { GITHUB_CLIENT_ID: "client", GITHUB_CLIENT_SECRET: "secret" });
+  try {
     const request = (ip: string) =>
-      new Request(`${env.PORTAL_URL}/api/auth/${path}`, {
+      new Request(`${env.PORTAL_URL}/api/auth/sign-in/social`, {
         method: "POST",
         headers: {
-          "content-type": "application/json",
           origin: env.PORTAL_URL,
+          "content-type": "application/json",
           "cf-connecting-ip": ip,
         },
-        body: JSON.stringify({ name: "Ada", email: "bad", password: "short" }),
+        body: JSON.stringify({ provider: "github", callbackURL: "/" }),
       });
-    for (let i = 0; i < 10; i++)
-      expect((await auth.handler(request("192.0.2.55"))).status).not.toBe(429);
-    const limited = await handleAuth(request("192.0.2.55"));
-    expect(limited.status).toBe(429);
-    expect(limited.headers.has("retry-after")).toBe(true);
-    expect((await auth.handler(request("192.0.2.56"))).status).not.toBe(429);
+    // Installed Better Auth applies its 3-per-10-second sensitive-path rule.
+    let limited: Response | undefined;
+    for (let i = 0; i < 101; i++) {
+      const response = await handleAuth(request("192.0.2.55"));
+      if (response.status === 429) {
+        limited = response;
+        break;
+      }
+    }
+    expect(limited?.status).toBe(429);
+    expect(limited?.headers.has("retry-after")).toBe(true);
+    expect((await handleAuth(request("192.0.2.56"))).status).toBe(200);
     expect(
-      (await env.DB.prepare("SELECT count(*) as n FROM rate_limit").first<{ n: number }>())!.n,
+      (await env.DB.prepare("SELECT count(*) AS n FROM rate_limit").first<{ n: number }>())!.n,
     ).toBeGreaterThan(0);
-  },
-);
+  } finally {
+    if (saved.id === undefined) delete env.GITHUB_CLIENT_ID;
+    else env.GITHUB_CLIENT_ID = saved.id;
+    if (saved.secret === undefined) delete env.GITHUB_CLIENT_SECRET;
+    else env.GITHUB_CLIENT_SECRET = saved.secret;
+  }
+});

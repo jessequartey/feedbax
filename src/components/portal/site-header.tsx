@@ -122,7 +122,7 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link to="/my-feedback" />}>My feedback</DropdownMenuItem>
         {user.kind === "anonymous" ? (
-          <DropdownMenuItem render={<Link to="/signup" />}>Create an account</DropdownMenuItem>
+          <DropdownMenuItem render={<Link to="/login" />}>Sign in</DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onClick={() => void signOut()}>
           <LogOutIcon aria-hidden="true" /> Sign out

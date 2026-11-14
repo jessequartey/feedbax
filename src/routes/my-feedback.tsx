@@ -53,11 +53,11 @@ function MyFeedbackPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  render={<Link to="/signup" search={{ to: "/my-feedback" }} />}
+                  render={<Link to="/login" search={{ to: "/my-feedback" }} />}
                   nativeButton={false}
                   className="max-md:h-11"
                 >
-                  Create an account
+                  Sign in
                 </Button>
               </>
             }

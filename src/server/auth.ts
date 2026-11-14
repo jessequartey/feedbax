@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 // "minimal" leaves out Kysely and its SQLite dialects; Feedbax uses the Drizzle adapter.
 import { betterAuth } from "better-auth/minimal";
 import { createAuthEndpoint, APIError, getSessionFromCtx } from "better-auth/api";
-import { setSessionCookie } from "better-auth/cookies";
+import { getSessionCookie, setSessionCookie } from "better-auth/cookies";
 import { anonymous } from "better-auth/plugins/anonymous";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { eq, sql } from "drizzle-orm";
@@ -10,7 +10,7 @@ import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig, PublicConfig } from "../contracts/config.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
 import { createDb, schema } from "../db/client.ts";
-import { hashPassword, verifyPassword } from "./password.ts";
+import { decode64 } from "./encoding.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
 import { DomainError, reportUnexpected } from "./errors.ts";
 import { requireSameOrigin } from "./request.ts";
@@ -19,13 +19,25 @@ import { text } from "./validation.ts";
 export function publicConfig(settings = config, bindings: Cloudflare.Env = env): PublicConfig {
   for (const provider of ["GITHUB", "GOOGLE"] as const) {
     if (
-      Boolean(bindings[`${provider}_CLIENT_ID`]) !== Boolean(bindings[`${provider}_CLIENT_SECRET`])
+      Boolean(bindings[`${provider}_CLIENT_ID`]) !==
+        Boolean(bindings[`${provider}_CLIENT_SECRET`]) ||
+      [bindings[`${provider}_CLIENT_ID`], bindings[`${provider}_CLIENT_SECRET`]].some(
+        (value) => value !== undefined && (!value || /\s/.test(value)),
+      )
     )
       throw new Error(
         `Invalid OAuth configuration: ${provider}_CLIENT_ID / ${provider}_CLIENT_SECRET must both be set`,
       );
   }
+  if (bindings.FEEDBAX_HOST_SECRET) {
+    try {
+      if (decode64(bindings.FEEDBAX_HOST_SECRET).length < 32) throw new Error();
+    } catch {
+      throw new Error("Invalid FEEDBAX_HOST_SECRET configuration.");
+    }
+  }
   return {
+    hostLogin: Boolean(settings.appUrl && bindings.FEEDBAX_HOST_SECRET),
     name: settings.name,
     appUrl: settings.appUrl,
     anonymous: settings.auth.anonymous,
@@ -117,13 +129,31 @@ export function createAuth(settings: FeedbaxConfig = config, bindings: Cloudflar
     }),
     trustedOrigins: [bindings.PORTAL_URL],
     logger: { disabled: true },
-    emailAndPassword: {
-      enabled: true,
-      minPasswordLength: 12,
-      maxPasswordLength: 128,
-      requireEmailVerification: false,
-      password: { hash: (password) => hashPassword(password), verify: verifyPassword },
-    },
+    emailAndPassword: { enabled: false },
+    // Defense in depth; the HTTP mount's exact allowlist is authoritative.
+    disabledPaths: [
+      "/sign-in/email",
+      "/sign-up/email",
+      "/request-password-reset",
+      "/reset-password/:token",
+      "/reset-password",
+      "/verify-password",
+      "/set-password",
+      "/change-password",
+      "/change-email",
+      "/update-user",
+      "/update-session",
+      "/delete-user",
+      "/delete-user/callback",
+      "/link-social",
+      "/unlink-account",
+      "/list-accounts",
+      "/get-access-token",
+      "/refresh-token",
+      "/account-info",
+      "/send-verification-email",
+      "/verify-email",
+    ],
     account: { accountLinking: { enabled: false } },
     user: {
       additionalFields: {
@@ -153,8 +183,6 @@ export function createAuth(settings: FeedbaxConfig = config, bindings: Cloudflar
       enabled: true,
       storage: "database",
       customRules: {
-        "/sign-in/email": { window: 60, max: 10 },
-        "/sign-up/email": { window: 60, max: 10 },
         "/sign-in/anonymous": { window: 60, max: 5 },
       },
     },
@@ -295,13 +323,13 @@ export function createAuth(settings: FeedbaxConfig = config, bindings: Cloudflar
               const previous = settings.auth.anonymous
                 ? await getSessionFromCtx(ctx, { disableRefresh: true })
                 : null;
-              const user = await resolveHostUser(claims, ctx.context.internalAdapter);
+              const user = await resolveHostUser(claims, ctx.context.internalAdapter, bindings.DB);
               const session = await ctx.context.internalAdapter.createSession(user.id);
               if (!session)
                 throw new APIError("SERVICE_UNAVAILABLE", { message: "Please try again shortly." });
               // Consume only after fallible identity/session creation, before exposing the cookie.
               try {
-                await consumeHostToken(claims);
+                await consumeHostToken(claims, bindings.DB);
               } catch (error) {
                 await ctx.context.internalAdapter
                   .deleteSession(session.token)
@@ -333,11 +361,16 @@ export function createAuth(settings: FeedbaxConfig = config, bindings: Cloudflar
     ],
   });
 }
-export async function viewerUser(headers: Headers, settings = config): Promise<ViewerUser | null> {
-  const session = await createAuth(settings).api.getSession({ headers });
+export async function viewerUser(
+  headers: Headers,
+  settings = config,
+  bindings: Cloudflare.Env = env,
+): Promise<ViewerUser | null> {
+  if (!getSessionCookie(headers)) return null;
+  const session = await createAuth(settings, bindings).api.getSession({ headers });
   if (!session) return null;
   // hostSubject is deliberately absent from Better Auth's public user output.
-  const row = await createDb(env.DB)
+  const row = await createDb(bindings.DB)
     .select({ hostSubject: schema.user.hostSubject, isAnonymous: schema.user.isAnonymous })
     .from(schema.user)
     .where(eq(schema.user.id, session.user.id))

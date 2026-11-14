@@ -15,6 +15,7 @@ export type PublicConfig = {
   appUrl: string | null;
   anonymous: boolean;
   oauth: { github: boolean; google: boolean };
+  hostLogin: boolean;
 };
 
 const NOTION_ID =

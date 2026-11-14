@@ -48,6 +48,7 @@ export const publicConfig: PublicConfig = {
   name: "Feedbax",
   appUrl: "https://app.example.com",
   anonymous: true,
+  hostLogin: false,
   oauth: { github: true, google: false },
 };
 

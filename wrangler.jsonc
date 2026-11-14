@@ -6,7 +6,7 @@
   "main": "src/server.ts",
   "compatibility_date": "2026-11-13",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true },
+  "observability": { "enabled": true, "redact_query_string": true },
   "vars": { "PORTAL_URL": "http://localhost:3000" },
   "d1_databases": [
     {

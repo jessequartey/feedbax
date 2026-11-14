@@ -1,11 +1,11 @@
 import { env } from "cloudflare:workers";
 import { inArray } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
-import { boundedBody, MULTIPART_BYTES } from "./request.ts";
+import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./request.ts";
 import type { ErrorCode } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
 import { syncState } from "../db/schema.ts";
-import { createAuth } from "./auth.ts";
+import { createAuth, publicConfig } from "./auth.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
 import { createPostForUser } from "./posts.ts";
 import type { Operation } from "./errors.ts";
@@ -110,6 +110,26 @@ export async function handlePosts(request: Request, settings = config): Promise<
 }
 export async function handleAuth(request: Request): Promise<Response> {
   try {
+    const path = new URL(request.url).pathname.slice("/api/auth".length);
+    let methods: string[] = [];
+    if (path === "/sign-in/social" || path === "/sign-out") methods = ["POST"];
+    else if (path === "/feedbax/sign-in") methods = ["GET", "POST"];
+    else if (path === "/error") methods = ["GET"];
+    else if (path === "/sign-in/anonymous" && config.auth.anonymous) methods = ["POST"];
+    else if (path === "/callback/github" || path === "/callback/google") {
+      const provider = path === "/callback/github" ? "github" : "google";
+      if (publicConfig().oauth[provider]) methods = ["GET", "POST"];
+    }
+    if (!methods.includes(request.method))
+      return new Response(null, {
+        status: methods.length ? 405 : 404,
+        headers: {
+          "Cache-Control": "no-store",
+          ...(methods.length ? { Allow: methods.join(", ") } : {}),
+        },
+      });
+    if (request.method === "POST" && !path.startsWith("/callback/"))
+      requireSameOrigin(request, env.PORTAL_URL);
     const response = await createAuth().handler(request);
     response.headers.set("Cache-Control", "no-store");
     if (response.status >= 500) {

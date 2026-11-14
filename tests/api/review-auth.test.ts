@@ -7,44 +7,28 @@ import { mintFeedbaxToken } from "../../registry/feedbax-feedback/lib/token.serv
 import { mintToken } from "./helpers.ts";
 
 beforeEach(resetEnv);
-function post(auth: ReturnType<typeof createAuth>, path: string, body: unknown, cookie = "") {
-  return auth.handler(
-    new Request(`${env.PORTAL_URL}/api/auth/${path}`, {
-      method: "POST",
-      headers: { origin: env.PORTAL_URL, "content-type": "application/json", cookie },
-      body: JSON.stringify(body),
-    }),
+it("validates social names and reserved emails at internal adapter hooks", async () => {
+  const adapter = (await createAuth().$context).internalAdapter;
+  for (const name of ["", "   ", "x".repeat(81)])
+    await expect(
+      adapter.createUser(
+        { name, email: "ada@example.com", emailVerified: false },
+        { method: "test" },
+      ),
+    ).rejects.toMatchObject({ status: "BAD_REQUEST" });
+  for (const email of ["host-x@users.feedbax.invalid", "HOST-X@USERS.FEEDBAX.INVALID"])
+    await expect(
+      adapter.createUser({ name: "Ada", email, emailVerified: false }, { method: "test" }),
+    ).rejects.toMatchObject({ status: "BAD_REQUEST" });
+  const user = await adapter.createUser(
+    { name: "Ada", email: "ada@example.com", emailVerified: false },
+    { method: "test" },
   );
-}
-it("validates names through mounted update-user before storing or publishing them", async () => {
-  const auth = createAuth();
-  const signup = await post(auth, "sign-up/email", {
-    name: "Ada",
-    email: "ada@example.com",
-    password: "a long test password",
+  await expect(adapter.updateUser(user.id, { name: "   " })).rejects.toMatchObject({
+    status: "BAD_REQUEST",
   });
-  const cookie = signup.headers.get("set-cookie")!.split(";")[0];
-  for (const name of ["", "   ", 42, {}, "x".repeat(81), "x".repeat(100000)]) {
-    expect((await post(auth, "update-user", { name }, cookie)).status).toBeGreaterThanOrEqual(400);
-    expect(await env.DB.prepare("SELECT name FROM user").first()).toEqual({ name: "Ada" });
-  }
-  expect((await post(auth, "update-user", { name: "🦊".repeat(80) }, cookie)).status).toBe(200);
+  await adapter.updateUser(user.id, { name: "🦊".repeat(80) });
 });
-it.each(["host-x@users.feedbax.invalid", "HOST-X@USERS.FEEDBAX.INVALID"])(
-  "reserves internal email namespace at public signup: %s",
-  async (email) => {
-    expect(
-      (
-        await post(createAuth(), "sign-up/email", {
-          name: "Squatter",
-          email,
-          password: "a long test password",
-        })
-      ).status,
-    ).toBeGreaterThanOrEqual(400);
-    expect(await env.DB.prepare("SELECT count(*) AS n FROM user").first()).toEqual({ n: 0 });
-  },
-);
 it.each([0, 1, 15, 16, 31])(
   "rejects a %i byte host secret as configuration, on both sides",
   async (size) => {
@@ -155,18 +139,129 @@ it("rejects old email collisions safely while preserving the standalone account'
 it("rejects public email changes into the internal namespace at the adapter hook", async () => {
   const auth = createAuth(),
     adapter = (await auth.$context).internalAdapter;
-  const signup = await post(auth, "sign-up/email", {
-    name: "Ada",
-    email: "ada@example.com",
-    password: "a long test password",
-  });
-  const user = (await auth.api.getSession({
-    headers: new Headers({ cookie: signup.headers.get("set-cookie")!.split(";")[0] }),
-  }))!.user;
+  const user = await adapter.createUser(
+    { name: "Ada", email: "ada@example.com", emailVerified: false },
+    { method: "test" },
+  );
   await expect(
     adapter.updateUser(user.id, { email: "squat@USERS.FEEDBAX.INVALID" }),
   ).rejects.toMatchObject({ status: "BAD_REQUEST" });
   expect(await env.DB.prepare("SELECT email FROM user WHERE id = ?").bind(user.id).first()).toEqual(
     { email: "ada@example.com" },
   );
+});
+
+it("runs mounted social start/callback with provider HTTP and preserves OAuth state, logout and replay isolation", async () => {
+  const { handleAuth } = await import("../../src/server/http.ts");
+  const { githubTransport, startGithub, cookieHeader } = await import("./oauth-transport.ts");
+  Object.assign(env, { GITHUB_CLIENT_ID: "client", GITHUB_CLIENT_SECRET: "secret" });
+  const transport = githubTransport();
+  try {
+    const start = await startGithub(handleAuth, "", "/my-feedback");
+    expect(start.authorization.searchParams.get("redirect_uri")).toBe(
+      `${env.PORTAL_URL}/api/auth/callback/github`,
+    );
+    const wrong = new URL(start.callback);
+    wrong.searchParams.set("state", "mismatch");
+    const mismatch = await handleAuth(new Request(wrong, { headers: { cookie: start.cookie } }));
+    expect(mismatch.status).toBe(302);
+    expect(mismatch.headers.get("location")).toContain("error=");
+    expect(transport).not.toHaveBeenCalled();
+    const response = await handleAuth(
+      new Request(start.callback, {
+        headers: { cookie: start.cookie, "sec-fetch-site": "cross-site" },
+      }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/my-feedback");
+    const cookie = cookieHeader(response);
+    const session = await createAuth().api.getSession({ headers: new Headers({ cookie }) });
+    expect(session?.user.name).toBe("Ada");
+    expect(transport).toHaveBeenCalledTimes(3);
+    const replay = await handleAuth(
+      new Request(start.callback, { headers: { cookie: start.cookie } }),
+    );
+    expect(replay.headers.get("location")).toContain("error=");
+    expect(transport).toHaveBeenCalledTimes(3);
+    const cancel = await startGithub(handleAuth);
+    const cancelled = new URL(cancel.callback);
+    cancelled.searchParams.delete("code");
+    cancelled.searchParams.set("error", "access_denied");
+    expect(
+      (
+        await handleAuth(new Request(cancelled, { headers: { cookie: cancel.cookie } }))
+      ).headers.get("location"),
+    ).toContain("access_denied");
+    for (const callbackURL of ["https://evil.example/", "//evil.example/"]) {
+      await env.DB.prepare("DELETE FROM rate_limit").run();
+      const invalid = await handleAuth(
+        new Request(`${env.PORTAL_URL}/api/auth/sign-in/social`, {
+          method: "POST",
+          headers: { origin: env.PORTAL_URL, "content-type": "application/json" },
+          body: JSON.stringify({ provider: "github", callbackURL }),
+        }),
+      );
+      expect(invalid.status).toBe(403);
+    }
+    expect(
+      (await handleAuth(new Request(`${env.PORTAL_URL}/api/auth/callback/google?state=invalid`)))
+        .status,
+    ).toBe(404);
+    await env.DB.prepare("DELETE FROM rate_limit").run();
+    const unconfigured = await handleAuth(
+      new Request(`${env.PORTAL_URL}/api/auth/sign-in/social`, {
+        method: "POST",
+        headers: { origin: env.PORTAL_URL, "content-type": "application/json" },
+        body: JSON.stringify({ provider: "google", callbackURL: "/" }),
+      }),
+    );
+    expect(unconfigured.status).toBeGreaterThanOrEqual(400);
+    await handleAuth(
+      new Request(`${env.PORTAL_URL}/api/auth/sign-out`, {
+        method: "POST",
+        headers: { origin: env.PORTAL_URL, cookie, "content-type": "application/json" },
+        body: "{}",
+      }),
+    );
+    expect(await createAuth().api.getSession({ headers: new Headers({ cookie }) })).toBeNull();
+  } finally {
+    vi.unstubAllGlobals();
+    delete env.GITHUB_CLIENT_ID;
+    delete env.GITHUB_CLIENT_SECRET;
+  }
+});
+it("never links a new social subject to a legacy account with the same email", async () => {
+  const { handleAuth } = await import("../../src/server/http.ts");
+  const { githubTransport, startGithub } = await import("./oauth-transport.ts");
+  const adapter = (await createAuth().$context).internalAdapter;
+  const legacy = await adapter.createUser(
+    { name: "Legacy", email: "ada@example.com", emailVerified: true },
+    { method: "test" },
+  );
+  await env.DB.prepare(
+    "INSERT INTO account (id,account_id,provider_id,user_id,password,updated_at) VALUES ('legacy','legacy','credential',?,'preserved-legacy-hash',0)",
+  )
+    .bind(legacy.id)
+    .run();
+  Object.assign(env, { GITHUB_CLIENT_ID: "client", GITHUB_CLIENT_SECRET: "secret" });
+  githubTransport();
+  try {
+    const start = await startGithub(handleAuth);
+    const response = await handleAuth(
+      new Request(start.callback, { headers: { cookie: start.cookie } }),
+    );
+    expect(response.headers.get("location")).toContain("error=");
+    expect(response.headers.getSetCookie().some((c) => c.includes("session_token="))).toBe(false);
+    expect(await env.DB.prepare("SELECT name FROM user").all()).toMatchObject({
+      results: [{ name: "Legacy" }],
+    });
+    expect(await env.DB.prepare("SELECT provider_id,password FROM account").all()).toMatchObject({
+      results: [{ provider_id: "credential", password: "preserved-legacy-hash" }],
+    });
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM session").first()).toEqual({ n: 0 });
+  } finally {
+    vi.unstubAllGlobals();
+    delete env.GITHUB_CLIENT_ID;
+    delete env.GITHUB_CLIENT_SECRET;
+  }
 });

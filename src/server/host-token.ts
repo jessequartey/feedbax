@@ -58,9 +58,12 @@ export async function verifyHostToken(
     throw new DomainError("unauthenticated", "The host token is invalid or expired.");
   }
 }
-export async function consumeHostToken(claims: HostTokenClaims): Promise<void> {
+export async function consumeHostToken(
+  claims: HostTokenClaims,
+  d1: D1Database = env.DB,
+): Promise<void> {
   // Retain the replay marker through the entire accepted skew window; cron uses milliseconds.
-  const inserted = await createDb(env.DB)
+  const inserted = await createDb(d1)
     .insert(usedTokens)
     .values({ jti: claims.jti, expiresAt: (claims.exp + 30) * 1000 })
     .onConflictDoNothing()
@@ -71,8 +74,9 @@ export async function consumeHostToken(claims: HostTokenClaims): Promise<void> {
 export async function resolveHostUser(
   claims: HostTokenClaims,
   adapter: AuthContext["internalAdapter"],
+  d1: D1Database = env.DB,
 ) {
-  const db = createDb(env.DB);
+  const db = createDb(d1);
   let existing = await db.select().from(user).where(eq(user.hostSubject, claims.sub)).get();
   if (!existing) {
     const digest = new Uint8Array(

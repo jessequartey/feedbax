@@ -1,4 +1,4 @@
-import { beforeEach, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { env } from "cloudflare:workers";
 import { resetEnv } from "../fixtures/cloudflare-workers.ts";
 import config from "../../feedbax.config.ts";
@@ -8,7 +8,9 @@ import { createPostForUser, getPostDetail } from "../../src/server/posts.ts";
 import { setVoteForUser } from "../../src/server/votes.ts";
 import { addCommentForUser, listCommentPage } from "../../src/server/comments.ts";
 
+import { githubTransport, socialSession, cookieHeader } from "./oauth-transport.ts";
 beforeEach(resetEnv);
+afterEach(() => vi.unstubAllGlobals());
 const enabled = { ...config, auth: { anonymous: true } };
 const request = (path: string, body: unknown, cookie?: string) =>
   new Request(`${env.PORTAL_URL}/api/auth/${path}`, {
@@ -25,28 +27,21 @@ it("anonymous off denies session creation, signed-out writes, and existing anony
   expect((await createAuth().handler(request("sign-in/anonymous", {}))).status).toBe(404);
   await expect(createPostForUser(form(), null)).rejects.toMatchObject({ code: "unauthenticated" });
   const response = await createAuth(enabled).handler(request("sign-in/anonymous", {}));
-  const cookie = response.headers.get("set-cookie")!.split(";")[0];
+  const cookie = cookieHeader(response);
   const viewer = await viewerUser(new Headers({ cookie }), enabled);
   await expect(createPostForUser(form(), viewer)).rejects.toMatchObject({ code: "forbidden" });
   expect((await env.DB.prepare("SELECT count(*) AS n FROM posts").first<{ n: number }>())!.n).toBe(
     0,
   );
 });
-it.each(["sign-up/email", "sign-in/email"])(
+it.each(["new", "returning"])(
   "upgrades anonymous content on %s and merges duplicate votes before deleting the anonymous user",
   async (path) => {
-    const auth = createAuth(enabled);
-    const target =
-      path === "sign-in/email"
-        ? await auth.handler(
-            request("sign-up/email", {
-              email: "ada@example.com",
-              name: "Ada",
-              password: "a long test password",
-            }),
-          )
-        : null;
-    const targetCookie = target?.headers.get("set-cookie")!.split(";")[0];
+    const bindings = { ...env, GITHUB_CLIENT_ID: "client", GITHUB_CLIENT_SECRET: "secret" };
+    githubTransport();
+    const auth = createAuth(enabled, bindings);
+    const target = path === "returning" ? await socialSession(auth) : null;
+    const targetCookie = target ? cookieHeader(target) : undefined;
     const targetViewer = targetCookie
       ? await viewerUser(new Headers({ cookie: targetCookie }), enabled)
       : null;
@@ -65,18 +60,9 @@ it.each(["sign-up/email", "sign-in/email"])(
     );
     await setVoteForUser({ postId, voted: true }, anonymous, enabled);
     if (targetViewer) await setVoteForUser({ postId, voted: true }, targetViewer, enabled);
-    const response = await auth.handler(
-      request(
-        path,
-        { email: "ada@example.com", name: "Ada", password: "a long test password" },
-        cookie,
-      ),
-    );
-    expect(response.status).toBe(200);
-    const upgraded = (await viewerUser(
-      new Headers({ cookie: response.headers.get("set-cookie")!.split(";")[0] }),
-      enabled,
-    ))!;
+    const response = await socialSession(auth, cookie);
+    expect(response.status).toBe(302);
+    const upgraded = (await viewerUser(new Headers({ cookie: cookieHeader(response) }), enabled))!;
     expect(upgraded.kind).toBe("account");
     expect(upgraded.id).not.toBe(anonymous.id);
     expect(await getPostDetail(postId, upgraded)).toMatchObject({
@@ -105,7 +91,7 @@ it("limits anonymous session creation to five per minute per Cloudflare IP", asy
 it("transfers anonymous content when the browser signs in through a host link", async () => {
   const auth = createAuth(enabled);
   const response = await auth.handler(request("sign-in/anonymous", {}));
-  const cookie = response.headers.get("set-cookie")!.split(";")[0];
+  const cookie = cookieHeader(response);
   const anonymous = (await viewerUser(new Headers({ cookie }), enabled))!;
   const data = form(),
     postId = data.get("id") as string;
@@ -171,10 +157,7 @@ it("an anonymous write racing cleanup cannot burn SSO and prevent the cookie red
       );
     }
     expect(response.status).toBe(302);
-    const host = await viewerUser(
-      new Headers({ cookie: response.headers.get("set-cookie")!.split(";")[0] }),
-      enabled,
-    );
+    const host = await viewerUser(new Headers({ cookie: cookieHeader(response) }), enabled);
     expect(host?.kind).toBe("host");
     expect((await getPostDetail(data.get("id") as string, host)).author.id).toBe(host!.id);
     expect(

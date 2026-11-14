@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { AuthForm, validateAuth } from "../../src/components/portal/auth-form.tsx";
+import { SignInOptions } from "../../src/components/portal/sign-in-options.tsx";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { SiteHeader } from "../../src/components/portal/site-header.tsx";
 import { FilterPanel } from "../../src/components/portal/filter-panel.tsx";
@@ -49,57 +49,50 @@ describe("header", () => {
 
 describe("sign in and sign up", () => {
   it("shows OAuth buttons only for configured providers", async () => {
-    const none = await renderPage(<AuthForm mode="login" config={baseConfig} />, viewerOf(null));
+    const none = await renderPage(<SignInOptions config={baseConfig} />, viewerOf(null));
     expect(none).not.toContain("Continue with");
 
     const config = { ...baseConfig, oauth: { github: true, google: false } };
-    const github = await renderPage(
-      <AuthForm mode="login" config={config} />,
-      viewerOf(null, config),
-    );
+    const github = await renderPage(<SignInOptions config={config} />, viewerOf(null, config));
     expect(github).toContain("Continue with GitHub");
     expect(github).not.toContain("Continue with Google");
 
     const both = { ...baseConfig, oauth: { github: true, google: true } };
-    const html = await renderPage(<AuthForm mode="signup" config={both} />, viewerOf(null, both));
+    const html = await renderPage(<SignInOptions config={both} />, viewerOf(null, both));
     expect(html).toContain("Continue with GitHub");
     expect(html).toContain("Continue with Google");
   });
 
   it("mentions anonymous browsing only when it is on", async () => {
-    const off = await renderPage(<AuthForm mode="login" config={baseConfig} />, viewerOf(null));
+    const off = await renderPage(<SignInOptions config={baseConfig} />, viewerOf(null));
     expect(off).not.toContain("without an account");
     const config = { ...baseConfig, anonymous: true };
-    const on = await renderPage(<AuthForm mode="login" config={config} />, viewerOf(null, config));
+    const on = await renderPage(<SignInOptions config={config} />, viewerOf(null, config));
     expect(on).toContain("without an account");
   });
 
   it("links back to the host app when appUrl is set", async () => {
-    const config = { ...baseConfig, appUrl: "https://app.example.com" };
+    const config = { ...baseConfig, hostLogin: true, appUrl: "https://app.example.com" };
+    const html = await renderPage(<SignInOptions config={config} />, viewerOf(null, config));
+    expect(html).toContain("Continue in app.example.com");
+  });
+
+  it("shows an explicit unavailable state with no credential fields or orphan separator", async () => {
+    const html = await renderPage(<SignInOptions config={baseConfig} />, viewerOf(null));
+    expect(html).toContain("Sign-in isn&#x27;t configured");
+    expect(html).not.toMatch(/<input|<form|Create an account|data-slot="separator"/);
+  });
+  it("shows a separator only between actual alternatives and preserves safe anonymous destinations", async () => {
+    const config = { ...baseConfig, oauth: { github: true, google: false } };
+    const only = await renderPage(<SignInOptions config={config} />, viewerOf(null));
+    expect(only).not.toContain('data-slot="separator"');
+    const both = { ...config, anonymous: true };
     const html = await renderPage(
-      <AuthForm mode="login" config={config} />,
-      viewerOf(null, config),
+      <SignInOptions config={both} to="//evil.example" />,
+      viewerOf(null),
     );
-    expect(html).toContain("Came from app.example.com?");
-  });
-
-  it("asks for a name only when signing up", async () => {
-    const login = await renderPage(<AuthForm mode="login" config={baseConfig} />, viewerOf(null));
-    const signup = await renderPage(<AuthForm mode="signup" config={baseConfig} />, viewerOf(null));
-    expect(login).not.toContain('name="name"');
-    expect(signup).toContain('name="name"');
-    expect(login).not.toMatch(/forgot|reset/i);
-  });
-
-  it("validates like the server: 12–128 character passwords and a name", () => {
-    const ok = { name: "Ada", email: "ada@example.com", password: "a".repeat(12) };
-    expect(validateAuth("signup", ok)).toEqual({});
-    expect(validateAuth("signup", { ...ok, password: "short" }).password).toMatch(/12/);
-    expect(validateAuth("signup", { ...ok, password: "a".repeat(129) }).password).toMatch(/128/);
-    expect(validateAuth("signup", { ...ok, name: "  " }).name).toBeTruthy();
-    expect(validateAuth("signup", { ...ok, email: "nope" }).email).toBeTruthy();
-    // Existing accounts can always sign in, whatever their password length.
-    expect(validateAuth("login", { ...ok, password: "short" })).toEqual({});
+    expect(html).toContain('data-slot="separator"');
+    expect(html).not.toContain("evil.example");
   });
 });
 

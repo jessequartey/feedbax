@@ -42,18 +42,16 @@ try {
   )?.[1];
   assert(rpc);
   const url = `${env.PORTAL_URL}/_serverFn/${rpc}`;
+  const hostUrl = `${env.PORTAL_URL}/api/auth/feedbax/sign-in?token=${await mintToken({ sub: "entry-user", name: "Entry user" })}`;
+  assert.equal((await worker.fetch(new Request(hostUrl))).status, 200);
   const signup = await worker.fetch(
-    new Request(`${env.PORTAL_URL}/api/auth/sign-up/email`, {
+    new Request(hostUrl, {
       method: "POST",
-      headers: { origin: env.PORTAL_URL, "content-type": "application/json" },
-      body: JSON.stringify({
-        name: "Entry user",
-        email: "entry@example.com",
-        password: "a long test password",
-      }),
+      headers: { origin: env.PORTAL_URL, "content-type": "application/x-www-form-urlencoded" },
+      body: "",
     }),
   );
-  assert.equal(signup.status, 200);
+  assert.equal(signup.status, 302);
   const cookie = signup.headers.get("set-cookie")!.split(";")[0];
   for (const handle of [framework, worker]) {
     for (const origin of ["http://sibling.localhost:4000", "https://evil.example"]) {

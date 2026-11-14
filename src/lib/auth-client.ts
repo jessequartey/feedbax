@@ -1,5 +1,5 @@
 // Same-origin client for Better Auth's REST endpoints under /api/auth/*. Only what the portal
-// needs: email sign-in/up, social redirect, the lazy anonymous session, and sign-out.
+// needs: social redirect, the lazy anonymous session, and sign-out.
 //
 // Why not `createAuthClient()`? Importing it ships Better Auth's shared env helper, which spells
 // out the names of server secrets in the client bundle, and the repo's gate is that
@@ -42,7 +42,6 @@ async function post<T = unknown>(
 
 export const authClient = {
   signIn: {
-    email: (input: { email: string; password: string }) => post("/sign-in/email", input),
     /** Anonymous mode only. Called just before the first write. */
     anonymous: () => post("/sign-in/anonymous"),
     social: async (input: { provider: "github" | "google"; callbackURL: string }) => {
@@ -50,10 +49,6 @@ export const authClient = {
       if (result.data?.url) window.location.assign(result.data.url);
       return result;
     },
-  },
-  signUp: {
-    email: (input: { name: string; email: string; password: string }) =>
-      post("/sign-up/email", input),
   },
   signOut: () => post("/sign-out"),
 };

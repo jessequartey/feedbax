@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AuthForm } from "@/components/portal/auth-form";
+import { SignInOptions } from "@/components/portal/sign-in-options";
 import { pageTitle } from "@/components/portal/route-head";
 import { safeRelativePath } from "@/components/portal/safe-path";
 import { useViewer } from "@/components/portal/viewer";
@@ -19,7 +19,7 @@ function LoginPage() {
   const { to } = Route.useSearch();
   return (
     <div className="px-4 py-10 md:py-16">
-      <AuthForm mode="login" config={config} to={to} />
+      <SignInOptions config={config} to={to} />
     </div>
   );
 }

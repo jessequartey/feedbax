@@ -110,3 +110,26 @@ it.each([
 ])("validates list input %j", async (input) => {
   await expect(listPostPage(input as never, null)).rejects.toMatchObject({ code: "invalid_input" });
 });
+
+it("reuses only synchronous DB wrappers, isolates bindings and observes fresh data and query parameters", async () => {
+  const { createDb } = await import("../../src/db/client.ts");
+  const { vi } = await import("vite-plus/test");
+  const prepare = vi.fn(() => {
+    throw new Error("construction performed I/O");
+  });
+  const binding = { prepare } as unknown as D1Database;
+  expect(createDb(binding)).toBe(createDb(binding));
+  expect(prepare).not.toHaveBeenCalled();
+  const db = createDb(env.DB);
+  expect(createDb(binding)).not.toBe(db);
+  const one = await writer(),
+    two = await writer();
+  const find = (id: string) =>
+    db.query.user.findFirst({ where: (fields, { eq }) => eq(fields.id, id) });
+  const rows = await Promise.all([find(one.id), find(two.id)]);
+  expect(rows.map((row) => row?.id)).toEqual([one.id, two.id]);
+  await env.DB.prepare("UPDATE user SET name='Fresh name' WHERE id=?").bind(one.id).run();
+  expect((await find(one.id))?.name).toBe("Fresh name");
+  await resetEnv();
+  expect(await db.query.user.findMany()).toEqual([]);
+});

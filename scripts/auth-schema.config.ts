@@ -10,7 +10,7 @@ export const auth = betterAuth({
   database: drizzleAdapter({} as never, { provider: "sqlite", transaction: false }),
   baseURL: "http://localhost:3000",
   secret: "generator-only-secret-generator-only-secret",
-  emailAndPassword: { enabled: true },
+  emailAndPassword: { enabled: false },
   rateLimit: { enabled: true, storage: "database" },
   user: {
     additionalFields: {
