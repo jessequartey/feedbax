@@ -193,6 +193,8 @@ describe("failures never loop", () => {
       cursor: null,
     });
     expect(await readState("notion.backoff")).toBeNull();
+    expect(await readState("notion.error")).toBeNull();
+    expect(await (await handleHealth()).json()).toMatchObject({ notion: "ok" });
   });
 });
 
