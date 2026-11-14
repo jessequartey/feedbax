@@ -227,14 +227,14 @@ export function markdownToHtml(source: string): string {
     .join("");
 }
 
-function inlineText(nodes: Inline[]): string {
+function inlineText(nodes: Inline[], lineBreak = " "): string {
   return nodes
     .map((node) =>
       node.type === "text" || node.type === "code"
         ? node.text
         : node.type === "break"
-          ? " "
-          : inlineText(node.children),
+          ? lineBreak
+          : inlineText(node.children, lineBreak),
     )
     .join("");
 }
@@ -244,7 +244,7 @@ export function markdownToText(source: string, max = 160): string {
   const text = parseMarkdown(source)
     .map((block) =>
       block.type === "list"
-        ? block.items.map(inlineText).join(" ")
+        ? block.items.map((item) => inlineText(item)).join(" ")
         : block.type === "code"
           ? block.text
           : block.type === "rule"
@@ -256,4 +256,30 @@ export function markdownToText(source: string, max = 160): string {
     .trim();
   const letters = Array.from(text);
   return letters.length > max ? `${letters.slice(0, max - 1).join("")}…` : text;
+}
+
+/**
+ * The whole body as plain text, no cut and no HTML: blocks are separated by a blank line, list
+ * items sit on their own lines ("- " or "1. "), quotes and code keep their text. Used where a
+ * reader cannot render Markdown (webhook payloads carry both forms).
+ */
+export function markdownToPlainText(source: string): string {
+  return parseMarkdown(source)
+    .map((block) => {
+      switch (block.type) {
+        case "list":
+          return block.items
+            .map((item, i) => `${block.ordered ? `${i + 1}.` : "-"} ${inlineText(item, "\n")}`)
+            .join("\n");
+        case "code":
+          return block.text;
+        case "rule":
+          return "";
+        default:
+          return inlineText(block.children, "\n");
+      }
+    })
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 }

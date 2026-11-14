@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { AdminSettings, NotificationToggles, RuntimeSettings } from "@/contracts/admin";
+import type { AdminWebhooks } from "@/contracts/webhooks";
 import { CATEGORY_LABELS, type Category } from "@/contracts/domain";
 import { CATEGORY_ICONS } from "@/components/portal/post-badges";
 import { adminSaveSettings } from "@/server/functions";
@@ -65,7 +66,13 @@ function ToggleRow({
 }
 
 /** Edits the D1 runtime overrides. Values equal to feedbax.config.ts clear the override. */
-export function SettingsForm({ settings }: { settings: AdminSettings }) {
+export function SettingsForm({
+  settings,
+  webhooks,
+}: {
+  settings: AdminSettings;
+  webhooks: AdminWebhooks;
+}) {
   const { effective, defaults } = settings;
   const act = useAdminAction();
   const ids = React.useId();
@@ -290,7 +297,7 @@ export function SettingsForm({ settings }: { settings: AdminSettings }) {
         </div>
       </form>
 
-      <WebhooksSection />
+      <WebhooksSection webhooks={webhooks} />
     </div>
   );
 }

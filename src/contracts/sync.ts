@@ -3,6 +3,8 @@ export type SyncMessage =
   /** Moves the Notion row of a deleted post to trash. The post no longer exists in D1. */
   | { type: "notion.archive"; pageId: string }
   | { type: "github.issue"; postId: string }
+  /** One attempt at a stored webhook delivery (src/server/webhooks.ts). Retries re-send it. */
+  | { type: "webhook.deliver"; deliveryId: string }
   | { type: "notion.poll"; since: string; until: string; cursor: string | null }
   | { type: "github.poll"; since: string; until: string; page: number };
 export type SyncErrorState = {

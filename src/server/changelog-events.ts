@@ -1,5 +1,6 @@
 import { waitUntil } from "cloudflare:workers";
 import type { ChangelogPublishedEvent } from "../contracts/changelog.ts";
+import { emitChangelogWebhook } from "./webhooks.ts";
 
 // The attachment point for "changelog.published". Tickets 07 (email) and 08 (webhooks) add a
 // sink to `changelogPublishedSinks`; today the list is empty, so publishing an entry does
@@ -14,7 +15,10 @@ export type ChangelogPublishedSink = (event: ChangelogPublishedEvent) => void | 
  * (enqueue one `email.changelog` queue message). Ticket 08: push the webhook enqueue for
  * event "changelog.published". Keep a sink short: enqueue work, do not do it here.
  */
-export const changelogPublishedSinks: ChangelogPublishedSink[] = [];
+export const changelogPublishedSinks: ChangelogPublishedSink[] = [
+  // Webhooks: one indexed read, and nothing more when no endpoint wants the event.
+  emitChangelogWebhook,
+];
 
 /** Runs every sink and resolves when all settled. Safe to await in tests. */
 export async function runChangelogPublished(event: ChangelogPublishedEvent): Promise<void> {
