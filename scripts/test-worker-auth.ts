@@ -82,6 +82,34 @@ const common = {
   r2Buckets: ["IMAGES"],
   queueProducers: { SYNC_QUEUE: "sync" },
 };
+const emittedConfig = JSON.parse(await readFile(resolve(root, "wrangler.json"), "utf8"));
+assert.equal(emittedConfig.assets.not_found_handling, "single-page-application");
+assert.deepEqual(emittedConfig.assets.run_worker_first, ["/api/*", "/_serverFn/*"]);
+const staticAssets = {
+  directory: resolve(root, emittedConfig.assets.directory),
+  run_worker_first: emittedConfig.assets.run_worker_first,
+  routerConfig: { has_user_worker: true },
+  assetConfig: { not_found_handling: emittedConfig.assets.not_found_handling },
+};
+const shellHtml = await readFile(resolve(staticAssets.directory, "index.html"), "utf8");
+assert.match(shellHtml, /<title>Feedbax<\/title>/);
+assert.doesNotMatch(
+  shellHtml,
+  /loaderData|hostLogin|anonymous:|oauth:|session_token|test-client|Runtime fixture/,
+);
+assert.deepEqual(
+  (await readdir(staticAssets.directory)).filter((p) => p.endsWith(".html")),
+  ["index.html"],
+);
+const shellRuntime = new Miniflare(
+  convertV4MiniflareOptions({
+    ...common,
+    // No bindings at all: the document build/asset delivery must be independent of config/auth/D1.
+    bindings: {},
+    modules,
+    assets: staticAssets,
+  }),
+);
 const runtime = new Miniflare(
   convertV4MiniflareOptions({
     workers: [
@@ -96,6 +124,7 @@ const runtime = new Miniflare(
           },
           ...modules,
         ],
+        assets: staticAssets,
         d1Databases: { DB: "primary", DB_OTHER: "secondary" },
         outboundService: async (request: Request) => {
           const url = new URL(request.url);
@@ -122,9 +151,11 @@ const runtime = new Miniflare(
         },
       },
       {
-        // Deliberately no DB binding: any document loader/auth/data read must fail.
-        name: "shell",
+        name: "build-shell",
         ...common,
+        // The prerender-only environment makes Start force the root loader to execute.
+        // No DB, auth inputs or provider flags exist in this worker.
+        bindings: { TSS_SHELL: "true" },
         modules,
       },
       {
@@ -163,8 +194,18 @@ try {
     fetch: (input: string, init?: Parameters<typeof runtime.dispatchFetch>[1]) =>
       runtime.dispatchFetch(input, { ...init, redirect: "manual" }),
   };
+  const buildShell = await service("build-shell");
+  const generated = await buildShell.fetch("https://portal.example.com/");
+  assert.equal(generated.status, 200, "shell generation needs no auth/D1/config bindings");
+  const generatedHtml = await generated.text();
+  assert.match(generatedHtml, /Loading feedback/);
+  assert.doesNotMatch(generatedHtml, /loaderData|hostLogin|anonymous:|oauth:|session_token/);
+  assert.equal(generated.headers.has("set-cookie"), false);
   const local = await service("probe");
-  const shell = await service("shell");
+  const shell = {
+    fetch: (input: string, init?: Parameters<typeof shellRuntime.dispatchFetch>[1]) =>
+      shellRuntime.dispatchFetch(input, { ...init, redirect: "manual" }),
+  };
   for (const path of [
     "/",
     "/roadmap",
@@ -175,17 +216,68 @@ try {
   ]) {
     for (const cookie of ["", "__Secure-better-auth.session_token=forged"]) {
       const response = await shell.fetch(`https://portal.example.com${path}`, {
-        headers: { cookie },
+        headers: { cookie, "sec-fetch-mode": "navigate" },
       });
       const html = await response.text();
       assert.equal(response.status, 200, "deep-link shell does not need bindings or a viewer");
-      assert.match(html, /Loading feedback/);
+      assert.equal(html, shellHtml, "document is the exact neutral build artifact");
       assert.doesNotMatch(
         html,
         /Runtime fixture|Host one|Social fixture|session_token|test-client|loaderData/,
       );
       assert.equal(response.headers.has("set-cookie"), false);
     }
+  }
+  const resources = [
+    ...new Set(
+      [...shellHtml.matchAll(/(?:href|src)="(\/assets\/[^"?]+\.(?:js|css))"/g)].map(
+        (match) => match[1],
+      ),
+    ),
+  ];
+  assert(resources.length > 0, "shell references emitted client resources");
+  for (const path of resources) {
+    const resource = await shell.fetch(`https://portal.example.com${path}`);
+    assert.equal(resource.status, 200);
+    assert.match(
+      resource.headers.get("content-type") ?? "",
+      path.endsWith(".css") ? /text\/css/ : /javascript/,
+    );
+    assert.doesNotMatch(await resource.text(), /<!DOCTYPE|<html/i);
+  }
+  for (const mode of [undefined, "navigate"]) {
+    const headers = mode ? { "sec-fetch-mode": mode } : {};
+    for (const path of [
+      "/",
+      "/roadmap",
+      "/unknown-route",
+      "/posts/11111111-1111-4111-8111-111111111111",
+    ]) {
+      for (const method of ["GET", "HEAD"]) {
+        const response = await shell.fetch(`https://portal.example.com${path}`, {
+          method,
+          headers,
+        });
+        assert(
+          [200, 404].includes(response.status),
+          `${method} ${path} ${mode}: static or honest 404`,
+        );
+        const body = await response.text();
+        assert.equal(
+          body,
+          method === "HEAD" || response.status === 404 ? "" : shellHtml,
+          "no hidden per-request rendering for non-navigation clients",
+        );
+      }
+    }
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+      const response = await shell.fetch("https://portal.example.com/roadmap", { method, headers });
+      assert([404, 405].includes(response.status), `${method} page never SSRs`);
+      assert.doesNotMatch(await response.text(), /<!DOCTYPE|<html/i);
+    }
+    const missing = await shell.fetch("https://portal.example.com/assets/missing.js", { headers });
+    assert([200, 404].includes(missing.status), "missing asset gets static shell or honest 404");
+    assert.equal(await missing.text(), missing.status === 200 ? shellHtml : "");
   }
   const primary = await runtime.getD1Database("DB", "app"),
     secondary = await runtime.getD1Database("DB_OTHER", "probe");
@@ -252,7 +344,9 @@ try {
     ((await (await probeFetch("/viewer", cb)).json()) as { name: string }).name,
     "Host two",
   );
-  const assets = modules.find((m) => /assets\/functions-/.test(m.path))!.contents;
+  const assets = modules.find((m) =>
+    m.contents.includes("var getViewer_createServerFn_handler = createServerRpc("),
+  )!.contents;
   const viewerId =
     /var getViewer_createServerFn_handler = createServerRpc\(\{\s*id: "([^"]+)"/.exec(assets)?.[1];
   assert(viewerId);
@@ -264,13 +358,79 @@ try {
         "x-tsr-serverFn": "true",
       },
     });
+  for (const mode of [undefined, "navigate"]) {
+    const headers = mode ? { "sec-fetch-mode": mode } : {};
+    const health = await app.fetch("https://portal.example.com/api/health", { headers });
+    assert.equal(health.status, 200, await health.clone().text());
+    assert.match(health.headers.get("content-type") ?? "", /application\/json/);
+    await health.arrayBuffer();
+    const confirmation = await app.fetch(
+      `https://portal.example.com/api/auth/feedbax/sign-in?token=${token("Navigation confirmation")}`,
+      { headers },
+    );
+    assert.equal(confirmation.status, 200);
+    assert.notEqual(
+      await confirmation.text(),
+      shellHtml,
+      "host GET remains its confirmation handler",
+    );
+    assert.equal(confirmation.headers.has("set-cookie"), false, "GET never consumes host token");
+    for (const path of [
+      "/api/auth/sign-up/email",
+      "/api/auth/callback/google",
+      "/_serverFn/unknown-function",
+    ]) {
+      const rejected = await app.fetch(`https://portal.example.com${path}`, {
+        headers: {
+          ...headers,
+          origin: "https://portal.example.com",
+          "sec-fetch-site": "same-origin",
+          ...(path.startsWith("/_serverFn/") ? { "x-tsr-serverFn": "true" } : {}),
+        },
+      });
+      assert(
+        (path.startsWith("/_serverFn/") ? [404, 500] : [404, 405]).includes(rejected.status),
+        `worker rejection for ${path} ${mode}: ${rejected.status} ${await rejected.clone().text()}`,
+      );
+      assert.doesNotMatch(
+        await rejected.text(),
+        /<!DOCTYPE|<html/i,
+        "API/RPC errors are never SPA HTML",
+      );
+    }
+    const callback = await app.fetch(
+      "https://portal.example.com/api/auth/callback/github?error=access_denied",
+      { headers },
+    );
+    assert.equal(callback.status, 302, "OAuth callback stays worker-first for navigation requests");
+    assert.match(callback.headers.get("location") ?? "", /error/);
+    await callback.arrayBuffer();
+    const start = await app.fetch("https://portal.example.com/api/auth/sign-in/social", {
+      method: "POST",
+      headers: {
+        ...headers,
+        origin: "https://portal.example.com",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ provider: "github", callbackURL: "/my-feedback" }),
+    });
+    assert.equal(start.status, 200, "social start remains the auth handler");
+    assert.match(start.headers.get("content-type") ?? "", /application\/json/);
+    await start.arrayBuffer();
+    const viewer = await app.fetch(`https://portal.example.com/_serverFn/${viewerId}`, {
+      headers: { ...headers, origin: "https://portal.example.com", "x-tsr-serverFn": "true" },
+    });
+    assert.equal(viewer.status, 200);
+    assert.match(viewer.headers.get("cache-control") ?? "", /private.*no-store/);
+    assert.doesNotMatch(await viewer.text(), /<!DOCTYPE|<html/i);
+  }
   const redirect = await app.fetch("https://portal.example.com/signup?to=%2Fmy-feedback");
   assert.equal(
     redirect.status,
     200,
     "signup document defers its compatibility redirect to client routing",
   );
-  assert.match(await redirect.text(), /Loading feedback/);
+  assert.equal(await redirect.text(), shellHtml);
   const rpcId = (name: string) => {
     const id = new RegExp(
       `var ${name}_createServerFn_handler = createServerRpc\\(\\{\\s*id: "([^"]+)"`,
@@ -376,7 +536,7 @@ try {
       });
       const html = await response.text();
       assert.equal(response.status, 200);
-      assert.match(html, /Loading feedback/);
+      assert.equal(html, shellHtml, "document is the exact neutral build artifact");
       for (const forbidden of [
         "Client one",
         "Client two",
@@ -423,7 +583,7 @@ try {
       headers: { cookie },
     });
     assert.equal(doc.status, 200);
-    assert.equal(doc.headers.get("X-Local-D1-Reads"), "0");
+    assert.equal(doc.headers.get("X-Local-D1-Reads"), null, "static document bypasses worker");
     await doc.arrayBuffer();
   }
   assert.deepEqual(usage.unsigned, {
@@ -495,8 +655,9 @@ try {
     assert.equal(response.headers.get("cache-control"), "no-store");
   }
   console.log(
-    "ok: real workerd DB wrapper construction/binding/freshness/concurrent-params; injected host identities/token consumption; concurrent sessions/revocation; data-free deep-link shell; emitted private read RPCs and per-user votes/My feedback; protected mutation; controlled OAuth callback/state replay; mounted disabled routes",
+    "ok: actual static assets and shell-generation isolation; GET/HEAD/deep links/non-GET pages; API/RPC navigation prefixes; real workerd DB wrapper construction/binding/freshness/concurrent-params; injected host identities/token consumption; concurrent sessions/revocation; data-free deep-link shell; emitted private read RPCs and per-user votes/My feedback; protected mutation; controlled OAuth callback/state replay; mounted disabled routes",
   );
 } finally {
   await runtime.dispose();
+  await shellRuntime.dispose();
 }

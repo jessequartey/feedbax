@@ -6,7 +6,7 @@ import { NotFoundState } from "@/components/portal/states";
 import { getPost, listComments } from "@/server/functions";
 import { uuid } from "@/server/validation";
 
-export const Route = createFileRoute("/posts/$postId")({
+export const Route = createFileRoute("/_portal/posts/$postId")({
   loader: async ({ params }) => {
     try {
       uuid(params.postId);

@@ -150,7 +150,7 @@ it("rejects every non-portal auth route at the real mount without database work"
   } finally {
     prepare.mockRestore();
   }
-  expect(await env.DB.prepare("SELECT name FROM user").all()).toEqual(before);
+  expect((await env.DB.prepare("SELECT name FROM user").all()).results).toEqual(before.results);
 });
 
 it("projects only public capabilities, validates host keys and keeps host login distinct from appUrl", () => {

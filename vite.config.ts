@@ -38,7 +38,10 @@ const config = defineConfig({
     : lazyPlugins(() => [
         cloudflare({ viteEnvironment: { name: "ssr" } }),
 
-        tanstackStart(),
+        tanstackStart({
+          spa: { enabled: true, prerender: { outputPath: "/index" } },
+          prerender: { autoStaticPathsDiscovery: false },
+        }),
         viteReact(),
         tailwindcss(),
       ]),

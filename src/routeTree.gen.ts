@@ -9,47 +9,52 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as MyFeedbackRouteImport } from './routes/my-feedback'
-import { Route as RoadmapRouteImport } from './routes/roadmap'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as SubmitRouteImport } from './routes/submit'
+import { Route as PortalRouteImport } from './routes/_portal'
+import { Route as PortalIndexRouteImport } from './routes/_portal.index'
+import { Route as PortalLoginRouteImport } from './routes/_portal.login'
+import { Route as PortalMyFeedbackRouteImport } from './routes/_portal.my-feedback'
+import { Route as PortalRoadmapRouteImport } from './routes/_portal.roadmap'
+import { Route as PortalSignupRouteImport } from './routes/_portal.signup'
+import { Route as PortalSubmitRouteImport } from './routes/_portal.submit'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
-import { Route as PostsPostIdRouteImport } from './routes/posts.$postId'
+import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
 
-const IndexRoute = IndexRouteImport.update({
+const PortalRoute = PortalRouteImport.update({
+  id: '/_portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
-const LoginRoute = LoginRouteImport.update({
+const PortalLoginRoute = PortalLoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
-const MyFeedbackRoute = MyFeedbackRouteImport.update({
+const PortalMyFeedbackRoute = PortalMyFeedbackRouteImport.update({
   id: '/my-feedback',
   path: '/my-feedback',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
-const RoadmapRoute = RoadmapRouteImport.update({
+const PortalRoadmapRoute = PortalRoadmapRouteImport.update({
   id: '/roadmap',
   path: '/roadmap',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
-const SignupRoute = SignupRouteImport.update({
+const PortalSignupRoute = PortalSignupRouteImport.update({
   id: '/signup',
   path: '/signup',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
-const SubmitRoute = SubmitRouteImport.update({
+const PortalSubmitRoute = PortalSubmitRouteImport.update({
   id: '/submit',
   path: '/submit',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -61,10 +66,10 @@ const ApiPostsRoute = ApiPostsRouteImport.update({
   path: '/api/posts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PostsPostIdRoute = PostsPostIdRouteImport.update({
+const PortalPostsPostIdRoute = PortalPostsPostIdRouteImport.update({
   id: '/posts/$postId',
   path: '/posts/$postId',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => PortalRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -78,42 +83,43 @@ const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/my-feedback': typeof MyFeedbackRoute
-  '/roadmap': typeof RoadmapRoute
-  '/signup': typeof SignupRoute
-  '/submit': typeof SubmitRoute
+  '/': typeof PortalIndexRoute
+  '/login': typeof PortalLoginRoute
+  '/my-feedback': typeof PortalMyFeedbackRoute
+  '/roadmap': typeof PortalRoadmapRoute
+  '/signup': typeof PortalSignupRoute
+  '/submit': typeof PortalSubmitRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
-  '/posts/$postId': typeof PostsPostIdRoute
+  '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/my-feedback': typeof MyFeedbackRoute
-  '/roadmap': typeof RoadmapRoute
-  '/signup': typeof SignupRoute
-  '/submit': typeof SubmitRoute
+  '/login': typeof PortalLoginRoute
+  '/my-feedback': typeof PortalMyFeedbackRoute
+  '/roadmap': typeof PortalRoadmapRoute
+  '/signup': typeof PortalSignupRoute
+  '/submit': typeof PortalSubmitRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
-  '/posts/$postId': typeof PostsPostIdRoute
+  '/': typeof PortalIndexRoute
+  '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
-  '/my-feedback': typeof MyFeedbackRoute
-  '/roadmap': typeof RoadmapRoute
-  '/signup': typeof SignupRoute
-  '/submit': typeof SubmitRoute
+  '/_portal': typeof PortalRouteWithChildren
+  '/_portal/login': typeof PortalLoginRoute
+  '/_portal/my-feedback': typeof PortalMyFeedbackRoute
+  '/_portal/roadmap': typeof PortalRoadmapRoute
+  '/_portal/signup': typeof PortalSignupRoute
+  '/_portal/submit': typeof PortalSubmitRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
-  '/posts/$postId': typeof PostsPostIdRoute
+  '/_portal/': typeof PortalIndexRoute
+  '/_portal/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/media/$id': typeof ApiMediaIdRoute
 }
@@ -133,7 +139,6 @@ export interface FileRouteTypes {
     | '/api/media/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/login'
     | '/my-feedback'
     | '/roadmap'
@@ -141,81 +146,84 @@ export interface FileRouteTypes {
     | '/submit'
     | '/api/health'
     | '/api/posts'
+    | '/'
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
   id:
     | '__root__'
-    | '/'
-    | '/login'
-    | '/my-feedback'
-    | '/roadmap'
-    | '/signup'
-    | '/submit'
+    | '/_portal'
+    | '/_portal/login'
+    | '/_portal/my-feedback'
+    | '/_portal/roadmap'
+    | '/_portal/signup'
+    | '/_portal/submit'
     | '/api/health'
     | '/api/posts'
-    | '/posts/$postId'
+    | '/_portal/'
+    | '/_portal/posts/$postId'
     | '/api/auth/$'
     | '/api/media/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  LoginRoute: typeof LoginRoute
-  MyFeedbackRoute: typeof MyFeedbackRoute
-  RoadmapRoute: typeof RoadmapRoute
-  SignupRoute: typeof SignupRoute
-  SubmitRoute: typeof SubmitRoute
+  PortalRoute: typeof PortalRouteWithChildren
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPostsRoute: typeof ApiPostsRoute
-  PostsPostIdRoute: typeof PostsPostIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiMediaIdRoute: typeof ApiMediaIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_portal': {
+      id: '/_portal'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_portal/': {
+      id: '/_portal/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
     }
-    '/login': {
-      id: '/login'
+    '/_portal/login': {
+      id: '/_portal/login'
       path: '/login'
       fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalLoginRouteImport
+      parentRoute: typeof PortalRoute
     }
-    '/my-feedback': {
-      id: '/my-feedback'
+    '/_portal/my-feedback': {
+      id: '/_portal/my-feedback'
       path: '/my-feedback'
       fullPath: '/my-feedback'
-      preLoaderRoute: typeof MyFeedbackRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalMyFeedbackRouteImport
+      parentRoute: typeof PortalRoute
     }
-    '/roadmap': {
-      id: '/roadmap'
+    '/_portal/roadmap': {
+      id: '/_portal/roadmap'
       path: '/roadmap'
       fullPath: '/roadmap'
-      preLoaderRoute: typeof RoadmapRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalRoadmapRouteImport
+      parentRoute: typeof PortalRoute
     }
-    '/signup': {
-      id: '/signup'
+    '/_portal/signup': {
+      id: '/_portal/signup'
       path: '/signup'
       fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalSignupRouteImport
+      parentRoute: typeof PortalRoute
     }
-    '/submit': {
-      id: '/submit'
+    '/_portal/submit': {
+      id: '/_portal/submit'
       path: '/submit'
       fullPath: '/submit'
-      preLoaderRoute: typeof SubmitRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalSubmitRouteImport
+      parentRoute: typeof PortalRoute
     }
     '/api/health': {
       id: '/api/health'
@@ -231,12 +239,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPostsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/posts/$postId': {
-      id: '/posts/$postId'
+    '/_portal/posts/$postId': {
+      id: '/_portal/posts/$postId'
       path: '/posts/$postId'
       fullPath: '/posts/$postId'
-      preLoaderRoute: typeof PostsPostIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof PortalPostsPostIdRouteImport
+      parentRoute: typeof PortalRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -255,16 +263,33 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PortalRouteChildren {
+  PortalLoginRoute: typeof PortalLoginRoute
+  PortalMyFeedbackRoute: typeof PortalMyFeedbackRoute
+  PortalRoadmapRoute: typeof PortalRoadmapRoute
+  PortalSignupRoute: typeof PortalSignupRoute
+  PortalSubmitRoute: typeof PortalSubmitRoute
+  PortalIndexRoute: typeof PortalIndexRoute
+  PortalPostsPostIdRoute: typeof PortalPostsPostIdRoute
+}
+
+const PortalRouteChildren: PortalRouteChildren = {
+  PortalLoginRoute: PortalLoginRoute,
+  PortalMyFeedbackRoute: PortalMyFeedbackRoute,
+  PortalRoadmapRoute: PortalRoadmapRoute,
+  PortalSignupRoute: PortalSignupRoute,
+  PortalSubmitRoute: PortalSubmitRoute,
+  PortalIndexRoute: PortalIndexRoute,
+  PortalPostsPostIdRoute: PortalPostsPostIdRoute,
+}
+
+const PortalRouteWithChildren =
+  PortalRoute._addFileChildren(PortalRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  LoginRoute: LoginRoute,
-  MyFeedbackRoute: MyFeedbackRoute,
-  RoadmapRoute: RoadmapRoute,
-  SignupRoute: SignupRoute,
-  SubmitRoute: SubmitRoute,
+  PortalRoute: PortalRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
   ApiPostsRoute: ApiPostsRoute,
-  PostsPostIdRoute: PostsPostIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiMediaIdRoute: ApiMediaIdRoute,
 }

@@ -4,7 +4,7 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
-import { Route as SignupRoute } from "../../src/routes/signup.tsx";
+import { Route as SignupRoute } from "../../src/routes/_portal.signup.tsx";
 import { describe, expect, it } from "vite-plus/test";
 
 import { loginHref, safeRelativePath } from "../../src/components/portal/safe-path.ts";

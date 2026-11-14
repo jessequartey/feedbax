@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/portal/page-header";
 import { pageTitle } from "@/components/portal/route-head";
 import { SubmitForm } from "@/components/portal/submit-form";
 
-export const Route = createFileRoute("/submit")({
+export const Route = createFileRoute("/_portal/submit")({
   head: ({ matches }) => pageTitle(matches, "New post"),
   component: SubmitPage,
 });

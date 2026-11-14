@@ -35,10 +35,13 @@ try {
   };
   const worker = process.env.FEEDBAX_ENTRY_BASELINE === "1" ? framework : emittedWorker;
   const assets = resolve("dist/server/assets");
-  const functions = (await readdir(assets)).find((name) => /^functions-.*\.js$/.test(name));
-  assert(functions);
+  const functionChunks = await Promise.all(
+    (await readdir(assets))
+      .filter((name) => /^functions-.*\.js$/.test(name))
+      .map((name) => readFile(resolve(assets, name), "utf8")),
+  );
   const rpc = /var createPost_createServerFn_handler = createServerRpc\(\{\s*id: "([^"]+)"/.exec(
-    await readFile(resolve(assets, functions), "utf8"),
+    functionChunks.join("\n"),
   )?.[1];
   assert(rpc);
   const url = `${env.PORTAL_URL}/_serverFn/${rpc}`;

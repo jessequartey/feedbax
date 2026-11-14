@@ -17,7 +17,7 @@ import { listMyPosts } from "@/server/functions";
 const TITLE = "My feedback";
 const DESCRIPTION = "Everything you've posted, and where it stands.";
 
-export const Route = createFileRoute("/my-feedback")({
+export const Route = createFileRoute("/_portal/my-feedback")({
   validateSearch: (search: Record<string, unknown>) => parseBoardSearch(search),
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => listMyPosts({ data: toListInput(deps) }),

@@ -5,7 +5,7 @@ import { pageTitle } from "@/components/portal/route-head";
 import { safeRelativePath } from "@/components/portal/safe-path";
 import { useViewer } from "@/components/portal/viewer";
 
-export const Route = createFileRoute("/login")({
+export const Route = createFileRoute("/_portal/login")({
   validateSearch: (search: Record<string, unknown>): { to?: string } => {
     const to = safeRelativePath(search.to);
     return to === "/" ? {} : { to };

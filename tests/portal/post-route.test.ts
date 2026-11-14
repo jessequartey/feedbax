@@ -8,12 +8,20 @@ const functions = vi.hoisted(() => ({
   getPost: vi.fn(),
   listComments: vi.fn(),
   getViewer: vi.fn(),
+  listPosts: vi.fn(),
+  listMyPosts: vi.fn(),
+  getRoadmap: vi.fn(),
 }));
 vi.mock("../../src/server/functions.ts", () => functions);
 
 import { Route as RootRoute } from "../../src/routes/__root.tsx";
+import { Route as BoardRoute } from "../../src/routes/_portal.index.tsx";
+import { Route as RoadmapRoute } from "../../src/routes/_portal.roadmap.tsx";
+import { Route as MyFeedbackRoute } from "../../src/routes/_portal.my-feedback.tsx";
+import { Route as PortalRoute } from "../../src/routes/_portal.tsx";
+import { pageTitle } from "../../src/components/portal/route-head.ts";
 import { viewerOf } from "./helpers.tsx";
-import { Route } from "../../src/routes/posts.$postId.tsx";
+import { Route } from "../../src/routes/_portal.posts.$postId.tsx";
 
 async function load(path: string) {
   const root = createRootRoute();
@@ -61,18 +69,19 @@ describe("post route", () => {
   });
 });
 
-it("root CSR skips viewer and post loaders on the server and runs them for the client deep link", async () => {
+it("portal CSR skips viewer and post loaders on the server and runs them for the client deep link", async () => {
   const post = Route;
+  Object.assign(PortalRoute.options, { id: "/_portal", getParentRoute: () => RootRoute });
   Object.assign(post.options, {
     id: "/posts/$postId",
     path: "/posts/$postId",
-    getParentRoute: () => RootRoute,
+    getParentRoute: () => PortalRoute,
   });
   for (const isServer of [true, false]) {
     vi.clearAllMocks();
     const router = createRouter({
       origin: "http://localhost",
-      routeTree: RootRoute.addChildren([post]),
+      routeTree: RootRoute.addChildren([PortalRoute.addChildren([post])]),
       history: createMemoryHistory({ initialEntries: [`/posts/${fixtureId(1)}`] }),
       isServer,
     });
@@ -89,3 +98,43 @@ it("root CSR skips viewer and post loaders on the server and runs them for the c
     }
   }
 });
+
+it("document root is data-free and titles use only the portal loader", () => {
+  expect(RootRoute.options.loader).toBeUndefined();
+  expect(pageTitle(undefined, "Roadmap")).toEqual({ meta: [{ title: "Roadmap · Feedbax" }] });
+  expect(
+    pageTitle(
+      [
+        { routeId: "__root__", loaderData: viewerOf(null, { name: "Wrong" }) },
+        { routeId: "/_portal", loaderData: viewerOf(null, { name: "My product" }) },
+      ],
+      "Roadmap",
+    ),
+  ).toEqual({ meta: [{ title: "Roadmap · My product" }] });
+});
+
+it.each([
+  ["/", BoardRoute, "listPosts"],
+  ["/roadmap", RoadmapRoute, "getRoadmap"],
+  ["/my-feedback", MyFeedbackRoute, "listMyPosts"],
+] as const)(
+  "portal client deep link %s runs its viewer and page RPCs",
+  async (path, child, name) => {
+    Object.assign(PortalRoute.options, { id: "/_portal", getParentRoute: () => RootRoute });
+    Object.assign(child.options, { id: path, path, getParentRoute: () => PortalRoute });
+    functions[name].mockResolvedValue({});
+    for (const isServer of [true, false]) {
+      vi.clearAllMocks();
+      const router = createRouter({
+        origin: "http://localhost",
+        routeTree: RootRoute.addChildren([PortalRoute.addChildren([child])]),
+        history: createMemoryHistory({ initialEntries: [path] }),
+        isServer,
+      });
+      await router.load();
+      expect(functions.getViewer).toHaveBeenCalledTimes(isServer ? 0 : 1);
+      expect(functions[name]).toHaveBeenCalledTimes(isServer ? 0 : 1);
+      if (!isServer) expect(router.state.matches.at(-1)?.status).toBe("success");
+    }
+  },
+);
