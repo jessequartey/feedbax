@@ -55,9 +55,9 @@ jobs:
         run: npm run verify:build
       - name: Wrangler dry run
         run: npx --no-install wrangler deploy --dry-run
-      - name: No server secret names in the client bundle
+      - name: No server secret names in the portal client bundle (the public registry JSON in dist/client/r documents them)
         run: |
-          if grep -rE 'BETTER_AUTH_SECRET|FEEDBAX_HOST_SECRET' dist/client; then
+          if grep -rE --exclude-dir=r 'BETTER_AUTH_SECRET|FEEDBAX_HOST_SECRET' dist/client; then
             echo "Server secret name found in dist/client." >&2
             exit 1
           fi
