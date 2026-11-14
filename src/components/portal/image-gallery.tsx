@@ -65,6 +65,7 @@ export function ImageGallery({ images, title }: { images: readonly ImageView[]; 
               width={current.width}
               height={current.height}
               alt={`Attachment ${(open ?? 0) + 1} of ${count} for “${title}”`}
+              decoding="async"
               className="mx-auto max-h-[75vh] w-auto max-w-full object-contain"
             />
           ) : null}

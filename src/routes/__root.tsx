@@ -6,6 +6,8 @@ import { ErrorState, NotFoundState } from "@/components/portal/states";
 import { themeInitScript } from "@/components/portal/theme";
 import { socialBuild, socialMeta } from "@/lib/social-meta";
 import appCss from "../styles.css?url";
+// Latin covers the shell. Other subsets stay in CSS and download only if the text needs them.
+import geistLatin from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
 
 export const Route = createRootRoute({
   pendingComponent: RootPending,
@@ -21,6 +23,13 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      {
+        rel: "preload",
+        href: geistLatin,
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
+      },
       // The header's F mark; /favicon.ico redirects here (public/_redirects).
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       // Feed readers and browsers discover the changelog from any page.
