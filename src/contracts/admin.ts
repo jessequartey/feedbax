@@ -12,7 +12,13 @@ export type ChangelogSettings = {
   /** Draft a changelog entry when a post becomes Done. */
   autoDraft: boolean;
 };
+export type ModerationSettings = {
+  mode: "off" | "flag" | "block";
+  blockedWords: string[];
+  allowedWords: string[];
+};
 export type RuntimeSettings = {
+  moderation: ModerationSettings;
   name: string;
   anonymous: boolean;
   /** Categories offered on the portal, in display order. */
@@ -37,6 +43,7 @@ export type ModerationPost = {
   comments: number;
   createdAt: string;
   state: PostState;
+  moderationReason: string | null;
   /** The post this duplicate was merged into, if any. */
   mergedInto: string | null;
   githubUrl: string | null;
@@ -48,6 +55,8 @@ export type ModerationPostPage = Page<ModerationPost> & {
   githubEnabled: boolean;
 };
 export type ModerationComment = {
+  hidden: boolean;
+  moderationReason: string | null;
   id: string;
   postId: string;
   postTitle: string;

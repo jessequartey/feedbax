@@ -7,8 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { AdminSettings, NotificationToggles } from "@/contracts/admin";
+import type { AdminSettings, ModerationSettings, NotificationToggles } from "@/contracts/admin";
 import type { AdminWebhooks } from "@/contracts/webhooks";
 import { CATEGORY_LABELS, type Category } from "@/contracts/domain";
 import { CATEGORY_ICONS } from "@/components/portal/post-badges";
@@ -82,6 +90,25 @@ export function SettingsForm({
   const ids = React.useId();
   const [name, setName] = React.useState(effective.name);
   const [categories, setCategories] = React.useState<Category[]>(effective.categories);
+  const [mode, setMode] = React.useState(effective.moderation.mode);
+  const [blocked, setBlocked] = React.useState(effective.moderation.blockedWords.join("\n"));
+  const [allowed, setAllowed] = React.useState(effective.moderation.allowedWords.join("\n"));
+  const words = (value: string) => [
+    ...new Set(
+      value
+        .split("\n")
+        .map((word) => word.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const moderation = { mode, blockedWords: words(blocked), allowedWords: words(allowed) };
+  const wordProblem = [moderation.blockedWords, moderation.allowedWords].some(
+    (list) =>
+      list.length > 100 ||
+      list.some((word) => Array.from(word).length > 64 || !/[\p{L}\p{N}]/u.test(word)),
+  )
+    ? "Use up to 100 words per list, at most 64 characters each."
+    : null;
   const switches = useSwitches(
     {
       anonymous: effective.anonymous,
@@ -111,10 +138,14 @@ export function SettingsForm({
         ? `Use at most ${NAME_MAX} characters.`
         : null;
   const current = {
+    moderation,
     name: trimmed,
     categories: CATEGORIES.filter((category) => categories.includes(category)),
   };
-  const dirty = current.name !== effective.name || !same(current.categories, effective.categories);
+  const dirty =
+    current.name !== effective.name ||
+    !same(current.categories, effective.categories) ||
+    !same(current.moderation, effective.moderation);
 
   async function save(reset = false) {
     if (saving) return;
@@ -135,6 +166,17 @@ export function SettingsForm({
         () =>
           adminSaveSettings({
             data: {
+              moderation: {
+                mode: same(target.moderation.mode, defaults.moderation.mode)
+                  ? null
+                  : target.moderation.mode,
+                blockedWords: same(target.moderation.blockedWords, defaults.moderation.blockedWords)
+                  ? null
+                  : target.moderation.blockedWords,
+                allowedWords: same(target.moderation.allowedWords, defaults.moderation.allowedWords)
+                  ? null
+                  : target.moderation.allowedWords,
+              },
               name: same(target.name, defaults.name) ? null : target.name,
               categories: same(target.categories, defaults.categories) ? null : target.categories,
             },
@@ -142,6 +184,9 @@ export function SettingsForm({
         reset ? "Settings reset to the project defaults." : "Settings saved.",
       );
       if (done && reset && revision === edits.current) {
+        setMode(done.effective.moderation.mode);
+        setBlocked(done.effective.moderation.blockedWords.join("\n"));
+        setAllowed(done.effective.moderation.allowedWords.join("\n"));
         setName(done.effective.name);
         setCategories(done.effective.categories);
       }
@@ -156,7 +201,7 @@ export function SettingsForm({
         className="flex flex-col gap-6"
         onSubmit={(event) => {
           event.preventDefault();
-          if (nameProblem) return;
+          if (nameProblem || wordProblem) return;
           if (categories.length === 0) {
             toast.error("Offer at least one category.");
             return;
@@ -203,6 +248,82 @@ export function SettingsForm({
                 onChange={(next) => void switches.change("anonymous", next)}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Profanity filter</CardTitle>
+            <CardDescription>
+              Checks post titles, descriptions and comments locally. Admins bypass the filter.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`${ids}-moderation`}>Filter mode</Label>
+              <Select
+                value={mode}
+                disabled={saving}
+                onValueChange={(value) => {
+                  if (value) {
+                    edits.current += 1;
+                    setMode(value as ModerationSettings["mode"]);
+                  }
+                }}
+              >
+                <SelectTrigger
+                  id={`${ids}-moderation`}
+                  aria-describedby={`${ids}-mode-hint`}
+                  className="w-full max-md:h-11"
+                >
+                  <SelectValue>
+                    {mode === "flag"
+                      ? "Flag for review (default)"
+                      : mode === "block"
+                        ? "Block"
+                        : "Off"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flag">Flag for review (default)</SelectItem>
+                  <SelectItem value="block">Block</SelectItem>
+                  <SelectItem value="off">Off</SelectItem>
+                </SelectContent>
+              </Select>
+              <p id={`${ids}-mode-hint`} className="text-xs text-muted-foreground">
+                Flag holds feedback out of public view until you approve it in Moderation. Block
+                asks the author to rephrase. Off skips the filter.
+              </p>
+            </div>
+            {(
+              [
+                { label: "Custom blocked words", value: blocked, set: setBlocked, key: "blocked" },
+                { label: "Allowed words", value: allowed, set: setAllowed, key: "allowed" },
+              ] as const
+            ).map((field) => (
+              <div key={field.key} className="flex flex-col gap-1.5">
+                <Label htmlFor={`${ids}-${field.key}`}>{field.label}</Label>
+                <Textarea
+                  id={`${ids}-${field.key}`}
+                  value={field.value}
+                  disabled={saving}
+                  aria-describedby={`${ids}-words-hint`}
+                  aria-invalid={wordProblem ? true : undefined}
+                  onChange={(event) => {
+                    edits.current += 1;
+                    field.set(event.target.value);
+                  }}
+                  className="max-md:text-base"
+                />
+              </div>
+            ))}
+            <p
+              id={`${ids}-words-hint`}
+              className={wordProblem ? "text-xs text-destructive" : "text-xs text-muted-foreground"}
+            >
+              {wordProblem ??
+                "One word or phrase per line, up to 100 per list. Allowed words override matching blocked words. Case and common obfuscations are ignored."}
+            </p>
           </CardContent>
         </Card>
 
@@ -294,7 +415,7 @@ export function SettingsForm({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="submit"
-            disabled={!dirty || saving || nameProblem !== null}
+            disabled={!dirty || saving || nameProblem !== null || wordProblem !== null}
             className="h-9 max-md:h-11"
           >
             {saving ? "Saving…" : "Save changes"}

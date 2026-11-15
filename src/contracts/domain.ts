@@ -61,6 +61,8 @@ export type PostDetail = PostSummary & {
   shippedIn?: { id: string; title: string }[];
 };
 export type CommentView = {
+  /** Present on a held submission returned to its author. */
+  heldForReview?: boolean;
   id: string;
   postId: string;
   author: PublicAuthor;
@@ -80,7 +82,7 @@ export type RoadmapResult = Record<
   "planned" | "in_progress" | "done",
   { items: PostSummary[]; total: number }
 >;
-export type CreatePostResult = { postId: string; postUrl: string };
+export type CreatePostResult = { postId: string; postUrl: string; heldForReview?: boolean };
 export type VoteResult = { votes: number; viewerHasVoted: boolean };
 export type ErrorCode =
   | "invalid_input"

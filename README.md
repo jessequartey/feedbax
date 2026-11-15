@@ -454,8 +454,11 @@ Run `npx feedbax@latest admin` from the project. It prints a sign-in link that w
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 
 1. Change an anonymous feedback, notification or changelog switch to save it immediately; webhook and email switches also save immediately.
-2. Use **Save changes** after editing the portal name or categories.
+2. Open **Settings → Profanity filter** to choose **Flag for review** (default), **Block**, or **Off**, add custom blocked or allowed words (one per line), and use **Save changes** after editing the portal name, categories or profanity filter.
 3. If a switch cannot save, retry after it returns to its last saved value; your latest choice stays visible while saving.
+4. Review feedback marked **Reason: profanity** in **Moderation**; unhide a post or approve a comment to publish it.
+
+The English word list runs locally without a service or fee. It checks post titles, descriptions and comments; admins bypass it. Flagged feedback stays out of public lists, counts, reply emails and webhooks. If a moderation provider fails or times out, posting stays available and a content-free warning is logged. This is a word filter, so review context before approving or removing feedback.
 
 Hidden, spam and merged posts leave the board, roadmap and search. Authors still see them under **My feedback**. A signed-in admin sees **Admin** in the header. Everyone else gets "not found" for `/admin`.
 

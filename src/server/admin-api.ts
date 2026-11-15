@@ -12,6 +12,7 @@ import {
 } from "./changelog.ts";
 import {
   deleteComment,
+  approveComment,
   deletePost,
   listModerationComments,
   listModerationPosts,
@@ -58,6 +59,7 @@ export const adminApi = {
   mergePost: admin((_who, input: unknown) => mergePost(input)),
   searchMergeTargets: admin((_who, input: unknown) => searchMergeTargets(input)),
   deletePost: admin((_who, input: unknown) => deletePost(input)),
+  approveComment: admin((_who, input: unknown) => approveComment(input)),
   deleteComment: admin((_who, input: unknown) => deleteComment(input)),
   sendToGitHub: admin((_who, input: unknown) => sendToGitHub(input)),
   listUsers: admin((who, input: unknown) => listUsers(input, who)),
@@ -81,7 +83,11 @@ export const adminApi = {
     const data = record(input);
     // Only the safe fields; saveSettings rejects anything else and any invalid value.
     for (const key of Object.keys(data))
-      if (!["name", "anonymous", "categories", "notifications", "changelog"].includes(key))
+      if (
+        !["name", "anonymous", "categories", "notifications", "changelog", "moderation"].includes(
+          key,
+        )
+      )
         invalid(key);
     await saveSettings(data as SettingsPatch);
     return adminSettings();

@@ -17,7 +17,7 @@ export const LIMITS = {
   postsPerHour: 5,
   commentsPerHour: 30,
 } as const;
-export type CreatePostResult = { postId: string; postUrl: string };
+export type CreatePostResult = { postId: string; postUrl: string; heldForReview?: boolean };
 export type ErrorCode =
   | "invalid_input"
   | "unauthenticated"

@@ -1,5 +1,6 @@
+import { moderateContent } from "./content-moderation.ts";
 import { env, waitUntil } from "cloudflare:workers";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
 import { LIMITS } from "../contracts/domain.ts";
 import type { CommentView, Page, ViewerUser } from "../contracts/domain.ts";
@@ -21,6 +22,7 @@ function commentView(row: {
   author: { id: string; name: string; isAnonymous: boolean | null };
 }): CommentView {
   return {
+    ...(row.comment.hiddenAt !== null ? { heldForReview: true } : {}),
     id: row.comment.id,
     postId: row.comment.postId,
     body: row.comment.body,
@@ -65,24 +67,25 @@ export async function addCommentForUser(
     .where(and(eq(posts.id, postId), publiclyVisible))
     .get();
   if (!post) throw new DomainError("not_found", "Post not found.");
+  const flagged = await moderateContent(body, writer);
   const now = Date.now();
   const [inserted] = await db.batch([
     db
       .insert(comments)
       .select(
-        sql`SELECT ${id}, ${postId}, ${writer.id}, ${body}, ${now} WHERE (SELECT count(*) FROM comments WHERE author_id = ${writer.id} AND created_at > ${now - 3600000}) < ${LIMITS.commentsPerHour}`,
+        sql`SELECT ${id}, ${postId}, ${writer.id}, ${body}, ${flagged ? now : null}, ${flagged ? "profanity" : null}, ${now} WHERE (SELECT count(*) FROM comments WHERE author_id = ${writer.id} AND created_at > ${now - 3600000}) < ${LIMITS.commentsPerHour}`,
       )
       .onConflictDoNothing()
       .returning({ id: comments.id }),
     db
       .update(posts)
       .set({ revision: sql`${posts.revision} + 1`, updatedAt: now })
-      .where(and(eq(posts.id, postId), sql`changes() > 0`)),
+      .where(and(eq(posts.id, postId), sql`changes() > 0`, flagged ? sql`0` : undefined)),
   ]);
   const comment = await existingComment();
   if (!comment)
     throw new DomainError("rate_limited", "You can submit 30 comments per hour.", undefined, 3600);
-  if (inserted.length) {
+  if (inserted.length && !flagged) {
     enqueuePost(postId);
     if (emailEnabled())
       queueEmailsLater([
@@ -135,14 +138,14 @@ export async function listCommentPage(
       .select({ comment: comments, author })
       .from(comments)
       .innerJoin(user, eq(comments.authorId, user.id))
-      .where(eq(comments.postId, postId))
+      .where(and(eq(comments.postId, postId), isNull(comments.hiddenAt)))
       .orderBy(asc(comments.createdAt), asc(comments.id))
       .limit(limit)
       .offset((page - 1) * limit),
     db
       .select({ count: sql<number>`count(*)` })
       .from(comments)
-      .where(eq(comments.postId, postId))
+      .where(and(eq(comments.postId, postId), isNull(comments.hiddenAt)))
       .get(),
   ]);
   return {

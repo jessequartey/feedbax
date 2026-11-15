@@ -108,7 +108,11 @@ export function SubmitForm() {
         return;
       }
       clearDraft(POST_DRAFT_KEY);
-      toast.success("Thanks! Your post is live.");
+      toast.success(
+        result.data.heldForReview
+          ? "Thanks! Your post is awaiting admin review."
+          : "Thanks! Your post is live.",
+      );
       router.history.push(`/posts/${result.data.postId}`);
     } catch {
       toast.error("Couldn't reach the server. Your draft is safe, so try again.");

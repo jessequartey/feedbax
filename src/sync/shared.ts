@@ -92,7 +92,7 @@ export async function readPost(postId: string) {
       authorName: user.name,
       anonymous: user.isAnonymous,
       votes: sql<number>`(select count(*) from votes where votes.post_id = ${posts.id})`,
-      comments: sql<number>`(select count(*) from comments where comments.post_id = ${posts.id})`,
+      comments: sql<number>`(select count(*) from comments where comments.post_id = ${posts.id} and comments.hidden_at IS NULL)`,
     })
     .from(posts)
     .innerJoin(user, eq(user.id, posts.authorId))

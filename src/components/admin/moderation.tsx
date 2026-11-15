@@ -38,6 +38,7 @@ import { EmptyState } from "@/components/portal/states";
 import { markdownToText } from "@/lib/markdown";
 import {
   adminDeleteComment,
+  adminApproveComment,
   adminDeletePost,
   adminSendToGitHub,
   adminSetPostState,
@@ -148,6 +149,9 @@ function PostRow({
         ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
           <StateBadge post={post} />
+          {post.moderationReason ? (
+            <Badge variant="outline">Reason: {post.moderationReason}</Badge>
+          ) : null}
           <CategoryBadge category={post.category} />
           <StatusBadge status={post.status} />
           {post.githubUrl ? (
@@ -347,6 +351,11 @@ export function CommentModeration({
               className="flex flex-col gap-3 p-4 md:flex-row md:items-start md:gap-5 md:p-5"
             >
               <div className="min-w-0 flex-1">
+                {comment.hidden ? (
+                  <Badge variant="secondary" className="mb-2">
+                    Hidden · Reason: {comment.moderationReason ?? "review"}
+                  </Badge>
+                ) : null}
                 <Markdown source={comment.body} className="space-y-2 text-sm leading-normal" />
                 <p className="mt-2 text-xs text-muted-foreground">
                   {comment.author.name} · {formatDate(comment.createdAt)} · on{" "}
@@ -359,6 +368,20 @@ export function CommentModeration({
                   </Link>
                 </p>
               </div>
+              {comment.hidden ? (
+                <Button
+                  variant="outline"
+                  className="h-9 max-md:h-11"
+                  onClick={() =>
+                    void act(
+                      () => adminApproveComment({ data: { commentId: comment.id } }),
+                      "Comment approved.",
+                    )
+                  }
+                >
+                  <ShieldCheckIcon aria-hidden="true" /> Approve
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 className="h-9 shrink-0 max-md:h-11"

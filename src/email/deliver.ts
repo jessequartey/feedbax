@@ -1,6 +1,6 @@
 import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
-import { and, asc, desc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { NotificationToggles } from "../contracts/admin.ts";
 import type { EmailMessage } from "../contracts/sync.ts";
@@ -224,7 +224,12 @@ async function deliver(message: EmailMessage): Promise<void> {
         .from(comments)
         .innerJoin(posts, eq(posts.id, comments.postId))
         .where(
-          and(eq(comments.id, message.comment.id), eq(posts.id, message.post.id), publiclyVisible),
+          and(
+            eq(comments.id, message.comment.id),
+            isNull(comments.hiddenAt),
+            eq(posts.id, message.post.id),
+            publiclyVisible,
+          ),
         )
         .get();
       if (!found) return;
@@ -233,7 +238,7 @@ async function deliver(message: EmailMessage): Promise<void> {
         {
           kind: "replies",
           after: message.after,
-          where: sql`${user.id} <> ${message.comment.authorId} AND ${user.id} IN (SELECT author_id FROM posts WHERE id = ${message.post.id} UNION SELECT author_id FROM comments WHERE post_id = ${message.post.id} AND created_at <= ${found.createdAt} AND id <> ${message.comment.id})`,
+          where: sql`${user.id} <> ${message.comment.authorId} AND ${user.id} IN (SELECT author_id FROM posts WHERE id = ${message.post.id} UNION SELECT author_id FROM comments WHERE post_id = ${message.post.id} AND hidden_at IS NULL AND created_at <= ${found.createdAt} AND id <> ${message.comment.id})`,
         },
         (recipient, frame) =>
           replyEmail(frame, {

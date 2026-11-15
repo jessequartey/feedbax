@@ -43,6 +43,7 @@ export const posts = sqliteTable(
     // 0005 moderation actions. Nothing is deleted by hide/spam/merge.
     hiddenAt: integer("hidden_at"),
     spam: integer("spam").notNull().default(0),
+    moderationReason: text("moderation_reason"),
     mergedInto: text("merged_into").references((): AnySQLiteColumn => posts.id),
   },
   (t) => [
@@ -82,6 +83,8 @@ export const comments = sqliteTable(
       .notNull()
       .references(() => user.id),
     body: text("body").notNull(),
+    hiddenAt: integer("hidden_at"),
+    moderationReason: text("moderation_reason"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [
