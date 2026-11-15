@@ -303,3 +303,6 @@ export const adminSaveSettings = createServerFn({ method: "POST" })
   .handler(async ({ data }) =>
     result(async () => adminApi.saveSettings(await viewer(), data), "admin.action"),
   );
+export const adminSimilarGroups = createServerFn({ method: "GET" }).handler(async () =>
+  result(async () => adminApi.similarGroups(await viewer(), undefined), "admin.action"),
+);

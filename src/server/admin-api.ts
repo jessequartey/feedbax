@@ -3,6 +3,7 @@ import config from "../../feedbax.config.ts";
 import type { AdminSettings } from "../contracts/admin.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
 import { requireAdmin } from "./auth.ts";
+import { listSimilarGroups } from "./similar-groups.ts";
 import {
   createEntry,
   deleteEntry,
@@ -92,6 +93,7 @@ export const adminApi = {
   webhookDelivery: admin((_who, input: unknown) => getWebhookDelivery(input)),
   webhookReplay: admin((_who, input: unknown) => replayWebhookDelivery(input)),
   getSettings: admin(() => adminSettings()),
+  similarGroups: admin(() => listSimilarGroups()),
   saveSettings: admin(async (_who, input: unknown) => {
     const data = record(input);
     // Only the safe fields; saveSettings rejects anything else and any invalid value.

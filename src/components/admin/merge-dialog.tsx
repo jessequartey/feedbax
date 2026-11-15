@@ -21,9 +21,12 @@ import { useAdminAction } from "./use-admin";
 export function MergeDialog({
   post,
   onClose,
+  initialTarget,
 }: {
-  post: ModerationPost | null;
+  post: Pick<ModerationPost, "id" | "title"> | null;
   onClose: () => void;
+  /** Prefilled from Similar groups: the suggested post to keep. */
+  initialTarget?: MergeCandidate | null;
 }) {
   const act = useAdminAction();
   const [query, setQuery] = React.useState("");
@@ -35,10 +38,10 @@ export function MergeDialog({
 
   React.useEffect(() => {
     setQuery("");
-    setTarget(null);
+    setTarget(initialTarget ?? null);
     setResults(null);
     setFailed(false);
-  }, [postId]);
+  }, [postId, initialTarget]);
 
   React.useEffect(() => {
     if (!postId) return;

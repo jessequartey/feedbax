@@ -135,6 +135,10 @@ Endpoints are managed in the portal, not in files or secrets. `npx feedbax@lates
 
 Events: `post.created`, `post.status_changed`, `comment.created`, `vote.created`, `changelog.published`. Bodies are Markdown plus plain text. Open **Event catalog** on the same screen for schemas and example payloads. Failed deliveries retry with backoff (6 attempts over about 7 hours) and unqueued deliveries recover automatically. Filter recent deliveries by status or endpoint, inspect payloads, and replay failed deliveries.
 
+### Duplicate detection
+
+While someone types a post title, Feedbax shows similar public posts and suggests a post type. Admins can review groups of similar open posts under **Moderation → Similar groups** and merge a duplicate into the suggested post. It all runs on your portal: no setup, no key, no external calls.
+
 ## Set up with an agent
 
 Paste this into a coding agent. It should follow this README, use a terminal, and ask you for sign-in, MFA and payment. Keep tokens in the agent's secret input or the environment, not in chat.
