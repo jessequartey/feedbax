@@ -64,18 +64,19 @@ The repo uses [Vite+](https://viteplus.dev) (`vp`) for formatting, linting, test
 
 ## Checks
 
+Run the fast checks for your changes before opening a PR:
+
 ```sh
 npm run check
 npm run typecheck
-npm test
-npm run build
-npm run verify:build
-node scripts/test-worker-entry.ts
-node scripts/test-worker-auth.ts
-node scripts/test-worker-sync.ts
+npm test -- --changed origin/main
 ```
 
-Changed the CLI, `packages/` or the generated template? Also run `npm run cli:build && npm run test:package` (it installs a generated app with npm, pnpm and bun). Changed `registry/` or `registry.json`? Run `npm run registry:build` and commit the generated `public/r/` files. CI fails if they are stale.
+While working on a single area, run only its test file or zone (`npm test -- tests/sync/runtime.test.ts` or `npm test -- tests/portal`). Keep tests focused on behavior that can break; extend existing cases instead of adding duplicate tests across layers.
+
+- **Touched the CLI, `packages/` or `.template/`?** Also run `npm run cli:build && npm run test:package`.
+- **Touched `registry/` or `registry.json`?** Run `npm run registry:build` and commit `public/r/`.
+- **CI runs the full suite:** `npm test`, `npm run build && npm run verify:build`, and `node scripts/test-worker-{entry,auth,sync}.ts`.
 
 ## Code guidelines
 

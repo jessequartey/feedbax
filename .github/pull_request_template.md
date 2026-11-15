@@ -16,9 +16,9 @@ Title: a conventional commit in plain language, e.g. "fix(sync): stop duplicate 
 <!-- What you ran and what you saw. Paste check results. "Tests pass" alone is not enough.
 UI: before/after screenshots, light and dark, plus mobile width if layout changed. Upload them here; don't commit them. -->
 
-- [ ] `npm run check && npm run typecheck && npm test`
-- [ ] `npm run build && npm run verify:build` and the `scripts/test-worker-*.ts` checks
+- [ ] `npm run check && npm run typecheck && npm test -- --changed origin/main`
 - [ ] `npm run cli:build && npm run test:package` (only if CLI, `packages/` or the template changed)
+- [ ] `npm run registry:build` (only if `registry/` changed)
 
 ## Notes
 

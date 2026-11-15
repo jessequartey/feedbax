@@ -27,26 +27,25 @@ A self-hosted feedback portal: people post ideas and bugs, vote and comment; the
 ## Commands
 
 ```sh
-npm ci && npm ci --prefix packages/create-feedbax   # once
-npm run check && npm run typecheck && npm test        # every change
-npm run build && npm run verify:build
-node scripts/test-worker-entry.ts && node scripts/test-worker-sync.ts && node scripts/test-worker-auth.ts
-npm run cli:build && npm run test:package             # CLI, template or packages/ touched
-npm run registry:build                                # registry/ touched; commit public/r/
+npm ci && npm ci --prefix packages/create-feedbax                         # once
+npm test -- <file>                                                        # while iterating (add -t "name" to filter)
+npm run check && npm run typecheck && npm test -- --changed origin/main   # before opening a PR (runs affected test zones only)
+npm run cli:build && npm run test:package                                 # only if CLI, template or packages/ touched
+npm run registry:build                                                    # only if registry/ touched; commit public/r/
 ```
 
-All of them must pass before you open a PR. CI runs the same set.
+Do not run `npm test` (the full suite) or the `scripts/test-worker-*.ts` smoke scripts in a loop locally. Tests are zoned (`tests/portal`, `tests/api`, `tests/sync`, `tests/email`, `tests/block`, `tests/cli`); `npm test -- --changed origin/main` runs only the files affected by your diff. CI runs the full suite, `npm run build && npm run verify:build`, and `node scripts/test-worker-{entry,auth,sync}.ts`.
 
 ## Rules
 
 1. **Small and calm.** Do what the issue asks. No drive-by features, no new setup steps for first-time users. Copy a first-time user can follow.
 2. **Upstream first.** Before writing infrastructure, check for a maintained library and use it. If one almost fits, prefer a PR upstream and consume it (example: add a Jev adapter to TanStack AI rather than vendoring one). Shift maintenance to the project that owns the problem.
 3. **Adapters at the edges.** External services (AI, moderation, email, mailing lists, chat, trackers, deploy targets) go behind a small interface with one module per provider. Core code never imports a vendor SDK directly.
-4. **Cheap and fast by default.** It must run well on Cloudflare's Free plan. Count D1 statements per request and avoid N+1s. Do external I/O in the queue consumer, never in the request or cron path. Keep admin-only code out of public bundles. Cache public reads. Any new background work states its cost per idle tick.
+4. **Cheap and fast by default.** It must run well on Cloudflare's Free plan. Count D1 statements per request and avoid N+1s. Do external IO in the queue consumer, never in the request or cron path. Keep admin-only code out of public bundles. Cache public reads. Any new background work states its cost per idle tick.
 5. **Web platform first.** Use `fetch` and Web Crypto. Add a dependency only when it removes real code or risk.
 6. **UI.** Use shadcn components only (`npx shadcn add …`; never hand-edit `src/components/ui/`). Match the dark, calm, minimal look. Check light and dark, mobile width, keyboard use, and empty, loading and error states.
 7. **Security.** Every admin route and API checks admin identity on the server. Escape all user text and render it through `src/lib/markdown.ts`. Webhook targets go through `src/lib/webhook-url.ts` (SSRF guard). Never log or commit secrets; tests use obviously fake credentials.
-8. **Tests.** Vitest runs with `isolate: false`: restore every stub (`vi.unstubAllGlobals`, restore `fetch`) and call `resetEnv()` after writing settings rows. Cover the risky path you changed, and keep the suite fast.
+8. **Tests.** Test behavior that can break (auth, sync state, migrations, security guards, bug fixes). Skip tests for what types guarantee, static markup, copy text, or mock-call mirrors. Extend an existing test or table before adding a new `it`, and test at one layer (the lowest that fails on `main`). Vitest runs with `isolate: false`: restore every stub (`vi.unstubAllGlobals`, restore `fetch`) and call `resetEnv()` after writing settings rows.
 9. **Notion schema.** Sync needs the 13 properties in `src/integrations/notion-schema.ts`. Extra properties are fine; never rename or retype required ones. Template changes go in `notion-template.ts` with tests.
 10. **TanStack Router, not Next.js.** For "modal and full page on one URL" use route masking, not parallel or intercepting routes.
 11. **Additive migrations only.** A 0.3.x project must upgrade with `npx feedbax migrate` and lose nothing. Name files `migrations/NNNN_<slug>.sql` with the next free number on `origin/main`, and renumber yours if a merge takes it.
