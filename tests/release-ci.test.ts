@@ -44,7 +44,32 @@ describe("release CI gate", () => {
   )("rejects missing or unrelated CI runs: %j", async ({ runs }) => {
     const { api, options } = setup();
     api.mockResolvedValueOnce({ workflow_runs: runs });
-    await expect(requireReleaseCI(options)).rejects.toThrow("never ran");
+    await expect(requireReleaseCI({ ...options, graceMs: 0 })).rejects.toThrow("never ran");
+  });
+  it("waits briefly for main CI to be registered", async () => {
+    const { api, options } = setup();
+    let clock = 0;
+    const sleep = vi.fn(async (ms: number) => {
+      clock += ms;
+    });
+    api
+      .mockResolvedValueOnce({ workflow_runs: [] })
+      .mockResolvedValueOnce({ workflow_runs: [run] })
+      .mockResolvedValueOnce({ jobs: [job] });
+    await requireReleaseCI({ ...options, now: () => clock, sleep });
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+  it("gives up when main CI never appears within the grace period", async () => {
+    const { api, options } = setup();
+    let clock = 0;
+    const sleep = async (ms: number) => {
+      clock += ms;
+    };
+    api.mockResolvedValue({ workflow_runs: [] });
+    await expect(
+      requireReleaseCI({ ...options, now: () => clock, sleep, graceMs: 60_000 }),
+    ).rejects.toThrow("never ran");
+    expect(clock).toBe(60_000);
   });
   it.each(["failure", "cancelled", "timed_out", "skipped"])("rejects CI %s", async (conclusion) => {
     const { api, options } = setup();

@@ -25,6 +25,7 @@ export async function requireReleaseCI({
   sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
   timeoutMs = 20 * 60 * 1000,
   pollMs = 15_000,
+  graceMs = 2 * 60 * 1000,
 }: {
   repo: string;
   sha: string;
@@ -33,6 +34,8 @@ export async function requireReleaseCI({
   sleep?: (ms: number) => Promise<void>;
   timeoutMs?: number;
   pollMs?: number;
+  /** How long to wait for GitHub to register main's CI run before giving up. */
+  graceMs?: number;
 }) {
   const base = `repos/${repo}`;
   // Comparing main as base means the tag must be identical to or behind main.
@@ -41,7 +44,9 @@ export async function requireReleaseCI({
     throw new Error(`Release blocked: tagged commit ${sha} is not on main.`);
   }
 
-  const deadline = now() + timeoutMs;
+  const start = now();
+  const deadline = start + timeoutMs;
+  const graceDeadline = Math.min(deadline, start + graceMs);
   while (true) {
     const response = await api(
       `${base}/actions/workflows/ci.yml/runs?head_sha=${sha}&branch=main&event=push&per_page=100`,
@@ -57,7 +62,13 @@ export async function requireReleaseCI({
       )
       .sort((a, b) => b.id - a.id)[0];
     if (!run) {
-      throw new Error(`Release blocked: CI never ran on main for tagged commit ${sha}.`);
+      // A tag pushed with main can reach this job before GitHub registers main's CI run.
+      if (now() >= graceDeadline) {
+        throw new Error(`Release blocked: CI never ran on main for tagged commit ${sha}.`);
+      }
+      console.log(`Waiting for main CI for ${sha} to start...`);
+      await sleep(Math.min(pollMs, graceDeadline - now()));
+      continue;
     }
     if (run.status === "completed") {
       if (run.conclusion !== "success") {
