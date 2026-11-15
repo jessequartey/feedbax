@@ -66,8 +66,10 @@ export function guideBlocks() {
         color: "gray_background",
         children: [
           bullet("Posts arrive automatically from your portal."),
-          bullet("Change **Status** to move posts across your public roadmap."),
-          bullet("Tick **Send to GitHub** to open an issue. Closing it marks the post Done."),
+          bullet("Change **Status**: Open, Planned, In progress, Done, Closed."),
+          bullet(
+            "Tick **Send to GitHub** to open one issue. **GitHub** is the issue link. Closing the issue sets the post to Done.",
+          ),
           bullet("Keep the built-in properties' names. Add your own freely."),
         ],
       },
@@ -81,8 +83,11 @@ export function guideBlocks() {
         color: "default",
         children: [
           step("Connect your Notion integration: ••• → Connections."),
-          step("Run `npx create-feedbax@latest`."),
+          step("Run `npx create-feedbax@latest`. Anonymous feedback is on."),
           step("Open your portal and post the first feedback."),
+          step(
+            "Admin, changelog, email and webhooks are in the portal, not here. Run `npx feedbax admin`, then open `/admin/settings`. Add email with `npx feedbax add email`. Add webhooks with `npx feedbax add webhooks`.",
+          ),
         ],
       },
     },
@@ -197,12 +202,16 @@ export type ViewSpec = {
   name: string;
   /** Request body minus database_id, data_source_id and position. `null` means "rename the default view". */
   body: ((ids: PropertyIds) => Record<string, unknown>) | null;
-  position?: "start" | "after-board";
+  position?: "start";
 };
-const select = (property: string, value: string) => ({ property, select: { equals: value } });
-const created = [{ property: "Created", direction: "descending" }];
 
-/** In tab order. "🗂 All feedback" reuses the table view Notion creates with the database. */
+/**
+ * In tab order. "🗂 All feedback" reuses the table view Notion creates with the database.
+ * Sync reads and writes one data source, not views, so the template keeps the board
+ * (grouped by Status, including Done) and that table. Inbox, calendar, category lists
+ * and a GitHub queue were filters over the same rows. The issue number lives in D1;
+ * Notion stores the issue URL on GitHub.
+ */
 export const TEMPLATE_VIEWS: ViewSpec[] = [
   {
     name: "📋 Board",
@@ -217,60 +226,11 @@ export const TEMPLATE_VIEWS: ViewSpec[] = [
           sort: { type: "manual" },
           hide_empty_groups: false,
         },
-        properties: visible(ids, ["Category", "Votes"]),
+        properties: visible(ids, ["Category", "Votes", "GitHub"]),
       },
-    }),
-  },
-  {
-    name: "📥 Inbox",
-    position: "after-board",
-    body: (ids) => ({
-      type: "list",
-      filter: select("Status", "Open"),
-      sorts: created,
-      configuration: { type: "list", properties: visible(ids, ["Category", "Votes", "Created"]) },
     }),
   },
   { name: "🗂 All feedback", body: null },
-  {
-    name: "📅 Calendar",
-    body: (ids) => ({
-      type: "calendar",
-      configuration: {
-        type: "calendar",
-        date_property_id: ids.Created,
-        view_range: "month",
-        properties: visible(ids, ["Status"]),
-      },
-    }),
-  },
-  {
-    name: "🐞 Bugs",
-    body: (ids) => ({
-      type: "list",
-      filter: select("Category", "Bug report"),
-      configuration: { type: "list", properties: visible(ids, ["Status", "Votes", "Created"]) },
-    }),
-  },
-  {
-    name: "💡 Ideas",
-    body: (ids) => ({
-      type: "list",
-      filter: select("Category", "Feature request"),
-      configuration: { type: "list", properties: visible(ids, ["Status", "Votes", "Created"]) },
-    }),
-  },
-  {
-    name: "🐙 GitHub queue",
-    body: (ids) => ({
-      type: "table",
-      filter: { property: "Send to GitHub", checkbox: { equals: true } },
-      configuration: {
-        type: "table",
-        properties: visible(ids, ["Status", "Category", "Votes", "GitHub", "Created"]),
-      },
-    }),
-  },
 ];
 
 /** Printed when the Views API step is unavailable or fails. */
@@ -279,11 +239,6 @@ export const MANUAL_VIEW_STEPS = [
   'Rename the default table view to "🗂 All feedback" and drag the tabs into this order:',
   "1. 📋 Board: layout Board, Group by Status. Make it the first tab.",
   "Board: drag the columns into Open, Planned, In progress, Done, Closed.",
-  "2. 📥 Inbox: layout List. Filter: Status is Open. Sort: Created, descending.",
-  "3. 🗂 All feedback: layout Table (the default view, just renamed).",
-  "4. 📅 Calendar: layout Calendar, Show calendar by Created.",
-  "5. 🐞 Bugs: layout List. Filter: Category is Bug report.",
-  "6. 💡 Ideas: layout List. Filter: Category is Feature request.",
-  "7. 🐙 GitHub queue: layout Table. Filter: Send to GitHub is checked.",
+  "2. 🗂 All feedback: layout Table (the default view, just renamed).",
   "In each view, use ••• → Properties to hide Feedbax ID and any column you do not need.",
 ].join("\n");

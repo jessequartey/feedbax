@@ -265,24 +265,19 @@ async function createTemplateViews(
       `/views?database_id=${target.databaseId}`,
     );
     const defaultViewId = listed.results[0]?.id;
-    let boardId: string | undefined;
     for (const spec of TEMPLATE_VIEWS) {
       current = spec.name;
       if (!spec.body && defaultViewId) {
         await request(`/views/${defaultViewId}`, "PATCH", { name: spec.name });
         continue;
       }
-      const view = await request<{ id: string }>("/views", "POST", {
+      await request("/views", "POST", {
         database_id: target.databaseId,
         data_source_id: target.dataSourceId,
         name: spec.name,
         ...(spec.body ? spec.body(ids) : { type: "table" }),
         ...(spec.position === "start" ? { position: { type: "start" } } : {}),
-        ...(spec.position === "after-board" && boardId
-          ? { position: { type: "after_view", view_id: boardId } }
-          : {}),
       });
-      if (spec.position === "start") boardId = view.id;
     }
     return { created: true };
   } catch (error) {

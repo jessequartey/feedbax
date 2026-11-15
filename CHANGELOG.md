@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1
+
+- **One-command Notion setup.** `npx create-feedbax@latest` creates the portal with anonymous feedback on. Sign-in and GitHub stay optional.
+- **feedbax CLI.** `migrate`, `add`, `doctor`, `deploy` and `admin`.
+- **Admin.** Moderation, users and settings. `npx feedbax admin` prints a signed link that works once.
+- **Changelog and RSS.**
+- **Email.** Opt-in, via Resend: `npx feedbax add email`.
+- **Webhooks.** Opt-in: `npx feedbax add webhooks`. Endpoints are in `/admin/settings`.
+- **Rich text.** Editor and rendering for posts, comments and the changelog.
+- **Sharing.** Open Graph and X card, favicon, and an optional showcase card.
+- **Faster CI.**
+- 0.3.0 projects upgrade with `npx feedbax migrate`.
+
 ## 0.3.0
 
 Rebuilt from scratch. Setup is now one command and a few clicks.
@@ -14,8 +27,6 @@ Rebuilt from scratch. Setup is now one command and a few clicks.
 - **Theming with the shadcn CLI.** `npx shadcn@latest apply --preset <code> --only theme`.
 - **Anonymous mode.** An optional switch lets people post without an account.
 - **Hardened setup and sign-in.** Host sign-in asks for identity confirmation, uploads are bounded before parsing, profile names and signing keys are validated, and vote limits protect shared resources. Notion discovery changes only the selected database; one trashed mirror no longer stalls other posts. GitHub issue recovery verifies its origin. Deployment applies additive migrations.
-- **Coming later:** Admin: manage users, Webhooks, Changelog & product updates, Admin settings and Email notifications. Nothing to configure for notifications yet.
-- Only `create-feedbax` is published. There is no runtime `feedbax` package.
 
 ### Migrating from 0.2.x
 

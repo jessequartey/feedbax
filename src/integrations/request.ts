@@ -67,7 +67,7 @@ export function createProviderRequest(
               : {
                   Accept: "application/vnd.github+json",
                   "X-GitHub-Api-Version": GITHUB_API_VERSION,
-                  "User-Agent": "feedbax/0.3.0",
+                  "User-Agent": "feedbax/0.3.1",
                 }),
           },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
