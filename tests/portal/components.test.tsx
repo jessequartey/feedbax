@@ -4,7 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import * as React from "react";
 import { SignInOptions } from "../../src/components/portal/sign-in-options.tsx";
 import { PostDetailView } from "../../src/components/portal/post-detail.tsx";
-import { CommandSearch } from "../../src/components/portal/command-search.tsx";
+import { CommandSearchTrigger } from "../../src/components/portal/command-search.tsx";
 import { EmptyState } from "../../src/components/portal/states.tsx";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { primaryNav, SiteHeader } from "../../src/components/portal/site-header.tsx";
@@ -256,11 +256,12 @@ describe("board pieces", () => {
     expect(votersTrigger).toContain("voter");
   });
 
-  it("renders CommandSearch with Kbd/KbdGroup and preserves keyboard shortcut attributes", async () => {
-    const html = await renderPage(<CommandSearch />, viewerOf(null));
+  it("renders the search trigger as a button that keeps the keyboard shortcut attributes", async () => {
+    const html = await renderPage(<CommandSearchTrigger />, viewerOf(null));
+    expect(html).toContain('type="button"');
     expect(html).toContain('aria-label="Search feedback and changelog"');
+    expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-keyshortcuts="Meta+K Control+K"');
-    expect(html).toContain('data-slot="kbd-group"');
     expect(html).toContain('data-slot="kbd"');
   });
 

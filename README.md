@@ -426,8 +426,8 @@ Votes update on the portal immediately. **Trending** ranks posts by recent votes
 
 ## Search
 
-1. Click **Search** in the header (the magnifying glass on mobile), or press **Cmd/Ctrl+K** anywhere in the portal.
-2. Type words to search feedback and published changelog entries; leave it empty for top posts and recent releases.
+1. Press **Cmd/Ctrl+K** or click a search box to search feedback and changelog.
+2. Type words to search; leave it empty for top posts and recent releases.
 3. Use **↑ / ↓** and **Enter** to open a result, or **Esc** to close.
 
 ## Free plan
