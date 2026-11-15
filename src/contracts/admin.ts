@@ -71,6 +71,14 @@ export type ModerationComment = {
   createdAt: string;
 };
 export type MergeCandidate = { id: string; title: string; votes: number; createdAt: string };
+export type PostVoter = {
+  id: string;
+  name: string;
+  /** Null for anonymous, host and built-in users, which have no real address. */
+  email: string | null;
+  anonymous: boolean;
+  createdAt: string;
+};
 export type DeletePostResult = {
   /** "queued": the Notion row will be archived; "none": it was never mirrored; "failed": queue was down. */
   notion: "queued" | "none" | "failed";

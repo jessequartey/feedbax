@@ -14,6 +14,7 @@ export class DomainError extends Error {
 export type Operation =
   | "request"
   | "posts.create"
+  | "posts.follow"
   | "comments.create"
   | "votes.set"
   | "admin.action"

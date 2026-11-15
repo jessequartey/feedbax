@@ -12,7 +12,7 @@ import type {
 } from "../contracts/domain.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
 import { createDb } from "../db/client.ts";
-import { images, posts, user } from "../db/schema.ts";
+import { images, postFollows, posts, user } from "../db/schema.ts";
 import { DomainError, invalid } from "./errors.ts";
 import { category, listInput, markdownText, text, uuid } from "./validation.ts";
 import { requireAdmin, requireWriter } from "./auth.ts";
@@ -104,6 +104,11 @@ export async function createPostForUser(
       throw new DomainError("conflict", "This post ID is already in use.");
     return response(200, existing.hiddenAt !== null && existing.moderationReason !== null);
   }
+  if (writer.kind !== "anonymous")
+    await db
+      .insert(postFollows)
+      .values({ postId: id, userId: writer.id, following: 1, updatedAt: now })
+      .onConflictDoNothing();
   // A held post stays out of Notion and webhooks until an admin makes it visible.
   if (!flagged) {
     enqueuePost(id);
@@ -175,10 +180,11 @@ export async function listPostPage(
       ? sql`(${posts.title} LIKE ${pattern} ESCAPE ${"\\"}${plain ? sql` OR ${plainBodySql} LIKE ${like(plain)} ESCAPE ${"\\"}` : sql``})`
       : undefined,
   );
+  const windowStart = Date.now() - 7 * 86400000;
   const voteOrder =
     data.sort === "top"
       ? sql`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`
-      : sql`(SELECT count(*) FROM votes WHERE post_id = ${posts.id} AND created_at >= ${Date.now() - 7 * 86400000})`;
+      : sql`(SELECT coalesce(sum(604800000 + created_at - ${windowStart}), 0) FROM votes WHERE post_id = ${posts.id} AND created_at >= ${windowStart})`;
   const order = [
     ...(data.sort === "priority"
       ? [desc(posts.priority)]
@@ -229,8 +235,24 @@ async function mergeTarget(id: string): Promise<string> {
 export async function getPostDetail(id: string, viewer: ViewerUser | null): Promise<PostDetail> {
   uuid(id);
   const db = createDb(env.DB);
+  const followerId = viewer && viewer.kind !== "anonymous" ? viewer.id : null;
+  const viewerIsFollowing = followerId
+    ? sql<number>`coalesce(
+        (SELECT following FROM post_follows WHERE post_id = ${posts.id} AND user_id = ${followerId}),
+        CASE WHEN ${posts.authorId} = ${followerId}
+          OR EXISTS (SELECT 1 FROM votes WHERE post_id = ${posts.id} AND user_id = ${followerId})
+          OR EXISTS (SELECT 1 FROM comments WHERE post_id = ${posts.id} AND author_id = ${followerId} AND hidden_at IS NULL)
+        THEN 1 ELSE 0 END
+      )`.mapWith(Boolean)
+    : sql<number>`0`.mapWith(Boolean);
   const row = await db
-    .select({ post: posts, author: authorFields, shipped: shippedInField, ...counts(viewer) })
+    .select({
+      post: posts,
+      author: authorFields,
+      shipped: shippedInField,
+      viewerIsFollowing,
+      ...counts(viewer),
+    })
     .from(posts)
     .innerJoin(user, eq(posts.authorId, user.id))
     .where(eq(posts.id, id))
@@ -248,6 +270,7 @@ export async function getPostDetail(id: string, viewer: ViewerUser | null): Prom
   const shippedIn = parseShippedIn(row.shipped);
   return {
     ...summary(row),
+    viewerIsFollowing: Boolean(row.viewerIsFollowing),
     ...(viewer?.admin && !viewer.banned && viewer.kind !== "anonymous"
       ? { priority: row.post.priority }
       : {}),

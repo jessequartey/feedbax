@@ -7,6 +7,7 @@ import { richText } from "../../src/email/content.ts";
 import { deliveryKey } from "../../src/email/state.ts";
 import { statusEmails } from "../../src/email/events.ts";
 import { addCommentForUser } from "../../src/server/comments.ts";
+import { setFollowForUser } from "../../src/server/follows.ts";
 import { saveSettings } from "../../src/server/settings.ts";
 import { runScheduled } from "../../src/sync/index.ts";
 import {
@@ -182,7 +183,10 @@ describe("every email", () => {
       expect(email.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
       links.add(header);
       expect(email.text.length).toBeGreaterThan(0);
+      expect(email.text).toContain("Unfollow this post: http://localhost:3000/unsubscribe?u=");
+      expect(email.text).toContain(`&p=${POST}`);
       expect(email.text).toContain("Unsubscribe: http://localhost:3000/unsubscribe?u=");
+      expect(email.html).toContain("Unfollow this post</a>");
       expect(email.html).toContain("Unsubscribe</a>");
     }
     expect(links.size).toBe(2);
@@ -263,5 +267,44 @@ describe("replies", () => {
     const mail = sent.emails().find((email) => email.to[0] === "earlier@example.com")!;
     expect(mail.subject).toBe("New comment on “Export to CSV”");
     expect(mail.html).toContain("Thanks, fixed");
+  });
+
+  it("delivers status and reply emails to non-voting followers and suppresses them after unfollow", async () => {
+    const author = await account("author");
+    await post(POST, author);
+    await account("follower");
+    await account("replier");
+    await setFollowForUser(
+      { postId: POST, following: true },
+      { id: "follower", name: "F", kind: "account" },
+    );
+
+    const first = stubResend();
+    await consume(statusMessage());
+    expect(first.to()).toEqual(["author@example.com", "follower@example.com"]);
+
+    await addCommentForUser(
+      { id: COMMENT, postId: POST, body: "Update for followers" },
+      { id: "replier", name: "R", kind: "account" },
+    );
+    await flushWaitUntil();
+    const replyMsg = queued().find((m) => m.type === "email.reply")!;
+    const second = stubResend();
+    await consume(replyMsg);
+    expect(second.to()).toEqual(["author@example.com", "follower@example.com"]);
+
+    await setFollowForUser(
+      { postId: POST, following: false },
+      { id: "follower", name: "F", kind: "account" },
+    );
+    const third = stubResend();
+    await consume({
+      type: "email.status",
+      id: "status-after-unfollow",
+      post: { id: POST, title: "Export to CSV", body: richText("b") },
+      from: "planned",
+      to: "done",
+    });
+    expect(third.to()).toEqual(["author@example.com", "replier@example.com"]);
   });
 });

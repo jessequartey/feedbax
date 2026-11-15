@@ -47,6 +47,7 @@ import PriorityEditor from "./priority-editor";
 import { ConfirmDialog } from "./confirm-dialog";
 import { MergeDialog } from "./merge-dialog";
 import { useAdminAction } from "./use-admin";
+import { VotersDialog } from "./voters-dialog";
 
 const FILTERS: { value: ModerationFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -120,11 +121,13 @@ function PostRow({
   githubEnabled,
   onDelete,
   onMerge,
+  onVoters,
 }: {
   post: ModerationPost;
   githubEnabled: boolean;
   onDelete: (post: ModerationPost) => void;
   onMerge: (post: ModerationPost) => void;
+  onVoters: (post: ModerationPost) => void;
 }) {
   const act = useAdminAction();
   const merged = post.mergedInto !== null;
@@ -175,8 +178,15 @@ function PostRow({
             </Badge>
           ) : null}
           <span className="text-xs text-muted-foreground">
-            {post.author.name} · {formatDate(post.createdAt)} · {plural(post.votes, "vote")} ·{" "}
-            {plural(post.comments, "comment")}
+            {post.author.name} · {formatDate(post.createdAt)} ·{" "}
+            <button
+              type="button"
+              onClick={() => onVoters(post)}
+              className="underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {plural(post.votes, "vote")}
+            </button>{" "}
+            · {plural(post.comments, "comment")}
           </span>
         </div>
       </div>
@@ -269,6 +279,7 @@ export function PostModeration({
   const act = useAdminAction();
   const [dialog, setDialog] = React.useState<Dialog>(null);
   const [merging, setMerging] = React.useState<ModerationPost | null>(null);
+  const [votersPost, setVotersPost] = React.useState<ModerationPost | null>(null);
   // Keep the post the dialog is about while it fades out.
   const last = React.useRef<ModerationPost | null>(null);
   if (dialog) last.current = dialog.post;
@@ -295,6 +306,7 @@ export function PostModeration({
               githubEnabled={page.githubEnabled}
               onDelete={(item) => setDialog({ kind: "delete", post: item })}
               onMerge={setMerging}
+              onVoters={setVotersPost}
             />
           ))}
         </ul>
@@ -325,6 +337,7 @@ export function PostModeration({
         }}
       />
       <MergeDialog post={merging} onClose={() => setMerging(null)} />
+      <VotersDialog post={votersPost} onClose={() => setVotersPost(null)} />
     </>
   );
 }

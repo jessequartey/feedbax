@@ -3,6 +3,7 @@ import type {
   Category,
   CommentView,
   CreatePostResult,
+  FollowResult,
   ListPostsInput,
   Page,
   PostDetail,
@@ -24,6 +25,7 @@ export type PortalFunctions = {
   createPost: (data: FormData) => ApiResult<CreatePostResult>; // id,title,body,category,image×0–3
   addComment: (data: { id: string; postId: string; body: string }) => ApiResult<CommentView>;
   setVote: (data: { postId: string; voted: boolean }) => ApiResult<VoteResult>;
+  setPostFollow: (data: { postId: string; following: boolean }) => ApiResult<FollowResult>;
 };
 
 /** Per-person email choices (the `email_prefs` row, or its defaults). */

@@ -38,11 +38,13 @@ export function CommentSection({
   postId,
   initial,
   onTotalChange,
+  onCommentAdded,
 }: {
   postId: string;
   initial: Page<CommentView>;
   /** Lets the page keep its own comment count in step with added comments. */
   onTotalChange?: (total: number) => void;
+  onCommentAdded?: () => void;
 }) {
   const { ensureWriter, reportError } = useWriteGate();
   const fieldId = React.useId();
@@ -106,6 +108,7 @@ export function CommentSection({
           current.some((c) => c.id === result.data.id) ? current : [...current, result.data],
         );
         setTotal((n) => n + 1);
+        onCommentAdded?.();
       }
       setBody("");
       clearDraft(commentDraftKey(postId));

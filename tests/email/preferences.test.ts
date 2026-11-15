@@ -43,6 +43,19 @@ describe("signed unsubscribe links", () => {
     ])
       expect(await verifyUnsubscribe(tampered, SECRET)).toBeNull();
     expect(await verifyUnsubscribe(fields, "another-secret-another-secret-another!!")).toBeNull();
+
+    const perPost = Object.fromEntries(await unsubscribeQuery(SECRET, "user-1", "status", POST));
+    expect(await verifyUnsubscribe(perPost, SECRET)).toEqual({
+      userId: "user-1",
+      kind: "status",
+      postId: POST,
+    });
+    for (const badPost of [
+      { ...perPost, p: "22222222-2222-4222-8222-222222222222" },
+      { ...perPost, p: undefined },
+      { ...fields, p: POST },
+    ])
+      expect(await verifyUnsubscribe(badPost as Record<string, string>, SECRET)).toBeNull();
   });
 
   it("is not the admin-link or session signature: the key is derived under its own context", async () => {
@@ -138,6 +151,42 @@ describe("/api/email/unsubscribe", () => {
     );
     expect(response.status).toBe(200);
     expect(await prefsRow("ghost")).toBeNull();
+  });
+
+  it("unfollows only that post when signed with p, leaving global preferences and other posts intact", async () => {
+    const otherPost = "22222222-2222-4222-8222-222222222222";
+    await account("author");
+    await post(POST, "author");
+    await post(otherPost, "author");
+    const link = new URL("http://localhost:3000/api/email/unsubscribe");
+    for (const [k, v] of await unsubscribeQuery(SECRET, "author", "status", POST))
+      link.searchParams.set(k, v);
+    const response = await handleUnsubscribe(new Request(link, { method: "POST" }));
+    expect(response.status).toBe(200);
+    expect(await prefsRow("author")).toBeNull();
+    const follow = await env.DB.prepare(
+      "SELECT following FROM post_follows WHERE post_id = ? AND user_id = ?",
+    )
+      .bind(POST, "author")
+      .first<{ following: number }>();
+    expect(follow).toEqual({ following: 0 });
+    const sent = stubResend();
+    await consume({
+      type: "email.status",
+      id: "s-unfollowed",
+      post: { id: POST, title: "T1", body: { markdown: "b", text: "b" } },
+      from: "open",
+      to: "done",
+    });
+    expect(sent.to()).toEqual([]);
+    await consume({
+      type: "email.status",
+      id: "s-other",
+      post: { id: otherPost, title: "T2", body: { markdown: "b", text: "b" } },
+      from: "open",
+      to: "done",
+    });
+    expect(sent.to()).toEqual(["author@example.com"]);
   });
 });
 

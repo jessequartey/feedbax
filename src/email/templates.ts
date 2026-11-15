@@ -14,6 +14,8 @@ export type Frame = {
   reason: string;
   /** The footer's "Unsubscribe" page (it asks before unsubscribing). */
   unsubscribeUrl: string;
+  /** Optional per-post unfollow link for post-specific emails (status, replies). */
+  unfollowUrl?: string;
   /** /notifications on the portal. */
   preferencesUrl: string;
 };
@@ -42,11 +44,18 @@ function layout(
     action: { label: string; url: string };
   },
 ): Rendered {
+  const footerHtml = [
+    ...(frame.unfollowUrl
+      ? [`<a href="${escapeHtml(frame.unfollowUrl)}" style="${MUTED}">Unfollow this post</a>`]
+      : []),
+    `<a href="${escapeHtml(frame.unsubscribeUrl)}" style="${MUTED}">Unsubscribe</a>`,
+    `<a href="${escapeHtml(frame.preferencesUrl)}" style="${MUTED}">Email preferences</a>`,
+  ].join(" · ");
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${escapeHtml(content.subject)}</title></head><body style="margin:0;padding:0;background:#fafafa;${FONT}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e4e4e7"><tr><td style="padding:28px 28px 8px"><p style="margin:0 0 20px;font-size:13px;${MUTED}">${escapeHtml(frame.portalName)}</p><h1 style="margin:0 0 16px;font-size:20px;line-height:1.35;font-weight:600;color:#18181b">${escapeHtml(content.heading)}</h1><p style="${P}">${escapeHtml(content.intro)}</p>${
     content.quote
       ? `<div style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #e4e4e7;background:#fafafa">${content.quote.html}</div>`
       : ""
-  }${content.extraHtml ?? ""}<p style="margin:20px 0 24px"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:10px 16px;background:#18181b;color:#fafafa;text-decoration:none;font-size:14px;font-weight:500">${escapeHtml(content.action.label)}</a></p></td></tr><tr><td style="padding:16px 28px 24px;border-top:1px solid #f4f4f5;font-size:12px;line-height:1.6;${MUTED}">${escapeHtml(frame.reason)}<br><a href="${escapeHtml(frame.unsubscribeUrl)}" style="${MUTED}">Unsubscribe</a> · <a href="${escapeHtml(frame.preferencesUrl)}" style="${MUTED}">Email preferences</a></td></tr></table></td></tr></table></body></html>`;
+  }${content.extraHtml ?? ""}<p style="margin:20px 0 24px"><a href="${escapeHtml(content.action.url)}" style="display:inline-block;padding:10px 16px;background:#18181b;color:#fafafa;text-decoration:none;font-size:14px;font-weight:500">${escapeHtml(content.action.label)}</a></p></td></tr><tr><td style="padding:16px 28px 24px;border-top:1px solid #f4f4f5;font-size:12px;line-height:1.6;${MUTED}">${escapeHtml(frame.reason)}<br>${footerHtml}</td></tr></table></td></tr></table></body></html>`;
   const text = [
     content.heading,
     "",
@@ -58,6 +67,7 @@ function layout(
     "",
     "--",
     frame.reason,
+    ...(frame.unfollowUrl ? [`Unfollow this post: ${frame.unfollowUrl}`] : []),
     `Unsubscribe: ${frame.unsubscribeUrl}`,
     `Email preferences: ${frame.preferencesUrl}`,
     "",
@@ -85,7 +95,7 @@ export function statusEmail(
   return layout(frame, {
     subject: `${title}: now ${STATUS_LABELS[input.to]}`,
     heading: `“${title}” is now ${STATUS_LABELS[input.to]}`,
-    intro: `A post you ${input.author ? "wrote" : "voted on"} moved from ${STATUS_LABELS[input.from]} to ${STATUS_LABELS[input.to]}.`,
+    intro: `A post you ${input.author ? "wrote" : "follow or voted on"} moved from ${STATUS_LABELS[input.from]} to ${STATUS_LABELS[input.to]}.`,
     quote: input.body.text ? quoted(input.body, 280) : undefined,
     action: { label: "View post", url: input.url },
   });
@@ -100,7 +110,7 @@ export function replyEmail(
   return layout(frame, {
     subject: `New comment on “${title}”`,
     heading: `New comment on “${title}”`,
-    intro: `${name} commented on a post you ${input.author ? "wrote" : "commented on"}:`,
+    intro: `${name} commented on a post you ${input.author ? "wrote" : "follow or commented on"}:`,
     quote: quoted(input.body),
     action: { label: "Reply", url: input.url },
   });

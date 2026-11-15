@@ -281,3 +281,24 @@ export const adminLinkNonces = sqliteTable("admin_link_nonces", {
   expiresAt: integer("expires_at").notNull(),
   usedAt: integer("used_at").notNull(),
 });
+
+// 0011: explicit follow/unfollow state per user and post.
+// Absence of a row falls back to implicit following (author, voter, or commenter).
+export const postFollows = sqliteTable(
+  "post_follows",
+  {
+    postId: text("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    following: integer("following").notNull().default(1),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.postId, t.userId] }),
+    check("post_follows_following", sql`${t.following} IN (0, 1)`),
+    index("post_follows_user_idx").on(t.userId),
+  ],
+);

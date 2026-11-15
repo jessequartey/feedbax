@@ -5,6 +5,7 @@ import type {
   Category,
   CommentView,
   CreatePostResult,
+  FollowResult,
   ListPostsInput,
   Page,
   PostDetail,
@@ -20,6 +21,7 @@ import { getPublishedEntry, listPublishedEntries } from "./changelog.ts";
 import { portalConfig } from "./portal-config.ts";
 import { createPostForUser, getPostDetail, listPostPage } from "./posts.ts";
 import { addCommentForUser, listCommentPage } from "./comments.ts";
+import { setFollowForUser } from "./follows.ts";
 import { setVoteForUser } from "./votes.ts";
 import { result } from "./errors.ts";
 import type { EmailSettings } from "../contracts/portal.ts";
@@ -114,6 +116,11 @@ export const setVote = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<ApiResult<VoteResult>> =>
     result(async () => setVoteForUser(data, await viewer()), "votes.set"),
   );
+export const setPostFollow = createServerFn({ method: "POST" })
+  .validator((data: { postId: string; following: boolean }) => data)
+  .handler(async ({ data }): Promise<ApiResult<FollowResult>> =>
+    result(async () => setFollowForUser(data, await viewer()), "posts.follow"),
+  );
 
 // ---- Email notifications (/notifications, /unsubscribe) ----
 export const getEmailPreferences = createServerFn({ method: "GET" }).handler(
@@ -129,8 +136,8 @@ export const saveEmailPreferences = createServerFn({ method: "POST" })
   );
 /** The footer link's page posts here. Signed links need no session. */
 export const unsubscribeEmail = createServerFn({ method: "POST" })
-  .validator((data: { u?: string; k?: string; t?: string }) => record(data))
-  .handler(async ({ data }): Promise<ApiResult<{ kind: EmailKind }>> =>
+  .validator((data: { u?: string; k?: string; p?: string; t?: string }) => record(data))
+  .handler(async ({ data }): Promise<ApiResult<{ kind: EmailKind; postId?: string }>> =>
     result(async () => unsubscribeWithLink(data), "email.prefs"),
   );
 
@@ -151,6 +158,11 @@ export const adminListComments = createServerFn({ method: "GET" })
   .validator(pass<{ page?: number }>)
   .handler(async ({ data }) =>
     result(async () => adminApi.listModerationComments(await viewer(), data), "admin.action"),
+  );
+export const adminPostVoters = createServerFn({ method: "GET" })
+  .validator(pass<{ postId: string; page?: number }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.listPostVoters(await viewer(), data), "admin.action"),
   );
 export const adminSetPostPriority = createServerFn({ method: "POST" })
   .validator(pass<{ postId: string; priority: number | null }>)

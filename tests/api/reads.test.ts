@@ -77,6 +77,14 @@ it("sorts top by lifetime votes, trending by seven-day votes, then new by timest
   expect((await listPostPage({}, null)).items.map((p) => p.id)).toEqual([ids[1], ids[2], ids[0]]);
   expect((await getPostDetail(ids[1], voter)).viewerHasVoted).toBe(true);
   expect((await getPostDetail(ids[1], user)).viewerHasVoted).toBe(false);
+
+  // Trending weights vote recency: an equally-voted post with a newer vote outranks an older one.
+  await setVoteForUser({ postId: ids[2], voted: true }, voter);
+  await env.DB.prepare("UPDATE votes SET created_at = ? WHERE post_id = ?")
+    .bind(Date.now() - 6 * 86400000, ids[1])
+    .run();
+  const trending = (await listPostPage({ sort: "trending" }, null)).items.map((p) => p.id);
+  expect(trending.slice(0, 2)).toEqual([ids[2], ids[1]]);
 });
 it("orders comments ascending with deterministic UUID ties and returns notFound for missing reads", async () => {
   const user = await writer(),
