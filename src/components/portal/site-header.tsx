@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { CommandSearch } from "./command-search";
 import { initialOf } from "./format";
 import { ThemeToggle } from "./theme";
 import { safeRelativePath } from "./safe-path";
@@ -306,6 +307,7 @@ export function SiteHeader() {
         <div className="col-start-2 flex items-center justify-self-end gap-2 md:col-start-3">
           {backUrl ? <BackToApp url={backUrl} className="hidden md:inline-flex" /> : null}
           {viewer.user?.admin ? <AdminLink className="hidden md:inline-flex" /> : null}
+          <CommandSearch />
           <ThemeToggle className="size-11 md:size-9" />
           <div className="hidden md:block">
             <UserMenu />

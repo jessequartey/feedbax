@@ -12,6 +12,7 @@
 - Open posts and create feedback in dialogs from the board or roadmap, keep your place when closing, and share the same URLs as full pages; text drafts survive switching views.
 - **Faster post reading.** Formatting tools load only when you start writing; early typing and keyboard focus stay in place.
 - **Profanity filter.** Posts and comments with profanity are held for review by default; admins can block, switch off, or customize the word lists in Settings.
+- **Search everywhere.** Press Cmd/Ctrl+K or use the header search to find feedback and published changelog entries.
 
 ## 0.3.1
 
