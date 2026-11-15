@@ -183,7 +183,7 @@ describe("template via --page --examples", () => {
         external: { url: "https://www.notion.so/images/page-cover/gradients_8.png" },
       },
     });
-    // Guide: grey paragraph, ONE callout with a bold title and 4 bullets, a collapsed-by-default toggle heading
+    // Guide: grey paragraph, ONE callout with a bold title and 6 bullets, a collapsed-by-default toggle heading
     const blocks = guide!.body.children as Record<string, any>[];
     expect(blocks.map((b) => b.type)).toEqual(["paragraph", "callout", "heading_3"]);
     expect(blocks[0]!.paragraph.color).toBe("gray");
@@ -192,11 +192,13 @@ describe("template via --page --examples", () => {
       color: "gray_background",
       rich_text: [{ text: { content: "How this works" }, annotations: { bold: true } }],
     });
-    expect(blocks[1]!.callout.children).toHaveLength(4);
+    expect(blocks[1]!.callout.children).toHaveLength(6);
     expect(blocks[1]!.callout.children.map((c: any) => c.type)).toEqual(
-      Array(4).fill("bulleted_list_item"),
+      Array(6).fill("bulleted_list_item"),
     );
-    expect(JSON.stringify(blocks[1]!.callout.children[2])).toContain('"content":"Send to GitHub"');
+    const guideText = JSON.stringify(blocks[1]!.callout.children);
+    expect(guideText).toContain('"content":"Priority"');
+    expect(guideText).toContain('"content":"Closes #N"');
     expect(blocks[2]!.heading_3).toMatchObject({
       is_toggleable: true,
       rich_text: [{ text: { content: "Getting started" } }],
@@ -229,11 +231,12 @@ describe("template via --page --examples", () => {
       content: "github.com/jessequartey/feedbax",
       link: { url: "https://github.com/jessequartey/feedbax" },
     });
-    // Example rows: no Feedbax ID, Created in the current month.
+    // Example rows: no Feedbax ID, a Priority value, Created in the current month.
     const rows = rest.slice(0, 4);
     for (const row of rows) {
       expect(row.body.parent).toEqual({ type: "data_source_id", data_source_id: SOURCE });
       expect(row.body.properties).not.toHaveProperty("Feedbax ID");
+      expect(row.body.properties.Priority.number).toBeGreaterThanOrEqual(0);
       expect(row.body.properties.Created.date.start).toMatch(/^2026-11-\d\d$/);
     }
     expect(
@@ -242,12 +245,13 @@ describe("template via --page --examples", () => {
         r.body.properties.Category.select.name,
         r.body.properties.Status.select.name,
         r.body.properties.Votes.number,
+        r.body.properties.Priority.number,
       ]),
     ).toEqual([
-      ["Example: Dark mode", "Feature request", "Planned", 12],
-      ["Example: Crash on sign in", "Bug report", "Open", 8],
-      ["Example: Team invites", "Feature request", "In progress", 19],
-      ["Example: Roadmap labels", "General feedback", "Done", 5],
+      ["Example: Dark mode", "Feature request", "Planned", 12, 80],
+      ["Example: Crash on sign in", "Bug report", "Open", 8, 95],
+      ["Example: Team invites", "Feature request", "In progress", 19, 60],
+      ["Example: Roadmap labels", "General feedback", "Done", 5, 20],
     ]);
     expect(rows.every((r) => r.body.properties.Description.rich_text[0].text.content)).toBe(true);
   });
