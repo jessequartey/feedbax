@@ -40,11 +40,10 @@ recovery command. Secrets come from masked prompts or the environment, never fla
   host-login     appUrl + FEEDBAX_HOST_SECRET                              [--app-url <https-url>]
   email          RESEND_API_KEY + notifications.email.from                [--from "Name <a@b.com>"]
   webhooks       How to manage webhook endpoints in /admin/settings
-  ai             AI_API_KEY (choose the provider in /admin/settings)     [--provider jev|gemini|openai]
   --yes          Never prompt; redeploy without asking`,
     positionals: 1,
     booleans: ["--yes"],
-    values: ["--repo", "--app-url", "--from", "--provider"],
+    values: ["--repo", "--app-url", "--from"],
   },
   doctor: {
     usage: "feedbax doctor",
@@ -237,7 +236,6 @@ export async function main(argv = process.argv.slice(2), deps: CliDeps = {}): Pr
           repo: parsed.values["--repo"],
           appUrl: parsed.values["--app-url"],
           from: parsed.values["--from"],
-          provider: parsed.values["--provider"],
         });
         await notifyIfOutdated(ctx);
         return code;

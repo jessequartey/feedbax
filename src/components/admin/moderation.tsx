@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { SimilarGroupsResult } from "@/contracts/ai";
+import type { SimilarGroupsResult } from "@/contracts/similar";
 import type {
   MergeCandidate,
   ModerationComment,
@@ -349,15 +349,6 @@ export function SimilarGroups({ result }: { result: SimilarGroupsResult }) {
     source: { id: string; title: string };
     target: MergeCandidate;
   } | null>(null);
-  if (result.provider === "off")
-    return (
-      <div className="border">
-        <EmptyState
-          title="Similar groups are off"
-          description="Choose a provider in Settings → AI suggestions to group similar posts."
-        />
-      </div>
-    );
   if (result.groups.length === 0)
     return (
       <div className="border">
@@ -370,8 +361,8 @@ export function SimilarGroups({ result }: { result: SimilarGroupsResult }) {
   return (
     <>
       <p className="mb-3 text-sm text-muted-foreground">
-        Checked the {result.scanned} newest open posts ({result.provider}). Merge a duplicate into
-        the suggested post to keep.
+        Checked the {result.scanned} newest open posts. Merge a duplicate into the suggested post to
+        keep.
       </p>
       <ul className="flex flex-col gap-4" aria-label="Similar post groups">
         {result.groups.map((group) => (

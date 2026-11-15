@@ -16,7 +16,5 @@ declare namespace Cloudflare {
     GOOGLE_CLIENT_SECRET?: string;
     /** Email notifications (`npx feedbax add email`); email is off without it. */
     RESEND_API_KEY?: string;
-    /** Optional AI provider key (`npx feedbax add ai`); local mode works without it. */
-    AI_API_KEY?: string;
   }
 }

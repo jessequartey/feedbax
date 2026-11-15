@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { SuggestSimilarResult } from "@/contracts/ai";
 import { CATEGORY_LABELS, LIMITS, type Category } from "@/contracts/domain";
+import { SEARCH_QUERY_LIMIT } from "@/contracts/search";
+import type { SuggestSimilarResult } from "@/contracts/similar";
 import { createPost } from "@/server/functions";
 import { plural } from "./format";
 import { clearDraft, loadDraft, parsePostDraft, POST_DRAFT_KEY, saveDraft } from "./draft";
@@ -47,7 +48,7 @@ export function SubmitForm() {
   // Duplicate suggestions while typing: local FTS only, debounced, title only
   // (the rich-text editor stays lazy; its plain text is not needed here).
   React.useEffect(() => {
-    const query = title.trim();
+    const query = title.trim().slice(0, SEARCH_QUERY_LIMIT);
     if (query.length < 4) {
       setSimilar(null);
       return;
@@ -187,8 +188,11 @@ export function SubmitForm() {
             {errors.title}
           </p>
         ) : null}
+        <p role="status" className="sr-only">
+          {similar?.items.length ? `${plural(similar.items.length, "similar post")} found` : ""}
+        </p>
         {similar && (similar.items.length > 0 || suggestedCategory) ? (
-          <div className="flex flex-col gap-2 border p-3" aria-live="polite">
+          <div className="flex flex-col gap-2 border p-3">
             {similar.items.length > 0 ? (
               <>
                 <p className="text-sm font-medium">

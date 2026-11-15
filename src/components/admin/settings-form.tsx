@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { AI_PROVIDER_LABELS, AI_PROVIDERS, type AiProviderName } from "@/contracts/ai";
 import type { AdminSettings, ModerationSettings, NotificationToggles } from "@/contracts/admin";
 import type { AdminWebhooks } from "@/contracts/webhooks";
 import { CATEGORY_LABELS, type Category } from "@/contracts/domain";
@@ -130,8 +129,6 @@ export function SettingsForm({
   // A reset response must not replace text/category/select edits made while it was saving.
   const edits = React.useRef(0);
   const [source, setSource] = React.useState(effective.changelog.source);
-  const [aiProvider, setAiProvider] = React.useState<AiProviderName>(effective.ai.provider);
-  const [aiModel, setAiModel] = React.useState(effective.ai.model ?? "");
   const [saving, setSaving] = React.useState(false);
 
   const trimmed = name.trim();
@@ -146,14 +143,12 @@ export function SettingsForm({
     name: trimmed,
     categories: CATEGORIES.filter((category) => categories.includes(category)),
     source,
-    ai: { provider: aiProvider, model: aiModel.trim() || null },
   };
   const dirty =
     current.name !== effective.name ||
     !same(current.categories, effective.categories) ||
     !same(current.moderation, effective.moderation) ||
-    current.source !== effective.changelog.source ||
-    !same(current.ai, effective.ai);
+    current.source !== effective.changelog.source;
 
   async function save(reset = false) {
     if (saving) return;
@@ -191,10 +186,6 @@ export function SettingsForm({
               changelog: {
                 source: nextSource === defaults.changelog.source ? null : nextSource,
               },
-              ai: {
-                provider: target.ai.provider === defaults.ai.provider ? null : target.ai.provider,
-                model: same(target.ai.model, defaults.ai.model) ? null : target.ai.model,
-              },
             },
           }),
         reset ? "Settings reset to the project defaults." : "Settings saved.",
@@ -206,8 +197,6 @@ export function SettingsForm({
         setName(done.effective.name);
         setCategories(done.effective.categories);
         setSource(done.effective.changelog.source);
-        setAiProvider(done.effective.ai.provider);
-        setAiModel(done.effective.ai.model ?? "");
       }
     } finally {
       setSaving(false);
@@ -467,70 +456,6 @@ export function SettingsForm({
               pending={switches.pending.has("autoDraft")}
               onChange={(next) => void switches.change("autoDraft", next)}
             />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">AI suggestions</CardTitle>
-            <CardDescription>
-              Duplicate suggestions while typing always use local search. An external provider only
-              re-ranks Similar groups in Moderation; add its key with{" "}
-              <code>npx feedbax add ai</code>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${ids}-ai-provider`}>Provider</Label>
-              <Select
-                value={aiProvider}
-                disabled={saving}
-                onValueChange={(value) => {
-                  if (value && AI_PROVIDERS.includes(value as AiProviderName)) {
-                    edits.current += 1;
-                    setAiProvider(value as AiProviderName);
-                  }
-                }}
-              >
-                <SelectTrigger
-                  id={`${ids}-ai-provider`}
-                  aria-describedby={`${ids}-ai-hint`}
-                  className="w-full max-md:h-11"
-                >
-                  <SelectValue>{AI_PROVIDER_LABELS[aiProvider]}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {AI_PROVIDERS.map((provider) => (
-                    <SelectItem key={provider} value={provider}>
-                      {AI_PROVIDER_LABELS[provider]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p id={`${ids}-ai-hint`} className="text-xs text-muted-foreground">
-                {aiProvider === "local" || aiProvider === "off"
-                  ? "No external calls are made."
-                  : settings.aiKeyConfigured
-                    ? "An AI_API_KEY is configured. Without a working key, local grouping is used."
-                    : "No AI_API_KEY is configured yet, so local grouping is used."}
-              </p>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${ids}-ai-model`}>Model (optional)</Label>
-              <Input
-                id={`${ids}-ai-model`}
-                value={aiModel}
-                maxLength={80}
-                disabled={saving || aiProvider === "local" || aiProvider === "off"}
-                placeholder="Provider default"
-                autoComplete="off"
-                onChange={(event) => {
-                  edits.current += 1;
-                  setAiModel(event.target.value);
-                }}
-                className="h-9 max-md:h-11 max-md:text-base"
-              />
-            </div>
           </CardContent>
         </Card>
 

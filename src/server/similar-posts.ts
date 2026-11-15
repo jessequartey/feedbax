@@ -1,9 +1,9 @@
 import { env } from "cloudflare:workers";
-import { suggestCategoryLocal, titleTokens } from "../ai/local.ts";
-import type { SuggestSimilarResult } from "../contracts/ai.ts";
+import type { SuggestSimilarResult } from "../contracts/similar.ts";
 import { SEARCH_QUERY_LIMIT } from "../contracts/search.ts";
 import type { Category, Status } from "../contracts/domain.ts";
 import { errorResponse } from "./http.ts";
+import { suggestCategory, titleTokens } from "./similar-text.ts";
 import { text } from "./validation.ts";
 
 const SIMILAR_LIMIT = 3;
@@ -37,9 +37,15 @@ export async function suggestSimilarPosts(
   allowedCategories?: readonly Category[],
   d1: D1Database = env.DB,
 ): Promise<SuggestSimilarResult> {
-  const title = text(rawTitle, SEARCH_QUERY_LIMIT, "q", 0).trim();
+  // Titles may be longer than the search limit; the first words are enough to match on.
+  const title = text(
+    typeof rawTitle === "string" ? rawTitle.slice(0, SEARCH_QUERY_LIMIT) : rawTitle,
+    SEARCH_QUERY_LIMIT,
+    "q",
+    0,
+  ).trim();
   if (title.length < 4) return { items: [], suggestedCategory: null };
-  const suggestedCategory = suggestCategoryLocal({ title }, allowedCategories)?.category ?? null;
+  const suggestedCategory = suggestCategory(title, allowedCategories);
   const tokens = [...titleTokens(title)].slice(0, 8);
   if (!tokens.length) return { items: [], suggestedCategory };
   const { results } = await d1

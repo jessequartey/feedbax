@@ -1,14 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { env } from "cloudflare:workers";
 import { resetEnv } from "../fixtures/cloudflare-workers.ts";
-import { createGeminiProvider } from "../../src/ai/gemini.ts";
-import { createJevProvider } from "../../src/ai/jev.ts";
-import { createOpenAiProvider } from "../../src/ai/openai.ts";
-import { resolveAiProvider } from "../../src/ai/index.ts";
 import { listSimilarGroups } from "../../src/server/similar-groups.ts";
 import { handleSearchSimilar, suggestSimilarPosts } from "../../src/server/similar-posts.ts";
 import { adminApi } from "../../src/server/admin-api.ts";
-import { saveSettings } from "../../src/server/settings.ts";
 import { measure } from "../resources/meter.ts";
 import { writer } from "./helpers.ts";
 
@@ -20,10 +15,10 @@ afterEach(async () => {
 
 async function post(id: string, title: string, createdAt = 1, update?: string) {
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO user (id, name, email, created_at, updated_at) VALUES ('ai-user', 'Ai user', 'ai@example.com', 1, 1)",
+    "INSERT OR IGNORE INTO user (id, name, email, created_at, updated_at) VALUES ('sim-user', 'Sim user', 'sim@example.com', 1, 1)",
   ).run();
   await env.DB.prepare(
-    "INSERT INTO posts (id, author_id, title, body, category, created_at, updated_at) VALUES (?, 'ai-user', ?, 'A useful description', 'feature', ?, ?)",
+    "INSERT INTO posts (id, author_id, title, body, category, created_at, updated_at) VALUES (?, 'sim-user', ?, 'A useful description', 'feature', ?, ?)",
   )
     .bind(id, title, createdAt, createdAt)
     .run();
@@ -47,7 +42,7 @@ describe("similar posts while typing", () => {
       4,
       "UPDATE posts SET merged_into = 'visible' WHERE id = ?",
     );
-    await env.DB.prepare("INSERT INTO votes VALUES ('visible', 'ai-user', 1)").run();
+    await env.DB.prepare("INSERT INTO votes VALUES ('visible', 'sim-user', 1)").run();
 
     expect(await suggestSimilarPosts("abc")).toEqual({ items: [], suggestedCategory: null });
     const result = await suggestSimilarPosts("dark mode");
@@ -65,10 +60,22 @@ describe("similar posts while typing", () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("public, max-age=15");
-    const invalid = await handleSearchSimilar(
-      new Request(`https://example.com/api/search/similar?q=${"x".repeat(101)}`),
+    // Titles can be longer than the search limit: the query is truncated, never rejected,
+    // and FTS operators in it are plain text matched against the title column only.
+    await post(
+      "body-only",
+      "Unrelated roadmap",
+      5,
+      "UPDATE posts SET body = 'dark mode near body' WHERE id = ?",
     );
-    expect(invalid.status).toBe(400);
+    for (const q of ["x".repeat(150), "dark mode ".repeat(20), '"dark" NEAR(mode) -x* body:']) {
+      const tolerated = await handleSearchSimilar(
+        new Request(`https://example.com/api/search/similar?q=${encodeURIComponent(q)}`),
+      );
+      expect(tolerated.status).toBe(200);
+      const { items } = (await tolerated.json()) as { items: { id: string }[] };
+      expect(items.map((item) => item.id)).not.toContain("body-only");
+    }
   });
 
   it("needs two shared words, ignores stopwords, and suggests a type only when it is offered", async () => {
@@ -103,13 +110,12 @@ describe("admin similar groups", () => {
       "UPDATE posts SET status = 'closed' WHERE id = ?",
     );
     await post("hidden", "Add dark mode support", 5, "UPDATE posts SET hidden_at = 1 WHERE id = ?");
-    await env.DB.prepare("INSERT INTO votes VALUES ('b', 'ai-user', 1)").run();
+    await env.DB.prepare("INSERT INTO votes VALUES ('b', 'sim-user', 1)").run();
 
     await expect(adminApi.similarGroups(await writer(), undefined)).rejects.toMatchObject({
       code: "forbidden",
     });
     const result = await adminApi.similarGroups(await adminViewer(), undefined);
-    expect(result.provider).toBe("local");
     expect(result.scanned).toBe(3);
     expect(result.groups).toHaveLength(1);
     // Highest votes wins as the post to keep.
@@ -117,76 +123,7 @@ describe("admin similar groups", () => {
     expect(result.groups[0]?.duplicates.map((duplicate) => duplicate.id)).toEqual(["a"]);
 
     const usage = await measure(() => listSimilarGroups());
-    expect(usage.queries).toBe(2);
+    expect(usage.queries).toBe(1);
     expect(usage.fetches).toBe(0);
-  });
-
-  it("returns no groups when the provider is off, and falls back to local when an external provider fails", async () => {
-    await post("a", "Add dark mode support", 1);
-    await post("b", "Dark mode support please", 2);
-    await saveSettings({ ai: { provider: "off" } });
-    expect(await listSimilarGroups()).toEqual({ provider: "off", scanned: 0, groups: [] });
-
-    await saveSettings({ ai: { provider: "gemini" } });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => Response.json({ error: "nope" }, { status: 500 })),
-    );
-    const result = await listSimilarGroups(env.DB, "fake-gemini-key-for-tests");
-    expect(result.groups).toHaveLength(1);
-    expect(result.groups[0]?.target.id).toBeDefined();
-  });
-});
-
-describe("provider adapters (mocked fetch)", () => {
-  it("parses category answers from gemini, openai and jev, and falls back on failure", async () => {
-    const calls: { url: string; init?: RequestInit }[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url =
-          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-        calls.push({ url, init });
-        if (url.includes("generativelanguage.googleapis.com"))
-          return Response.json({
-            candidates: [{ content: { parts: [{ text: '{"category":"bug","confidence":0.9}' }] } }],
-          });
-        if (url.includes("api.openai.com"))
-          return Response.json({
-            choices: [{ message: { content: '{"category":"feature","confidence":0.8}' } }],
-          });
-        return Response.json({
-          answers: { category: { type: "choice", choice: "general", confidence: 0.7 } },
-        });
-      }),
-    );
-    await expect(
-      createGeminiProvider("fake-key").suggestCategory({ title: "App crashes" }),
-    ).resolves.toEqual({ category: "bug", confidence: 0.9, source: "gemini" });
-    await expect(
-      createOpenAiProvider("fake-key").suggestCategory({ title: "Please add export" }),
-    ).resolves.toEqual({ category: "feature", confidence: 0.8, source: "openai" });
-    await expect(
-      createJevProvider("fake-key").suggestCategory({ title: "How do I export?" }),
-    ).resolves.toEqual({ category: "general", confidence: 0.7, source: "jev" });
-    // Keys travel in headers only, never in the URL, and Jev's state is a string.
-    expect(calls.map((call) => call.url.includes("fake-key"))).toEqual([false, false, false]);
-    expect(JSON.parse(calls[2]?.init?.body as string).state).toBeTypeOf("string");
-
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("network down");
-      }),
-    );
-    const provider = resolveAiProvider({ provider: "openai" }, "fake-key");
-    await expect(provider.suggestCategory({ title: "App crashes on save" })).resolves.toEqual({
-      category: "bug",
-      confidence: 0.7,
-      source: "local",
-    });
-    // No key at all also stays local, with no fetch attempted.
-    expect(resolveAiProvider({ provider: "gemini" }, undefined).name).toBe("local");
-    expect(resolveAiProvider({ provider: "off" }, "fake-key").name).toBe("local");
   });
 });

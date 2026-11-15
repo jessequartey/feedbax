@@ -246,35 +246,6 @@ describe("feedbax add", () => {
     expect((await loadConfig(cwd)).notifications.email).toEqual({ from: "feedback@acme.dev" });
   });
 
-  it("ai: validates the key, then sets AI_API_KEY without changing config", async () => {
-    const cwd = await project();
-    const before = await read(cwd, "feedbax.config.ts");
-    const h = harness(cwd, { AI_API_KEY: "fake-ai-key-for-tests-only" });
-    h.deps.fetch = async (input, init) => {
-      expect(input).toBe("https://api.openai.com/v1/models");
-      expect(init?.headers).toEqual({
-        Authorization: "Bearer fake-ai-key-for-tests-only",
-      });
-      return Response.json({ data: [] });
-    };
-    expect(await main(["add", "ai", "--provider", "openai", "--yes"], h.deps)).toBe(0);
-    expect(h.wrangler.bulk).toEqual([{ AI_API_KEY: "fake-ai-key-for-tests-only" }]);
-    expect((await readVars(cwd)).AI_API_KEY).toBe("fake-ai-key-for-tests-only");
-    expect(await read(cwd, "feedbax.config.ts")).toBe(before);
-    expect(h.output()).not.toContain("fake-ai-key-for-tests-only");
-  });
-
-  it("ai: a rejected key or missing provider leaves secrets untouched", async () => {
-    const cwd = await project();
-    const rejected = harness(cwd, { AI_API_KEY: "fake-ai-key-for-tests-only" });
-    rejected.deps.fetch = async () => Response.json({ error: "bad key" }, { status: 401 });
-    expect(await main(["add", "ai", "--provider", "gemini", "--yes"], rejected.deps)).toBe(2);
-    expect(rejected.wrangler.bulk).toEqual([]);
-    const missing = harness(cwd, { AI_API_KEY: "fake-ai-key-for-tests-only" });
-    expect(await main(["add", "ai", "--yes"], missing.deps)).toBe(2);
-    expect(missing.wrangler.bulk).toEqual([]);
-  });
-
   it("email: rejects a bad from-address before any change", async () => {
     const cwd = await project();
     const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });

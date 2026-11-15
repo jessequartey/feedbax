@@ -15,5 +15,3 @@ NOTION_TOKEN=ntn_replace_me
 # GITHUB_CLIENT_SECRET=
 # GOOGLE_CLIENT_ID=
 # GOOGLE_CLIENT_SECRET=
-# Optional AI provider key for jev, gemini, or openai (local mode needs no key).
-# AI_API_KEY=

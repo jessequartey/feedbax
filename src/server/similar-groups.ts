@@ -1,24 +1,17 @@
 import { env } from "cloudflare:workers";
-import { resolveAiProvider } from "../ai/index.ts";
-import type { SimilarGroupsResult, SimilarPostGroup } from "../contracts/ai.ts";
+import type { SimilarGroupsResult, SimilarPostGroup } from "../contracts/similar.ts";
 import type { Status } from "../contracts/domain.ts";
-import { readSettings } from "./settings.ts";
+import { clusterPosts } from "./similar-text.ts";
 
-const CLUSTER_SCAN_LIMIT = 200;
+const SCAN_LIMIT = 200;
 
 type ClusterRow = { id: string; title: string; status: Status; votes: number; created_at: number };
 
 /**
- * Admin similar groups: one settings read plus one posts read (200 newest open public
- * posts), then local Jaccard clustering. A configured external provider may re-rank
- * the candidate pairs; any failure falls back to local. No cron or queue work.
+ * Admin similar groups: one posts read (200 newest open public posts), then local title
+ * clustering. No settings read, no external IO, no cron or queue work.
  */
-export async function listSimilarGroups(
-  d1: D1Database = env.DB,
-  apiKey: string | undefined = env.AI_API_KEY,
-): Promise<SimilarGroupsResult> {
-  const settings = await readSettings(d1);
-  if (settings.ai.provider === "off") return { provider: "off", scanned: 0, groups: [] };
+export async function listSimilarGroups(d1: D1Database = env.DB): Promise<SimilarGroupsResult> {
   const { results } = await d1
     .prepare(
       `SELECT p.id, p.title, p.status, p.created_at,
@@ -29,20 +22,8 @@ export async function listSimilarGroups(
        ORDER BY p.created_at DESC, p.id DESC
        LIMIT ?`,
     )
-    .bind(CLUSTER_SCAN_LIMIT)
+    .bind(SCAN_LIMIT)
     .all<ClusterRow>();
-  if (results.length < 2)
-    return { provider: settings.ai.provider, scanned: results.length, groups: [] };
-  const provider = resolveAiProvider(settings.ai, apiKey);
-  const clusters = await provider.clusterPosts(
-    results.map((row) => ({
-      id: row.id,
-      title: row.title,
-      body: "",
-      votes: Number(row.votes ?? 0),
-      createdAt: row.created_at,
-    })),
-  );
   const byId = new Map(results.map((row) => [row.id, row]));
   const toPost = (row: ClusterRow) => ({
     id: row.id,
@@ -50,16 +31,17 @@ export async function listSimilarGroups(
     votes: Number(row.votes ?? 0),
     createdAt: new Date(row.created_at).toISOString(),
   });
-  const groups: SimilarPostGroup[] = [];
-  for (const cluster of clusters) {
-    const target = byId.get(cluster.targetId);
-    if (!target) continue;
-    const duplicates = cluster.memberIds
-      .map((id) => byId.get(id))
-      .filter((row): row is ClusterRow => !!row && row.id !== target.id)
-      .map(toPost);
-    if (duplicates.length)
-      groups.push({ target: toPost(target), duplicates, score: cluster.score });
-  }
-  return { provider: provider.name, scanned: results.length, groups: groups.slice(0, 20) };
+  const groups: SimilarPostGroup[] = clusterPosts(
+    results.map((row) => ({
+      id: row.id,
+      title: row.title,
+      votes: Number(row.votes ?? 0),
+      createdAt: row.created_at,
+    })),
+  ).map((cluster) => ({
+    target: toPost(byId.get(cluster.targetId)!),
+    duplicates: cluster.memberIds.map((id) => toPost(byId.get(id)!)),
+    score: cluster.score,
+  }));
+  return { scanned: results.length, groups };
 }

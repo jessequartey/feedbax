@@ -18,7 +18,7 @@
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 - Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
 - **Reliable webhooks, inspection and replay.** Large event batches deliver without truncation, failed queue sends recover automatically, and admins can browse the webhook event catalog, filter recent deliveries, inspect payloads, and replay failed deliveries.
-- **Duplicate suggestions and AI auto-sort.** Similar public posts and a suggested post type appear while typing (local, no key needed), admins can merge from Similar groups in Moderation, and an optional Jev, Gemini or OpenAI key (`npx feedbax add ai`) re-ranks those groups with local fallback.
+- **Duplicate detection.** While writing, see similar posts and a suggested post type; admins can review and merge groups of similar posts.
 
 ## 0.3.1
 

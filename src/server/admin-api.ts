@@ -57,7 +57,6 @@ async function adminSettings(): Promise<AdminSettings> {
     effective: await readSettings(),
     defaults: resolveSettings(config, []),
     githubEnabled: !!config.integrations.github && !!env.GITHUB_TOKEN?.trim(),
-    aiKeyConfigured: !!env.AI_API_KEY?.trim(),
   };
 }
 
@@ -100,15 +99,9 @@ export const adminApi = {
     // Only the safe fields; saveSettings rejects anything else and any invalid value.
     for (const key of Object.keys(data))
       if (
-        ![
-          "name",
-          "anonymous",
-          "categories",
-          "notifications",
-          "changelog",
-          "moderation",
-          "ai",
-        ].includes(key)
+        !["name", "anonymous", "categories", "notifications", "changelog", "moderation"].includes(
+          key,
+        )
       )
         invalid(key);
     await saveSettings(data as SettingsPatch);

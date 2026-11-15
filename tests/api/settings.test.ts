@@ -13,7 +13,6 @@ const defaults = {
   categories: ["feature", "bug", "general"],
   notifications: { statusChanges: true, replies: true, changelog: true, adminDigest: true },
   changelog: { autoDraft: true, source: "portal" },
-  ai: { provider: "local", model: null },
 };
 const store = (key: string, value: string) =>
   env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, 0)")
@@ -40,7 +39,6 @@ it("D1 settings override the safe config fields", async () => {
     categories: ["bug", "feature"],
     notifications: { ...defaults.notifications, changelog: false },
     changelog: { autoDraft: false, source: "portal" },
-    ai: defaults.ai,
   });
   // Overrides win over a different config too, and are updated in place.
   await saveSettings({ name: "Renamed" });
@@ -69,9 +67,6 @@ it.each([
   [{ changelog: { autoDraft: "yes" } }, "changelog.autoDraft"],
   [{ changelog: { other: true } }, "changelog.other"],
   [{ changelog: true }, "changelog"],
-  [{ ai: { provider: "bogus" } }, "ai.provider"],
-  [{ ai: { model: " padded " } }, "ai.model"],
-  [{ ai: { autoSort: true } }, "ai.autoSort"],
   [{ secret: "x" }, "secret"],
 ])("rejects %j without writing anything", async (patch, field) => {
   await expect(saveSettings({ name: "Valid", ...patch } as never)).rejects.toMatchObject({
