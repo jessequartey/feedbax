@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils";
 
 // The seam for the rich-text editor. Every place that writes a body (the submit form, the
 // comment form, /admin/changelog) renders this instead of a bare <Textarea>. The value is the
-// Markdown subset of src/lib/markdown.ts and `onChange` receives Markdown. Today it is a textarea
-// with a one-line hint. The editor replaces the body of `RichTextField` (a lazy import that falls
-// back to this textarea until it has loaded, or if it fails), and nothing else has to change:
-// callers keep their state, drafts, limits and error handling.
+// Markdown subset of src/lib/markdown.ts and `onChange` receives Markdown.
+//
+// The editor chunk is loaded after mount. Until it arrives — and if it fails — this textarea
+// is the control, and a form can still submit it without the editor. Callers keep their state,
+// drafts, limits and error handling.
 
 export type RichTextVariant = "post" | "comment" | "changelog";
 
@@ -32,6 +33,8 @@ export type RichTextFieldProps = {
   "aria-describedby"?: string;
 };
 
+type EditorComponent = typeof import("./rich-text-editor").RichTextEditor;
+
 export function RichTextField({
   id,
   name,
@@ -46,25 +49,68 @@ export function RichTextField({
   className,
   ...aria
 }: RichTextFieldProps) {
+  const [Editor, setEditor] = React.useState<EditorComponent | null>(null);
+  React.useEffect(() => {
+    let live = true;
+    // Separate chunk: the board's first load does not include the editor.
+    void import("./rich-text-editor")
+      .then((mod) => {
+        if (live) setEditor(() => mod.RichTextEditor);
+      })
+      .catch(() => {
+        if (live) setEditor(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const hintId = `${id}-markdown`;
   const describedBy = [aria["aria-describedby"], hideHint ? undefined : hintId]
     .filter(Boolean)
     .join(" ");
+  const invalid = aria["aria-invalid"];
+
   return (
-    <div data-rich-text={variant} className="flex flex-col gap-1">
-      <Textarea
-        id={id}
-        name={name}
-        value={value}
-        rows={rows}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        disabled={disabled}
-        aria-invalid={aria["aria-invalid"]}
-        aria-describedby={describedBy || undefined}
-        onChange={(event) => onChange(event.target.value)}
-        className={cn("max-md:text-base", className)}
-      />
+    <div
+      data-rich-text={variant}
+      data-rich-text-mode={Editor ? "editor" : "textarea"}
+      className="flex flex-col gap-1"
+    >
+      {Editor ? (
+        <>
+          <Editor
+            id={id}
+            value={value}
+            onChange={onChange}
+            maxLength={maxLength}
+            variant={variant}
+            rows={rows}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={className}
+            describedBy={describedBy || undefined}
+            invalid={invalid}
+          />
+          {name ? (
+            <textarea name={name} value={value} readOnly hidden aria-hidden="true" tabIndex={-1} />
+          ) : null}
+        </>
+      ) : (
+        <Textarea
+          id={id}
+          name={name}
+          value={value}
+          rows={rows}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-invalid={invalid}
+          aria-describedby={describedBy || undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn("max-md:text-base", className)}
+        />
+      )}
       {hideHint ? null : (
         <p id={hintId} className="text-xs text-muted-foreground">
           {MARKDOWN_NOTE}
