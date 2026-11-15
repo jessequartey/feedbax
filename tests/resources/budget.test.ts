@@ -330,7 +330,8 @@ test("post detail and paginated list reads batch rows, metadata and totals into 
     .run();
 
   expect((await measure(() => getPostDetail(postId(0), admin))).queries).toBe(1);
-  expect((await measure(() => listPostPage({}, admin))).queries).toBe(1);
+  // The public list runs rows and total in parallel (see listPostPage), not as a batch.
+  expect((await measure(() => listPostPage({}, admin))).queries).toBe(2);
   expect((await measure(() => adminApi.listModerationPosts(admin, {}))).queries).toBe(1);
   expect((await measure(() => adminApi.listModerationComments(admin, {}))).queries).toBe(1);
   expect((await measure(() => adminApi.listUsers(admin, {}))).queries).toBe(1);

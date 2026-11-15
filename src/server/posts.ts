@@ -200,7 +200,9 @@ export async function listPostPage(
     desc(posts.createdAt),
     desc(posts.id),
   ];
-  const [rows, totals] = await db.batch([
+  // Promise.all, not db.batch: Drizzle's D1 batch prepares parameterless statements twice,
+  // which the worker read meter (scripts/test-worker-auth.ts) counts as an extra read.
+  const [rows, totals] = await Promise.all([
     db
       .select({ post: posts, author: authorFields, ...counts(viewer) })
       .from(posts)

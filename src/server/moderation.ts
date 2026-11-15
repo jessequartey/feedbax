@@ -53,9 +53,9 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
   if (data.sort !== undefined && data.sort !== "new" && data.sort !== "priority") invalid("sort");
   const where =
     filter === "hidden"
-      ? and(isNotNull(posts.hiddenAt), eq(posts.spam, 0))
+      ? and(isNotNull(posts.hiddenAt), sql`${posts.spam} = 0`)
       : filter === "spam"
-        ? eq(posts.spam, 1)
+        ? sql`${posts.spam} = 1`
         : undefined;
   const [rows, totals] = await db.batch([
     db

@@ -3,6 +3,9 @@ import type { ChangelogEntry } from "../contracts/changelog.ts";
 import { escapeHtml, markdownToHtml } from "../lib/markdown.ts";
 import { listFeedEntries } from "./changelog.ts";
 import { runtimeConfig } from "./settings.ts";
+import { getCachedXml, setCachedXml } from "./feed-cache.ts";
+
+export { clearFeedCache } from "./feed-cache.ts";
 
 // GET /changelog.rss: RSS 2.0 of the newest published entries. Absolute URLs come from
 // PORTAL_URL, never from the request, so a spoofed Host header cannot poison a feed reader.
@@ -10,31 +13,6 @@ import { runtimeConfig } from "./settings.ts";
 export const FEED_CONTENT_TYPE = "application/rss+xml; charset=utf-8";
 const FEED_LIMIT = 50;
 const FEED_CACHE_CONTROL = "public, max-age=300";
-const FEED_CACHE_MAX = 8;
-
-let feedCache = new WeakMap<D1Database, Map<string, string>>();
-
-export function clearFeedCache(): void {
-  feedCache = new WeakMap();
-}
-
-function getCachedXml(db: D1Database, etag: string): string | undefined {
-  return feedCache.get(db)?.get(etag);
-}
-
-function setCachedXml(db: D1Database, etag: string, xml: string): void {
-  let entries = feedCache.get(db);
-  if (!entries) {
-    entries = new Map();
-    feedCache.set(db, entries);
-  }
-  entries.set(etag, xml);
-  while (entries.size > FEED_CACHE_MAX) {
-    const oldest = entries.keys().next().value;
-    if (oldest !== undefined) entries.delete(oldest);
-  }
-}
-
 function matchesEtag(header: string | null, etag: string): boolean {
   if (!header) return false;
   const target = etag.replace(/^W\//, "");

@@ -5,7 +5,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { getPlatformProxy } from "wrangler";
 import type { SyncMessage } from "../../src/contracts/sync.ts";
-import { clearFeedCache } from "../../src/server/changelog-feed.ts";
+import { clearFeedCache } from "../../src/server/feed-cache.ts";
 import { clearSettingsCache } from "../../src/server/settings-cache.ts";
 
 const root = new URL("../../", import.meta.url);
