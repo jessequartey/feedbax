@@ -10,30 +10,11 @@ import {
   listDialogOptions,
   parseDialogSearch,
 } from "../../src/components/portal/list-dialog-navigation.ts";
-import { Route as BoardRoute } from "../../src/routes/_portal.index.tsx";
-import { Route as RoadmapRoute } from "../../src/routes/_portal.roadmap.tsx";
+import { parseBoardSearch, parseRoadmapSearch } from "../../src/components/portal/portal-search.ts";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { NewPostButton } from "../../src/components/portal/post-browser.tsx";
 import { fixtureId, fixtureListPosts } from "../fixtures/portal.ts";
 import { renderPage, viewerOf } from "./helpers.tsx";
-
-function routeSearchOptions(route: {
-  options: {
-    validateSearch?: unknown;
-    loaderDeps?: unknown;
-  };
-}) {
-  const validate = route.options.validateSearch as (
-    search: Record<string, unknown>,
-  ) => Record<string, unknown>;
-  const deps = route.options.loaderDeps as (context: {
-    search: Record<string, unknown>;
-  }) => Record<string, unknown>;
-  return {
-    validateSearch: (search: Record<string, unknown>) => validate(search),
-    loaderDeps: (context: { search: Record<string, unknown> }) => deps(context),
-  };
-}
 
 function setup(path: string) {
   const root = createRootRoute();
@@ -41,13 +22,21 @@ function setup(path: string) {
   const board = createRoute({
     getParentRoute: () => root,
     path: "/",
-    ...routeSearchOptions(BoardRoute),
+    validateSearch: (search: Record<string, unknown>) => ({
+      ...parseBoardSearch(search),
+      ...parseDialogSearch(search),
+    }),
+    loaderDeps: ({ search }) => parseBoardSearch(search),
     loader,
   });
   const roadmap = createRoute({
     getParentRoute: () => root,
     path: "/roadmap",
-    ...routeSearchOptions(RoadmapRoute),
+    validateSearch: (search: Record<string, unknown>) => ({
+      ...parseRoadmapSearch(search),
+      ...parseDialogSearch(search),
+    }),
+    loaderDeps: ({ search }) => parseRoadmapSearch(search),
     loader,
   });
   const post = createRoute({ getParentRoute: () => root, path: "/posts/$postId" });
