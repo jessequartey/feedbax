@@ -1,17 +1,18 @@
 import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
-import { and, asc, desc, eq, gt, gte, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { NotificationToggles } from "../contracts/admin.ts";
 import type { EmailMessage } from "../contracts/sync.ts";
 import { createDb } from "../db/client.ts";
-import { changelogEntries, comments, emailPrefs, posts, user } from "../db/schema.ts";
+import { changelogEntries, comments, emailPrefs, posts, syncState, user } from "../db/schema.ts";
 import { effectiveSettings } from "../server/settings.ts";
 import { publiclyVisible } from "../server/visibility.ts";
 import { richText } from "./content.ts";
 import { emailEnabled } from "./events.ts";
+import { deliveryKey, emailFailure, emailSuccess } from "./state.ts";
 import { reachable, wants } from "./prefs.ts";
-import { EmailError, RESEND_BATCH_MAX, sendBatch, type OutgoingEmail } from "./resend.ts";
+import { EmailError, sendBatch, type OutgoingEmail } from "./resend.ts";
 import {
   changelogEmail,
   digestEmail,
@@ -33,51 +34,16 @@ import {
 // link, and sends them in Resend batches. Hidden, spam and merged posts send nothing.
 
 /** Recipients handled per message; a larger audience continues in a follow-up message. */
-export const EMAIL_SLICE = 200;
+export const EMAIL_SLICE = 8;
 /** Posts listed in a digest (the total is still counted). */
 export const DIGEST_ITEMS = 20;
 
 type Recipient = { id: string; email: string };
 type Audience = { kind: EmailKind; where: SQL; after?: string };
 
-/**
- * One Resend batch. A 409 (same idempotency key, different payload) is sent once more under
- * a new suffix. A 422 on a multi-address batch is resent one recipient at a time so a single
- * bad address does not drop the rest. Anything else, including a second 409, propagates.
- */
-async function deliverBatch(key: string, batch: OutgoingEmail[]): Promise<void> {
-  const apiKey = env.RESEND_API_KEY!;
-  try {
-    await sendBatch(apiKey, batch, key);
-  } catch (error) {
-    if (!(error instanceof EmailError)) throw error;
-    if (error.status === 409) {
-      await sendBatch(apiKey, batch, `${key}/conflict`);
-      return;
-    }
-    if (error.status === 422 && batch.length > 1) {
-      for (let index = 0; index < batch.length; index++) {
-        try {
-          await sendBatch(apiKey, [batch[index]!], `${key}/${index}`);
-        } catch (inner) {
-          if (inner instanceof EmailError && inner.status === 422) {
-            console.error({
-              type: "email.failure",
-              operation: "resend.recipient",
-              status: 422,
-              classification: "permanent",
-              correlationId: crypto.randomUUID(),
-            });
-            continue;
-          }
-          throw inner;
-        }
-      }
-      return;
-    }
-    throw error;
-  }
-}
+type Delivery =
+  | { state: "pending"; email: OutgoingEmail; at: number }
+  | { state: "sent" | "failed" | "skipped" };
 
 const SITE_SWITCH: Record<EmailMessage["type"], keyof NotificationToggles> = {
   "email.status": "statusChanges",
@@ -109,7 +75,7 @@ async function recipients(audience: Audience): Promise<Recipient[]> {
 
 /**
  * Render and send to one slice of the audience, then queue the next slice if there is one.
- * A retry re-runs the same slice with the same idempotency keys, so sent batches are skipped.
+ * A retry re-runs the same slice with the same idempotency keys, so completed recipients are skipped.
  */
 async function send(
   message: EmailMessage,
@@ -118,11 +84,12 @@ async function send(
   reason: (recipient: Recipient) => string,
   portalName: string,
 ): Promise<void> {
+  const db = createDb(env.DB);
   const from = config.notifications.email;
   if (!from) return;
   const found = await recipients(audience);
   const slice = found.slice(0, EMAIL_SLICE);
-  const emails: OutgoingEmail[] = [];
+  const candidates: { key: string; value: string; updatedAt: number }[] = [];
   for (const recipient of slice) {
     const query = await unsubscribeQuery(env.BETTER_AUTH_SECRET, recipient.id, audience.kind);
     const frame: Frame = {
@@ -131,7 +98,7 @@ async function send(
       unsubscribeUrl: `${portal()}${UNSUBSCRIBE_PAGE}?${query}`,
       preferencesUrl: `${portal()}/notifications`,
     };
-    emails.push({
+    const email: OutgoingEmail = {
       from: from.from,
       to: recipient.email,
       ...render(recipient, frame),
@@ -139,13 +106,78 @@ async function send(
         "List-Unsubscribe": `<${portal()}${UNSUBSCRIBE_PATH}?${query}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
+    };
+    candidates.push({
+      key: await deliveryKey(`${message.type}/${message.id}`, recipient.id),
+      value: JSON.stringify({ state: "pending", email, at: Date.now() } satisfies Delivery),
+      updatedAt: Date.now(),
     });
   }
-  for (let start = 0; start < emails.length; start += RESEND_BATCH_MAX)
-    await deliverBatch(
-      `feedbax/${message.id}/${audience.after ?? "-"}/${start / RESEND_BATCH_MAX}`,
-      emails.slice(start, start + RESEND_BATCH_MAX),
+  if (!candidates.length) return;
+  // At most 24 binds per INSERT and 8 per IN. Concurrent redeliveries use the
+  // winning immutable payload, even if settings, digest contents or email changed.
+  await db.insert(syncState).values(candidates).onConflictDoNothing();
+  const saved = await db
+    .select()
+    .from(syncState)
+    .where(
+      inArray(
+        syncState.key,
+        candidates.map((row) => row.key),
+      ),
     );
+  const deliveries = new Map(saved.map((row) => [row.key, JSON.parse(row.value) as Delivery]));
+  let failure: EmailError | undefined;
+  let succeeded = false;
+  for (let index = 0; index < slice.length; index++) {
+    const recipient = slice[index]!;
+    const key = candidates[index]!.key;
+    const delivery = deliveries.get(key)!;
+    if (delivery.state !== "pending") continue;
+    // Check immediately before each provider call, including retries of saved payloads.
+    const eligible = await db
+      .select({ email: user.email })
+      .from(user)
+      .leftJoin(emailPrefs, eq(emailPrefs.userId, user.id))
+      .where(and(eq(user.id, recipient.id), reachable, wants(audience.kind)))
+      .get();
+    if (!eligible || eligible.email !== delivery.email.to) {
+      await db
+        .update(syncState)
+        .set({ value: JSON.stringify({ state: "skipped" }), updatedAt: Date.now() })
+        .where(eq(syncState.key, key));
+      continue;
+    }
+    let state: "sent" | "failed" = "sent";
+    try {
+      // An unknown outcome after the provider's 24h retention cannot be safely replayed.
+      // Surface it for the operator rather than risk sending the same email twice.
+      if (Date.now() - delivery.at >= 24 * 60 * 60 * 1000)
+        throw new EmailError(null, false, undefined, "idempotency_expired");
+      await sendBatch(env.RESEND_API_KEY!, [delivery.email], key);
+      succeeded = true;
+    } catch (error) {
+      if (!(error instanceof EmailError) || error.transient) throw error;
+      failure = error;
+      console.error({
+        type: "email.failure",
+        status: error.status,
+        code: error.code,
+        classification: "permanent",
+      });
+      state = "failed";
+    }
+    // Discard payloads/addresses once terminal. Retain the tiny tombstone so a late
+    // redelivery does not depend on Resend's expiring deduplication cache.
+    await db
+      .update(syncState)
+      .set({ value: JSON.stringify({ state }), updatedAt: Date.now() })
+      .where(eq(syncState.key, key));
+    // A bad key or sender fails every recipient: stop the slice and the continuation chain.
+    if (failure && (failure.status === 401 || failure.status === 403)) throw failure;
+  }
+  if (failure) await emailFailure(failure);
+  else if (succeeded) await emailSuccess();
   if (found.length > EMAIL_SLICE)
     await notifyQueue().send({ ...message, after: slice[slice.length - 1]!.id });
 }
@@ -305,6 +337,7 @@ export async function consumeEmail(message: Message<EmailMessage>): Promise<void
       classification: permanent ? "permanent" : email ? "transient" : "storage",
       correlationId: crypto.randomUUID(),
     });
+    await emailFailure(error).catch(() => undefined);
     if (permanent) {
       // A bad key, sender or address will not fix itself by retrying.
       message.ack();

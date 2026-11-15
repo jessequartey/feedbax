@@ -9,6 +9,10 @@ import {
 import type { EmailMessage } from "../../src/contracts/sync.ts";
 import { changelogEmailSink } from "../../src/email/changelog.ts";
 import { richText } from "../../src/email/content.ts";
+import { measure } from "../resources/meter.ts";
+import { deliveryKey } from "../../src/email/state.ts";
+import { readState } from "../../src/sync/shared.ts";
+import { saveEmailPrefs } from "../../src/email/prefs.ts";
 import { EMAIL_SLICE } from "../../src/email/deliver.ts";
 import { digestDue } from "../../src/email/events.ts";
 import { adminApi } from "../../src/server/admin-api.ts";
@@ -153,8 +157,8 @@ describe("admin digest", () => {
     expect(digestDue("2026-11-14T09:00:00.000Z", now)).toBeNull();
     const after = digestDue("2026-11-13T09:00:00.000Z", now)!;
     expect(after).toMatchObject({ id: "digest-2026-11-14", since: "2026-11-13T09:00:00.000Z" });
-    expect(digestDue("2026-01-01T00:00:00.000Z", now)!.since).toBe("2026-11-07T12:00:00.000Z");
-    expect(digestDue(undefined, now)!.since).toBe("2026-11-13T12:00:00.000Z");
+    expect(digestDue("2026-01-01T00:00:00.000Z", now)!.since).toBe("2026-11-07T09:00:00.000Z");
+    expect(digestDue(undefined, now)!.since).toBe("2026-11-13T09:00:00.000Z");
   });
 
   it("lists the new public posts for admins only", async () => {
@@ -223,7 +227,9 @@ describe("delivery", () => {
     expect(second.retry).toHaveBeenCalledWith({ delaySeconds: 120 });
     const third = await consume(message(), 3);
     expect(third.ack).toHaveBeenCalledOnce();
-    expect(new Set(sent.calls.map((call) => call.headers.get("idempotency-key"))).size).toBe(1);
+    expect(new Set(sent.calls.map((call) => call.headers.get("idempotency-key")))).toEqual(
+      new Set([await deliveryKey("email.status/status-9", "author")]),
+    );
   });
 
   it("drops a permanent 403 instead of retrying it", async () => {
@@ -237,47 +243,178 @@ describe("delivery", () => {
     expect(logged).not.toMatch(/re_test|@example\.com/);
   });
 
-  it("sends a 409 once more under a fresh idempotency key", async () => {
-    const sent = stubResend(409, 200);
+  it("records a conflicting key without evading deduplication", async () => {
+    const sent = stubResend(409);
     const { ack, retry } = await consume(message());
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
-    expect(sent.calls.map((call) => call.headers.get("idempotency-key"))).toEqual([
-      "feedbax/status-9/-/0",
-      "feedbax/status-9/-/0/conflict",
-    ]);
+    expect(sent.calls).toHaveLength(1);
+    expect(await readState("email.error")).toMatchObject({ status: 409, code: "http_409" });
   });
 
-  it("drops a 409 that still conflicts on the fresh key", async () => {
-    const sent = stubResend(409, 409);
-    const { ack, retry } = await consume(message());
-    expect(ack).toHaveBeenCalledOnce();
-    expect(retry).not.toHaveBeenCalled();
-    expect(sent.calls).toHaveLength(2);
-    const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
-    expect(logged).toContain("email.failure");
-    expect(logged).not.toMatch(/re_test|@example\.com/);
-  });
-
-  it("resends a 422 batch one recipient at a time and drops only the bad address", async () => {
+  it("a bad address does not drop the other recipients or retry forever", async () => {
     await account("voter");
     await vote(POST, "voter");
-    const sent = stubResend(422, 200, 422);
+    const sent = stubResend(422, 200);
     const { ack, retry } = await consume(message());
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
-    expect(sent.calls.map((call) => call.emails.length)).toEqual([2, 1, 1]);
-    expect(sent.calls.map((call) => call.headers.get("idempotency-key"))).toEqual([
-      "feedbax/status-9/-/0",
-      "feedbax/status-9/-/0/0",
-      "feedbax/status-9/-/0/1",
-    ]);
-    // The batch was refused. The author is sent alone; the bad address is refused alone.
-    expect(sent.calls[1]!.emails.map((email) => email.to)).toEqual([["author@example.com"]]);
-    expect(sent.calls[2]!.emails.map((email) => email.to)).toEqual([["voter@example.com"]]);
-    const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
-    expect(logged).toContain('"status":422');
-    expect(logged).not.toMatch(/@example\.com/);
+    expect(sent.calls.map((call) => call.emails.length)).toEqual([1, 1]);
+    expect(sent.to()).toEqual(["author@example.com", "voter@example.com"]);
+    expect(await readState("email.error")).toMatchObject({ status: 422 });
+    await consume(message());
+    expect(sent.calls).toHaveLength(2); // permanent failures and successes are terminal
+  });
+
+  it("a bad key stops the slice instead of failing every recipient", async () => {
+    await account("voter");
+    await vote(POST, "voter");
+    const sent = stubResend(401);
+    const { ack, retry } = await consume(message());
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(sent.calls).toHaveLength(1);
+    expect(await readState("email.error")).toMatchObject({ status: 401 });
+  });
+
+  it("skips completed sends even after the provider's 24-hour window", async () => {
+    const sent = stubResend();
+    await consume(message());
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 2 * 86_400_000);
+    await consume(message());
+    expect(sent.calls).toHaveLength(1);
+  });
+
+  it("keeps a pending payload stable when settings change between attempts", async () => {
+    const sent = stubResend(500, 200);
+    await consume(message());
+    await saveSettings({ name: "Changed portal" });
+    await consume(message());
+    expect(sent.calls[1]!.emails).toEqual(sent.calls[0]!.emails);
+    expect(sent.calls[1]!.headers.get("idempotency-key")).toBe(
+      sent.calls[0]!.headers.get("idempotency-key"),
+    );
+    expect(await readState("email.error")).toBeNull();
+  });
+
+  it("does not clear a failure when a redelivery sends nothing", async () => {
+    stubResend(403);
+    await consume(message());
+    await consume(message());
+    expect(await readState("email.error")).toMatchObject({ status: 403 });
+  });
+
+  it("surfaces an expired uncertain send instead of replaying outside provider retention", async () => {
+    const sent = stubResend(500);
+    await consume(message());
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 86_400_000);
+    const result = await consume(message());
+    expect(result.ack).toHaveBeenCalledOnce();
+    expect(result.retry).not.toHaveBeenCalled();
+    expect(sent.calls).toHaveLength(1);
+    expect(await readState("email.error")).toMatchObject({ code: "idempotency_expired" });
+  });
+
+  it("re-checks unsubscribe immediately before each send", async () => {
+    await account("voter");
+    await vote(POST, "voter");
+    const sent = stubResend();
+    const fetcher = globalThis.fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const response = await fetcher(...args);
+        await saveEmailPrefs({ status: false }, { id: "voter", name: "Voter", kind: "account" });
+        return response;
+      }),
+    );
+    await consume(message());
+    expect(sent.to()).toEqual(["author@example.com"]);
+  });
+
+  it("preserves every recipient across large continuations and a mid-slice failure", async () => {
+    const ids = Array.from({ length: 205 }, (_, i) => `u${String(i).padStart(4, "0")}`);
+    // Inline fixture values keep the fixture itself under D1's binding limit.
+    await env.DB.prepare(
+      `INSERT INTO user (id,name,email,email_verified,created_at,updated_at) VALUES ${ids.map((id) => `('${id}','U','${id}@example.com',1,0,0)`).join(",")}`,
+    ).run();
+    await env.DB.prepare(
+      `INSERT INTO votes (post_id,user_id,created_at) SELECT '${POST}',id,2 FROM user WHERE id LIKE 'u%'`,
+    ).run();
+    const sent = stubResend(200, 200, 500);
+    const first = await consume(message());
+    expect(first.retry).toHaveBeenCalledOnce();
+    // Removing a previously sent member shifts batch boundaries on retry.
+    await setPrefs("author", { status_changes: 0 });
+    await consume(message(), 2);
+    for (let index = 0; index < queued().length; index++) {
+      const continuation = queued()[index]!;
+      await consume(continuation);
+      const before = sent.calls.length;
+      await consume(continuation); // redelivered continuation
+      expect(sent.calls).toHaveLength(before);
+      // The duplicate continuation enqueues the same next slice: consume it once.
+      const unique = new Map(queued().map((item) => [item.after, item]));
+      queue.sent.splice(0, queue.sent.length, ...unique.values());
+    }
+    const attempts = sent.calls.map((call) => call.headers.get("idempotency-key"));
+    const failedKey = attempts[2]!;
+    expect(attempts.filter((key) => key === failedKey)).toHaveLength(2);
+    const successful = sent.calls
+      .filter((_, index) => index !== 2)
+      .flatMap((call) => call.emails.flatMap((email) => email.to));
+    expect(successful).toHaveLength(ids.length + 1);
+    expect(new Set(successful).size).toBe(ids.length + 1);
+    expect(successful.sort()).toEqual(
+      ["author@example.com", ...ids.map((id) => `${id}@example.com`)].sort(),
+    );
+  });
+
+  it("retries a failed continuation enqueue without repeating completed sends", async () => {
+    for (let i = 0; i < EMAIL_SLICE; i++) {
+      await account(`u${i}`);
+      await vote(POST, `u${i}`);
+    }
+    const sent = stubResend();
+    queue.failNext();
+    expect((await consume(message())).retry).toHaveBeenCalledOnce();
+    expect(sent.calls).toHaveLength(EMAIL_SLICE);
+    await consume(message(), 2);
+    expect(sent.calls).toHaveLength(EMAIL_SLICE);
+    expect(queued()).toHaveLength(1);
+  });
+
+  it("replays an accepted request with the identical key after a lost response", async () => {
+    const accepted = new Set<string>();
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: unknown, init?: RequestInit) => {
+        const key = new Headers(init?.headers).get("idempotency-key")!;
+        accepted.add(key); // provider committed, but the first response was lost
+        if (++calls === 1) throw new TypeError("connection lost");
+        return Response.json({ data: [] });
+      }),
+    );
+    expect((await consume(message())).retry).toHaveBeenCalledOnce();
+    expect((await consume(message(), 2)).ack).toHaveBeenCalledOnce();
+    expect(accepted.size).toBe(1);
+    expect(calls).toBe(2);
+  });
+
+  it("bounds a full slice below the Free Worker subrequest limit", async () => {
+    for (let i = 0; i < EMAIL_SLICE; i++) {
+      await account(`u${i}`);
+      await vote(POST, `u${i}`);
+    }
+    stubResend();
+    const usage = await measure(() => consume(message()));
+    // Settings + post + audience + insert/read ledger + per-recipient check/update + health.
+    expect(usage.queries).toBeLessThanOrEqual(2 * EMAIL_SLICE + 6);
+    expect(usage.fetches).toBe(EMAIL_SLICE);
+    expect(usage.queries + usage.fetches + usage.queueCalls).toBeLessThan(50);
   });
 
   it("retries when Resend cannot be reached", async () => {
@@ -307,7 +444,7 @@ describe("delivery", () => {
       const sent = stubResend();
       await consume(message());
       expect(sent.emails()).toHaveLength(EMAIL_SLICE);
-      expect(sent.calls.map((call) => call.emails.length)).toEqual([100, 100]);
+      expect(sent.calls.every((call) => call.emails.length === 1)).toBe(true);
       const [next] = dedicated ? (notifications.sent as EmailMessage[]) : queued();
       if (dedicated) expect(queue.sent).toEqual([]);
       expect(next).toMatchObject({

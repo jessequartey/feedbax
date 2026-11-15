@@ -5,6 +5,7 @@ import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./request.ts";
 import type { ErrorCode } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
 import { syncState } from "../db/schema.ts";
+import { emailEnabled } from "../email/events.ts";
 import { createAuth, publicConfig } from "./auth.ts";
 import { runtimeConfig } from "./settings.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
@@ -193,6 +194,7 @@ export async function handleHealth(settings = config): Promise<Response> {
           "notion.backoff",
           "github.error",
           "github.backoff",
+          "email.error",
         ]),
       );
     const failing = (provider: string) =>
@@ -204,6 +206,7 @@ export async function handleHealth(settings = config): Promise<Response> {
     return Response.json(
       {
         ok: true,
+        email: emailEnabled(env, settings) ? (failing("email") ? "failing" : "ok") : "off",
         notion: failing("notion") ? "failing" : "ok",
         github: settings.integrations.github ? (failing("github") ? "failing" : "ok") : "off",
       },
@@ -212,7 +215,12 @@ export async function handleHealth(settings = config): Promise<Response> {
   } catch (error) {
     reportUnexpected(error, "health.read");
     return Response.json(
-      { ok: false, notion: "failing", github: settings.integrations.github ? "failing" : "off" },
+      {
+        ok: false,
+        notion: "failing",
+        github: settings.integrations.github ? "failing" : "off",
+        email: emailEnabled(env, settings) ? "failing" : "off",
+      },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }

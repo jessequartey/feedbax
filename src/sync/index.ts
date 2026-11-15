@@ -1,4 +1,4 @@
-import { inArray, lt, sql } from "drizzle-orm";
+import { inArray, lt, or, sql } from "drizzle-orm";
 import { IntegrationError } from "../contracts/integrations.ts";
 import {
   isNotifyMessage,
@@ -12,7 +12,8 @@ import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
 import { consumeNotification } from "../notifications/consume.ts";
 import { notifyQueue } from "../notifications/queue.ts";
-import { digestDue, emailEnabled } from "../email/events.ts";
+import { emailFailure } from "../email/state.ts";
+import { digestDue, emailEnabled, EMAIL_OUTBOX_PREFIX, queueEmails } from "../email/events.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
   // Keep processing sequential even if a larger batch is delivered accidentally.
@@ -120,7 +121,19 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const database = db();
   const [, rows] = await database.batch([
     database.delete(usedTokens).where(lt(usedTokens.expiresAt, now)),
-    database.select().from(syncState).where(inArray(syncState.key, STATE_KEYS)),
+    database
+      .select()
+      .from(syncState)
+      .where(
+        or(
+          inArray(syncState.key, STATE_KEYS),
+          // An indexed range in the existing read: zero extra statements/rows when idle.
+          inArray(
+            syncState.key,
+            sql`(SELECT key FROM sync_state WHERE key >= ${EMAIL_OUTBOX_PREFIX} AND key < ${"email.outbox0"} ORDER BY key LIMIT 10)`,
+          ),
+        ),
+      ),
   ]);
   const state = new Map(rows.map((row) => [row.key, JSON.parse(row.value) as unknown]));
   const error = (provider: string) => state.get(`${provider}.error`) as SyncErrorState | undefined;
@@ -177,10 +190,20 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
       ? [{ type: "github.poll", since: since("github"), until, page: 1 } as const]
       : []),
   ];
-  // No extra idle-tick work; only a due digest sends to the notification queue.
+  // No extra idle-tick work; due digests and retained enqueues use the notify queue.
   if (messages.length) await env.SYNC_QUEUE.sendBatch(messages.map((body) => ({ body })));
+  const pendingEmails = rows
+    .filter((row) => row.key.startsWith(EMAIL_OUTBOX_PREFIX))
+    .map((row) => JSON.parse(row.value) as import("../contracts/sync.ts").EmailMessage);
+  if (pendingEmails.length) await queueEmails(pendingEmails);
   if (digest) {
-    await notifyQueue().send(digest);
+    try {
+      await notifyQueue().send(digest);
+    } catch (error) {
+      // Report it in /api/health; the watermark stays put so the next tick resends the digest.
+      await emailFailure(error).catch(() => undefined);
+      throw error;
+    }
     await writeState("email.digest", digest.until);
   }
 }

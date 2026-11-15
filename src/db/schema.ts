@@ -138,7 +138,8 @@ export const usedTokens = sqliteTable("used_tokens", {
   expiresAt: integer("expires_at").notNull(),
 });
 
-// Keys: notion.watermark, github.watermark, notion.error, github.error. `value` is JSON.
+// Provider state, email.error/digest, email.outbox/* and feedbax/* delivery tombstones.
+// `value` is JSON; delivery payloads are discarded once terminal.
 export const syncState = sqliteTable("sync_state", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

@@ -4,6 +4,7 @@ import config from "../../feedbax.config.ts";
 import { flushWaitUntil, resetEnv } from "../fixtures/cloudflare-workers.ts";
 import type { EmailMessage } from "../../src/contracts/sync.ts";
 import { richText } from "../../src/email/content.ts";
+import { deliveryKey } from "../../src/email/state.ts";
 import { statusEmails } from "../../src/email/events.ts";
 import { addCommentForUser } from "../../src/server/comments.ts";
 import { saveSettings } from "../../src/server/settings.ts";
@@ -187,7 +188,9 @@ describe("every email", () => {
     expect(links.size).toBe(2);
     const call = sent.calls[0]!;
     expect(call.headers.get("authorization")).toBe("Bearer re_test_only_not_a_real_key");
-    expect(call.headers.get("idempotency-key")).toBe("feedbax/status-1/-/0");
+    expect(call.headers.get("idempotency-key")).toBe(
+      await deliveryKey("email.status/status-1", "author"),
+    );
   });
 
   it("shows user content as escaped text, never as HTML", async () => {
