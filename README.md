@@ -106,6 +106,8 @@ npx feedbax@latest add email
 RESEND_API_KEY=… npx feedbax@latest add email --from "Feedbax <feedback@example.com>" --yes
 ```
 
+Email deliveries retry temporary failures and continue large audiences in small slices. Completed recipients are skipped on redelivery; unsubscribes are checked before each send. If a send remains uncertain for 24 hours, it is recorded as `idempotency_expired` rather than replayed outside Resend’s deduplication window.
+
 This sets `RESEND_API_KEY` and `notifications.email.from`. Remove `notifications.email` from `feedbax.config.ts` to turn email off.
 
 ### Add webhooks
@@ -456,7 +458,7 @@ Vote on planned work on the [demo roadmap](https://feedbax.juutech.africa/roadma
 
 ## Troubleshooting
 
-Run `npx feedbax@latest doctor` first. It checks config, Cloudflare secrets and bindings, `/api/health`, Notion access and GitHub access when GitHub is enabled, and prints a fix for each failure. `/api/health` reports `notion` and `github` as `ok`, `failing` or `off`. For logs, run `npx wrangler tail` or open Workers Logs.
+Run `npx feedbax@latest doctor` first. It checks config, Cloudflare secrets and bindings, `/api/health`, Notion access and GitHub access when GitHub is enabled, and prints a fix for each failure. `/api/health` reports `notion`, `github` and `email` as `ok`, `failing` or `off`. For logs, run `npx wrangler tail` or open Workers Logs.
 
 If one post stops syncing because its Notion row was trashed, restore that row. Other posts keep syncing. A later poll reconnects the restored row. Feedbax does not recreate it. Unexpected HTTP errors include `X-Request-ID`. Use it with Workers Logs. Keep secrets out of bug reports.
 

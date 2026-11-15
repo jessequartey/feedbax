@@ -2,6 +2,8 @@
 
 ## 0.3.2 (unreleased)
 
+- Email retries skip completed recipients, large audiences continue safely, failed enqueues recover automatically, and `/api/health` reports delivery failures.
+
 - Email and webhook deliveries use their own queue so slow deliveries no longer hold up Notion and GitHub sync.
 - Releases require successful main CI for the exact tagged commit before publishing.
 

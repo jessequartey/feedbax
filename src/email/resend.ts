@@ -15,11 +15,18 @@ export type OutgoingEmail = {
 
 /** A failed send. `transient` ones are retried with backoff; others are dropped and logged. */
 export class EmailError extends Error {
+  readonly code: string;
   readonly status: number | null;
   readonly transient: boolean;
   readonly retryAfterSeconds?: number;
-  constructor(status: number | null, transient: boolean, retryAfterSeconds?: number) {
+  constructor(
+    status: number | null,
+    transient: boolean,
+    retryAfterSeconds?: number,
+    code?: string,
+  ) {
     super(`Resend request failed${status === null ? "" : ` (${status})`}`);
+    this.code = code ?? (status === null ? "network" : `http_${status}`);
     this.status = status;
     this.transient = transient;
     this.retryAfterSeconds = retryAfterSeconds;
@@ -28,7 +35,7 @@ export class EmailError extends Error {
 
 /**
  * Send one batch. `idempotencyKey` makes a retry of the same batch a no-op at Resend for
- * 24 hours, so a message retried after a partial delivery never emails anyone twice.
+ * 24 hours. The delivery ledger skips completed sends after that window as well.
  */
 export async function sendBatch(
   apiKey: string,
@@ -53,13 +60,22 @@ export async function sendBatch(
   } catch {
     throw new EmailError(null, true);
   }
-  // Drain the body so the connection is released; its content is never logged.
-  await response.body?.cancel().catch(() => undefined);
-  if (response.ok) return;
+  if (response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    return;
+  }
+  // 409 can mean an identical request is still running. Read only the error name;
+  // never retain or log provider messages (which can contain addresses).
+  let concurrent = false;
+  try {
+    const body = (await response.json()) as { name?: string };
+    concurrent = response.status === 409 && body.name === "concurrent_idempotent_requests";
+  } catch {
+    // An unreadable error body does not change the HTTP classification.
+  }
   const retryAfter = Number(response.headers.get("retry-after"));
-  const transient = response.status === 429 || response.status >= 500;
-  // 409 and 422 are permanent for this key. The sender retries a 409 once under a new key,
-  // and splits a 422 batch so one bad address does not drop the others.
+  const transient = concurrent || response.status === 429 || response.status >= 500;
+  // A payload conflict is permanent. Never evade deduplication with a fresh key.
   throw new EmailError(
     response.status,
     transient,

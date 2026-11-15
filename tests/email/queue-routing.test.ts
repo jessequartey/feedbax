@@ -52,7 +52,7 @@ describe.each([true, false])("notification binding present: %s", (dedicated) => 
     });
     expect(queue.sent.some((body) => body.type === "notion.poll")).toBe(true);
     if (dedicated) expect(queue.sent.every((body) => body.type.startsWith("notion."))).toBe(true);
-    expect(await readState("email.digest")).toBe("2026-11-14T12:00:00.000Z");
+    expect(await readState("email.digest")).toBe("2026-11-14T09:00:00.000Z");
   });
 });
 
@@ -98,5 +98,54 @@ it("retries a failed email without stopping the rest of a notification batch or 
   expect(messages[0]!.ack).not.toHaveBeenCalled();
   expect(messages[1]!.ack).toHaveBeenCalledOnce();
   expect(messages[1]!.retry).not.toHaveBeenCalled();
-  expect(await env.DB.prepare("SELECT * FROM sync_state").all()).toMatchObject({ results: [] });
+  expect(queue.sent).toContainEqual(bodies[1]);
+  expect(await readState("notion.error")).toBeNull();
+  expect(await readState("github.error")).toBeNull();
+  expect(await readState("email.error")).toMatchObject({ status: 500 });
+});
+
+it("recovers failed initial enqueues on the existing cron state read", async () => {
+  await resetEnv();
+  enableEmail();
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const notifications = createFakeQueue();
+  env.NOTIFY_QUEUE = notifications as unknown as Queue;
+  notifications.failNext();
+  await queueEmails([digest]);
+  expect(notifications.sent).toEqual([]);
+  const outbox = await env.DB.prepare(
+    "SELECT key FROM sync_state WHERE key LIKE 'email.outbox/%'",
+  ).all();
+  expect(outbox.results).toHaveLength(1);
+  await runScheduled({ scheduledTime: Date.parse(digest.until) } as ScheduledController);
+  expect(notifications.sent).toContainEqual(digest);
+  expect(
+    (await env.DB.prepare("SELECT key FROM sync_state WHERE key LIKE 'email.outbox/%'").all())
+      .results,
+  ).toEqual([]);
+});
+
+it("does not acknowledge notifications when forwarding the rest of a batch fails", async () => {
+  await resetEnv();
+  const notifications = createFakeQueue();
+  env.NOTIFY_QUEUE = notifications as unknown as Queue;
+  notifications.failNext();
+  const messages = [0, 1].map((index) => ({
+    id: String(index),
+    timestamp: new Date(),
+    attempts: 1,
+    body: { type: "webhook.deliver", deliveryId: "missing" } as const,
+    ack: vi.fn(),
+    retry: vi.fn(),
+  }));
+  await expect(
+    consumeNotifications({
+      queue: "test-notify",
+      messages,
+      metadata: { metrics: { backlogCount: 0, backlogBytes: 0 } },
+      ackAll: vi.fn(),
+      retryAll: vi.fn(),
+    }),
+  ).rejects.toThrow("send failed");
+  expect(messages.every((message) => message.ack.mock.calls.length === 0)).toBe(true);
 });
