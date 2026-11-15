@@ -2,6 +2,7 @@
 
 ## 0.3.2 (unreleased)
 
+- **Safer CLI changes.** Add-ons validate credentials before changing config or production secrets; interrupted upgrades resume and record the installed version only after deployment succeeds.
 - Email and webhook deliveries use their own queue so slow deliveries no longer hold up Notion and GitHub sync.
 - Releases require successful main CI for the exact tagged commit before publishing.
 - **Moderation privacy.** Hidden, spam, merged and deleted posts stay out of GitHub sync and queued exports; attachments check visibility, and moderated Notion mirrors are archived.
