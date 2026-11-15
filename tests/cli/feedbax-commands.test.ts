@@ -130,15 +130,15 @@ describe("feedbax add", () => {
 
   it("github: validates the repo, sets GITHUB_TOKEN and integrations.github, redeploys", async () => {
     const cwd = await project();
-    const h = harness(cwd, { GITHUB_TOKEN: "ghp_ObviouslyFakeSentinelToken1234567890" });
+    const h = harness(cwd, { GITHUB_TOKEN: "ghp_FakeTokenForTests" });
     expect(await main(["add", "github", "--repo", "team/app", "--yes"], h.deps)).toBe(0);
-    expect(h.wrangler.bulk).toEqual([{ GITHUB_TOKEN: "ghp_ObviouslyFakeSentinelToken1234567890" }]);
+    expect(h.wrangler.bulk).toEqual([{ GITHUB_TOKEN: "ghp_FakeTokenForTests" }]);
     expect(h.wrangler.calls).toEqual([
       expect.stringMatching(/^wrangler secret bulk /),
       ...deployCalls,
     ]);
     expect(await read(cwd, "feedbax.config.ts")).toBe(configSource('{ repo: "team/app" }'));
-    expect((await readVars(cwd)).GITHUB_TOKEN).toBe("ghp_ObviouslyFakeSentinelToken1234567890");
+    expect((await readVars(cwd)).GITHUB_TOKEN).toBe("ghp_FakeTokenForTests");
     expect(h.output()).not.toContain("sentinel-");
   });
 
