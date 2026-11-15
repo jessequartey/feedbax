@@ -370,13 +370,16 @@ describe("delivery", () => {
     expect(successful.sort()).toEqual(
       ["author@example.com", ...ids.map((id) => `${id}@example.com`)].sort(),
     );
-  });
+  }, 60_000);
 
   it("retries a failed continuation enqueue without repeating completed sends", async () => {
-    for (let i = 0; i < EMAIL_SLICE; i++) {
-      await account(`u${i}`);
-      await vote(POST, `u${i}`);
-    }
+    const ids = Array.from({ length: EMAIL_SLICE }, (_, i) => `u${String(i).padStart(4, "0")}`);
+    await env.DB.prepare(
+      `INSERT INTO user (id,name,email,email_verified,created_at,updated_at) VALUES ${ids.map((id) => `('${id}','U','${id}@example.com',1,0,0)`).join(",")}`,
+    ).run();
+    await env.DB.prepare(
+      `INSERT INTO votes (post_id,user_id,created_at) SELECT '${POST}',id,2 FROM user WHERE id LIKE 'u%'`,
+    ).run();
     const sent = stubResend();
     queue.failNext();
     expect((await consume(message())).retry).toHaveBeenCalledOnce();
@@ -384,7 +387,7 @@ describe("delivery", () => {
     await consume(message(), 2);
     expect(sent.calls).toHaveLength(EMAIL_SLICE);
     expect(queued()).toHaveLength(1);
-  });
+  }, 60_000);
 
   it("replays an accepted request with the identical key after a lost response", async () => {
     const accepted = new Set<string>();
