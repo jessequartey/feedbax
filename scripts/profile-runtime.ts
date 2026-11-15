@@ -160,7 +160,11 @@ try {
     { resolve: (value: any) => void; reject: (error: Error) => void }
   >();
   socket!.onmessage = (event) => {
-    const msg = JSON.parse(String(event.data));
+    const raw =
+      typeof event.data === "string"
+        ? event.data
+        : Buffer.from(event.data as ArrayBuffer).toString("utf8");
+    const msg = JSON.parse(raw);
     if (msg.id) {
       const entry = pending.get(msg.id);
       pending.delete(msg.id);
