@@ -219,6 +219,13 @@ Images live in R2. The portal keeps working if Notion or GitHub is down. Sync ca
 - Keep the database property names and types. Extra properties and views are fine. Feedbax writes the author, counts and links. Your team changes Status and Send to GitHub.
 - Votes update on the portal immediately. Bursts are combined before Notion sync. Each user can change a vote up to 10 times in 10 seconds and 120 times an hour. Repeating the same vote does not count again.
 
+## Browse and submit feedback
+
+1. Click a post on **Feedback** or **Roadmap** to read it in a dialog; on phones it fills the screen.
+2. Press **Back**, **Escape** or **Close** to return to the same filters, page and scroll position.
+3. Copy the post URL, open it in a new tab, reload, or choose **Open full page** to read the full page.
+4. Choose **New post** to write in a dialog, or open `/submit` for the full page; **Open full page** keeps your title, description and post type. Images stay in the current form and must be reattached after switching views.
+
 ## Add the feedback dialog to your app
 
 Signed-in users send feedback, including an annotated screenshot, without a second login. Your app needs React and shadcn/ui (CLI 4.7 or newer). Run [`add host-login`](#add-login-from-your-own-app) first.

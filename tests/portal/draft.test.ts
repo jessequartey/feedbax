@@ -36,6 +36,17 @@ describe("drafts kept across /login", () => {
     expect(loadDraft(POST_DRAFT_KEY, parsePostDraft, storage)).toBeNull();
   });
 
+  it("keeps a category-only draft when switching between dialog and full-page forms", () => {
+    const storage = memoryStorage();
+    const draft = { id: "draft-id", title: "", body: "", category: "general" } as const;
+    saveDraft(POST_DRAFT_KEY, draft, storage);
+    expect(loadDraft(POST_DRAFT_KEY, parsePostDraft, storage)).toEqual(draft);
+    saveDraft(POST_DRAFT_KEY, { ...draft, title: "Continue on the full page" }, storage);
+    expect(loadDraft(POST_DRAFT_KEY, parsePostDraft, storage)?.title).toBe(
+      "Continue on the full page",
+    );
+  });
+
   it("never stores images, even if they are passed along", () => {
     const storage = memoryStorage();
     saveDraft(POST_DRAFT_KEY, { id: "i", title: "T", body: "B", category: "feature" }, storage);

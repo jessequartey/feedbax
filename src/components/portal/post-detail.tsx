@@ -38,19 +38,23 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 export function PostDetailView({
   post,
   comments,
+  inDialog = false,
 }: {
   post: PostDetail;
   comments: Page<CommentView>;
+  inDialog?: boolean;
 }) {
   const [commentTotal, setCommentTotal] = React.useState(comments.total);
   return (
     <div className={`${layout} py-6 md:py-10`}>
-      <Link
-        to="/"
-        className="inline-flex h-9 items-center gap-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 max-md:h-11"
-      >
-        <ArrowLeftIcon className="size-4" aria-hidden="true" /> All feedback
-      </Link>
+      {inDialog ? null : (
+        <Link
+          to="/"
+          className="inline-flex h-9 items-center gap-1.5 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 max-md:h-11"
+        >
+          <ArrowLeftIcon className="size-4" aria-hidden="true" /> All feedback
+        </Link>
+      )}
       <div className="mt-4 grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-0">
         <article className="min-w-0 lg:pr-8" aria-labelledby="post-title">
           {post.hidden ? (
