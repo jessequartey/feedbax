@@ -1,6 +1,6 @@
 import * as React from "react";
 import { MailIcon } from "lucide-react";
-import { toast } from "sonner";
+import { useSwitches } from "@/components/use-switches";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -17,8 +17,14 @@ export const EMAIL_LABELS: Record<keyof EmailPrefs, { label: string; hint: strin
 
 /** Your email choices: one switch each, saved as soon as it changes. */
 export function NotificationSettings({ settings }: { settings: EmailSettings }) {
-  const [prefs, setPrefs] = React.useState(settings.prefs);
-  const [saving, setSaving] = React.useState<keyof EmailPrefs | null>(null);
+  const {
+    values: prefs,
+    pending,
+    change,
+  } = useSwitches(settings.prefs, async (key, next) => {
+    const result = await saveEmailPreferences({ data: { [key]: next } });
+    if (!result.ok) throw new Error(result.error.message);
+  });
   const ids = React.useId();
 
   if (!settings.enabled)
@@ -42,22 +48,6 @@ export function NotificationSettings({ settings }: { settings: EmailSettings }) 
       </div>
     );
 
-  const change = async (key: keyof EmailPrefs, next: boolean) => {
-    const before = prefs[key];
-    setPrefs((current) => ({ ...current, [key]: next }));
-    setSaving(key);
-    try {
-      const result = await saveEmailPreferences({ data: { [key]: next } });
-      if (!result.ok) throw new Error(result.error.message);
-      setPrefs(result.data.prefs);
-    } catch {
-      setPrefs((current) => ({ ...current, [key]: before }));
-      toast.error("Couldn't save that. Please try again.");
-    } finally {
-      setSaving(null);
-    }
-  };
-
   const keys = (Object.keys(EMAIL_LABELS) as (keyof EmailPrefs)[]).filter(
     (key) => key !== "digest" || settings.admin,
   );
@@ -77,13 +67,16 @@ export function NotificationSettings({ settings }: { settings: EmailSettings }) 
               <p id={`${ids}-${key}`} className="text-sm font-medium">
                 {EMAIL_LABELS[key].label}
               </p>
-              <p className="text-sm text-muted-foreground">{EMAIL_LABELS[key].hint}</p>
+              <p id={`${ids}-${key}-hint`} className="text-sm text-muted-foreground">
+                {EMAIL_LABELS[key].hint}
+              </p>
             </div>
             <Switch
               checked={prefs[key]}
-              disabled={saving === key}
+              aria-busy={pending.has(key)}
               onCheckedChange={(next) => void change(key, next)}
               aria-labelledby={`${ids}-${key}`}
+              aria-describedby={`${ids}-${key}-hint`}
             />
           </div>
         ))}

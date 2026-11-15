@@ -149,9 +149,12 @@ export function SubmitForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${ids}-body`}>Description</Label>
+        <Label id={`${ids}-body-label`} htmlFor={`${ids}-body`}>
+          Description
+        </Label>
         <RichTextField
           id={`${ids}-body`}
+          aria-labelledby={`${ids}-body-label`}
           name="body"
           variant="post"
           value={body}

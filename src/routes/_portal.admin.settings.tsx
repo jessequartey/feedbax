@@ -17,14 +17,10 @@ export const Route = createFileRoute("/_portal/admin/settings")({
 
 function SettingsPage() {
   const { settings, webhooks } = Route.useLoaderData();
-  // Remount after a save so the form always starts from what the server stored.
+  // Keep in-flight switch writes and edits alive when a save refreshes the loader.
   return (
     <section aria-label="Settings">
-      <SettingsForm
-        key={JSON.stringify(settings.effective)}
-        settings={settings}
-        webhooks={webhooks}
-      />
+      <SettingsForm settings={settings} webhooks={webhooks} />
     </section>
   );
 }

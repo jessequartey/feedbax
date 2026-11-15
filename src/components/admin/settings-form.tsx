@@ -1,13 +1,14 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { useSwitches } from "@/components/use-switches";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { AdminSettings, NotificationToggles, RuntimeSettings } from "@/contracts/admin";
+import type { AdminSettings, NotificationToggles } from "@/contracts/admin";
 import type { AdminWebhooks } from "@/contracts/webhooks";
 import { CATEGORY_LABELS, type Category } from "@/contracts/domain";
 import { CATEGORY_ICONS } from "@/components/portal/post-badges";
@@ -38,11 +39,13 @@ function ToggleRow({
   hint,
   checked,
   onChange,
+  pending,
 }: {
   id: string;
   label: string;
   hint: string;
   checked: boolean;
+  pending?: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -57,6 +60,7 @@ function ToggleRow({
       </div>
       <Switch
         checked={checked}
+        aria-busy={pending}
         onCheckedChange={onChange}
         aria-labelledby={`${id}-label`}
         aria-describedby={`${id}-hint`}
@@ -77,10 +81,26 @@ export function SettingsForm({
   const act = useAdminAction();
   const ids = React.useId();
   const [name, setName] = React.useState(effective.name);
-  const [anonymous, setAnonymous] = React.useState(effective.anonymous);
   const [categories, setCategories] = React.useState<Category[]>(effective.categories);
-  const [notifications, setNotifications] = React.useState(effective.notifications);
-  const [autoDraft, setAutoDraft] = React.useState(effective.changelog.autoDraft);
+  const switches = useSwitches(
+    {
+      anonymous: effective.anonymous,
+      ...effective.notifications,
+      autoDraft: effective.changelog.autoDraft,
+    },
+    async (key, value) => {
+      const patch =
+        key === "anonymous"
+          ? { anonymous: value === defaults.anonymous ? null : value }
+          : key === "autoDraft"
+            ? { changelog: { autoDraft: value === defaults.changelog.autoDraft ? null : value } }
+            : { notifications: { [key]: value === defaults.notifications[key] ? null : value } };
+      const result = await adminSaveSettings({ data: patch });
+      if (!result.ok) throw new Error(result.error.message);
+    },
+  );
+  // A reset response must not replace text/category edits made while it was saving.
+  const edits = React.useRef(0);
   const [saving, setSaving] = React.useState(false);
 
   const trimmed = name.trim();
@@ -90,49 +110,40 @@ export function SettingsForm({
       : trimmed.length > NAME_MAX
         ? `Use at most ${NAME_MAX} characters.`
         : null;
-  const current: RuntimeSettings = {
+  const current = {
     name: trimmed,
-    anonymous,
     categories: CATEGORIES.filter((category) => categories.includes(category)),
-    notifications,
-    changelog: { autoDraft },
   };
-  const dirty = !same(current, effective);
+  const dirty = current.name !== effective.name || !same(current.categories, effective.categories);
 
-  async function save(next: RuntimeSettings | "defaults") {
+  async function save(reset = false) {
+    if (saving) return;
+    const revision = edits.current;
     setSaving(true);
     try {
-      const target = next === "defaults" ? defaults : next;
-      // An override equal to feedbax.config.ts is cleared, so the config stays the source.
-      const patch = {
-        name: same(target.name, defaults.name) ? null : target.name,
-        anonymous: same(target.anonymous, defaults.anonymous) ? null : target.anonymous,
-        categories: same(target.categories, defaults.categories) ? null : target.categories,
-        notifications: Object.fromEntries(
-          (Object.keys(target.notifications) as (keyof NotificationToggles)[]).map((key) => [
-            key,
-            target.notifications[key] === defaults.notifications[key]
-              ? null
-              : target.notifications[key],
-          ]),
-        ),
-        changelog: {
-          autoDraft:
-            target.changelog.autoDraft === defaults.changelog.autoDraft
-              ? null
-              : target.changelog.autoDraft,
-        },
-      };
+      const target = reset ? defaults : current;
+      if (reset) {
+        const results = await Promise.all([
+          switches.change("anonymous", defaults.anonymous),
+          switches.change("autoDraft", defaults.changelog.autoDraft),
+          ...TOGGLES.map(({ key }) => switches.change(key, defaults.notifications[key])),
+        ]);
+        // Each failed switch already explains its rollback. Do not announce a full reset.
+        if (results.some((saved) => !saved)) return;
+      }
       const done = await act(
-        () => adminSaveSettings({ data: patch }),
-        next === "defaults" ? "Settings reset to the project defaults." : "Settings saved.",
+        () =>
+          adminSaveSettings({
+            data: {
+              name: same(target.name, defaults.name) ? null : target.name,
+              categories: same(target.categories, defaults.categories) ? null : target.categories,
+            },
+          }),
+        reset ? "Settings reset to the project defaults." : "Settings saved.",
       );
-      if (done && next === "defaults") {
+      if (done && reset && revision === edits.current) {
         setName(done.effective.name);
-        setAnonymous(done.effective.anonymous);
         setCategories(done.effective.categories);
-        setNotifications(done.effective.notifications);
-        setAutoDraft(done.effective.changelog.autoDraft);
       }
     } finally {
       setSaving(false);
@@ -150,7 +161,7 @@ export function SettingsForm({
             toast.error("Offer at least one category.");
             return;
           }
-          void save(current);
+          void save();
         }}
       >
         <Card>
@@ -167,7 +178,10 @@ export function SettingsForm({
                 maxLength={NAME_MAX + 20}
                 aria-invalid={nameProblem ? true : undefined}
                 aria-describedby={`${ids}-name-hint`}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                  edits.current += 1;
+                  setName(event.target.value);
+                }}
                 className="h-9 max-md:h-11 max-md:text-base"
               />
               <p
@@ -184,8 +198,9 @@ export function SettingsForm({
                 id={`${ids}-anon`}
                 label="Anonymous feedback"
                 hint="Let people post, vote and comment without signing in. People already signed in stay signed in."
-                checked={anonymous}
-                onChange={setAnonymous}
+                checked={switches.values.anonymous}
+                pending={switches.pending.has("anonymous")}
+                onChange={(next) => void switches.change("anonymous", next)}
               />
             </div>
           </CardContent>
@@ -214,11 +229,12 @@ export function SettingsForm({
                     <Checkbox
                       checked={checked}
                       disabled={only}
-                      onCheckedChange={(next) =>
+                      onCheckedChange={(next) => {
+                        edits.current += 1;
                         setCategories((prev) =>
                           next ? [...prev, category] : prev.filter((item) => item !== category),
-                        )
-                      }
+                        );
+                      }}
                     />
                     <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
                     {CATEGORY_LABELS[category]}
@@ -238,7 +254,7 @@ export function SettingsForm({
           <CardHeader>
             <CardTitle className="text-base">Notifications</CardTitle>
             <CardDescription>
-              Saved now, used once email is set up with <code>npx feedbax add email</code>.
+              Used once email is set up with <code>npx feedbax add email</code>.
             </CardDescription>
           </CardHeader>
           <CardContent className="divide-y border-t">
@@ -248,8 +264,9 @@ export function SettingsForm({
                 id={`${ids}-${toggle.key}`}
                 label={toggle.label}
                 hint={toggle.hint}
-                checked={notifications[toggle.key]}
-                onChange={(next) => setNotifications((prev) => ({ ...prev, [toggle.key]: next }))}
+                checked={switches.values[toggle.key]}
+                pending={switches.pending.has(toggle.key)}
+                onChange={(next) => void switches.change(toggle.key, next)}
               />
             ))}
           </CardContent>
@@ -267,8 +284,9 @@ export function SettingsForm({
               id={`${ids}-autodraft`}
               label="Draft an entry when a post is Done"
               hint="Creates a draft called “Shipped: …” that links the post. Nothing is published until you publish it."
-              checked={autoDraft}
-              onChange={setAutoDraft}
+              checked={switches.values.autoDraft}
+              pending={switches.pending.has("autoDraft")}
+              onChange={(next) => void switches.change("autoDraft", next)}
             />
           </CardContent>
         </Card>
@@ -286,13 +304,13 @@ export function SettingsForm({
             variant="outline"
             disabled={saving}
             className="h-9 max-md:h-11"
-            onClick={() => void save("defaults")}
+            onClick={() => void save(true)}
           >
             Reset to project defaults
           </Button>
           <p className="text-xs text-muted-foreground">
-            Changes reach every visitor within a few seconds. Secrets and integrations are never
-            shown here.
+            Switches save immediately. Save changes to the name and categories. Secrets and
+            integrations are never shown here.
           </p>
         </div>
       </form>
