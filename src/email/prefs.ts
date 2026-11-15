@@ -111,10 +111,20 @@ export async function saveEmailPrefs(
 }
 
 /**
- * Apply a verified unsubscribe link: turn that kind off for that user. Idempotent, and a
- * no-op for a user that no longer exists.
+ * Apply a verified unsubscribe link: unfollow a single post when `postId` is set, otherwise
+ * turn that kind off for that user. Idempotent, and a no-op for missing posts or users.
  */
 export async function applyUnsubscribe(claims: UnsubscribeClaims, now = Date.now()) {
+  if (claims.postId) {
+    await createDb(env.DB).run(
+      sql`INSERT INTO post_follows (post_id, user_id, following, updated_at)
+        SELECT p.id, u.id, 0, ${now}
+        FROM posts p, user u
+        WHERE p.id = ${claims.postId} AND u.id = ${claims.userId}
+        ON CONFLICT(post_id, user_id) DO UPDATE SET following = 0, updated_at = excluded.updated_at`,
+    );
+    return;
+  }
   const column = sql.raw(`\`${PREF_COLUMNS[claims.kind].name}\``);
   await createDb(env.DB).run(
     sql`INSERT INTO email_prefs (user_id, ${column}, unsubscribe_token, updated_at)
@@ -123,10 +133,12 @@ export async function applyUnsubscribe(claims: UnsubscribeClaims, now = Date.now
   );
 }
 
-/** Verify a signed link's `u`, `k`, `t` and apply it. Throws invalid_input for a bad link. */
-export async function unsubscribeWithLink(input: unknown): Promise<{ kind: EmailKind }> {
+/** Verify a signed link's `u`, `k`, optional `p`, and `t` and apply it. Throws invalid_input for a bad link. */
+export async function unsubscribeWithLink(
+  input: unknown,
+): Promise<{ kind: EmailKind; postId?: string }> {
   const claims = await verifyUnsubscribe(record(input), env.BETTER_AUTH_SECRET);
   if (!claims) throw new DomainError("invalid_input", "This unsubscribe link is not valid.");
   await applyUnsubscribe(claims);
-  return { kind: claims.kind };
+  return { kind: claims.kind, ...(claims.postId ? { postId: claims.postId } : {}) };
 }

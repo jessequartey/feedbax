@@ -111,6 +111,7 @@ async function applyMigrations(): Promise<void> {
 await applyMigrations();
 
 const TABLES_IN_DELETE_ORDER = [
+  "post_follows",
   "changelog_posts",
   "changelog_entries",
   "webhook_deliveries",

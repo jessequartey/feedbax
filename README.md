@@ -114,7 +114,7 @@ Then [add the feedback dialog](#add-the-feedback-dialog-to-your-app). Until the 
 
 ### Add email notifications
 
-People with a known email (GitHub, Google or host login) are emailed when a post they wrote or voted on changes status, or someone replies to their comment. Anonymous users get none. Every email has a one-click unsubscribe. Sending uses [Resend](https://resend.com/api-keys). Verify the domain at [resend.com/domains](https://resend.com/domains). Without a key and a from-address, email stays off.
+People with a known email (GitHub, Google or host login) are emailed when a post they follow (by posting, voting, commenting, or clicking **Follow**) changes status, or someone comments on a followed post or replies to their comment. Anonymous users get none. Every email includes a one-click unfollow link for that post alongside a category unsubscribe. Sending uses [Resend](https://resend.com/api-keys). Verify the domain at [resend.com/domains](https://resend.com/domains). Without a key and a from-address, email stays off.
 
 ```sh
 npx feedbax@latest add email
@@ -232,7 +232,7 @@ Images live in R2. The portal keeps working if Notion or GitHub is down. Sync ca
 - Change **Status** in Notion: Open, Planned, In progress, Done or Closed. **Done** means delivered. **Closed** means declined, duplicate or out of scope. Allow about 5 minutes.
 - With GitHub enabled, tick **Send to GitHub** to create one issue. Changing Status does not create an issue. Unticking later does nothing. Hidden, spam, merged and deleted posts are skipped; their checkbox stays unchanged, and restoring a post resumes its approval. Closing the issue marks a public post **Done**. Reopening it does not undo that.
 - Keep the database property names and types. Extra properties and views are fine. Feedbax writes the author, counts and links. Your team changes Status and Send to GitHub.
-- Votes update on the portal immediately. Bursts are combined before Notion sync. Each user can change a vote up to 10 times in 10 seconds and 120 times an hour. Repeating the same vote does not count again.
+- Votes update on the portal immediately. **Trending** ranks posts by recent votes over the last 7 days with recency weighting. Bursts are combined before Notion sync. Each user can change a vote up to 10 times in 10 seconds and 120 times an hour. Repeating the same vote does not count again.
 
 ## Browse and submit feedback
 
@@ -459,7 +459,7 @@ There is no migration from 0.2.x. Start a new project. See [CHANGELOG.md](CHANGE
 
 Run `npx feedbax@latest admin` from the project. It prints a sign-in link that works once and expires after 15 minutes. Open it, confirm, and you land on `/admin/moderation`. No sign-in provider is required.
 
-- **Moderation** lists posts and comments. Sort posts by newest or Priority. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
+- **Moderation** lists posts and comments. Sort posts by newest or Priority, and click a post's vote count (or **View voters** on the post page) to inspect who voted on it. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 

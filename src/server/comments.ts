@@ -5,7 +5,7 @@ import { notFound } from "@tanstack/react-router";
 import { LIMITS } from "../contracts/domain.ts";
 import type { CommentView, Page, ViewerUser } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
-import { comments, posts, user } from "../db/schema.ts";
+import { comments, postFollows, posts, user } from "../db/schema.ts";
 import { requireWriter } from "./auth.ts";
 import { DomainError } from "./errors.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
@@ -86,6 +86,11 @@ export async function addCommentForUser(
   if (!comment)
     throw new DomainError("rate_limited", "You can submit 30 comments per hour.", undefined, 3600);
   if (inserted.length && !flagged) {
+    if (writer.kind !== "anonymous")
+      await db
+        .insert(postFollows)
+        .values({ postId, userId: writer.id, following: 1, updatedAt: now })
+        .onConflictDoNothing();
     enqueuePost(postId);
     if (emailEnabled())
       queueEmailsLater([

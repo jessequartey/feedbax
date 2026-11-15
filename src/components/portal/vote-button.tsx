@@ -14,6 +14,7 @@ type Props = {
   /** `rail` is the tall box on board rows, `inline` is the compact roadmap/detail version. */
   variant?: "rail" | "inline";
   className?: string;
+  onVoteChange?: (voted: boolean) => void;
 };
 
 export function VoteButton({
@@ -23,6 +24,7 @@ export function VoteButton({
   voted,
   variant = "rail",
   className,
+  onVoteChange,
 }: Props) {
   const { ensureWriter, reportError } = useWriteGate();
   const [state, setState] = React.useState<VoteState>({ votes, voted });
@@ -38,12 +40,17 @@ export function VoteButton({
     busy.current = true;
     try {
       if (!(await ensureWriter())) return;
+      let confirmed: boolean | null = null;
       const outcome = await runVote(
         state,
         (next) => setVote({ data: { postId, voted: next } }),
-        setState,
+        (nextState) => {
+          confirmed = nextState.voted;
+          setState(nextState);
+        },
       );
-      if (!outcome.ok) reportError(outcome.error);
+      if (outcome.ok && confirmed !== null) onVoteChange?.(confirmed);
+      else if (!outcome.ok) reportError(outcome.error);
     } finally {
       busy.current = false;
     }

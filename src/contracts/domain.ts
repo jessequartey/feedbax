@@ -54,6 +54,8 @@ export type PostSummary = {
 export type PostDetail = PostSummary & {
   /** Included only for authenticated admins. */
   priority?: number | null;
+  /** Whether the signed-in non-anonymous viewer follows this post. */
+  viewerIsFollowing?: boolean;
   body: string;
   images: ImageView[];
   githubUrl: string | null;
@@ -86,6 +88,7 @@ export type RoadmapResult = Record<
 >;
 export type CreatePostResult = { postId: string; postUrl: string; heldForReview?: boolean };
 export type VoteResult = { votes: number; viewerHasVoted: boolean };
+export type FollowResult = { following: boolean };
 export type ErrorCode =
   | "invalid_input"
   | "unauthenticated"

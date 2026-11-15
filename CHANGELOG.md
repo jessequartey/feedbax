@@ -13,6 +13,8 @@
 - **Faster post reading.** Formatting tools load only when you start writing; early typing and keyboard focus stay in place.
 - **Profanity filter.** Posts and comments with profanity are held for review by default; admins can block, switch off, or customize the word lists in Settings.
 - **Search everywhere.** Press Cmd/Ctrl+K or use the header search to find feedback and published changelog entries.
+- **Follow posts and per-post unfollow.** Signed-in users can follow or unfollow any post without voting, auto-follow when posting, voting, or commenting, and unfollow individual posts directly from notification email footers.
+- **Trending sort and admin voter list.** Weight trending posts by vote recency over the last 7 days, and let admins inspect who voted on a post from Moderation or the post sidebar.
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 - Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
 - **Reliable webhooks, inspection and replay.** Large event batches deliver without truncation, failed queue sends recover automatically, and admins can browse the webhook event catalog, filter recent deliveries, inspect payloads, and replay failed deliveries.

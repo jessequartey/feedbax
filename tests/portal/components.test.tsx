@@ -2,10 +2,19 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
 import { SignInOptions } from "../../src/components/portal/sign-in-options.tsx";
+import { PostDetailView } from "../../src/components/portal/post-detail.tsx";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { primaryNav, SiteHeader } from "../../src/components/portal/site-header.tsx";
 import { FilterPanel, SortControl } from "../../src/components/portal/filter-panel.tsx";
-import { accountUser, anonymousUser, fixtureListPosts, hostUser } from "../fixtures/portal.ts";
+import PostVotersButton from "../../src/components/admin/voters-dialog.tsx";
+import {
+  accountUser,
+  anonymousUser,
+  fixtureGetPost,
+  fixtureListComments,
+  fixtureListPosts,
+  hostUser,
+} from "../fixtures/portal.ts";
 import { baseConfig, renderPage, viewerOf } from "./helpers.tsx";
 
 const headerSource = readFileSync(
@@ -204,5 +213,43 @@ describe("board pieces", () => {
       (m) => m[1],
     );
     expect(pressed).toEqual(["Bug report", "Planned"]);
+  });
+
+  it("renders Follow button only for signed-in non-anonymous users on post detail", async () => {
+    const first = fixtureListPosts({ limit: 1 }).items[0]!;
+    const detail = fixtureGetPost(first.id)!;
+    const comments = fixtureListComments(first.id);
+
+    const signedOut = await renderPage(
+      <PostDetailView post={detail} comments={comments} />,
+      viewerOf(null),
+    );
+    expect(signedOut).not.toContain(">Follow<");
+    expect(signedOut).not.toContain(">Following<");
+
+    const anon = await renderPage(
+      <PostDetailView post={detail} comments={comments} />,
+      viewerOf(anonymousUser),
+    );
+    expect(anon).not.toContain(">Follow<");
+
+    const notFollowing = await renderPage(
+      <PostDetailView post={{ ...detail, viewerIsFollowing: false }} comments={comments} />,
+      viewerOf(accountUser),
+    );
+    expect(notFollowing).toMatch(/aria-pressed="false"[^>]*>(?:<svg[\s\S]*?<\/svg>)?Follow</);
+
+    const following = await renderPage(
+      <PostDetailView post={{ ...detail, viewerIsFollowing: true }} comments={comments} />,
+      viewerOf(accountUser),
+    );
+    expect(following).toMatch(/aria-pressed="true"[^>]*>(?:<svg[\s\S]*?<\/svg>)?Following</);
+
+    const votersTrigger = await renderPage(
+      <PostVotersButton post={{ id: detail.id, title: detail.title, votes: detail.votes }} />,
+      viewerOf(accountUser),
+    );
+    expect(votersTrigger).toContain("View ");
+    expect(votersTrigger).toContain("voter");
   });
 });

@@ -223,7 +223,7 @@ describe("hot query plans", () => {
   test("the trending sort counts recent votes from a covering index", async () => {
     expect(
       await plan(
-        "SELECT id FROM posts ORDER BY (SELECT count(*) FROM votes WHERE post_id = posts.id AND created_at >= 0) DESC LIMIT 20",
+        "SELECT id FROM posts ORDER BY (SELECT coalesce(sum(604800000 + created_at - 0), 0) FROM votes WHERE post_id = posts.id AND created_at >= 0) DESC LIMIT 20",
       ),
     ).toContain("COVERING INDEX votes_post_created_idx (post_id=? AND created_at>?)");
   });

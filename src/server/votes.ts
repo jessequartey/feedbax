@@ -3,7 +3,7 @@ import { env, waitUntil } from "cloudflare:workers";
 import { and, eq, sql } from "drizzle-orm";
 import type { ViewerUser, VoteResult } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
-import { posts, votes } from "../db/schema.ts";
+import { postFollows, posts, votes } from "../db/schema.ts";
 import { requireWriter } from "./auth.ts";
 import { DomainError, invalid } from "./errors.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
@@ -63,7 +63,14 @@ export async function setVoteForUser(
   );
   if (enqueue.results.length) enqueuePost(postId);
   // Only a vote that was really added (not a repeat, not a removal, not over budget).
-  if (data.voted && transition.results.length) waitUntil(emitVoteCreated(postId));
+  if (data.voted && transition.results.length) {
+    if (writer.kind !== "anonymous")
+      await db
+        .insert(postFollows)
+        .values({ postId, userId: writer.id, following: 1, updatedAt: now })
+        .onConflictDoNothing();
+    waitUntil(emitVoteCreated(postId));
+  }
   const result = await db
     .select({
       votes: sql<number>`count(*)`,

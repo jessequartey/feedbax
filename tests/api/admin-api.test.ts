@@ -58,6 +58,7 @@ describe("the admin guard", () => {
       setPostState: { postId, state: "spam" },
       mergePost: { sourceId: postId, targetId: crypto.randomUUID() },
       deletePost: { postId },
+      listPostVoters: { postId },
       sendToGitHub: { postId },
       setBanned: { userId: author.id, banned: true },
       setAdminRole: { userId: author.id, admin: true },
@@ -608,5 +609,69 @@ describe("user management", () => {
     expect((await adminApi.listUsers(actor, { filter: "admin" })).items.map((u) => u.id)).toEqual([
       actor.id,
     ]);
+  });
+  it("lists voters on a post with email masking for guests/host users and pagination", async () => {
+    const actor = await admin(),
+      author = await writer(),
+      postId = await post(author);
+    const named = await writer();
+    const guest = await writer();
+    await env.DB.prepare(
+      "UPDATE user SET name = 'Ada Voter', email = 'ada@example.com' WHERE id = ?",
+    )
+      .bind(named.id)
+      .run();
+    await env.DB.prepare(
+      "UPDATE user SET name = 'Guest', email = 'anon-1@users.feedbax.invalid', is_anonymous = 1 WHERE id = ?",
+    )
+      .bind(guest.id)
+      .run();
+    await setVoteForUser({ postId, voted: true }, named);
+    await env.DB.prepare("UPDATE votes SET created_at = 1000 WHERE post_id = ? AND user_id = ?")
+      .bind(postId, named.id)
+      .run();
+    await setVoteForUser({ postId, voted: true }, guest);
+    await env.DB.prepare("UPDATE votes SET created_at = 2000 WHERE post_id = ? AND user_id = ?")
+      .bind(postId, guest.id)
+      .run();
+
+    const extra = Array.from({ length: 19 }, (_, i) => {
+      const id = `extra-voter-${i + 1}`;
+      return [
+        env.DB.prepare(
+          "INSERT INTO user (id, name, email, email_verified, created_at, updated_at) VALUES (?, ?, ?, 0, 1, 1)",
+        ).bind(id, `Voter ${i + 1}`, `voter${i + 1}@example.com`),
+        env.DB.prepare("INSERT INTO votes (post_id, user_id, created_at) VALUES (?, ?, ?)").bind(
+          postId,
+          id,
+          1500 + i,
+        ),
+      ];
+    }).flat();
+    await env.DB.batch(extra);
+
+    const first = await adminApi.listPostVoters(actor, { postId, page: 1 });
+    expect(first).toMatchObject({ total: 21, hasMore: true, page: 1, limit: 20 });
+    expect(first.items[0]).toEqual({
+      id: guest.id,
+      name: "Anonymous",
+      email: null,
+      anonymous: true,
+      createdAt: new Date(2000).toISOString(),
+    });
+    const second = await adminApi.listPostVoters(actor, { postId, page: 2 });
+    expect(second).toMatchObject({ total: 21, hasMore: false, page: 2, limit: 20 });
+    expect(second.items).toEqual([
+      {
+        id: named.id,
+        name: "Ada Voter",
+        email: "ada@example.com",
+        anonymous: false,
+        createdAt: new Date(1000).toISOString(),
+      },
+    ]);
+    await expect(
+      adminApi.listPostVoters(actor, { postId: crypto.randomUUID() }),
+    ).rejects.toMatchObject({ code: "not_found" });
   });
 });

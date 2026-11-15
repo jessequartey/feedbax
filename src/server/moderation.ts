@@ -9,10 +9,11 @@ import type {
   ModerationPost,
   ModerationPostPage,
   PostState,
+  PostVoter,
 } from "../contracts/admin.ts";
 import type { Page } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
-import { changelogPosts, comments, images, posts, user, votes } from "../db/schema.ts";
+import { changelogPosts, comments, images, postFollows, posts, user, votes } from "../db/schema.ts";
 import { DomainError, invalid } from "./errors.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
 import { excerptOf } from "./excerpt.ts";
@@ -232,6 +233,21 @@ export async function mergePost(input: unknown, now = Date.now()): Promise<{ tar
       )
       .onConflictDoNothing(),
     db.delete(votes).where(eq(votes.postId, sourceId)),
+    db
+      .insert(postFollows)
+      .select(
+        db
+          .select({
+            postId: sql<string>`${targetId}`.as("post_id"),
+            userId: postFollows.userId,
+            following: postFollows.following,
+            updatedAt: postFollows.updatedAt,
+          })
+          .from(postFollows)
+          .where(and(eq(postFollows.postId, sourceId), eq(postFollows.following, 1))),
+      )
+      .onConflictDoNothing(),
+    db.delete(postFollows).where(eq(postFollows.postId, sourceId)),
     // Revisions bump so the cron re-mirrors both posts (vote counts) to Notion.
     db
       .update(posts)
@@ -294,6 +310,7 @@ export async function deletePost(input: unknown, now = Date.now()): Promise<Dele
       .set({ mergedInto: null, hiddenAt: sql`coalesce(${posts.hiddenAt}, ${now})` })
       .where(eq(posts.mergedInto, postId)),
     db.delete(votes).where(eq(votes.postId, postId)),
+    db.delete(postFollows).where(eq(postFollows.postId, postId)),
     db.delete(comments).where(eq(comments.postId, postId)),
     db.delete(images).where(eq(images.postId, postId)),
     db.delete(changelogPosts).where(eq(changelogPosts.postId, postId)),
@@ -381,4 +398,49 @@ export async function approveComment(input: unknown): Promise<{ postId: string }
   if (released.length)
     await env.SYNC_QUEUE.send({ type: "notion.post", postId: found.postId }).catch(() => undefined);
   return { postId: found.postId };
+}
+
+const NO_EMAIL = "@users.feedbax.invalid";
+
+/** Voters on a post, newest vote first. Masks emails for anonymous, host and built-in users. */
+export async function listPostVoters(input: unknown): Promise<Page<PostVoter>> {
+  const data = record(input),
+    postId = uuid(data.postId, "postId"),
+    page = pageNumber(data.page),
+    db = createDb(env.DB);
+  await findPost(postId);
+  const [rows, total] = await Promise.all([
+    db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        isAnonymous: user.isAnonymous,
+        createdAt: votes.createdAt,
+      })
+      .from(votes)
+      .innerJoin(user, eq(votes.userId, user.id))
+      .where(eq(votes.postId, postId))
+      .orderBy(desc(votes.createdAt), desc(user.id))
+      .limit(PAGE_SIZE)
+      .offset((page - 1) * PAGE_SIZE),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(votes)
+      .where(eq(votes.postId, postId))
+      .get(),
+  ]);
+  return {
+    items: rows.map((row) => ({
+      id: row.id,
+      name: row.isAnonymous ? "Anonymous" : row.name,
+      email: row.isAnonymous || row.email.toLowerCase().endsWith(NO_EMAIL) ? null : row.email,
+      anonymous: Boolean(row.isAnonymous),
+      createdAt: iso(row.createdAt),
+    })),
+    page,
+    limit: PAGE_SIZE,
+    total: total!.count,
+    hasMore: page * PAGE_SIZE < total!.count,
+  };
 }

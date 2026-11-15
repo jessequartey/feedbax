@@ -3,12 +3,15 @@ import { Link } from "@tanstack/react-router";
 import * as React from "react";
 import {
   ArrowLeftIcon,
+  BellIcon,
   EyeOffIcon,
   ExternalLinkIcon,
   MessageSquareIcon,
   RocketIcon,
 } from "lucide-react";
 
+import { useSwitches } from "@/components/use-switches";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CATEGORY_LABELS,
@@ -17,14 +20,50 @@ import {
   type Page,
   type PostDetail,
 } from "@/contracts/domain";
+import { setPostFollow } from "@/server/functions";
 import { CommentSection } from "./comments";
 import { formatDate, plural } from "./format";
 import { ImageGallery } from "./image-gallery";
 import { Markdown } from "./markdown";
 import { CategoryBadge, StatusBadge } from "./post-badges";
+import { useViewer } from "./viewer";
 import { VoteButton } from "./vote-button";
 
 const PriorityEditor = React.lazy(() => import("@/components/admin/priority-editor"));
+const PostVotersButton = React.lazy(() => import("@/components/admin/voters-dialog"));
+
+function FollowButton({
+  postId,
+  initialFollowing,
+  onExplicitUnfollow,
+}: {
+  postId: string;
+  initialFollowing: boolean;
+  onExplicitUnfollow: (unfollowed: boolean) => void;
+}) {
+  const { values, pending, change } = useSwitches(
+    { following: initialFollowing },
+    async (_key, next) => {
+      const result = await setPostFollow({ data: { postId, following: next } });
+      if (!result.ok) throw new Error(result.error.message);
+      onExplicitUnfollow(!result.data.following);
+    },
+  );
+  const pressed = values.following;
+  return (
+    <Button
+      type="button"
+      variant={pressed ? "secondary" : "outline"}
+      size="sm"
+      aria-pressed={pressed}
+      disabled={pending.has("following")}
+      onClick={() => change("following", !pressed)}
+    >
+      <BellIcon className="size-4" aria-hidden="true" />
+      {pressed ? "Following" : "Follow"}
+    </Button>
+  );
+}
 
 const layout = "mx-auto w-full max-w-[1440px] px-4 md:px-6 lg:px-8";
 
@@ -46,7 +85,29 @@ export function PostDetailView({
   comments: Page<CommentView>;
   inDialog?: boolean;
 }) {
+  const { user } = useViewer();
+  const canFollow = user !== null && user.kind !== "anonymous";
   const [commentTotal, setCommentTotal] = React.useState(comments.total);
+  const [followState, setFollowState] = React.useState(() => ({
+    following: Boolean(post.viewerIsFollowing),
+    version: 0,
+  }));
+  const explicitUnfollowRef = React.useRef(false);
+
+  React.useEffect(() => {
+    explicitUnfollowRef.current = false;
+    setFollowState((prev) => ({
+      following: Boolean(post.viewerIsFollowing),
+      version: prev.version + 1,
+    }));
+  }, [post.id, post.viewerIsFollowing]);
+
+  const markAutoFollowed = React.useCallback(() => {
+    if (explicitUnfollowRef.current) return;
+    setFollowState((prev) =>
+      prev.following ? prev : { following: true, version: prev.version + 1 },
+    );
+  }, []);
   return (
     <div className={`${layout} py-6 md:py-10`}>
       {inDialog ? null : (
@@ -105,20 +166,40 @@ export function PostDetailView({
               <ImageGallery images={post.images} title={post.title} />
             </div>
           ) : null}
-          <div className="mt-6 flex items-center justify-between gap-4 border-t pt-5">
-            <VoteButton
-              variant="inline"
-              postId={post.id}
-              postTitle={post.title}
-              votes={post.votes}
-              voted={post.viewerHasVoted}
-            />
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t pt-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <VoteButton
+                variant="inline"
+                postId={post.id}
+                postTitle={post.title}
+                votes={post.votes}
+                voted={post.viewerHasVoted}
+                onVoteChange={(voted) => {
+                  if (voted) markAutoFollowed();
+                }}
+              />
+              {canFollow ? (
+                <FollowButton
+                  key={`${post.id}-${followState.version}`}
+                  postId={post.id}
+                  initialFollowing={followState.following}
+                  onExplicitUnfollow={(unfollowed) => {
+                    explicitUnfollowRef.current = unfollowed;
+                  }}
+                />
+              ) : null}
+            </div>
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <MessageSquareIcon className="size-4" aria-hidden="true" />
               {plural(commentTotal, "comment")}
             </span>
           </div>
-          <CommentSection postId={post.id} initial={comments} onTotalChange={setCommentTotal} />
+          <CommentSection
+            postId={post.id}
+            initial={comments}
+            onTotalChange={setCommentTotal}
+            onCommentAdded={markAutoFollowed}
+          />
         </article>
         <aside aria-labelledby="details-heading" className="lg:border-l lg:pl-8">
           <h2 id="details-heading" className="text-sm font-medium">
@@ -153,6 +234,7 @@ export function PostDetailView({
                   priority={post.priority}
                 />
               </div>
+              <PostVotersButton post={{ id: post.id, title: post.title, votes: post.votes }} />
             </React.Suspense>
           ) : null}
           <ShowcaseSlot />

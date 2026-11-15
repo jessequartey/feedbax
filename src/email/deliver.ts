@@ -89,12 +89,18 @@ async function send(
   if (!from) return;
   const found = await recipients(audience);
   const slice = found.slice(0, EMAIL_SLICE);
+  const postId =
+    message.type === "email.status" || message.type === "email.reply" ? message.post.id : undefined;
   const candidates: { key: string; value: string; updatedAt: number }[] = [];
   for (const recipient of slice) {
     const query = await unsubscribeQuery(env.BETTER_AUTH_SECRET, recipient.id, audience.kind);
+    const unfollowQuery = postId
+      ? await unsubscribeQuery(env.BETTER_AUTH_SECRET, recipient.id, audience.kind, postId)
+      : null;
     const frame: Frame = {
       portalName,
       reason: reason(recipient),
+      ...(unfollowQuery ? { unfollowUrl: `${portal()}${UNSUBSCRIBE_PAGE}?${unfollowQuery}` } : {}),
       unsubscribeUrl: `${portal()}${UNSUBSCRIBE_PAGE}?${query}`,
       preferencesUrl: `${portal()}/notifications`,
     };
@@ -139,7 +145,16 @@ async function send(
       .select({ email: user.email })
       .from(user)
       .leftJoin(emailPrefs, eq(emailPrefs.userId, user.id))
-      .where(and(eq(user.id, recipient.id), reachable, wants(audience.kind)))
+      .where(
+        and(
+          eq(user.id, recipient.id),
+          reachable,
+          wants(audience.kind),
+          postId
+            ? sql`NOT EXISTS (SELECT 1 FROM post_follows WHERE post_id = ${postId} AND user_id = ${user.id} AND following = 0)`
+            : undefined,
+        ),
+      )
       .get();
     if (!eligible || eligible.email !== delivery.email.to) {
       await db
@@ -200,7 +215,7 @@ async function deliver(message: EmailMessage): Promise<void> {
         {
           kind: "status",
           after: message.after,
-          where: sql`${user.id} IN (SELECT author_id FROM posts WHERE id = ${message.post.id} UNION SELECT user_id FROM votes WHERE post_id = ${message.post.id})`,
+          where: sql`NOT EXISTS (SELECT 1 FROM post_follows WHERE post_id = ${message.post.id} AND user_id = ${user.id} AND following = 0) AND ${user.id} IN (SELECT author_id FROM posts WHERE id = ${message.post.id} UNION SELECT user_id FROM votes WHERE post_id = ${message.post.id} UNION SELECT author_id FROM comments WHERE post_id = ${message.post.id} AND hidden_at IS NULL UNION SELECT user_id FROM post_follows WHERE post_id = ${message.post.id} AND following = 1)`,
         },
         (recipient, frame) =>
           statusEmail(frame, {
@@ -212,7 +227,7 @@ async function deliver(message: EmailMessage): Promise<void> {
             author: recipient.id === post.authorId,
           }),
         (recipient) =>
-          `You get this because you ${recipient.id === post.authorId ? "wrote" : "voted on"} this post.`,
+          `You get this because you ${recipient.id === post.authorId ? "wrote" : "follow or voted on"} this post.`,
         settings.name,
       );
       return;
@@ -238,7 +253,7 @@ async function deliver(message: EmailMessage): Promise<void> {
         {
           kind: "replies",
           after: message.after,
-          where: sql`${user.id} <> ${message.comment.authorId} AND ${user.id} IN (SELECT author_id FROM posts WHERE id = ${message.post.id} UNION SELECT author_id FROM comments WHERE post_id = ${message.post.id} AND hidden_at IS NULL AND created_at <= ${found.createdAt} AND id <> ${message.comment.id})`,
+          where: sql`${user.id} <> ${message.comment.authorId} AND NOT EXISTS (SELECT 1 FROM post_follows WHERE post_id = ${message.post.id} AND user_id = ${user.id} AND following = 0) AND ${user.id} IN (SELECT author_id FROM posts WHERE id = ${message.post.id} UNION SELECT author_id FROM comments WHERE post_id = ${message.post.id} AND hidden_at IS NULL AND created_at <= ${found.createdAt} AND id <> ${message.comment.id} UNION SELECT user_id FROM post_follows WHERE post_id = ${message.post.id} AND following = 1 AND updated_at <= ${found.createdAt})`,
         },
         (recipient, frame) =>
           replyEmail(frame, {
@@ -249,7 +264,7 @@ async function deliver(message: EmailMessage): Promise<void> {
             author: recipient.id === found.authorId,
           }),
         (recipient) =>
-          `You get this because you ${recipient.id === found.authorId ? "wrote" : "commented on"} this post.`,
+          `You get this because you ${recipient.id === found.authorId ? "wrote" : "follow or commented on"} this post.`,
         settings.name,
       );
       return;
