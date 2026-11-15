@@ -31,7 +31,9 @@ import { record } from "./validation.ts";
 import {
   createWebhook,
   deleteWebhook,
+  getWebhookDelivery,
   listWebhooks,
+  replayWebhookDelivery,
   revealWebhookSecret,
   rotateWebhookSecret,
   testWebhook,
@@ -78,13 +80,15 @@ export const adminApi = {
   changelogDelete: admin((_who, input: unknown) => deleteEntry(input)),
   changelogSetStatus: admin((_who, input: unknown) => setChangelogStatus(input)),
   changelogSearchPosts: admin((_who, input: unknown) => searchLinkablePosts(input)),
-  webhooksList: admin(() => listWebhooks()),
+  webhooksList: admin((_who, input?: unknown) => listWebhooks(input)),
   webhookCreate: admin((_who, input: unknown) => createWebhook(input)),
   webhookUpdate: admin((_who, input: unknown) => updateWebhook(input)),
   webhookDelete: admin((_who, input: unknown) => deleteWebhook(input)),
   webhookRevealSecret: admin((_who, input: unknown) => revealWebhookSecret(input)),
   webhookRotateSecret: admin((_who, input: unknown) => rotateWebhookSecret(input)),
   webhookTest: admin((_who, input: unknown) => testWebhook(input)),
+  webhookDelivery: admin((_who, input: unknown) => getWebhookDelivery(input)),
+  webhookReplay: admin((_who, input: unknown) => replayWebhookDelivery(input)),
   getSettings: admin(() => adminSettings()),
   saveSettings: admin(async (_who, input: unknown) => {
     const data = record(input);

@@ -15,6 +15,7 @@
 - **Search everywhere.** Press Cmd/Ctrl+K or use the header search to find feedback and published changelog entries.
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 - Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
+- **Reliable webhooks, inspection and replay.** Large event batches deliver without truncation, failed queue sends recover automatically, and admins can browse the webhook event catalog, filter recent deliveries, inspect payloads, and replay failed deliveries.
 
 ## 0.3.1
 

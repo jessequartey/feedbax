@@ -23,6 +23,95 @@ export const WEBHOOK_EVENT_LABELS: Record<WebhookEventType, string> = {
   "changelog.published": "A changelog entry is published",
 };
 
+export type WebhookEventCatalogEntry<E extends WebhookEventType = WebhookEventType> = {
+  [K in E]: {
+    type: K;
+    label: string;
+    description: string;
+    example: WebhookData[K];
+  };
+}[E];
+
+const EXAMPLE_POST: WebhookPost = {
+  id: "00000000-0000-4000-8000-000000000001",
+  title: "Dark mode",
+  body: "Please add **dark** mode.",
+  bodyText: "Please add dark mode.",
+  category: "feature",
+  status: "open",
+  url: "https://feedback.example.com/posts/00000000-0000-4000-8000-000000000001",
+  votes: 1,
+  author: { name: "Ada", anonymous: false },
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
+export const WEBHOOK_EVENT_CATALOG: readonly WebhookEventCatalogEntry[] = [
+  {
+    type: "post.created",
+    label: WEBHOOK_EVENT_LABELS["post.created"],
+    description: "Sent when a public post is created.",
+    example: { post: EXAMPLE_POST },
+  },
+  {
+    type: "post.status_changed",
+    label: WEBHOOK_EVENT_LABELS["post.status_changed"],
+    description: "Sent when a public post moves to a different status.",
+    example: {
+      post: { ...EXAMPLE_POST, status: "planned" },
+      previousStatus: "open",
+      status: "planned",
+    },
+  },
+  {
+    type: "comment.created",
+    label: WEBHOOK_EVENT_LABELS["comment.created"],
+    description: "Sent when a visible comment is added to a public post.",
+    example: {
+      comment: {
+        id: "00000000-0000-4000-8000-000000000002",
+        body: "Works for **me**.",
+        bodyText: "Works for me.",
+        author: { name: "Ada", anonymous: false },
+        createdAt: "2026-01-01T00:05:00.000Z",
+      },
+      post: {
+        id: EXAMPLE_POST.id,
+        title: EXAMPLE_POST.title,
+        url: EXAMPLE_POST.url,
+      },
+    },
+  },
+  {
+    type: "vote.created",
+    label: WEBHOOK_EVENT_LABELS["vote.created"],
+    description: "Sent when a user adds a vote to a public post.",
+    example: {
+      post: {
+        id: EXAMPLE_POST.id,
+        title: EXAMPLE_POST.title,
+        url: EXAMPLE_POST.url,
+        votes: 2,
+      },
+    },
+  },
+  {
+    type: "changelog.published",
+    label: WEBHOOK_EVENT_LABELS["changelog.published"],
+    description: "Sent when a changelog entry is published.",
+    example: {
+      entry: {
+        id: "00000000-0000-4000-8000-000000000003",
+        title: "January release",
+        body: "We shipped **dark mode**.",
+        bodyText: "We shipped dark mode.",
+        publishedAt: "2026-01-15T12:00:00.000Z",
+        url: "https://feedback.example.com/changelog/00000000-0000-4000-8000-000000000003",
+        postIds: [EXAMPLE_POST.id],
+      },
+    },
+  },
+] as const;
+
 export const WEBHOOK_LIMITS = {
   /** Endpoints per portal: bounds the fan-out of one event. */
   endpoints: 10,
@@ -117,6 +206,14 @@ export type WebhookDeliveryView = {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+};
+export type WebhookDeliveryDetailView = WebhookDeliveryView & {
+  payload: string;
+};
+export type WebhookDeliveryFilter = {
+  endpointId?: string;
+  status?: WebhookDeliveryStatus;
+  event?: WebhookDeliveryEvent;
 };
 export type AdminWebhooks = {
   endpoints: WebhookEndpointView[];

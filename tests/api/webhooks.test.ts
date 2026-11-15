@@ -7,6 +7,7 @@ import type { ViewerUser } from "../../src/contracts/domain.ts";
 import type { SyncMessage } from "../../src/contracts/sync.ts";
 import {
   WEBHOOK_EVENTS,
+  WEBHOOK_EVENT_CATALOG,
   WEBHOOK_LIMITS,
   WEBHOOK_RETRY_SECONDS,
   type WebhookEnvelope,
@@ -24,8 +25,9 @@ import {
   emitVoteCreated,
   emitWebhooks,
   signWebhook,
+  sweepWebhookDeliveries,
 } from "../../src/server/webhooks.ts";
-import { consumeQueue } from "../../src/sync/index.ts";
+import { consumeQueue, runScheduled } from "../../src/sync/index.ts";
 import { NOTION_SCHEMA } from "../../src/integrations/notion-schema.ts";
 import { fakeFetch, ID, list, notionRow, SINCE, UNTIL } from "../sync/helpers.ts";
 import { form, writer } from "./helpers.ts";
@@ -148,6 +150,8 @@ describe("the admin guard on webhooks", () => {
       "webhookRevealSecret",
       "webhookRotateSecret",
       "webhookTest",
+      "webhookDelivery",
+      "webhookReplay",
     ] as const)
       for (const viewer of [null, reader])
         await expect(
@@ -477,19 +481,131 @@ describe("events", () => {
     expect(await count("webhook_deliveries")).toBe(0);
   });
 
-  it("caps what one emit can create, and marks deliveries failed when the queue is down", async () => {
+  it("delivers large batches without truncation, chunks >50 post lookups, and recovers queue failures via cron", async () => {
     const who = await admin();
     await add(who);
     await add(who, "https://two.example.com/");
-    const post = { id: "p", title: "t", url: "https://x/p", votes: 1 };
-    await emitWebhooks("vote.created", async () => Array.from({ length: 200 }, () => ({ post })));
-    expect(await count("webhook_deliveries")).toBe(WEBHOOK_LIMITS.perEmit);
+    const samplePost = { id: "p", title: "t", url: "https://x/p", votes: 1 };
+    await emitWebhooks("vote.created", async () =>
+      Array.from({ length: 200 }, () => ({ post: samplePost })),
+    );
+    expect(await count("webhook_deliveries")).toBe(400);
+    expect(webhookMessages()).toHaveLength(400);
+
+    // >50 post IDs in loadPosts and deliveryIsPublic work without hitting D1's 100-param limit.
     await env.DB.prepare("DELETE FROM webhook_deliveries").run();
+    queue.reset();
+    const author = await writer();
+    const postIds: string[] = [];
+    for (let i = 0; i < 60; i++) {
+      const id = crypto.randomUUID();
+      postIds.push(id);
+      await env.DB.prepare(
+        "INSERT INTO posts (id, author_id, title, body, category, status, created_at, updated_at) VALUES (?, ?, 'Batch', 'Body', 'feature', 'open', ?, ?)",
+      )
+        .bind(id, author.id, i, i)
+        .run();
+    }
+    await emitChangelogWebhook({
+      entry: {
+        id: crypto.randomUUID(),
+        title: "Big release",
+        body: "60 posts",
+        publishedAt: new Date().toISOString(),
+        postIds,
+      },
+      url: `${PORTAL}/changelog`,
+    });
+    const changelogDeliveries = await deliveries();
+    expect(changelogDeliveries).toHaveLength(2);
+    expect(JSON.parse(changelogDeliveries[0]!.payload).data.entry.postIds).toHaveLength(60);
+    stubFetch(respond(204));
+    await consume();
+    expect((await deliveries()).every((d) => d.status === "delivered")).toBe(true);
+
+    // Queue failure leaves rows pending with "Could not be queued", and runScheduled recovers them.
+    await env.DB.prepare("DELETE FROM webhook_deliveries").run();
+    queue.reset();
     queue.failNext();
-    await emitWebhooks("vote.created", async () => [{ post }]);
+    await emitWebhooks("vote.created", async () => [
+      {
+        post: { id: postIds[0]!, title: "Batch", url: `${PORTAL}/posts/${postIds[0]!}`, votes: 1 },
+      },
+    ]);
     expect(await rows("SELECT status, last_error FROM webhook_deliveries")).toEqual([
-      { status: "failed", last_error: "Could not be queued" },
-      { status: "failed", last_error: "Could not be queued" },
+      { status: "pending", last_error: "Could not be queued" },
+      { status: "pending", last_error: "Could not be queued" },
+    ]);
+    expect(webhookMessages()).toHaveLength(0);
+    await runScheduled({
+      scheduledTime: Date.now(),
+      cron: "*/5 * * * *",
+      noRetry() {},
+    });
+    expect(webhookMessages()).toHaveLength(2);
+    expect(await rows("SELECT status, last_error FROM webhook_deliveries")).toEqual([
+      { status: "pending", last_error: null },
+      { status: "pending", last_error: null },
+    ]);
+    stubFetch(respond(204));
+    await consume();
+    expect(await rows("SELECT status, last_error FROM webhook_deliveries")).toEqual([
+      { status: "delivered", last_error: null },
+      { status: "delivered", last_error: null },
+    ]);
+  });
+
+  it("sweepWebhookDeliveries expires stale pending rows and only requeues overdue retries", async () => {
+    const who = await admin();
+    const { endpoint } = await add(who);
+    const now = 1_700_000_000_000;
+    const insert = env.DB.prepare(
+      "INSERT INTO webhook_deliveries (id, endpoint_id, event, payload, status, attempts, last_error, created_at, updated_at) VALUES (?, ?, 'webhook.test', '{}', 'pending', ?, ?, ?, ?)",
+    );
+    await env.DB.batch([
+      insert.bind("expired-age", endpoint.id, 1, null, now - 86_400_000, now - 86_400_000),
+      insert.bind(
+        "expired-attempts",
+        endpoint.id,
+        WEBHOOK_LIMITS.attempts,
+        "HTTP 500",
+        now - 1000,
+        now - 1000,
+      ),
+      insert.bind("fresh-initial", endpoint.id, 0, null, now - 10_000, now - 10_000),
+      insert.bind("stalled-initial", endpoint.id, 0, null, now - 60_000, now - 60_000),
+      insert.bind("fresh-retry", endpoint.id, 1, "HTTP 500", now - 60_000, now - 60_000),
+      insert.bind(
+        "overdue-retry",
+        endpoint.id,
+        1,
+        "HTTP 500",
+        now - 120_000,
+        now - (WEBHOOK_RETRY_SECONDS[0] + 60) * 1000,
+      ),
+    ]);
+    queue.reset();
+    await sweepWebhookDeliveries(now);
+    expect(
+      (
+        await rows<{ id: string; status: string; last_error: string | null }>(
+          "SELECT id, status, last_error FROM webhook_deliveries ORDER BY id",
+        )
+      ).reduce<Record<string, { status: string; last_error: string | null }>>((acc, r) => {
+        acc[r.id] = { status: r.status, last_error: r.last_error };
+        return acc;
+      }, {}),
+    ).toEqual({
+      "expired-age": { status: "failed", last_error: "Delivery timed out" },
+      "expired-attempts": { status: "failed", last_error: "HTTP 500" },
+      "fresh-initial": { status: "pending", last_error: null },
+      "stalled-initial": { status: "pending", last_error: null },
+      "fresh-retry": { status: "pending", last_error: "HTTP 500" },
+      "overdue-retry": { status: "pending", last_error: "HTTP 500" },
+    });
+    expect(webhookMessages()).toEqual([
+      { type: "webhook.deliver", deliveryId: "overdue-retry" },
+      { type: "webhook.deliver", deliveryId: "stalled-initial" },
     ]);
   });
 });
@@ -848,5 +964,126 @@ it("retries the desired endpoint state idempotently", async () => {
   expect(await adminApi.webhookUpdate(who, { id: endpoint.id, enabled: true })).toMatchObject({
     enabled: true,
     url: endpoint.url,
+  });
+});
+
+describe("event catalog, inspection, filtering and replay", () => {
+  it("exposes a typed catalog covering every webhook event", () => {
+    expect(WEBHOOK_EVENT_CATALOG.map((entry) => entry.type)).toEqual([...WEBHOOK_EVENTS]);
+    for (const entry of WEBHOOK_EVENT_CATALOG) {
+      expect(entry.label.trim().length).toBeGreaterThan(0);
+      expect(entry.description.trim().length).toBeGreaterThan(0);
+      expect(entry.example).toBeTruthy();
+    }
+  });
+
+  it("filters deliveries by status, endpoint and event, and loads full detail on inspect", async () => {
+    const who = await admin();
+    const a = await add(who, "https://a.example.com/");
+    const b = await add(who, "https://b.example.com/");
+    const { deliveryId: okId } = await adminApi.webhookTest(who, { id: a.endpoint.id });
+    stubFetch(respond(200));
+    await consume();
+    const { deliveryId: failId } = await adminApi.webhookTest(who, { id: b.endpoint.id });
+    stubFetch(respond(400));
+    await consume();
+
+    const failedOnly = await adminApi.webhooksList(who, { status: "failed" });
+    expect(failedOnly.deliveries.map((d) => d.id)).toEqual([failId]);
+    expect(JSON.stringify(failedOnly)).not.toContain("payload");
+
+    const aOnly = await adminApi.webhooksList(who, { endpointId: a.endpoint.id });
+    expect(aOnly.deliveries.map((d) => d.id)).toEqual([okId]);
+
+    const none = await adminApi.webhooksList(who, { event: "post.created" });
+    expect(none.deliveries).toEqual([]);
+
+    await expect(adminApi.webhooksList(who, { status: "bogus" })).rejects.toMatchObject({
+      code: "invalid_input",
+      field: "status",
+    });
+
+    const detail = await adminApi.webhookDelivery(who, { id: failId });
+    expect(detail).toMatchObject({
+      id: failId,
+      endpointId: b.endpoint.id,
+      endpointUrl: "https://b.example.com/",
+      event: "webhook.test",
+      status: "failed",
+      attempts: 1,
+      responseStatus: 400,
+      error: "HTTP 400",
+    });
+    expect(JSON.parse(detail.payload)).toMatchObject({
+      type: "webhook.test",
+      data: { message: expect.any(String) },
+    });
+    expect(JSON.stringify(detail)).not.toContain("whsec_");
+
+    await expect(adminApi.webhookDelivery(who, { id: crypto.randomUUID() })).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+
+  it("replays failed or queue-stalled deliveries and guards against disabled or active ones", async () => {
+    const who = await admin();
+    const { endpoint } = await add(who);
+    const { deliveryId } = await adminApi.webhookTest(who, { id: endpoint.id });
+
+    // In-progress pending delivery cannot be replayed.
+    await expect(adminApi.webhookReplay(who, { id: deliveryId })).rejects.toMatchObject({
+      code: "conflict",
+    });
+
+    // Fail permanently with 404.
+    stubFetch(respond(404));
+    await consume();
+    expect((await deliveries())[0]).toMatchObject({
+      status: "failed",
+      attempts: 1,
+      response_status: 404,
+      last_error: "HTTP 404",
+    });
+
+    // Disabled endpoint rejects replay.
+    await adminApi.webhookUpdate(who, { id: endpoint.id, enabled: false });
+    await expect(adminApi.webhookReplay(who, { id: deliveryId })).rejects.toMatchObject({
+      code: "conflict",
+    });
+
+    // Re-enable and replay: resets state and queues delivery.
+    await adminApi.webhookUpdate(who, { id: endpoint.id, enabled: true });
+    queue.reset();
+    await expect(adminApi.webhookReplay(who, { id: deliveryId })).resolves.toEqual({ deliveryId });
+    expect(webhookMessages()).toEqual([{ type: "webhook.deliver", deliveryId }]);
+    expect((await deliveries())[0]).toMatchObject({
+      status: "pending",
+      attempts: 0,
+      response_status: null,
+      last_error: null,
+    });
+    stubFetch(respond(204));
+    await consume();
+    expect((await deliveries())[0]).toMatchObject({
+      status: "delivered",
+      attempts: 1,
+      response_status: 204,
+      last_error: null,
+    });
+
+    // Queue failure on replay keeps pending with "Could not be queued" and allows re-replay.
+    queue.reset();
+    queue.failNext();
+    await adminApi.webhookReplay(who, { id: deliveryId });
+    expect((await deliveries())[0]).toMatchObject({
+      status: "pending",
+      attempts: 0,
+      last_error: "Could not be queued",
+    });
+    await expect(adminApi.webhookReplay(who, { id: deliveryId })).resolves.toEqual({ deliveryId });
+
+    await expect(adminApi.webhookReplay(who, { id: crypto.randomUUID() })).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 });

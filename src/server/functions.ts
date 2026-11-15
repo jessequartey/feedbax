@@ -237,9 +237,11 @@ export const adminChangelogSearchPosts = createServerFn({ method: "GET" })
   .handler(async ({ data }) =>
     result(async () => adminApi.changelogSearchPosts(await viewer(), data), "admin.action"),
   );
-export const adminWebhooksList = createServerFn({ method: "GET" }).handler(async () =>
-  result(async () => adminApi.webhooksList(await viewer(), undefined), "admin.action"),
-);
+export const adminWebhooksList = createServerFn({ method: "GET" })
+  .validator(pass<{ endpointId?: string; status?: string; event?: string } | undefined>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhooksList(await viewer(), data), "admin.action"),
+  );
 export const adminWebhookCreate = createServerFn({ method: "POST" })
   .validator(pass<Record<string, unknown>>)
   .handler(async ({ data }) =>
@@ -270,6 +272,16 @@ export const adminWebhookTest = createServerFn({ method: "POST" })
   .validator(pass<{ id: string }>)
   .handler(async ({ data }) =>
     result(async () => adminApi.webhookTest(await viewer(), data), "admin.action"),
+  );
+export const adminWebhookDelivery = createServerFn({ method: "GET" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookDelivery(await viewer(), data), "admin.action"),
+  );
+export const adminWebhookReplay = createServerFn({ method: "POST" })
+  .validator(pass<{ id: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.webhookReplay(await viewer(), data), "admin.action"),
   );
 export const adminGetSettings = createServerFn({ method: "GET" }).handler(async () =>
   result(async () => adminApi.getSettings(await viewer(), undefined), "admin.action"),
