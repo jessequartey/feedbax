@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vite-plus/test";
 
+import * as React from "react";
 import { SignInOptions } from "../../src/components/portal/sign-in-options.tsx";
 import { PostDetailView } from "../../src/components/portal/post-detail.tsx";
+import { CommandSearchTrigger } from "../../src/components/portal/command-search.tsx";
+import { EmptyState } from "../../src/components/portal/states.tsx";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { primaryNav, SiteHeader } from "../../src/components/portal/site-header.tsx";
 import { FilterPanel, SortControl } from "../../src/components/portal/filter-panel.tsx";
@@ -251,5 +254,36 @@ describe("board pieces", () => {
     );
     expect(votersTrigger).toContain("View ");
     expect(votersTrigger).toContain("voter");
+  });
+
+  it("renders the search trigger as a button that keeps the keyboard shortcut attributes", async () => {
+    const html = await renderPage(<CommandSearchTrigger />, viewerOf(null));
+    expect(html).toContain('type="button"');
+    expect(html).toContain('aria-label="Search feedback and changelog"');
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('aria-keyshortcuts="Meta+K Control+K"');
+    expect(html).toContain('data-slot="kbd"');
+  });
+
+  it("renders EmptyState via Empty primitives and preserves titleRef focus target and actions", async () => {
+    const ref = React.createRef<HTMLHeadingElement>();
+    const html = await renderPage(
+      <EmptyState
+        title="Nothing here"
+        description="Check back soon."
+        action={<button type="button">Reset filters</button>}
+        titleRef={ref}
+      />,
+      viewerOf(null),
+    );
+    expect(html).toContain('data-slot="empty"');
+    expect(html).toContain('data-slot="empty-header"');
+    expect(html).toContain('data-slot="empty-icon"');
+    expect(html).toContain('data-variant="icon"');
+    expect(html).toContain('data-slot="empty-title"');
+    expect(html).toContain('<h2 tabindex="-1">Nothing here</h2>');
+    expect(html).toContain('data-slot="empty-description"');
+    expect(html).toContain('data-slot="empty-content"');
+    expect(html).toContain("Reset filters");
   });
 });

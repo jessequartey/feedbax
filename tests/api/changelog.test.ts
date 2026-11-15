@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { env } from "cloudflare:workers";
 import { flushWaitUntil, resetEnv } from "../fixtures/cloudflare-workers.ts";
+import { measure } from "../resources/meter.ts";
 import type { ChangelogPublishedEvent } from "../../src/contracts/changelog.ts";
 import type { ViewerUser } from "../../src/contracts/domain.ts";
 import { adminApi } from "../../src/server/admin-api.ts";
@@ -482,3 +483,48 @@ it.each(["hidden", "spam", "merged", "deleted"] as const)(
     expect(feed).not.toContain(`/posts/${id}`);
   },
 );
+
+it("returns ETag, answers 304 on matching If-None-Match in 1 query, and invalidates on updates", async () => {
+  const who = await admin(),
+    author = await writer();
+  const id = await post(author, "First linked post");
+  await entry(who, { title: "v1.0", body: "Initial notes", postIds: [id] });
+
+  let first!: Response;
+  let repeat!: Response;
+  let revalidated!: Response;
+  const stats = await measure(async () => {
+    first = await handleChangelogFeed();
+    repeat = await handleChangelogFeed();
+    revalidated = await handleChangelogFeed(
+      new Request(env.PORTAL_URL, {
+        headers: { "if-none-match": `"other", ${first.headers.get("etag")!}` },
+      }),
+    );
+  });
+
+  expect(first.status).toBe(200);
+  expect(first.headers.get("cache-control")).toBe("public, max-age=300");
+  const etag = first.headers.get("etag");
+  expect(etag).toBeTruthy();
+  const xml = await first.text();
+
+  expect(repeat.status).toBe(200);
+  expect(repeat.headers.get("etag")).toBe(etag);
+  expect(await repeat.text()).toBe(xml);
+
+  expect(revalidated.status).toBe(304);
+  expect(revalidated.headers.get("etag")).toBe(etag);
+  expect(revalidated.headers.get("cache-control")).toBe("public, max-age=300");
+  expect(await revalidated.text()).toBe("");
+  // Cold render runs 4 queries (stamp + settings + entries + linked posts); hit + 304 add 1 query each.
+  expect(stats.queries).toBe(6);
+
+  await adminApi.setPostState(who, { postId: id, state: "hidden" });
+  const updated = await handleChangelogFeed(
+    new Request(env.PORTAL_URL, { headers: { "if-none-match": etag! } }),
+  );
+  expect(updated.status).toBe(200);
+  expect(updated.headers.get("etag")).not.toBe(etag);
+  expect(await updated.text()).not.toContain("First linked post");
+});

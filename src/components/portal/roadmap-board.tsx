@@ -5,7 +5,8 @@ import { ChevronDownIcon, MessageSquareIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS_LABELS, type RoadmapResult } from "@/contracts/domain";
-import { FiltersSheet, SearchField } from "./filter-panel";
+import { ClearSearchChip, FiltersSheet } from "./filter-panel";
+import { CommandSearchTrigger } from "./command-search";
 import { PageHeader } from "./page-header";
 import { NewPostButton } from "./post-browser";
 import { CategoryBadge, STATUS_ICONS } from "./post-badges";
@@ -32,12 +33,7 @@ export function RoadmapBoard({ data, search, onChange }: Props) {
         description="What we’re planning, building and have delivered."
         actions={
           <>
-            <SearchField
-              label="Search the roadmap"
-              value={search.q}
-              onCommit={(q) => onChange({ q })}
-              className="min-w-0 max-md:w-full md:w-56"
-            />
+            <CommandSearchTrigger className="min-w-0 max-md:w-full md:w-56" />
             <FiltersSheet
               category={search.category}
               onCategory={(category) => onChange({ category })}
@@ -47,6 +43,11 @@ export function RoadmapBoard({ data, search, onChange }: Props) {
           </>
         }
       />
+      {search.q ? (
+        <div className="mt-4">
+          <ClearSearchChip query={search.q} onClear={() => onChange({ q: undefined })} />
+        </div>
+      ) : null}
       {empty && filtered ? (
         <div className="mt-8 border">
           <EmptyState

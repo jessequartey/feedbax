@@ -2,7 +2,7 @@
 
 Your self-hosted feedback portal, created by [create-feedbax](https://github.com/jessequartey/feedbax). Full docs: the [Feedbax README](https://github.com/jessequartey/feedbax#readme).
 
-For help finishing setup, copy the [agent setup prompt](https://github.com/jessequartey/feedbax#set-up-with-an-agent) into your coding agent. It sets up the core portal (Notion token, then deploy); add-ons come after.
+For help finishing setup, copy the [agent setup prompt](https://github.com/jessequartey/feedbax#quick-start-with-an-agent) into your coding agent. It sets up the core portal (Notion token, then deploy); add-ons come after.
 
 ## Develop
 

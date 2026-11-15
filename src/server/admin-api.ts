@@ -3,6 +3,7 @@ import config from "../../feedbax.config.ts";
 import type { AdminSettings } from "../contracts/admin.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
 import { requireAdmin } from "./auth.ts";
+import { listSimilarGroups } from "./similar-groups.ts";
 import {
   createEntry,
   deleteEntry,
@@ -27,6 +28,7 @@ import {
 import { readSettings, resolveSettings, saveSettings } from "./settings.ts";
 import type { SettingsPatch } from "./settings.ts";
 import { invalid } from "./errors.ts";
+import { getInsights } from "./insights.ts";
 import { listUsers, setAdminRole, setBanned } from "./user-admin.ts";
 import { record } from "./validation.ts";
 import {
@@ -62,6 +64,7 @@ async function adminSettings(): Promise<AdminSettings> {
 export const adminApi = {
   /** The layout's gate: succeeds only for an admin. */
   session: admin(async (who: Admin) => ({ name: who.name })),
+  insights: admin((_who, input?: unknown) => getInsights(input)),
   listModerationPosts: admin((_who, input: unknown) => listModerationPosts(input)),
   listModerationComments: admin((_who, input: unknown) => listModerationComments(input)),
   listPostVoters: admin((_who, input: unknown) => listPostVoters(input)),
@@ -92,6 +95,7 @@ export const adminApi = {
   webhookDelivery: admin((_who, input: unknown) => getWebhookDelivery(input)),
   webhookReplay: admin((_who, input: unknown) => replayWebhookDelivery(input)),
   getSettings: admin(() => adminSettings()),
+  similarGroups: admin(() => listSimilarGroups()),
   saveSettings: admin(async (_who, input: unknown) => {
     const data = record(input);
     // Only the safe fields; saveSettings rejects anything else and any invalid value.

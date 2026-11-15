@@ -27,7 +27,7 @@ Keep Number format for Votes and Comments. Extra select options are allowed, but
 ## Test your template
 
 1. Publish the page and enable **Allow duplicate as template**.
-2. Duplicate the public template into your workspace and connect your Notion integration, following the [setup guide](README.md#get-started).
+2. Duplicate the public template into your workspace and connect your Notion integration, following the [setup guide](README.md#quick-start-by-hand).
 3. Run `npx create-feedbax@latest`. Confirm setup detects the duplicated Feedbax database, rather than offering to create a new one. Finish setup and check a test post syncs.
 
 ## Share it

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FilterIcon, ListIcon, SearchIcon } from "lucide-react";
+import { FilterIcon, ListIcon, SearchIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,5 +256,20 @@ export function SearchField({
         className="h-9 pl-8 max-md:h-11 max-md:text-base"
       />
     </form>
+  );
+}
+
+/** Shown only when an old `?q=` link filters the page: the search box no longer holds the text. */
+export function ClearSearchChip({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <Button
+      variant="outline"
+      onClick={onClear}
+      aria-label={`Clear search “${query}”`}
+      className="h-9 max-w-full max-md:h-11"
+    >
+      <span className="truncate">Search: “{query}”</span>
+      <XIcon aria-hidden="true" />
+    </Button>
   );
 }

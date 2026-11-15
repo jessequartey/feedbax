@@ -7,7 +7,8 @@ import { PlusIcon, SearchXIcon, InboxIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CATEGORY_LABELS, STATUS_LABELS, type Page, type PostSummary } from "@/contracts/domain";
-import { FilterPanel, FiltersSheet, SearchField, SortControl } from "./filter-panel";
+import { ClearSearchChip, FilterPanel, FiltersSheet, SortControl } from "./filter-panel";
+import { CommandSearchTrigger } from "./command-search";
 import { PageHeader } from "./page-header";
 import { PaginationBar } from "./pagination-bar";
 import { PostList, PostListSkeleton } from "./post-row";
@@ -82,15 +83,17 @@ export function PostBrowser({ title, description, kind, search, page, onChange, 
             <div className="flex flex-wrap items-center gap-2">
               <NewPostButton className="h-9 max-md:h-11 max-md:w-full md:order-last" />
               <div className="flex w-full gap-2 md:w-auto">
-                <SearchField
-                  value={search.q}
-                  onCommit={(q) => onChange({ q })}
-                  className="min-w-0 flex-1 md:w-56 md:flex-none"
-                />
+                <CommandSearchTrigger className="min-w-0 flex-1 md:w-56 md:flex-none" />
                 <FiltersSheet {...panel} activeCount={activeCount} className="lg:hidden" />
               </div>
             </div>
           </div>
+
+          {search.q ? (
+            <div className="mt-4">
+              <ClearSearchChip query={search.q} onClear={() => onChange({ q: undefined })} />
+            </div>
+          ) : null}
 
           <h2 className="mt-8 mb-3 text-sm font-medium">
             Posts{" "}

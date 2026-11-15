@@ -10,7 +10,22 @@ import type { SyncErrorState, SyncMessage } from "../../src/contracts/sync.ts";
 import { NOTION_SCHEMA } from "../../src/integrations/notion-schema.ts";
 import { handleHealth } from "../../src/server/http.ts";
 import { serveImage } from "../../src/server/images.ts";
-import { createPostForUser, getPostDetail } from "../../src/server/posts.ts";
+import { desc, eq } from "drizzle-orm";
+import { createDb } from "../../src/db/client.ts";
+import { posts, user as users } from "../../src/db/schema.ts";
+import { grantAdmin } from "../../src/server/admin.ts";
+import { adminApi } from "../../src/server/admin-api.ts";
+import { listPublishedEntries } from "../../src/server/changelog.ts";
+import { clearFeedCache, handleChangelogFeed } from "../../src/server/changelog-feed.ts";
+import {
+  createPostForUser,
+  doneLast,
+  getPostDetail,
+  listPostPage,
+} from "../../src/server/posts.ts";
+import { publiclyVisible } from "../../src/server/visibility.ts";
+import { getInsights } from "../../src/server/insights.ts";
+import { clearInsightsCache } from "../../src/server/insights-cache.ts";
 import { queue, resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { form, png, writer } from "../api/helpers.ts";
 import { measure } from "./meter.ts";
@@ -199,8 +214,12 @@ describe("failures never loop", () => {
 });
 
 describe("hot query plans", () => {
-  const plan = async (query: string) =>
-    (await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`).all<{ detail: string }>()).results
+  const plan = async (query: string, params: unknown[] = []) =>
+    (
+      await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .bind(...params)
+        .all<{ detail: string }>()
+    ).results
       .map((row) => row.detail)
       .join(" | ");
   test("cron sweeps read only their partial indexes", async () => {
@@ -220,12 +239,91 @@ describe("hot query plans", () => {
       ),
     ).toContain("USING INDEX posts_github_open");
   });
+  test("the board's new sort reads the done-last index with no temp B-tree", async () => {
+    // Drizzle's own SQL for the board query: the plan only holds if the ORDER BY and WHERE match the index text.
+    const { sql, params } = createDb(env.DB)
+      .select({ post: posts })
+      .from(posts)
+      .innerJoin(users, eq(posts.authorId, users.id))
+      .where(publiclyVisible)
+      .orderBy(doneLast, desc(posts.createdAt), desc(posts.id))
+      .limit(20)
+      .offset(0)
+      .toSQL();
+    const detail = await plan(sql.replace(/\?/g, () => String(params.shift())));
+    expect(detail).toContain("posts_board_done_last_idx");
+    expect(detail).not.toContain("USE TEMP B-TREE");
+  });
   test("the trending sort counts recent votes from a covering index", async () => {
     expect(
       await plan(
         "SELECT id FROM posts ORDER BY (SELECT coalesce(sum(604800000 + created_at - 0), 0) FROM votes WHERE post_id = posts.id AND created_at >= 0) DESC LIMIT 20",
       ),
     ).toContain("COVERING INDEX votes_post_created_idx (post_id=? AND created_at>?)");
+  });
+  test("admin moderation, user management and changelog reads use their indexes", async () => {
+    expect(
+      await plan("SELECT id FROM changelog_entries ORDER BY updated_at DESC, id DESC LIMIT 20"),
+    ).toContain("INDEX changelog_updated_idx");
+    expect(
+      await plan(
+        "SELECT id FROM posts WHERE hidden_at IS NOT NULL AND spam = 0 ORDER BY created_at DESC, id DESC LIMIT 20",
+      ),
+    ).toContain("INDEX posts_hidden_created_idx");
+    expect(
+      await plan("SELECT id FROM posts WHERE spam = 1 ORDER BY created_at DESC, id DESC LIMIT 20"),
+    ).toContain("INDEX posts_spam_created_idx");
+    expect(
+      await plan(
+        "SELECT id FROM user WHERE role = 'admin' ORDER BY created_at DESC, id DESC LIMIT 25",
+      ),
+    ).toContain("INDEX user_role_created_idx");
+    expect(
+      await plan(
+        "SELECT id FROM user WHERE banned_at IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 25",
+      ),
+    ).toContain("INDEX user_banned_created_idx");
+  });
+  test("admin insights read every range through the created_at indexes", async () => {
+    for (const range of ["7d", "30d", "90d"] as const) {
+      const captured: { query: string; params: unknown[] }[] = [];
+      const spy = {
+        prepare: (query: string) => ({
+          bind: (...params: unknown[]) => {
+            captured.push({ query, params });
+            return env.DB.prepare(query).bind(...params);
+          },
+        }),
+        batch: (all: D1PreparedStatement[]) => env.DB.batch(all),
+      } as unknown as D1Database;
+      await getInsights({ range }, NOW, spy);
+      // Statement 0 (all-time status and category breakdowns) scans the public posts by
+      // design: no index holds the visibility columns. The other four are bounded by the range.
+      const [activity, response, delivery, popular] = await Promise.all(
+        [1, 2, 3, 4].map(async (i) => plan(captured[i]!.query, captured[i]!.params)),
+      );
+      for (const detail of [activity, response, delivery, popular]) {
+        expect(detail).not.toMatch(/SCAN (posts|votes|comments)\b/);
+      }
+      expect(activity).toContain(
+        "SEARCH votes USING COVERING INDEX votes_created_post_idx (created_at>? AND created_at<?)",
+      );
+      expect(activity).toContain("SEARCH votes USING INDEX votes_created_post_idx (created_at>?)");
+      expect(activity).toContain(
+        "SEARCH comments USING INDEX comments_created_post_idx (created_at>?)",
+      );
+      expect(activity).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain(
+        "SEARCH c USING INDEX comments_author_created_idx (author_id=? AND created_at>?)",
+      );
+      expect(response).toContain("SEARCH cp USING INDEX changelog_posts_post_idx (post_id=?)");
+      expect(delivery).toContain("SEARCH posts USING INDEX posts_status_created_idx (status=?)");
+      expect(popular).toContain(
+        "SEARCH votes USING COVERING INDEX votes_created_post_idx (created_at>?)",
+      );
+      clearInsightsCache();
+    }
   });
 });
 
@@ -246,4 +344,68 @@ test("a revalidated image is answered from D1 without reading R2", async () => {
   expect(again.status).toBe(304);
   expect(again.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
   expect(get).not.toHaveBeenCalled();
+});
+
+test("changelog RSS cache hit and 304 revalidation cost 1 D1 query each", async () => {
+  const user = await writer();
+  await grantAdmin(user.id);
+  const admin = { ...user, admin: true };
+  const created = await adminApi.changelogCreate(admin, {
+    title: "v0.3.2",
+    body: "Faster **feeds**",
+  });
+  await adminApi.changelogSetStatus(admin, { id: created.id, published: true });
+  clearFeedCache();
+
+  let coldRes!: Response;
+  const cold = await measure(async () => {
+    coldRes = await handleChangelogFeed();
+  });
+  expect(coldRes.status).toBe(200);
+  const etag = coldRes.headers.get("etag")!;
+  expect(etag).toBeTruthy();
+  const coldXml = await coldRes.text();
+  expect(coldXml).toContain("<title>v0.3.2</title>");
+  expect(cold.queries).toBeGreaterThanOrEqual(3);
+
+  let hitXml = "";
+  let notModifiedStatus = 0;
+  const warmAnd304 = await measure(async () => {
+    const hit = await handleChangelogFeed();
+    const notModified = await handleChangelogFeed(
+      new Request(env.PORTAL_URL, { headers: { "if-none-match": etag } }),
+    );
+    hitXml = await hit.text();
+    notModifiedStatus = notModified.status;
+  });
+  expect(hitXml).toBe(coldXml);
+  expect(notModifiedStatus).toBe(304);
+  expect(warmAnd304.queries).toBe(2);
+});
+
+test("post detail and paginated list reads batch rows, metadata and totals into one D1 call", async () => {
+  await seed(20, { synced: false });
+  const adminUser = await writer();
+  await grantAdmin(adminUser.id);
+  const admin = { ...adminUser, admin: true };
+  const created = await adminApi.changelogCreate(admin, {
+    title: "Batch release",
+    body: "Notes",
+    postIds: [postId(0)],
+  });
+  await adminApi.changelogSetStatus(admin, { id: created.id, published: true });
+  await env.DB.prepare(
+    "INSERT INTO comments (id, post_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(crypto.randomUUID(), postId(0), "author", "Looks good", NOW)
+    .run();
+
+  expect((await measure(() => getPostDetail(postId(0), admin))).queries).toBe(1);
+  // The public list runs rows and total in parallel (see listPostPage), not as a batch.
+  expect((await measure(() => listPostPage({}, admin))).queries).toBe(2);
+  expect((await measure(() => adminApi.listModerationPosts(admin, {}))).queries).toBe(1);
+  expect((await measure(() => adminApi.listModerationComments(admin, {}))).queries).toBe(1);
+  expect((await measure(() => adminApi.listUsers(admin, {}))).queries).toBe(1);
+  expect((await measure(() => listPublishedEntries({}))).queries).toBe(2);
+  expect((await measure(() => adminApi.changelogList(admin, {}))).queries).toBe(2);
 });

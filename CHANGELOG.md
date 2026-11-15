@@ -1,7 +1,8 @@
 # Changelog
 
-## 0.3.2 (unreleased)
+## 0.3.2
 
+- **Done posts last.** Done and closed posts sit below active feedback on the board and in My feedback.
 - **Safer CLI changes.** Add-ons validate credentials before changing config or production secrets; interrupted upgrades resume and record the installed version only after deployment succeeds.
 - `feedbax add`, `doctor`, and `deploy` notify when a newer Feedbax release is available.
 - Email retries skip completed recipients, large audiences continue safely, failed enqueues recover automatically, and `/api/health` reports delivery failures.
@@ -12,13 +13,16 @@
 - Open posts and create feedback in dialogs from the board or roadmap, keep your place when closing, and share the same URLs as full pages; text drafts survive switching views.
 - **Faster post reading.** Formatting tools load only when you start writing; early typing and keyboard focus stay in place.
 - **Profanity filter.** Posts and comments with profanity are held for review by default; admins can block, switch off, or customize the word lists in Settings.
-- **Search everywhere.** Press Cmd/Ctrl+K or use the header search to find feedback and published changelog entries.
+- **Search everywhere.** Press Cmd/Ctrl+K or click the board or roadmap search box to find feedback and published changelog entries.
 - **Follow posts and per-post unfollow.** Signed-in users can follow or unfollow any post without voting, auto-follow when posting, voting, or commenting, and unfollow individual posts directly from notification email footers.
 - **Trending sort and admin voter list.** Weight trending posts by vote recency over the last 7 days, and let admins inspect who voted on a post from Moderation or the post sidebar.
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 - Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
 - **Reliable webhooks, inspection and replay.** Large event batches deliver without truncation, failed queue sends recover automatically, and admins can browse the webhook event catalog, filter recent deliveries, inspect payloads, and replay failed deliveries.
 - **Notion template.** The guide and example rows show priority, GitHub release shipping, follows and moderation.
+- **Lower running cost.** The changelog, RSS feed and admin lists load faster with fewer database reads; board search no longer matches link URLs in post bodies; search and empty pages have clearer loading and empty states.
+- **Duplicate detection.** While writing, see similar posts and a suggested post type; admins can review and merge groups of similar posts.
+- **Admin insights dashboard.** Track feedback volume, votes, median response and delivery times, status and category breakdowns, the most voted open requests, and active signed-in contributors over 7, 30 or 90 days at `/admin/insights`.
 
 ## 0.3.1
 

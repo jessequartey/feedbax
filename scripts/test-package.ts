@@ -269,7 +269,7 @@ export async function testPackage(
     console.log("package: packed feedbax --version/--help and npm exec launch passed");
     assert.equal(
       (await checked(process.execPath, [packedCli, "--version"], harness)).trim(),
-      "0.3.1",
+      "0.3.2",
     );
     assert(
       (await checked(process.execPath, [packedCli, "--help"], harness)).includes("--notion-page"),

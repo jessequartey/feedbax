@@ -24,7 +24,11 @@ import { isPublicPost, publiclyVisible } from "./visibility.ts";
 // only deletePost does.
 
 const PAGE_SIZE = 20;
-const authorFields = { id: user.id, name: user.name, isAnonymous: user.isAnonymous };
+const authorFields = {
+  id: sql<string>`${user.id}`.as("author_id_col"),
+  name: sql<string>`${user.name}`.as("author_name_col"),
+  isAnonymous: sql<boolean | null>`${user.isAnonymous}`.as("author_anon_col"),
+};
 const author = (row: { id: string; name: string; isAnonymous: boolean | null }) => ({
   id: row.id,
   name: row.isAnonymous ? "Anonymous" : row.name,
@@ -49,21 +53,21 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
   if (data.sort !== undefined && data.sort !== "new" && data.sort !== "priority") invalid("sort");
   const where =
     filter === "hidden"
-      ? and(isNotNull(posts.hiddenAt), eq(posts.spam, 0))
+      ? and(isNotNull(posts.hiddenAt), sql`${posts.spam} = 0`)
       : filter === "spam"
-        ? eq(posts.spam, 1)
+        ? sql`${posts.spam} = 1`
         : undefined;
-  const [rows, total] = await Promise.all([
+  const [rows, totals] = await db.batch([
     db
       .select({
         post: posts,
         author: authorFields,
-        votes: sql<number>`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`.mapWith(
-          Number,
-        ),
-        comments: sql<number>`(SELECT count(*) FROM comments WHERE post_id = ${posts.id})`.mapWith(
-          Number,
-        ),
+        votes: sql<number>`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`
+          .mapWith(Number)
+          .as("vote_count"),
+        comments: sql<number>`(SELECT count(*) FROM comments WHERE post_id = ${posts.id})`
+          .mapWith(Number)
+          .as("comment_count"),
       })
       .from(posts)
       .innerJoin(user, eq(posts.authorId, user.id))
@@ -78,9 +82,9 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
     db
       .select({ count: sql<number>`count(*)` })
       .from(posts)
-      .where(where)
-      .get(),
+      .where(where),
   ]);
+  const total = totals[0]!.count;
   const items = rows.map((row): ModerationPost => {
     return {
       priority: row.post.priority,
@@ -104,8 +108,8 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
     items,
     page,
     limit: PAGE_SIZE,
-    total: total!.count,
-    hasMore: page * PAGE_SIZE < total!.count,
+    total,
+    hasMore: page * PAGE_SIZE < total,
     githubEnabled: Boolean(config.integrations.github),
   };
 }
@@ -114,20 +118,22 @@ export async function listModerationComments(input: unknown): Promise<Page<Moder
   const data = record(input),
     page = pageNumber(data.page),
     db = createDb(env.DB);
-  const [rows, total] = await Promise.all([
+  const [rows, totals] = await db.batch([
     db
-      .select({ comment: comments, postTitle: posts.title, author: authorFields })
+      .select({
+        comment: comments,
+        postTitle: sql<string>`${posts.title}`.as("post_title"),
+        author: authorFields,
+      })
       .from(comments)
       .innerJoin(posts, eq(comments.postId, posts.id))
       .innerJoin(user, eq(comments.authorId, user.id))
       .orderBy(desc(comments.createdAt), desc(comments.id))
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(comments)
-      .get(),
+    db.select({ count: sql<number>`count(*)` }).from(comments),
   ]);
+  const total = totals[0]!.count;
   return {
     items: rows.map((row) => ({
       id: row.comment.id,
@@ -141,8 +147,8 @@ export async function listModerationComments(input: unknown): Promise<Page<Moder
     })),
     page,
     limit: PAGE_SIZE,
-    total: total!.count,
-    hasMore: page * PAGE_SIZE < total!.count,
+    total,
+    hasMore: page * PAGE_SIZE < total,
   };
 }
 

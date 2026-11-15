@@ -32,7 +32,7 @@ export async function listUsers(input: unknown, admin: ViewerUser): Promise<Page
     (filter as UserFilter) === "banned" ? isNotNull(user.bannedAt) : undefined,
   );
   const db = createDb(env.DB);
-  const [rows, total] = await Promise.all([
+  const [rows, totals] = await db.batch([
     db
       .select()
       .from(user)
@@ -43,9 +43,9 @@ export async function listUsers(input: unknown, admin: ViewerUser): Promise<Page
     db
       .select({ count: sql<number>`count(*)` })
       .from(user)
-      .where(where)
-      .get(),
+      .where(where),
   ]);
+  const total = totals[0]!.count;
   return {
     items: rows.map((row): AdminUser => {
       const builtIn = row.id === SYNTHETIC_ADMIN_ID;
@@ -63,8 +63,8 @@ export async function listUsers(input: unknown, admin: ViewerUser): Promise<Page
     }),
     page,
     limit: PAGE_SIZE,
-    total: total!.count,
-    hasMore: page * PAGE_SIZE < total!.count,
+    total,
+    hasMore: page * PAGE_SIZE < total,
   };
 }
 
