@@ -430,7 +430,7 @@ describe("GitHub", () => {
     expect(fake.requests[1].body.body).toContain(signedMarker());
     expect(fake.requests[1].body).not.toHaveProperty("labels");
     expect(fake.requests[1].headers.get("X-GitHub-Api-Version")).toBe("2026-03-10");
-    expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.0");
+    expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.1");
     expect(fake.requests[1].headers.get("Accept")).toBe("application/vnd.github+json");
     expect(fake.requests[1].headers.get("Authorization")).toBe("Bearer github_test_only");
     expect(await post()).toMatchObject({
