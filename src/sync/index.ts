@@ -15,6 +15,7 @@ import { consumeNotification } from "../notifications/consume.ts";
 import { notifyQueue } from "../notifications/queue.ts";
 import { emailFailure } from "../email/state.ts";
 import { digestDue, emailEnabled, EMAIL_OUTBOX_PREFIX, queueEmails } from "../email/events.ts";
+import { sweepWebhookDeliveries } from "../server/webhooks.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
   // Keep processing sequential even if a larger batch is delivered accidentally.
@@ -119,12 +120,8 @@ const STATE_KEYS = [
   "github.releases",
 ];
 
-async function githubReleasesEnabled(database: ReturnType<typeof db>): Promise<boolean> {
-  const row = await database
-    .select({ value: settings.value })
-    .from(settings)
-    .where(eq(settings.key, "changelog.source"))
-    .get();
+function githubReleasesEnabled(rows: { value: string }[]): boolean {
+  const row = rows[0];
   if (!row) return false;
   try {
     return JSON.parse(row.value) === "github";
@@ -136,12 +133,13 @@ async function githubReleasesEnabled(database: ReturnType<typeof db>): Promise<b
 /**
  * Cron: cheap D1 reads and one sync Queue call, plus one notify call when a digest is due.
  * External I/O stays in the consumer.
- * An idle tick is 2 D1 statements (5–6 with GitHub) and one `sendBatch` of the polls.
+ * An idle tick is 2 D1 statements (4–5 with GitHub) and one `sendBatch` of the polls, plus
+ * 1 small D1 read when no pending webhooks are stalled (0 writes, 0 queue messages).
  */
 export async function runScheduled(controller: ScheduledController): Promise<void> {
   const now = controller.scheduledTime;
   const database = db();
-  const [, rows] = await database.batch([
+  const [, rows, sourceRows] = await database.batch([
     database.delete(usedTokens).where(lt(usedTokens.expiresAt, now)),
     database
       .select()
@@ -156,6 +154,10 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
           ),
         ),
       ),
+    database
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, "changelog.source")),
   ]);
   const state = new Map(rows.map((row) => [row.key, JSON.parse(row.value) as unknown]));
   const error = (provider: string) => state.get(`${provider}.error`) as SyncErrorState | undefined;
@@ -209,7 +211,7 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const releaseState = state.get("github.releases") as ReleaseState | undefined;
   const releasesDue =
     github &&
-    (await githubReleasesEnabled(database)) &&
+    githubReleasesEnabled(sourceRows) &&
     (!releaseState ||
       releaseState.repo !==
         (config.integrations.github && config.integrations.github.repo.toLowerCase()) ||
@@ -240,4 +242,5 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
     }
     await writeState("email.digest", digest.until);
   }
+  await sweepWebhookDeliveries(now);
 }

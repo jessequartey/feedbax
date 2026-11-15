@@ -1,6 +1,6 @@
 import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
-import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, ne, or, sql } from "drizzle-orm";
 import type { CommentView, Status } from "../contracts/domain.ts";
 import type { NotifyMessage } from "../contracts/sync.ts";
 import {
@@ -9,6 +9,7 @@ import {
   WEBHOOK_RETRY_SECONDS,
   type AdminWebhooks,
   type WebhookData,
+  type WebhookDeliveryDetailView,
   type WebhookDeliveryEvent,
   type WebhookDeliveryView,
   type WebhookEndpointView,
@@ -49,36 +50,45 @@ const author = (name: string, anonymous: boolean | null): Author => ({
   anonymous: Boolean(anonymous),
 });
 
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 async function loadPosts(ids: string[]): Promise<Map<string, WebhookPost>> {
   const out = new Map<string, WebhookPost>();
-  if (!ids.length) return out;
-  const rows = await db()
-    .select({
-      post: posts,
-      name: user.name,
-      anonymous: user.isAnonymous,
-      votes:
-        sql<number>`(SELECT count(*) FROM ${votes} WHERE ${votes.postId} = ${posts.id})`.mapWith(
-          Number,
-        ),
-    })
-    .from(posts)
-    .innerJoin(user, eq(user.id, posts.authorId))
-    // Hidden, spam and merged posts do not exist for anyone but admins: no events for them.
-    .where(and(inArray(posts.id, ids), publiclyVisible));
-  for (const { post, name, anonymous, votes: count } of rows)
-    out.set(post.id, {
-      id: post.id,
-      title: post.title,
-      body: post.body,
-      bodyText: plainText(post.body),
-      category: post.category,
-      status: post.status,
-      url: `${portalUrl()}/posts/${post.id}`,
-      votes: count,
-      author: author(name, anonymous),
-      createdAt: iso(post.createdAt),
-    });
+  const unique = [...new Set(ids)];
+  if (!unique.length) return out;
+  for (const batch of chunk(unique, 50)) {
+    const rows = await db()
+      .select({
+        post: posts,
+        name: user.name,
+        anonymous: user.isAnonymous,
+        votes:
+          sql<number>`(SELECT count(*) FROM ${votes} WHERE ${votes.postId} = ${posts.id})`.mapWith(
+            Number,
+          ),
+      })
+      .from(posts)
+      .innerJoin(user, eq(user.id, posts.authorId))
+      // Hidden, spam and merged posts do not exist for anyone but admins: no events for them.
+      .where(and(inArray(posts.id, batch), publiclyVisible));
+    for (const { post, name, anonymous, votes: count } of rows)
+      out.set(post.id, {
+        id: post.id,
+        title: post.title,
+        body: post.body,
+        bodyText: plainText(post.body),
+        category: post.category,
+        status: post.status,
+        url: `${portalUrl()}/posts/${post.id}`,
+        votes: count,
+        author: author(name, anonymous),
+        createdAt: iso(post.createdAt),
+      });
+  }
   return out;
 }
 
@@ -116,10 +126,7 @@ export async function emitWebhooks<E extends WebhookEventType>(
       await db().select().from(webhookEndpoints).where(eq(webhookEndpoints.enabled, 1))
     ).filter((endpoint) => (JSON.parse(endpoint.events) as string[]).includes(type));
     if (!endpoints.length) return;
-    const items = (await load()).slice(
-      0,
-      Math.max(1, Math.floor(WEBHOOK_LIMITS.perEmit / endpoints.length)),
-    );
+    const items = await load();
     if (!items.length) return;
     const now = Date.now();
     const rows = items.flatMap((data) => {
@@ -151,7 +158,48 @@ export async function emitWebhooks<E extends WebhookEventType>(
 
 type NewDelivery = typeof webhookDeliveries.$inferInsert;
 
+const QUEUE_BATCH_LIMIT = 20;
+const QUEUE_BATCH_BYTES = 200_000;
+const D1_BATCH_LIMIT = 50;
+
+function chunkQueueMessages(ids: string[]): { body: NotifyMessage }[][] {
+  const chunks: { body: NotifyMessage }[][] = [];
+  let bytes = 0;
+  for (const deliveryId of ids) {
+    const body = { type: "webhook.deliver", deliveryId } satisfies NotifyMessage;
+    const size = encoder.encode(JSON.stringify(body)).length;
+    if (
+      !chunks.length ||
+      chunks.at(-1)!.length >= QUEUE_BATCH_LIMIT ||
+      bytes + size > QUEUE_BATCH_BYTES
+    ) {
+      chunks.push([]);
+      bytes = 0;
+    }
+    chunks.at(-1)!.push({ body });
+    bytes += size;
+  }
+  return chunks;
+}
+
+async function enqueueDeliveryIds(ids: string[], now = Date.now()): Promise<void> {
+  const failedIds: string[] = [];
+  for (const batch of chunkQueueMessages(ids)) {
+    try {
+      await notifyQueue().sendBatch(batch);
+    } catch {
+      for (const item of batch) {
+        if (item.body.type === "webhook.deliver") failedIds.push(item.body.deliveryId);
+      }
+    }
+  }
+  if (failedIds.length) {
+    await markQueueFailure(failedIds, now);
+  }
+}
+
 async function storeAndEnqueue(rows: NewDelivery[], endpointIds: string[]): Promise<void> {
+  if (!rows.length) return;
   const database = db();
   // Cap delivered and failed history. A pending row is still in flight: the consumer treats
   // a missing row as success, so pruning one would drop a delivery that may never be sent.
@@ -167,30 +215,23 @@ async function storeAndEnqueue(rows: NewDelivery[], endpointIds: string[]): Prom
       ),
   );
   const inserts = rows.map((row) => database.insert(webhookDeliveries).values(row));
-  await database.batch([...inserts, ...prune] as unknown as [
-    (typeof inserts)[number],
-    ...typeof inserts,
-  ]);
-  try {
-    await notifyQueue().sendBatch(
-      rows.map((row) => ({
-        body: { type: "webhook.deliver", deliveryId: row.id } satisfies NotifyMessage,
-      })),
-    );
-  } catch {
-    await markFailed(
-      rows.map((row) => row.id!),
-      "Could not be queued",
-    );
+  for (const batch of chunk([...inserts, ...prune], D1_BATCH_LIMIT)) {
+    await database.batch(batch as unknown as [(typeof inserts)[number], ...typeof inserts]);
   }
+  await enqueueDeliveryIds(
+    rows.map((row) => row.id!),
+    rows[0]?.createdAt ?? Date.now(),
+  );
 }
 
-async function markFailed(ids: string[], message: string): Promise<void> {
-  await db()
-    .update(webhookDeliveries)
-    .set({ status: "failed", lastError: message, updatedAt: Date.now() })
-    .where(and(inArray(webhookDeliveries.id, ids), eq(webhookDeliveries.status, "pending")))
-    .catch(() => undefined);
+async function markQueueFailure(ids: string[], now = Date.now()): Promise<void> {
+  for (const batch of chunk(ids, D1_BATCH_LIMIT)) {
+    await db()
+      .update(webhookDeliveries)
+      .set({ status: "pending", lastError: "Could not be queued", updatedAt: now })
+      .where(and(inArray(webhookDeliveries.id, batch), eq(webhookDeliveries.status, "pending")))
+      .catch(() => undefined);
+  }
 }
 
 /** post.created: called after the post is stored (request path: `waitUntil`). */
@@ -294,21 +335,27 @@ const TRANSIENT_STATUS = new Set([408, 425, 429]);
 /** Stored event bytes can outlive moderation (including between retries). Recheck on send. */
 async function deliveryIsPublic(payload: string): Promise<boolean> {
   const { data } = JSON.parse(payload) as WebhookEnvelope;
-  const ids = "post" in data ? [data.post.id] : "entry" in data ? data.entry.postIds : [];
+  const ids = [
+    ...new Set("post" in data ? [data.post.id] : "entry" in data ? data.entry.postIds : []),
+  ];
   if (!ids.length) return true;
-  const visible = await db()
-    .select({ id: posts.id })
-    .from(posts)
-    .where(
-      and(
-        inArray(posts.id, ids),
-        publiclyVisible,
-        "comment" in data
-          ? sql`EXISTS (SELECT 1 FROM ${comments} WHERE ${comments.id} = ${data.comment.id} AND ${comments.postId} = ${posts.id} AND ${comments.hiddenAt} IS NULL)`
-          : undefined,
-      ),
-    );
-  return visible.length === new Set(ids).size;
+  let visibleCount = 0;
+  for (const batch of chunk(ids, 50)) {
+    const visible = await db()
+      .select({ id: posts.id })
+      .from(posts)
+      .where(
+        and(
+          inArray(posts.id, batch),
+          publiclyVisible,
+          "comment" in data
+            ? sql`EXISTS (SELECT 1 FROM ${comments} WHERE ${comments.id} = ${data.comment.id} AND ${comments.postId} = ${posts.id} AND ${comments.hiddenAt} IS NULL)`
+            : undefined,
+        ),
+      );
+    visibleCount += visible.length;
+  }
+  return visibleCount === ids.length;
 }
 
 /**
@@ -409,6 +456,94 @@ export async function deliverWebhook(deliveryId: string): Promise<number | null>
   );
 }
 
+const DELIVERY_EXPIRE_MS = 86_400_000;
+const STALLED_INITIAL_MS = 60_000;
+const SWEEP_BATCH_LIMIT = 25;
+
+/**
+ * Cron helper: expires stale pending deliveries (>24h or exhausted attempts) and re-queues
+ * pending deliveries whose initial queue send failed or whose retry appears stalled.
+ * Idle tick cost: 1 small D1 read, 0 writes, 0 queue messages.
+ */
+export async function sweepWebhookDeliveries(now: number): Promise<void> {
+  const database = db();
+  const retryThresholdSql = sql`CASE ${webhookDeliveries.attempts}
+    WHEN 1 THEN ${now - (WEBHOOK_RETRY_SECONDS[0] + 60) * 1000}
+    WHEN 2 THEN ${now - (WEBHOOK_RETRY_SECONDS[1] + 60) * 1000}
+    WHEN 3 THEN ${now - (WEBHOOK_RETRY_SECONDS[2] + 60) * 1000}
+    WHEN 4 THEN ${now - (WEBHOOK_RETRY_SECONDS[3] + 60) * 1000}
+    ELSE ${now - (WEBHOOK_RETRY_SECONDS[WEBHOOK_RETRY_SECONDS.length - 1] + 60) * 1000}
+  END`;
+  const expiredCondition = or(
+    lte(webhookDeliveries.createdAt, now - DELIVERY_EXPIRE_MS),
+    gte(webhookDeliveries.attempts, WEBHOOK_LIMITS.attempts),
+  );
+  const dueCondition = or(
+    and(
+      eq(webhookDeliveries.attempts, 0),
+      or(
+        eq(webhookDeliveries.lastError, "Could not be queued"),
+        lte(webhookDeliveries.createdAt, now - STALLED_INITIAL_MS),
+      ),
+    ),
+    and(
+      gt(webhookDeliveries.attempts, 0),
+      lt(webhookDeliveries.attempts, WEBHOOK_LIMITS.attempts),
+      lte(webhookDeliveries.updatedAt, retryThresholdSql),
+    ),
+  );
+  const candidates = await database
+    .select({
+      id: webhookDeliveries.id,
+      attempts: webhookDeliveries.attempts,
+      createdAt: webhookDeliveries.createdAt,
+    })
+    .from(webhookDeliveries)
+    .where(and(eq(webhookDeliveries.status, "pending"), or(expiredCondition, dueCondition)))
+    .orderBy(asc(webhookDeliveries.updatedAt), asc(webhookDeliveries.id))
+    .limit(50);
+  if (!candidates.length) return;
+
+  const isExpired = (row: { createdAt: number; attempts: number }) =>
+    row.createdAt <= now - DELIVERY_EXPIRE_MS || row.attempts >= WEBHOOK_LIMITS.attempts;
+
+  if (candidates.some(isExpired)) {
+    await database
+      .update(webhookDeliveries)
+      .set({
+        status: "failed",
+        lastError: sql`coalesce(${webhookDeliveries.lastError}, 'Delivery timed out')`,
+        updatedAt: now,
+      })
+      .where(and(eq(webhookDeliveries.status, "pending"), expiredCondition));
+  }
+
+  let due = candidates.filter((row) => !isExpired(row)).slice(0, SWEEP_BATCH_LIMIT);
+  if (candidates.length === 50 && due.length < SWEEP_BATCH_LIMIT) {
+    due = await database
+      .select({
+        id: webhookDeliveries.id,
+        attempts: webhookDeliveries.attempts,
+        createdAt: webhookDeliveries.createdAt,
+      })
+      .from(webhookDeliveries)
+      .where(and(eq(webhookDeliveries.status, "pending"), dueCondition))
+      .orderBy(asc(webhookDeliveries.updatedAt), asc(webhookDeliveries.id))
+      .limit(SWEEP_BATCH_LIMIT);
+  }
+  if (!due.length) return;
+
+  const dueIds = due.map((row) => row.id);
+  await database
+    .update(webhookDeliveries)
+    .set({
+      updatedAt: now,
+      lastError: sql`CASE WHEN ${webhookDeliveries.lastError} = 'Could not be queued' THEN NULL ELSE ${webhookDeliveries.lastError} END`,
+    })
+    .where(and(inArray(webhookDeliveries.id, dueIds), eq(webhookDeliveries.status, "pending")));
+  await enqueueDeliveryIds(dueIds, now);
+}
+
 // ---- Admin (callers have passed requireAdmin: see admin-api.ts) ----
 
 const newSecret = () => {
@@ -451,7 +586,27 @@ async function readEndpoint(id: string) {
   return row;
 }
 
-export async function listWebhooks(): Promise<AdminWebhooks> {
+export async function listWebhooks(input?: unknown): Promise<AdminWebhooks> {
+  const conditions = [];
+  if (input !== undefined) {
+    const data = record(input);
+    if (data.endpointId !== undefined)
+      conditions.push(eq(webhookDeliveries.endpointId, uuid(data.endpointId, "endpointId")));
+    if (data.status !== undefined)
+      conditions.push(
+        eq(
+          webhookDeliveries.status,
+          choice(data.status, ["pending", "delivered", "failed"] as const, "status"),
+        ),
+      );
+    if (data.event !== undefined)
+      conditions.push(
+        eq(
+          webhookDeliveries.event,
+          choice(data.event, [...WEBHOOK_EVENTS, "webhook.test"] as const, "event"),
+        ),
+      );
+  }
   const database = db();
   const [endpoints, deliveries, lasts] = await Promise.all([
     database
@@ -473,6 +628,7 @@ export async function listWebhooks(): Promise<AdminWebhooks> {
       })
       .from(webhookDeliveries)
       .innerJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
+      .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(webhookDeliveries.createdAt), desc(webhookDeliveries.id))
       .limit(WEBHOOK_LIMITS.recentDeliveries),
     database.all<{
@@ -597,4 +753,70 @@ export async function testWebhook(input: unknown) {
   };
   await storeAndEnqueue([row], [endpoint.id]);
   return { deliveryId: row.id };
+}
+
+export async function getWebhookDelivery(input: unknown): Promise<WebhookDeliveryDetailView> {
+  const id = uuid(record(input).id);
+  const row = await db()
+    .select({
+      id: webhookDeliveries.id,
+      endpointId: webhookDeliveries.endpointId,
+      endpointUrl: webhookEndpoints.url,
+      event: webhookDeliveries.event,
+      status: webhookDeliveries.status,
+      attempts: webhookDeliveries.attempts,
+      responseStatus: webhookDeliveries.responseStatus,
+      error: webhookDeliveries.lastError,
+      createdAt: webhookDeliveries.createdAt,
+      updatedAt: webhookDeliveries.updatedAt,
+      payload: webhookDeliveries.payload,
+    })
+    .from(webhookDeliveries)
+    .innerJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
+    .where(eq(webhookDeliveries.id, id))
+    .get();
+  if (!row) throw new DomainError("not_found", "Delivery not found.");
+  return {
+    ...row,
+    event: row.event as WebhookDeliveryEvent,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+export async function replayWebhookDelivery(input: unknown): Promise<{ deliveryId: string }> {
+  const id = uuid(record(input).id);
+  const database = db();
+  const row = await database
+    .select({
+      delivery: webhookDeliveries,
+      endpointEnabled: webhookEndpoints.enabled,
+    })
+    .from(webhookDeliveries)
+    .leftJoin(webhookEndpoints, eq(webhookEndpoints.id, webhookDeliveries.endpointId))
+    .where(eq(webhookDeliveries.id, id))
+    .get();
+  if (!row || row.endpointEnabled === null)
+    throw new DomainError("not_found", "Delivery not found.");
+  if (row.endpointEnabled !== 1)
+    throw new DomainError("conflict", "Enable the endpoint to replay a delivery.");
+  if (row.delivery.status === "pending" && row.delivery.lastError !== "Could not be queued")
+    throw new DomainError("conflict", "Delivery is already in progress.");
+  const now = Date.now();
+  await database
+    .update(webhookDeliveries)
+    .set({
+      status: "pending",
+      attempts: 0,
+      responseStatus: null,
+      lastError: null,
+      updatedAt: now,
+    })
+    .where(eq(webhookDeliveries.id, id));
+  try {
+    await notifyQueue().send({ type: "webhook.deliver", deliveryId: id });
+  } catch {
+    await markQueueFailure([id], now);
+  }
+  return { deliveryId: id };
 }

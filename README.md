@@ -133,7 +133,7 @@ Endpoints are managed in the portal, not in files or secrets. `npx feedbax@lates
 2. Open `/admin/settings` → **Webhooks** and add an endpoint URL.
 3. Copy the signing secret. Each request has `X-Feedbax-Signature: t=<unix seconds>,v1=<hex>`. `v1` is HMAC-SHA256 of `"<t>.<raw body>"` with that secret. Verify it and reject old timestamps.
 
-Events: `post.created`, `post.status_changed`, `comment.created`, `vote.created`, `changelog.published`. Bodies are Markdown plus plain text. Failed deliveries retry with backoff (6 attempts over about 7 hours). Recent deliveries are on the same screen.
+Events: `post.created`, `post.status_changed`, `comment.created`, `vote.created`, `changelog.published`. Bodies are Markdown plus plain text. Open **Event catalog** on the same screen for schemas and example payloads. Failed deliveries retry with backoff (6 attempts over about 7 hours) and unqueued deliveries recover automatically. Filter recent deliveries by status or endpoint, inspect payloads, and replay failed deliveries.
 
 ## Set up with an agent
 
