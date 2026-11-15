@@ -6,6 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { getPlatformProxy } from "wrangler";
 import type { SyncMessage } from "../../src/contracts/sync.ts";
 import { clearFeedCache } from "../../src/server/feed-cache.ts";
+import { clearInsightsCache } from "../../src/server/insights-cache.ts";
 import { clearSettingsCache } from "../../src/server/settings-cache.ts";
 
 const root = new URL("../../", import.meta.url);
@@ -141,6 +142,7 @@ export async function resetEnv(): Promise<void> {
   queue.reset();
   clearSettingsCache();
   clearFeedCache();
+  clearInsightsCache();
   let cursor: string | undefined;
   do {
     const listed = await env.IMAGES.list({ cursor });

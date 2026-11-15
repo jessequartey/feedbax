@@ -22,6 +22,7 @@
 - **Notion template.** The guide and example rows show priority, GitHub release shipping, follows and moderation.
 - **Lower running cost.** The changelog, RSS feed and admin lists load faster with fewer database reads; board search no longer matches link URLs in post bodies; search and empty pages have clearer loading and empty states.
 - **Duplicate detection.** While writing, see similar posts and a suggested post type; admins can review and merge groups of similar posts.
+- **Admin insights dashboard.** Track feedback volume, votes, median response and delivery times, status and category breakdowns, the most voted open requests, and active signed-in contributors over 7, 30 or 90 days at `/admin/insights`.
 
 ## 0.3.1
 

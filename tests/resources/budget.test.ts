@@ -24,6 +24,8 @@ import {
   listPostPage,
 } from "../../src/server/posts.ts";
 import { publiclyVisible } from "../../src/server/visibility.ts";
+import { getInsights } from "../../src/server/insights.ts";
+import { clearInsightsCache } from "../../src/server/insights-cache.ts";
 import { queue, resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { form, png, writer } from "../api/helpers.ts";
 import { measure } from "./meter.ts";
@@ -212,8 +214,12 @@ describe("failures never loop", () => {
 });
 
 describe("hot query plans", () => {
-  const plan = async (query: string) =>
-    (await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`).all<{ detail: string }>()).results
+  const plan = async (query: string, params: unknown[] = []) =>
+    (
+      await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .bind(...params)
+        .all<{ detail: string }>()
+    ).results
       .map((row) => row.detail)
       .join(" | ");
   test("cron sweeps read only their partial indexes", async () => {
@@ -277,6 +283,47 @@ describe("hot query plans", () => {
         "SELECT id FROM user WHERE banned_at IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 25",
       ),
     ).toContain("INDEX user_banned_created_idx");
+  });
+  test("admin insights read every range through the created_at indexes", async () => {
+    for (const range of ["7d", "30d", "90d"] as const) {
+      const captured: { query: string; params: unknown[] }[] = [];
+      const spy = {
+        prepare: (query: string) => ({
+          bind: (...params: unknown[]) => {
+            captured.push({ query, params });
+            return env.DB.prepare(query).bind(...params);
+          },
+        }),
+        batch: (all: D1PreparedStatement[]) => env.DB.batch(all),
+      } as unknown as D1Database;
+      await getInsights({ range }, NOW, spy);
+      // Statement 0 (all-time status and category breakdowns) scans the public posts by
+      // design: no index holds the visibility columns. The other four are bounded by the range.
+      const [activity, response, delivery, popular] = await Promise.all(
+        [1, 2, 3, 4].map(async (i) => plan(captured[i]!.query, captured[i]!.params)),
+      );
+      for (const detail of [activity, response, delivery, popular]) {
+        expect(detail).not.toMatch(/SCAN (posts|votes|comments)\b/);
+      }
+      expect(activity).toContain(
+        "SEARCH votes USING COVERING INDEX votes_created_post_idx (created_at>? AND created_at<?)",
+      );
+      expect(activity).toContain("SEARCH votes USING INDEX votes_created_post_idx (created_at>?)");
+      expect(activity).toContain(
+        "SEARCH comments USING INDEX comments_created_post_idx (created_at>?)",
+      );
+      expect(activity).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain(
+        "SEARCH c USING INDEX comments_author_created_idx (author_id=? AND created_at>?)",
+      );
+      expect(response).toContain("SEARCH cp USING INDEX changelog_posts_post_idx (post_id=?)");
+      expect(delivery).toContain("SEARCH posts USING INDEX posts_status_created_idx (status=?)");
+      expect(popular).toContain(
+        "SEARCH votes USING COVERING INDEX votes_created_post_idx (created_at>?)",
+      );
+      clearInsightsCache();
+    }
   });
 });
 

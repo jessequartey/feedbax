@@ -14,6 +14,7 @@ import type {
   VoteResult,
 } from "../contracts/domain.ts";
 import type { ChangelogEntry, ChangelogPage } from "../contracts/changelog.ts";
+import type { InsightsRange } from "../contracts/admin.ts";
 import type { Viewer } from "../contracts/portal.ts";
 import { viewerUser } from "./auth.ts";
 import { adminApi } from "./admin-api.ts";
@@ -149,6 +150,11 @@ const pass = <T>(data: T) => data;
 export const adminSession = createServerFn({ method: "GET" }).handler(async () =>
   result(async () => adminApi.session(await viewer(), undefined), "admin.action"),
 );
+export const adminInsights = createServerFn({ method: "GET" })
+  .validator(pass<{ range?: InsightsRange } | undefined>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.insights(await viewer(), data), "admin.action"),
+  );
 export const adminListPosts = createServerFn({ method: "GET" })
   .validator(pass<{ filter?: string; page?: number; sort?: "new" | "priority" }>)
   .handler(async ({ data }) =>

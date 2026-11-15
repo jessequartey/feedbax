@@ -48,6 +48,10 @@ export const posts = sqliteTable(
     priority: integer("priority"),
     priorityUpdatedAt: integer("priority_updated_at"),
     notionPriority: integer("notion_priority"),
+    // 0013: stamped by SQLite triggers on the first move off 'open' and on each move to 'done'.
+    // Unlike updated_at, votes, comments and edits never change them. NULL on older rows.
+    statusChangedAt: integer("status_changed_at"),
+    doneAt: integer("done_at"),
   },
   (t) => [
     check("posts_title_len", sql`length(${t.title}) BETWEEN 1 AND 120`),
@@ -106,6 +110,8 @@ export const comments = sqliteTable(
     index("comments_post_created_idx").on(t.postId, t.createdAt, t.id),
     // Not in the spec's list: serves the "30 comments per author per hour" indexed count.
     index("comments_author_created_idx").on(t.authorId, t.createdAt),
+    // 0013: admin insights read a time window of comments.
+    index("comments_created_post_idx").on(t.createdAt, t.postId),
   ],
 );
 
@@ -125,6 +131,8 @@ export const votes = sqliteTable(
     index("votes_user_idx").on(t.userId),
     // 0001: the trending sort counts a post's recent votes from this index alone.
     index("votes_post_created_idx").on(t.postId, t.createdAt),
+    // 0013: admin insights read a time window of votes.
+    index("votes_created_post_idx").on(t.createdAt, t.postId),
   ],
 );
 
