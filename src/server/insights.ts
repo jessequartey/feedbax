@@ -129,8 +129,13 @@ function buildVolumeSeries(
   for (let ms = first; ms <= last; ms += weekly ? WEEK_MS : DAY_MS) {
     const date = utcDayKey(ms);
     const entry = counts.get(date);
+    // Weekly bars name their days; the last week ends today and may be shorter than 7 days.
+    const endDate = weekly ? utcDayKey(Math.min(ms + WEEK_MS - DAY_MS, utcDayMs(endKey))) : date;
     series.push({
-      label: formatDayLabel(date),
+      label:
+        endDate === date
+          ? formatDayLabel(date)
+          : `${formatDayLabel(date)}–${formatDayLabel(endDate)}`,
       date,
       posts: entry?.posts ?? 0,
       votes: entry?.votes ?? 0,
@@ -164,7 +169,8 @@ function medianStatement(signals: SQL, window: SQL = sql``, ctes: SQL = sql``): 
 /**
  * Compute all admin insights in a single `env.DB.batch(...)` call (1 D1 round-trip,
  * 5 SQL statements, zero N+1s, zero idle cron cost). Cached per isolate for 5 minutes.
- * Every read except the all-time status and category breakdowns is bounded by the range.
+ * Every read except the all-time status and category breakdowns and the done-post delivery
+ * signals is bounded by the range.
  */
 export async function getInsights(
   input: unknown = {},
