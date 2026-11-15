@@ -34,14 +34,16 @@ export async function autoDraftStatements(
   now = Date.now(),
   d1: D1Database = env.DB,
 ): Promise<BatchItem<"sqlite">[]> {
-  if (!done.length || !(await readSettings(d1)).changelog.autoDraft) return [];
+  if (!done.length) return [];
+  const settings = (await readSettings(d1)).changelog;
+  if (!settings.autoDraft || settings.source === "github") return [];
   return done.flatMap(({ id: postId, body }) => {
     const entryId = crypto.randomUUID();
     return [
       db
         .insert(changelogEntries)
         .select(
-          sql`SELECT ${entryId}, 'Shipped: ' || ${posts.title}, ${draftExcerpt(body)}, 'draft', NULL, NULL, ${now}, ${now} FROM ${posts} WHERE ${posts.id} = ${postId} AND ${posts.status} = 'done' AND ${posts.hiddenAt} IS NULL AND ${posts.spam} = 0 AND ${posts.mergedInto} IS NULL AND NOT EXISTS (SELECT 1 FROM ${changelogPosts} WHERE ${changelogPosts.postId} = ${postId})`,
+          sql`SELECT ${entryId}, 'Shipped: ' || ${posts.title}, ${draftExcerpt(body)}, 'draft', NULL, NULL, NULL, NULL, NULL, NULL, ${now}, ${now} FROM ${posts} WHERE ${posts.id} = ${postId} AND ${posts.status} = 'done' AND ${posts.hiddenAt} IS NULL AND ${posts.spam} = 0 AND ${posts.mergedInto} IS NULL AND NOT EXISTS (SELECT 1 FROM ${changelogPosts} WHERE ${changelogPosts.postId} = ${postId})`,
         ),
       db
         .insert(changelogPosts)

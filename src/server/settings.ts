@@ -27,7 +27,7 @@ export type SettingsPatch = {
 } & {
   moderation?: { [K in keyof ModerationSettings]?: ModerationSettings[K] | null };
   notifications?: { [K in keyof NotificationToggles]?: boolean | null };
-  changelog?: { [K in keyof ChangelogSettings]?: boolean | null };
+  changelog?: { [K in keyof ChangelogSettings]?: ChangelogSettings[K] | null };
 };
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[];
@@ -42,6 +42,7 @@ export const SETTING_KEYS = [
   "categories",
   ...TOGGLES.map((toggle) => `notifications.${toggle}` as const),
   "changelog.autoDraft",
+  "changelog.source",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
@@ -62,6 +63,8 @@ function parse(key: SettingKey, value: unknown): unknown {
       )
       ? value
       : undefined;
+  if (key === "changelog.source")
+    return value === "portal" || value === "github" ? value : undefined;
   if (key === "name")
     return typeof value === "string" &&
       value.trim() === value &&
@@ -109,7 +112,10 @@ export function resolveSettings(
     notifications: Object.fromEntries(
       TOGGLES.map((toggle) => [toggle, pick(`notifications.${toggle}`, true)]),
     ) as NotificationToggles,
-    changelog: { autoDraft: pick("changelog.autoDraft", true) },
+    changelog: {
+      autoDraft: pick("changelog.autoDraft", true),
+      source: base.integrations.github ? pick("changelog.source", "portal" as const) : "portal",
+    },
   };
 }
 
@@ -176,6 +182,11 @@ export async function saveSettings(
       (value !== null && parse(key, value) === undefined)
     )
       invalid(key);
+  if (
+    patch.changelog?.source === "github" &&
+    (!config.integrations.github || !env.GITHUB_TOKEN?.trim())
+  )
+    invalid("changelog.source");
   const db = createDb(d1);
   const removals = entries.filter(([, value]) => value === null).map(([key]) => key);
   const upserts = entries

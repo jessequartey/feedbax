@@ -171,6 +171,7 @@ async function adminEntries(db: Db, rows: EntryRow[]): Promise<AdminChangelogEnt
     title: row.title,
     body: row.body,
     status: row.status,
+    githubUrl: row.githubUrl,
     publishedAt: row.publishedAt === null ? null : iso(row.publishedAt),
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
@@ -264,20 +265,20 @@ export async function createEntry(input: unknown, authorId: string): Promise<Adm
   return readAdminEntry(db, id);
 }
 
+async function requireEditable(db: Db, id: string) {
+  const row = await db.select().from(changelogEntries).where(eq(changelogEntries.id, id)).get();
+  if (!row) throw new DomainError("not_found", "That entry doesn't exist.");
+  if (row.githubReleaseId !== null)
+    throw new DomainError("forbidden", "Edit this release on GitHub.");
+}
+
 /** Edit title, body and the linked posts of any entry. The linked set is replaced. */
 export async function updateEntry(input: unknown): Promise<AdminChangelogEntry> {
   const data = record(input),
     id = uuid(data.id),
     { title, body, postIds } = entryInput(data),
     db = createDb(env.DB);
-  if (
-    !(await db
-      .select({ id: changelogEntries.id })
-      .from(changelogEntries)
-      .where(eq(changelogEntries.id, id))
-      .get())
-  )
-    throw new DomainError("not_found", "That entry doesn't exist.");
+  await requireEditable(db, id);
   await checkLinkable(db, postIds, id);
   const statements: BatchItem<"sqlite">[] = [
     db
@@ -300,6 +301,7 @@ export async function updateEntry(input: unknown): Promise<AdminChangelogEntry> 
 export async function deleteEntry(input: unknown): Promise<{ id: string }> {
   const id = uuid(record(input).id),
     db = createDb(env.DB);
+  await requireEditable(db, id);
   const gone = await db
     .delete(changelogEntries)
     .where(eq(changelogEntries.id, id))
@@ -315,9 +317,10 @@ export async function deleteEntry(input: unknown): Promise<{ id: string }> {
  */
 export async function setChangelogStatus(input: unknown): Promise<AdminChangelogEntry> {
   const data = record(input),
-    id = uuid(data.id),
-    db = createDb(env.DB);
+    id = uuid(data.id);
   if (typeof data.published !== "boolean") invalid("published");
+  const db = createDb(env.DB);
+  await requireEditable(db, id);
   const now = Date.now();
   const changed = data.published
     ? await db

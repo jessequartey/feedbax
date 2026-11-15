@@ -11,6 +11,7 @@ export type NotificationToggles = {
 export type ChangelogSettings = {
   /** Draft a changelog entry when a post becomes Done. */
   autoDraft: boolean;
+  source: "portal" | "github";
 };
 export type ModerationSettings = {
   mode: "off" | "flag" | "block";
@@ -28,7 +29,11 @@ export type RuntimeSettings = {
   changelog: ChangelogSettings;
 };
 /** What /admin/settings edits: the effective values, and what feedbax.config.ts would give. */
-export type AdminSettings = { effective: RuntimeSettings; defaults: RuntimeSettings };
+export type AdminSettings = {
+  effective: RuntimeSettings;
+  defaults: RuntimeSettings;
+  githubEnabled?: boolean;
+};
 
 export type ModerationFilter = "all" | "hidden" | "spam";
 export type PostState = "visible" | "hidden" | "spam";

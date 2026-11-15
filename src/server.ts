@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./server/request.ts";
 import { errorResponse } from "./server/http.ts";
+import { handleGitHubWebhook } from "./server/github-webhook.ts";
 import handler from "@tanstack/react-start/server-entry";
 import { consumeQueue, runScheduled } from "./sync/index.ts";
 import { consumeNotifications } from "./notifications/consume.ts";
@@ -9,6 +10,8 @@ import type { SyncMessage } from "./contracts/sync.ts";
 export default {
   fetch: async (request: Request) => {
     try {
+      if (new URL(request.url).pathname === "/api/webhooks/github")
+        return await handleGitHubWebhook(request);
       // The bearer route bounds its own stream after origin/auth checks and adds CORS
       // to size errors. Start does not parse server-route bodies before dispatch.
       if (

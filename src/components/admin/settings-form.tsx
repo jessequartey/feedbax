@@ -126,8 +126,9 @@ export function SettingsForm({
       if (!result.ok) throw new Error(result.error.message);
     },
   );
-  // A reset response must not replace text/category edits made while it was saving.
+  // A reset response must not replace text/category/select edits made while it was saving.
   const edits = React.useRef(0);
+  const [source, setSource] = React.useState(effective.changelog.source);
   const [saving, setSaving] = React.useState(false);
 
   const trimmed = name.trim();
@@ -141,11 +142,13 @@ export function SettingsForm({
     moderation,
     name: trimmed,
     categories: CATEGORIES.filter((category) => categories.includes(category)),
+    source,
   };
   const dirty =
     current.name !== effective.name ||
     !same(current.categories, effective.categories) ||
-    !same(current.moderation, effective.moderation);
+    !same(current.moderation, effective.moderation) ||
+    current.source !== effective.changelog.source;
 
   async function save(reset = false) {
     if (saving) return;
@@ -162,6 +165,7 @@ export function SettingsForm({
         // Each failed switch already explains its rollback. Do not announce a full reset.
         if (results.some((saved) => !saved)) return;
       }
+      const nextSource = reset ? defaults.changelog.source : current.source;
       const done = await act(
         () =>
           adminSaveSettings({
@@ -179,6 +183,9 @@ export function SettingsForm({
               },
               name: same(target.name, defaults.name) ? null : target.name,
               categories: same(target.categories, defaults.categories) ? null : target.categories,
+              changelog: {
+                source: nextSource === defaults.changelog.source ? null : nextSource,
+              },
             },
           }),
         reset ? "Settings reset to the project defaults." : "Settings saved.",
@@ -189,6 +196,7 @@ export function SettingsForm({
         setAllowed(done.effective.moderation.allowedWords.join("\n"));
         setName(done.effective.name);
         setCategories(done.effective.categories);
+        setSource(done.effective.changelog.source);
       }
     } finally {
       setSaving(false);
@@ -397,14 +405,53 @@ export function SettingsForm({
           <CardHeader>
             <CardTitle className="text-base">Changelog</CardTitle>
             <CardDescription>
-              Entries are written in the Changelog tab and published at <code>/changelog</code>.
+              Choose where updates come from. Published entries appear at <code>/changelog</code>.
             </CardDescription>
           </CardHeader>
           <CardContent className="border-t">
+            <div className="flex flex-col gap-2 py-3">
+              <Label id={`${ids}-source-label`}>Changelog source</Label>
+              <Select
+                value={source}
+                disabled={saving}
+                onValueChange={(value) => {
+                  if (value === "portal" || value === "github") {
+                    edits.current += 1;
+                    setSource(value);
+                  }
+                }}
+              >
+                <SelectTrigger
+                  aria-labelledby={`${ids}-source-label`}
+                  aria-describedby={`${ids}-source-hint`}
+                  className="h-9 max-md:h-11"
+                >
+                  <SelectValue>
+                    {source === "github" ? "GitHub releases" : "Portal (default)"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="portal">Portal (default)</SelectItem>
+                  <SelectItem value="github" disabled={!settings.githubEnabled}>
+                    GitHub releases
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p id={`${ids}-source-hint`} className="text-sm text-muted-foreground">
+                {settings.githubEnabled
+                  ? "Published releases sync automatically. Drafts and prereleases stay private. Existing portal entries remain editable."
+                  : "Configure the GitHub repository and token to use GitHub releases."}
+              </p>
+            </div>
+
             <ToggleRow
               id={`${ids}-autodraft`}
               label="Draft an entry when a post is Done"
-              hint="Creates a draft called “Shipped: …” that links the post. Nothing is published until you publish it."
+              hint={
+                source === "github"
+                  ? "Paused while GitHub releases are the source."
+                  : "Creates a draft called “Shipped: …” that links the post. Nothing is published until you publish it."
+              }
               checked={switches.values.autoDraft}
               pending={switches.pending.has("autoDraft")}
               onChange={(next) => void switches.change("autoDraft", next)}
