@@ -9,7 +9,8 @@ import { admin } from "./admin.ts";
 import { deployProject, loadProject, type Context } from "./context.ts";
 import { doctor } from "./doctor.ts";
 import { migrate } from "./migrate.ts";
-import { VERSION } from "./version.ts";
+import { fetchPackument, registryUrl } from "./registry.ts";
+import { compareVersions, detectVersion, VERSION } from "./version.ts";
 
 const COMMANDS = {
   migrate: {
@@ -148,6 +149,29 @@ export type CliDeps = {
   interactive?: boolean;
 };
 
+/** Print a one-line upgrade hint when a newer Feedbax release is on npm. */
+export async function notifyIfOutdated(ctx: Context): Promise<void> {
+  if (ctx.env.NO_UPDATE_NOTIFIER || ctx.env.CI) return;
+  if (!ctx.interactive && ctx.env.FEEDBAX_CHECK_UPDATES !== "1") return;
+  try {
+    const packument = await fetchPackument(
+      (input, init) => ctx.fetch(input, { ...init, signal: AbortSignal.timeout(2500) }),
+      registryUrl(ctx.env),
+    );
+    const current = await detectVersion(ctx.cwd, Object.keys(packument.versions)).then(
+      (d) => d.version,
+      () => VERSION,
+    );
+    const newest = compareVersions(packument.latest, VERSION) >= 0 ? packument.latest : VERSION;
+    if (compareVersions(newest, current) > 0)
+      ctx.prompt.info(
+        `Update available: ${current} → ${newest}. Run npx feedbax@latest migrate when ready.`,
+      );
+  } catch {
+    /* ignore offline or registry errors */
+  }
+}
+
 export async function main(argv = process.argv.slice(2), deps: CliDeps = {}): Promise<number> {
   const env = deps.env ?? process.env;
   const log = deps.log ?? ((line: string) => console.log(line));
@@ -208,16 +232,22 @@ export async function main(argv = process.argv.slice(2), deps: CliDeps = {}): Pr
         const integration = parsed.positionals[0];
         if (!integration || !(INTEGRATIONS as readonly string[]).includes(integration))
           throw new CliError(`Usage: ${COMMANDS.add.usage}`, 2);
-        return await add(ctx, integration as Integration, {
+        const code = await add(ctx, integration as Integration, {
           repo: parsed.values["--repo"],
           appUrl: parsed.values["--app-url"],
           from: parsed.values["--from"],
         });
+        await notifyIfOutdated(ctx);
+        return code;
       }
-      case "doctor":
-        return await doctor(ctx);
+      case "doctor": {
+        const code = await doctor(ctx);
+        await notifyIfOutdated(ctx);
+        return code;
+      }
       case "deploy":
         await deployProject(ctx, await loadProject(ctx));
+        await notifyIfOutdated(ctx);
         return 0;
       case "admin":
         return await admin(ctx);
