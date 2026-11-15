@@ -1,10 +1,11 @@
-import { beforeEach, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { env } from "cloudflare:workers";
 import { resetEnv } from "../fixtures/cloudflare-workers.ts";
 import config from "../../feedbax.config.ts";
 import { readSettings, resolveSettings, saveSettings } from "../../src/server/settings.ts";
 
 beforeEach(resetEnv);
+afterEach(resetEnv);
 const defaults = {
   moderation: { mode: "flag", blockedWords: [], allowedWords: [] },
   name: config.name,
@@ -90,5 +91,25 @@ it("resolveSettings is a pure merge", () => {
   expect(resolveSettings(config, [{ key: "name", value: '"Pure"' }])).toEqual({
     ...defaults,
     name: "Pure",
+  });
+});
+
+it("retries explicit switch values and resets idempotently, preserving unrelated settings", async () => {
+  await saveSettings({ anonymous: true, notifications: { replies: false } }, env.DB, 10);
+  await saveSettings({ anonymous: true }, env.DB, 20);
+  expect(
+    await env.DB.prepare("SELECT updated_at FROM settings WHERE key = 'anonymous'").first(
+      "updated_at",
+    ),
+  ).toBe(10);
+  expect(await readSettings()).toMatchObject({
+    anonymous: true,
+    notifications: { replies: false },
+  });
+  await saveSettings({ anonymous: null }, env.DB, 30);
+  await saveSettings({ anonymous: null }, env.DB, 40);
+  expect(await readSettings()).toMatchObject({
+    anonymous: defaults.anonymous,
+    notifications: { replies: false },
   });
 });

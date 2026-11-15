@@ -1,6 +1,6 @@
 import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import type { CommentView, Status } from "../contracts/domain.ts";
 import type { NotifyMessage } from "../contracts/sync.ts";
 import {
@@ -539,7 +539,16 @@ export async function updateWebhook(input: unknown) {
   await db()
     .update(webhookEndpoints)
     .set({ ...set, updatedAt: Date.now() })
-    .where(eq(webhookEndpoints.id, id));
+    .where(
+      and(
+        eq(webhookEndpoints.id, id),
+        or(
+          ...(set.enabled === undefined ? [] : [ne(webhookEndpoints.enabled, set.enabled)]),
+          ...(set.url === undefined ? [] : [ne(webhookEndpoints.url, set.url)]),
+          ...(set.events === undefined ? [] : [ne(webhookEndpoints.events, set.events)]),
+        ),
+      ),
+    );
   return endpointView(await readEndpoint(id));
 }
 

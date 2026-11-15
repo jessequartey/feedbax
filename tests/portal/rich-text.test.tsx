@@ -74,7 +74,13 @@ describe("formatted bodies render the same everywhere", () => {
 });
 
 describe("the editor seam", () => {
-  const props = { id: "body", value: "**hi**", onChange: () => {}, maxLength: 5000 };
+  const props = {
+    "aria-labelledby": "body-label",
+    id: "body",
+    value: "**hi**",
+    onChange: () => {},
+    maxLength: 5000,
+  };
 
   it("is a plain textarea with a Markdown hint until an editor replaces it", () => {
     const output = renderToString(<RichTextField {...props} name="body" />);
@@ -99,6 +105,9 @@ describe("the editor seam", () => {
     );
     expect(output).toContain('data-rich-text="comment"');
     expect(output).toContain('aria-invalid="true"');
+    expect(output).toContain('aria-labelledby="body-label"');
+    expect(output).toContain('role="textbox"');
+    expect(output).toContain('aria-multiline="true"');
     expect(output).toContain('aria-describedby="body-error"');
     expect(output).not.toContain("Markdown supported");
   });
