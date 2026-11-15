@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (unreleased)
+
+- Releases require successful main CI for the exact tagged commit before publishing.
+
 ## 0.3.1
 
 - **One-command Notion setup.** `npx create-feedbax@latest` creates the portal with anonymous feedback on. Sign-in and GitHub stay optional.

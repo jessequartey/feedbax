@@ -61,4 +61,6 @@ Maintainers only. Publish `create-feedbax`; there is no runtime `feedbax` packag
    git push origin v0.3.0
    ```
 
+The release gate requires the tagged commit to be on `main` with successful `CI` and `Verify Core` results for that exact SHA; it waits up to 20 minutes for running CI.
+
 The release workflow checks the version, builds, tests, publishes with provenance and creates the GitHub Release with the CLI tarball and checksums.
