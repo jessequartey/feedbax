@@ -47,6 +47,7 @@ export type RichTextEditorProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  labelledBy: string;
   describedBy?: string;
   invalid?: boolean;
 };
@@ -61,6 +62,7 @@ const alt = mac ? "⌥" : "Alt+";
 
 function contentAttributes(
   id: string,
+  labelledBy: string,
   describedBy: string | undefined,
   invalid: boolean | undefined,
   className: string | undefined,
@@ -69,6 +71,7 @@ function contentAttributes(
   return {
     id,
     role: "textbox",
+    "aria-labelledby": labelledBy,
     "aria-multiline": "true",
     ...(invalid ? { "aria-invalid": "true" } : {}),
     ...(describedBy ? { "aria-describedby": describedBy } : {}),
@@ -87,6 +90,7 @@ export function RichTextEditor({
   placeholder,
   disabled,
   className,
+  labelledBy,
   describedBy,
   invalid,
 }: RichTextEditorProps) {
@@ -171,7 +175,7 @@ export function RichTextEditor({
     extensions,
     content: markdownToEditorDoc(initialValue.current),
     editorProps: {
-      attributes: contentAttributes(id, describedBy, invalid, className, rows),
+      attributes: contentAttributes(id, labelledBy, describedBy, invalid, className, rows),
     },
     onUpdate: ({ editor: current, transaction }) => {
       if (transaction.docChanged) publish(current);
@@ -209,9 +213,11 @@ export function RichTextEditor({
 
   React.useEffect(() => {
     editor.setOptions({
-      editorProps: { attributes: contentAttributes(id, describedBy, invalid, className, rows) },
+      editorProps: {
+        attributes: contentAttributes(id, labelledBy, describedBy, invalid, className, rows),
+      },
     });
-  }, [editor, id, describedBy, invalid, className, rows]);
+  }, [editor, id, labelledBy, describedBy, invalid, className, rows]);
 
   React.useEffect(() => {
     if (value === emittedRef.current) return;
@@ -391,6 +397,7 @@ export function RichTextEditor({
         <div className="flex flex-wrap items-center gap-1 border-b px-1 py-1">
           <Input
             aria-label="Link URL"
+            aria-invalid={Boolean(linkError)}
             aria-describedby={linkError ? `${id}-link-error` : undefined}
             value={linkUrl}
             placeholder="https://…"

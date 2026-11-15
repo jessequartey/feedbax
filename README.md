@@ -441,6 +441,10 @@ Run `npx feedbax@latest admin` from the project. It prints a sign-in link that w
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 
+1. Change an anonymous feedback, notification or changelog switch to save it immediately; webhook and email switches also save immediately.
+2. Use **Save changes** after editing the portal name or categories.
+3. If a switch cannot save, retry after it returns to its last saved value; your latest choice stays visible while saving.
+
 Hidden, spam and merged posts leave the board, roadmap and search. Authors still see them under **My feedback**. A signed-in admin sees **Admin** in the header. Everyone else gets "not found" for `/admin`.
 
 1. Use **Send to GitHub** on public posts only; moderation pauses approval without changing the Notion checkbox.

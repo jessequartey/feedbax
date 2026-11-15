@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useSwitches } from "@/components/use-switches";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -310,6 +311,13 @@ function EndpointRow({
   onDelete: () => void;
 }) {
   const act = useAdminAction();
+  const { values, pending, change } = useSwitches(
+    { enabled: endpoint.enabled },
+    async (_, next) => {
+      const result = await adminWebhookUpdate({ data: { id: endpoint.id, enabled: next } });
+      if (!result.ok) throw new Error(result.error.message);
+    },
+  );
   const label = `Send events to ${hostOf(endpoint.url)}`;
   return (
     <li className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:gap-5">
@@ -326,19 +334,15 @@ function EndpointRow({
       </div>
       <div className="flex shrink-0 items-center gap-3">
         <Switch
-          checked={endpoint.enabled}
+          checked={values.enabled}
+          aria-busy={pending.has("enabled")}
           aria-label={label}
-          onCheckedChange={(next) =>
-            void act(
-              () => adminWebhookUpdate({ data: { id: endpoint.id, enabled: next } }),
-              next ? "Endpoint enabled." : "Endpoint paused.",
-            )
-          }
+          onCheckedChange={(next) => void change("enabled", next)}
         />
         <Button
           variant="outline"
           className="h-9 max-md:h-11"
-          disabled={!endpoint.enabled}
+          disabled={!values.enabled || pending.has("enabled")}
           onClick={() =>
             void act(
               () => adminWebhookTest({ data: { id: endpoint.id } }),
@@ -433,8 +437,10 @@ export function WebhooksSection({ webhooks }: { webhooks: AdminWebhooks }) {
   return (
     <Card id="webhooks" aria-labelledby="webhooks-title">
       <CardHeader>
-        <CardTitle id="webhooks-title" className="flex items-center gap-2 text-base">
-          <WebhookIcon className="size-4" aria-hidden="true" /> Webhooks
+        <CardTitle>
+          <h2 id="webhooks-title" className="flex items-center gap-2 text-base">
+            <WebhookIcon className="size-4" aria-hidden="true" /> Webhooks
+          </h2>
         </CardTitle>
         <CardDescription>
           Send events to your own systems as they happen: new posts, status changes, comments, votes

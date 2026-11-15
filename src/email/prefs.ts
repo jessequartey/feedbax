@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import type { ViewerUser } from "../contracts/domain.ts";
 import type { EmailPrefs, EmailSettings } from "../contracts/portal.ts";
 import { createDb } from "../db/client.ts";
@@ -87,7 +87,7 @@ export async function saveEmailPrefs(
   if (viewer.kind === "anonymous")
     throw new DomainError("forbidden", "Anonymous visitors get no email.");
   const data = record(input);
-  const set: Partial<typeof emailPrefs.$inferInsert> = {};
+  const set: Partial<Record<(typeof FIELDS)[EmailKind], number>> = {};
   for (const [key, value] of Object.entries(data)) {
     if (!(key in FIELDS) || typeof value !== "boolean") invalid(key);
     set[FIELDS[key as EmailKind]] = value ? 1 : 0;
@@ -96,7 +96,16 @@ export async function saveEmailPrefs(
     await createDb(env.DB)
       .insert(emailPrefs)
       .values({ userId: viewer.id, unsubscribeToken: crypto.randomUUID(), updatedAt: now, ...set })
-      .onConflictDoUpdate({ target: emailPrefs.userId, set: { ...set, updatedAt: now } });
+      .onConflictDoUpdate({
+        target: emailPrefs.userId,
+        set: { ...set, updatedAt: now },
+        // Retried desired values must not flip a switch or rewrite its timestamp/token.
+        setWhere: or(
+          ...Object.entries(set).map(([key, value]) =>
+            ne(emailPrefs[key as (typeof FIELDS)[EmailKind]], value),
+          ),
+        ),
+      });
   }
   return getEmailSettings(viewer);
 }

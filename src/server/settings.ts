@@ -166,6 +166,8 @@ export async function saveSettings(
             .onConflictDoUpdate({
               target: settingsTable.key,
               set: { value: sql`excluded.value`, updatedAt: sql`excluded.updated_at` },
+              // A retry of the same explicit value is a no-op, including its timestamp.
+              setWhere: sql`${settingsTable.value} != excluded.value`,
             }),
         ]
       : []),
