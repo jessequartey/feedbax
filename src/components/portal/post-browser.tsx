@@ -1,6 +1,7 @@
 import { ShowcaseSlot } from "./showcase-card";
 import * as React from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { listDialogOptions } from "./list-dialog-navigation";
 import { PlusIcon, SearchXIcon, InboxIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,15 @@ import { EmptyState } from "./states";
 import { useViewer } from "./viewer";
 
 export function NewPostButton({ className }: { className?: string }) {
+  const location = useRouterState({ select: (s) => s.location });
   return (
     <Button
-      render={<Link to="/submit" />}
+      render={
+        <Link
+          {...(listDialogOptions(location, "submit") ?? { to: "/submit" })}
+          onClick={(event) => event.currentTarget.focus({ preventScroll: true })}
+        />
+      }
       nativeButton={false}
       className={className ?? "h-9 max-md:h-11"}
     >

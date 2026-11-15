@@ -37,7 +37,8 @@ export function useWriteGate() {
   const router = useRouter();
 
   const goToLogin = React.useCallback(() => {
-    router.history.push(loginHref(router.state.location.href));
+    const location = router.state.location;
+    router.history.push(loginHref((location.maskedLocation ?? location).href));
   }, [router]);
 
   const ensureWriter = React.useCallback(async (): Promise<boolean> => {
