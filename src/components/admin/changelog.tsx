@@ -401,50 +401,62 @@ function EntryRow({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Button variant="outline" className="h-9 max-md:h-11" onClick={() => onEdit(entry)}>
-          <PencilIcon aria-hidden="true" /> Edit
-        </Button>
-        <Button
-          variant={published ? "outline" : "default"}
-          className="h-9 max-md:h-11"
-          onClick={() =>
-            void act(
-              () => adminChangelogSetStatus({ data: { id: entry.id, published: !published } }),
-              published ? "Moved back to drafts." : "Published.",
-            )
-          }
-        >
-          {published ? "Unpublish" : "Publish"}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={`More actions for ${entry.title}`}
-                className="size-9 max-md:size-11"
-              />
-            }
+        {entry.githubUrl ? (
+          <Button
+            variant="outline"
+            className="h-9 max-md:h-11"
+            render={<a href={entry.githubUrl} target="_blank" rel="noopener noreferrer" />}
           >
-            <MoreHorizontalIcon aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            {published ? (
-              <>
-                <DropdownMenuItem
-                  render={<Link to="/changelog/$entryId" params={{ entryId: entry.id }} />}
-                >
-                  View public page
+            Edit on GitHub
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" className="h-9 max-md:h-11" onClick={() => onEdit(entry)}>
+              <PencilIcon aria-hidden="true" /> Edit
+            </Button>
+            <Button
+              variant={published ? "outline" : "default"}
+              className="h-9 max-md:h-11"
+              onClick={() =>
+                void act(
+                  () => adminChangelogSetStatus({ data: { id: entry.id, published: !published } }),
+                  published ? "Moved back to drafts." : "Published.",
+                )
+              }
+            >
+              {published ? "Unpublish" : "Publish"}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label={`More actions for ${entry.title}`}
+                    className="size-9 max-md:size-11"
+                  />
+                }
+              >
+                <MoreHorizontalIcon aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-44">
+                {published ? (
+                  <>
+                    <DropdownMenuItem
+                      render={<Link to="/changelog/$entryId" params={{ entryId: entry.id }} />}
+                    >
+                      View public page
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                ) : null}
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete(entry)}>
+                  <Trash2Icon aria-hidden="true" /> Delete…
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            ) : null}
-            <DropdownMenuItem variant="destructive" onClick={() => onDelete(entry)}>
-              <Trash2Icon aria-hidden="true" /> Delete…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
       </div>
     </li>
   );

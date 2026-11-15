@@ -35,6 +35,7 @@ export type AdminChangelogEntry = {
   title: string;
   body: string;
   status: ChangelogEntryStatus;
+  githubUrl?: string | null;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;

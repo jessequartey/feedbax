@@ -52,6 +52,8 @@ export type SyncMessage =
   /** Moves the Notion row of a deleted post to trash. The post no longer exists in D1. */
   | { type: "notion.archive"; pageId: string }
   | { type: "github.issue"; postId: string }
+  | { type: "github.release"; releaseId: number; repo: string }
+  | { type: "github.releases" }
   | { type: "notion.poll"; since: string; until: string; cursor: string | null }
   | { type: "github.poll"; since: string; until: string; page: number }
   | NotifyMessage;

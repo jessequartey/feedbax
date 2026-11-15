@@ -188,6 +188,10 @@ export const changelogEntries = sqliteTable(
       .default("draft"),
     publishedAt: integer("published_at"),
     authorId: text("author_id").references(() => user.id, { onDelete: "set null" }),
+    githubReleaseId: integer("github_release_id"),
+    githubRepo: text("github_repo"),
+    githubUrl: text("github_url"),
+    githubNotifiedAt: integer("github_notified_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -195,6 +199,7 @@ export const changelogEntries = sqliteTable(
     check("changelog_title_len", sql`length(${t.title}) BETWEEN 1 AND 200`),
     check("changelog_body_len", sql`length(${t.body}) <= 20000`),
     check("changelog_status", sql`${t.status} IN ('draft', 'published')`),
+    uniqueIndex("changelog_github_release_uq").on(t.githubRepo, t.githubReleaseId),
     index("changelog_status_published_idx").on(t.status, t.publishedAt, t.id),
   ],
 );

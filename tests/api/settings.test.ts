@@ -12,7 +12,7 @@ const defaults = {
   anonymous: config.auth.anonymous,
   categories: ["feature", "bug", "general"],
   notifications: { statusChanges: true, replies: true, changelog: true, adminDigest: true },
-  changelog: { autoDraft: true },
+  changelog: { autoDraft: true, source: "portal" },
 };
 const store = (key: string, value: string) =>
   env.DB.prepare("INSERT INTO settings (key, value, updated_at) VALUES (?, ?, 0)")
@@ -38,7 +38,7 @@ it("D1 settings override the safe config fields", async () => {
     anonymous: !config.auth.anonymous,
     categories: ["bug", "feature"],
     notifications: { ...defaults.notifications, changelog: false },
-    changelog: { autoDraft: false },
+    changelog: { autoDraft: false, source: "portal" },
   });
   // Overrides win over a different config too, and are updated in place.
   await saveSettings({ name: "Renamed" });

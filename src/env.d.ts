@@ -9,6 +9,7 @@ declare namespace Cloudflare {
     FEEDBAX_HOST_SECRET: string;
     NOTION_TOKEN: string;
     GITHUB_TOKEN?: string;
+    GITHUB_WEBHOOK_SECRET?: string;
     GITHUB_CLIENT_ID?: string;
     GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string;

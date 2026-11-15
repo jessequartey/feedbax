@@ -22,7 +22,17 @@ function fetchFailure(error: unknown): FailureClassification {
   return "network";
 }
 
-export type ProviderRequest = <T>(path: string, method?: string, body?: unknown) => Promise<T>;
+type RequestOptions = {
+  headers?: Record<string, string>;
+  acceptStatuses?: number[];
+  raw?: boolean;
+};
+export type ProviderRequest = <T>(
+  path: string,
+  method?: string,
+  body?: unknown,
+  options?: RequestOptions,
+) => Promise<T>;
 
 function retryAfter(headers: Headers): number | null {
   const value = headers.get("Retry-After");
@@ -45,7 +55,12 @@ export function createProviderRequest(
   request: FetchFn = fetch,
   onSuccess?: () => Promise<void>,
 ): ProviderRequest {
-  return async <T>(path: string, method = "GET", body?: unknown): Promise<T> => {
+  return async <T>(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    options?: RequestOptions,
+  ): Promise<T> => {
     if (!token.trim()) {
       throw new IntegrationError(provider, "auth", 401, null, `${provider} token is missing.`);
     }
@@ -60,6 +75,7 @@ export function createProviderRequest(
           redirect: "manual",
           signal: AbortSignal.timeout(10_000),
           headers: {
+            ...options?.headers,
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
             ...(provider === "notion"
@@ -84,7 +100,7 @@ export function createProviderRequest(
         fetchFailure(error),
       );
     }
-    if (!response.ok) {
+    if (!response.ok && !options?.acceptStatuses?.includes(response.status)) {
       const limited =
         response.status === 429 ||
         (response.status === 403 &&
@@ -118,6 +134,10 @@ export function createProviderRequest(
         limited || response.status >= 500 ? retryAfter(response.headers) : null,
         `${provider} returned ${response.status}. ${hints[kind]}`,
       );
+    }
+    if (options?.raw) {
+      await onSuccess?.();
+      return response as T;
     }
     let result: T;
     try {

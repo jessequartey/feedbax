@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import config from "../../feedbax.config.ts";
 import type { AdminSettings } from "../contracts/admin.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
@@ -48,7 +49,11 @@ function admin<I, O>(handler: (admin: Admin, input: I) => Promise<O>) {
 }
 
 async function adminSettings(): Promise<AdminSettings> {
-  return { effective: await readSettings(), defaults: resolveSettings(config, []) };
+  return {
+    effective: await readSettings(),
+    defaults: resolveSettings(config, []),
+    githubEnabled: !!config.integrations.github && !!env.GITHUB_TOKEN?.trim(),
+  };
 }
 
 export const adminApi = {

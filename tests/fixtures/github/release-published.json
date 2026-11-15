@@ -1,0 +1,13 @@
+{
+  "action": "published",
+  "repository": { "full_name": "acme/app" },
+  "release": {
+    "id": 12345,
+    "name": "Useful release",
+    "tag_name": "v1.2.3",
+    "body": "## Shipped\n\nCloses #7. Also acme/app#8 and https://github.com/acme/app/issues/9. Ignore other/repo#10.\n\n<script>alert('x')</script>\n[bad](javascript:alert(1))\n\n| unsupported | table |",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-11-14T12:00:00Z"
+  }
+}

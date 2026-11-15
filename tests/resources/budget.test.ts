@@ -85,12 +85,12 @@ afterEach(() => {
 });
 
 describe("cron tick budget", () => {
-  test("an idle tick with 1,000 posts is 4 D1 statements, one Queue call and two polls", async () => {
+  test("an idle tick with 1,000 posts is 5 D1 statements, one Queue call and two polls", async () => {
     await seed(1000, { linkedOpen: 3 });
     await idle();
     const fetch = providers();
     const cron = await measure(() => runScheduled(tick()));
-    expect(cron).toMatchObject({ queries: 4, rowsWritten: 0, fetches: 0, queueCalls: 1 });
+    expect(cron).toMatchObject({ queries: 5, rowsWritten: 0, fetches: 0, queueCalls: 1 });
     expect(cron.rowsRead).toBeLessThanOrEqual(20);
     expect(queue.sent.map((message) => message.type)).toEqual(["notion.poll", "github.poll"]);
     const consumer = await measure(drain);
@@ -117,7 +117,7 @@ describe("cron tick budget", () => {
     const cron = await measure(() => runScheduled(tick()));
     expect(cron.queueCalls).toBe(1);
     expect(cron.queueSends).toBe(25 + 10 + 2);
-    expect(cron.queries).toBeLessThanOrEqual(5);
+    expect(cron.queries).toBeLessThanOrEqual(6);
   });
 });
 

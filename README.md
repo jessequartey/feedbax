@@ -73,6 +73,16 @@ GITHUB_TOKEN=… npx feedbax@latest add github --repo owner/repo --yes
 
 The command checks that the repo exists and Issues is enabled, then sets `GITHUB_TOKEN` and `integrations.github`.
 
+### Changelog from GitHub releases
+
+1. Configure GitHub sync for your repository; for private repositories, give the existing token **Contents: read** access too.
+2. Choose **Admin → Settings → Changelog → Changelog source → GitHub releases**, then save.
+3. Publish or edit a non-draft, non-prerelease GitHub release; its notes appear on `/changelog`, and referenced linked issues (`Closes #123`, `#123`, or same-repository issue URLs) link their posts and mark them Done.
+
+Reconciliation needs no webhook setup: it checks one page of five releases per hour using ETags (large histories backfill over several hours). For immediate updates, optionally subscribe a repository webhook to **Releases** at `https://<portal>/api/webhooks/github`, using a random secret stored as `GITHUB_WEBHOOK_SECRET`. Deleted, unpublished, draft and prerelease entries disappear from the public changelog. Imported entries are read-only in the portal; use **Edit on GitHub**. Existing portal entries remain editable. Release notes use the portal's safe Markdown subset (up to 20,000 characters); titles use up to 200 characters. Each release sends publication notifications once, including during initial backfill.
+
+Background cost: with GitHub configured, this adds one settings read per five-minute cron tick, no HTTP calls and no new bindings. Once per 12 ticks it queues one conditional GitHub request; an unchanged page costs two consumer reads and three writes (error clear, visibility reconcile, checkpoint), with no publication notifications. GitHub's existing issue sync costs are unchanged.
+
 ### Add GitHub login
 
 Create an **OAuth App** at [GitHub Developer settings](https://github.com/settings/applications/new). The command prints the homepage and callback (`<portal URL>/api/auth/callback/github`). These credentials are not the Issues token.

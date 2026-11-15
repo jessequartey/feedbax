@@ -1,4 +1,4 @@
-import { inArray, lt, or, sql } from "drizzle-orm";
+import { eq, inArray, lt, or, sql } from "drizzle-orm";
 import { IntegrationError } from "../contracts/integrations.ts";
 import {
   isNotifyMessage,
@@ -6,9 +6,10 @@ import {
   type SyncErrorState,
   type SyncMessage,
 } from "../contracts/sync.ts";
-import { syncState, usedTokens } from "../db/schema.ts";
+import { settings, syncState, usedTokens } from "../db/schema.ts";
 import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
 import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
+import { reconcileReleases, syncRelease, type ReleaseState } from "./github-releases.ts";
 import { createIssue, pollGitHub } from "./github.ts";
 import { consumeNotification } from "../notifications/consume.ts";
 import { notifyQueue } from "../notifications/queue.ts";
@@ -38,6 +39,12 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
           break;
         case "notion.poll":
           await pollNotion(body);
+          break;
+        case "github.release":
+          await syncRelease(body);
+          break;
+        case "github.releases":
+          await reconcileReleases();
           break;
         case "github.issue":
           await createIssue(body.postId);
@@ -109,12 +116,27 @@ const STATE_KEYS = [
   ),
   // The previous admin digest's `until` (email notifications).
   "email.digest",
+  "github.releases",
 ];
+
+async function githubReleasesEnabled(database: ReturnType<typeof db>): Promise<boolean> {
+  const row = await database
+    .select({ value: settings.value })
+    .from(settings)
+    .where(eq(settings.key, "changelog.source"))
+    .get();
+  if (!row) return false;
+  try {
+    return JSON.parse(row.value) === "github";
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Cron: cheap D1 reads and one sync Queue call, plus one notify call when a digest is due.
  * External I/O stays in the consumer.
- * An idle tick is 2 D1 statements (4–5 with GitHub) and one `sendBatch` of the polls.
+ * An idle tick is 2 D1 statements (5–6 with GitHub) and one `sendBatch` of the polls.
  */
 export async function runScheduled(controller: ScheduledController): Promise<void> {
   const now = controller.scheduledTime;
@@ -181,8 +203,20 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const digest = emailEnabled()
     ? digestDue(state.get("email.digest") as string | undefined, now)
     : null;
+  // Extra idle cost with GitHub configured: one settings read; release state rides the
+  // existing cron read. No external I/O here. At most one queued API request per 12 ticks;
+  // a 304 consumer uses two reads and three writes (error clear, visibility, checkpoint).
+  const releaseState = state.get("github.releases") as ReleaseState | undefined;
+  const releasesDue =
+    github &&
+    (await githubReleasesEnabled(database)) &&
+    (!releaseState ||
+      releaseState.repo !==
+        (config.integrations.github && config.integrations.github.repo.toLowerCase()) ||
+      releaseState.nextAt <= now);
   const messages: SyncMessage[] = [
     ...sweep,
+    ...(releasesDue ? [{ type: "github.releases" } as const] : []),
     ...(notion
       ? [{ type: "notion.poll", since: since("notion"), until, cursor: null } as const]
       : []),

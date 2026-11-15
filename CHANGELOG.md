@@ -14,6 +14,7 @@
 - **Profanity filter.** Posts and comments with profanity are held for review by default; admins can block, switch off, or customize the word lists in Settings.
 - **Search everywhere.** Press Cmd/Ctrl+K or use the header search to find feedback and published changelog entries.
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
+- Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
 
 ## 0.3.1
 
