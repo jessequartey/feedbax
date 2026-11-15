@@ -1,4 +1,4 @@
-<img src="docs/hero.gif" alt="Feedbax setup summary, live feedback board and roadmap" width="100%" />
+<img src=".github/readme/hero.gif" alt="Feedbax setup summary, live feedback board and roadmap" width="100%" />
 
 # Feedbax
 
