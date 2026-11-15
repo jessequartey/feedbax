@@ -75,10 +75,42 @@ try {
       name: string,
       messages: { id: string; timestamp: Date; attempts: number; body: unknown }[],
     ): Promise<{
+      outcome: string;
       retryMessages: unknown[];
       explicitAcks: string[];
     }>;
   };
+  // Exercise the emitted Worker's name-based dispatch, including old queued deliveries.
+  for (const name of ["another-project-notify", "sync"]) {
+    const delivered = await worker.queue(name, [
+      {
+        id: "email",
+        timestamp: new Date(),
+        attempts: 1,
+        body: { type: "email.digest", id: "off", since: "", until: "" },
+      },
+      {
+        id: "webhook",
+        timestamp: new Date(),
+        attempts: 1,
+        body: { type: "webhook.deliver", deliveryId: "missing" },
+      },
+    ]);
+    assert.deepEqual(delivered.explicitAcks.sort(), ["email", "webhook"]);
+    assert.deepEqual(delivered.retryMessages, []);
+  }
+  const rejected = await worker.queue("another-project-notify", [
+    {
+      id: "wrong-queue",
+      timestamp: new Date(),
+      attempts: 1,
+      body: { type: "notion.post", postId },
+    },
+  ]);
+  // Workerd reports handler exceptions in the queue outcome, not by rejecting the RPC.
+  assert.equal(rejected.outcome, "exception", "notify dispatch must reject sync payloads");
+  assert.deepEqual(rejected.explicitAcks, []);
+  assert.equal(calls.length, 0, "delivery dispatch makes no Notion requests");
   const deliver = () =>
     worker.queue("sync", [
       { id: "runtime", timestamp: new Date(), attempts: 1, body: { type: "notion.post", postId } },

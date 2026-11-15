@@ -1,7 +1,10 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { CliError } from "../../create-feedbax/src/flags.ts";
 import { confirmStep, loadProject, tools, type Context } from "./context.ts";
+import { ensureNotifyQueue } from "./jsonc-edit.ts";
 import { applyPlan, planSummary, planUpgrade, type Plan } from "./merge.ts";
 import { fetchPackument, fetchTemplate, registryUrl } from "./registry.ts";
 import {
@@ -78,7 +81,15 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   ctx.prompt.info(`Project is on ${from} (from ${sourceLabel}); target is ${to}.`);
   const order = compareVersions(to, from);
   if (order === 0) {
-    ctx.prompt.info(`Already on ${to}. Run npx feedbax doctor to check the project.`);
+    // Repair a previous upgrade that wrote sources but failed before provisioning/deploy.
+    if (compareVersions(to, "0.3.2") >= 0 && !options.dryRun) {
+      if (!(await confirmStep(ctx, "Ensure the notification queue exists in Cloudflare?")))
+        return 0;
+      await provisionNotifyQueue(ctx);
+    }
+    ctx.prompt.info(
+      `Already on ${to}. Run npx feedbax doctor to check the project; npx feedbax deploy to deploy any pending changes.`,
+    );
     return 0;
   }
   if (order < 0) throw new CliError(`Downgrading from ${from} to ${to} is not supported.`, 2);
@@ -101,6 +112,7 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   const steps = [
     `Write .feedbax/version = ${to}`,
     ...(packageChanged ? [`${project.pm} install`] : []),
+    ...(compareVersions(to, "0.3.2") >= 0 ? ["Create the notification queue if missing"] : []),
     plan.migrations.length
       ? `Apply ${plan.migrations.length} new D1 migration(s) to production: ${plan.migrations.map((path) => path.slice("migrations/".length)).join(", ")}`
       : "Apply D1 migrations to production (none are new)",
@@ -135,7 +147,7 @@ function conflictReport(plan: Plan): string {
   const lines = plan.actions.flatMap((action) =>
     action.kind === "conflict" ? [`  ${action.path}: ${action.reason}`] : [],
   );
-  return `Source updated to ${plan.to} with ${lines.length} conflict(s):\n${lines.join("\n")}\nResolve each one (search for <<<<<<<), run your checks, then run npx feedbax deploy. To undo everything: git checkout -- . && git clean -fd`;
+  return `Source updated to ${plan.to} with ${lines.length} conflict(s):\n${lines.join("\n")}\nResolve each one (search for <<<<<<<), run your checks, run npx feedbax@latest migrate --force to finish queue provisioning, then run npx feedbax deploy. To undo everything: git checkout -- . && git clean -fd`;
 }
 
 async function finish(ctx: Context, plan: Plan, packageChanged: boolean): Promise<number> {
@@ -143,6 +155,7 @@ async function finish(ctx: Context, plan: Plan, packageChanged: boolean): Promis
   const { pm, wrangler } = tools(ctx, project);
   if (packageChanged)
     await ctx.prompt.step(`Install dependencies (${project.pm} install)`, () => pm(["install"]));
+  if (compareVersions(plan.to, "0.3.2") >= 0) await provisionNotifyQueue(ctx);
   if (
     await confirmStep(
       ctx,
@@ -164,4 +177,30 @@ async function finish(ctx: Context, plan: Plan, packageChanged: boolean): Promis
     ctx.prompt.outro(`Upgraded to ${plan.to}. Commit the changes, then run npx feedbax doctor.`);
   } else ctx.prompt.info("Skipped deploy. Run npx feedbax deploy when ready.");
   return 0;
+}
+
+/** Wrangler owns authentication; an existing queue is safe to adopt on retries. */
+async function provisionNotifyQueue(ctx: Context): Promise<void> {
+  const file = join(ctx.cwd, "wrangler.jsonc");
+  const before = await readFile(file, "utf8");
+  const after = ensureNotifyQueue(before);
+  if (after !== before) await writeFile(file, after);
+  const project = await loadProject(ctx);
+  const queue = project.wrangler.queues!.producers!.find(
+    (entry) => entry.binding === "NOTIFY_QUEUE",
+  )!.queue!;
+  const { wrangler } = tools(ctx, project);
+  await ctx.prompt.step("Create notification queue (if missing)", async () => {
+    try {
+      await wrangler(["queues", "create", queue]);
+    } catch (error) {
+      // Creation can also succeed while its response is lost. Confirm existence rather
+      // than matching Wrangler's error text or swallowing authentication failures.
+      try {
+        await wrangler(["queues", "info", queue]);
+      } catch {
+        throw error;
+      }
+    }
+  });
 }

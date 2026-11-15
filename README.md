@@ -418,13 +418,13 @@ Edit `feedbax.config.ts` and redeploy to change options. Conflicting setup flags
 ```sh
 npx feedbax@latest migrate --dry-run   # print the plan, change nothing
 npx feedbax@latest migrate             # upgrade to the latest release
-npx feedbax@latest migrate 0.3.1       # or a specific version
+npx feedbax@latest migrate 0.3.2       # or a specific version
 ```
 
-`migrate` downloads the published `create-feedbax` template for your version and the target, then merges upstream changes into your files. After you confirm, it installs dependencies if they changed, applies new D1 migrations and deploys. `--yes` confirms every step.
+`migrate` downloads the published `create-feedbax` template for your version and the target, then merges upstream changes into your files. After you confirm, it installs dependencies if they changed, creates any missing notification queue, applies new D1 migrations and deploys. `--yes` confirms every step.
 
 - **Clean tree.** It refuses uncommitted changes, and it refuses a folder that is not a Git repository. Commit first, or pass `--force`.
-- **Conflicts.** Where you and upstream edited the same lines, it writes conflict markers, lists the files and stops before install, migrate or deploy. Resolve them, then run `npx feedbax deploy`.
+- **Conflicts.** Where you and upstream edited the same lines, it writes conflict markers, lists the files and stops before install, migrate or deploy. Resolve them, run `npx feedbax@latest migrate --force` to finish queue provisioning, then run `npx feedbax deploy`.
 - **Protected.** It does not change your `feedbax.config.ts` values, `wrangler.jsonc` resource IDs, names, routes and vars, `.dev.vars`, `.env*`, or Cloudflare secrets. Required structural edits to those files keep your values.
 - **Baseline.** The installed version is `.feedbax/version`. A 0.3.0 project has no such file. It is detected from `package.json`. Because 0.3.0 does not depend on `feedbax`, run `npx feedbax@latest migrate`. If detection fails, pass `--baseline <version>` with the `create-feedbax` version you started from.
 
@@ -442,7 +442,9 @@ Hidden, spam and merged posts leave the board, roadmap and search. Authors still
 
 ## Free plan
 
-Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, one Queue and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off.
+Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, two Queues and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off.
+
+Email and webhooks use `<name>-notify`; Notion and GitHub use `<name>-sync`. Run `npx feedbax@latest migrate` to add the notification queue to an existing project; deliveries use the sync queue until then. The split adds no D1 statements or queue messages per idle cron tick. Queues includes 10,000 operations/day on Free: a delivered message up to 64 KB uses three operations (write, read, delete), plus one read per retry. Moving deliveries to their own queue does not add operations.
 
 Workers Free allows 10 ms of CPU per HTTP request. Some measured social, host-login and data requests exceeded that budget. The tested flows still worked. Further CPU optimization is deferred. This release does not guarantee every request fits the Free limit. CPU time is processing time. Waiting on the network is excluded.
 
@@ -465,7 +467,7 @@ If one post stops syncing because its Notion row was trashed, restore that row. 
 | Public template missing or shows “No results” | Continue with a blank page you own: connect it in step 2 and let setup create the database. Report the template link on [GitHub issues](https://github.com/jessequartey/feedbax/issues).                                              |
 | “R2 isn't enabled on this account”            | Follow the CLI link, click **Enable R2**, then press Enter. A payment method is required on the free tier.                                                                                                                            |
 | workers.dev subdomain fails                   | Pick another name, or follow the CLI's Workers & Pages link and press Enter when ready.                                                                                                                                               |
-| Resource name already exists                  | Choose another project name. `<name>-db`, `<name>-images` and `<name>-sync` must be unused.                                                                                                                                           |
+| Resource name already exists                  | Choose another project name. `<name>-db`, `<name>-images`, `<name>-sync` and `<name>-notify` must be unused.                                                                                                                          |
 | Setup stopped halfway                         | Rerun the same command and accept **Finish setting up …?** Secrets and resources are reused.                                                                                                                                          |
 | GitHub repo rejected                          | Use `owner/repo`, enable Issues, unarchive the repo, and give the token Issues read/write. Then rerun `npx feedbax@latest add github`.                                                                                                |
 | GitHub/Google sign-in fails                   | Check both OAuth credentials and the exact deployed callback. An Issues token does not enable login. For Google, also check consent-screen publishing and test users.                                                                 |

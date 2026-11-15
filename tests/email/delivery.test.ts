@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { env } from "cloudflare:workers";
-import { flushWaitUntil, queue, resetEnv } from "../fixtures/cloudflare-workers.ts";
+import {
+  createFakeQueue,
+  flushWaitUntil,
+  queue,
+  resetEnv,
+} from "../fixtures/cloudflare-workers.ts";
 import type { EmailMessage } from "../../src/contracts/sync.ts";
 import { changelogEmailSink } from "../../src/email/changelog.ts";
 import { richText } from "../../src/email/content.ts";
@@ -32,6 +37,7 @@ beforeEach(async () => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(async () => {
+  Reflect.deleteProperty(env, "NOTIFY_QUEUE");
   disableEmail();
   // Other files clear this list (isolate: false). Put the production sinks back.
   changelogPublishedSinks.length = 0;
@@ -100,6 +106,7 @@ describe("changelog entries (opt-in)", () => {
   });
 
   it("queues nothing when email is off, and a failing queue never fails the publish", async () => {
+    Reflect.deleteProperty(env, "NOTIFY_QUEUE");
     disableEmail();
     await publish();
     expect(queued()).toEqual([]);
@@ -282,26 +289,36 @@ describe("delivery", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
-  it("sends a large audience in slices, each queued as a follow-up with the last user id", async () => {
-    const rows = Array.from(
-      { length: EMAIL_SLICE + 5 },
-      (_, index) => `('u${String(index).padStart(4, "0")}','U','u${index}@example.com',1,0,0)`,
-    );
-    await env.DB.prepare(
-      `INSERT INTO user (id, name, email, email_verified, created_at, updated_at) VALUES ${rows.join(",")}`,
-    ).run();
-    await env.DB.prepare(
-      `INSERT INTO votes (post_id, user_id, created_at) SELECT '${POST}', id, 2 FROM user WHERE id LIKE 'u0%'`,
-    ).run();
-    const sent = stubResend();
-    await consume(message());
-    expect(sent.emails()).toHaveLength(EMAIL_SLICE);
-    expect(sent.calls.map((call) => call.emails.length)).toEqual([100, 100]);
-    const [next] = queued();
-    expect(next).toMatchObject({ type: "email.status", id: "status-9", after: expect.any(String) });
-    sent.calls.length = 0;
-    await consume(next!);
-    expect(sent.emails().length).toBeGreaterThan(0);
-    expect(sent.emails().length).toBeLessThanOrEqual(6);
-  });
+  it.each([true, false])(
+    "sends follow-up slices to the delivery queue (binding present: %s)",
+    async (dedicated) => {
+      const notifications = createFakeQueue();
+      if (dedicated) env.NOTIFY_QUEUE = notifications as unknown as Queue;
+      const rows = Array.from(
+        { length: EMAIL_SLICE + 5 },
+        (_, index) => `('u${String(index).padStart(4, "0")}','U','u${index}@example.com',1,0,0)`,
+      );
+      await env.DB.prepare(
+        `INSERT INTO user (id, name, email, email_verified, created_at, updated_at) VALUES ${rows.join(",")}`,
+      ).run();
+      await env.DB.prepare(
+        `INSERT INTO votes (post_id, user_id, created_at) SELECT '${POST}', id, 2 FROM user WHERE id LIKE 'u0%'`,
+      ).run();
+      const sent = stubResend();
+      await consume(message());
+      expect(sent.emails()).toHaveLength(EMAIL_SLICE);
+      expect(sent.calls.map((call) => call.emails.length)).toEqual([100, 100]);
+      const [next] = dedicated ? (notifications.sent as EmailMessage[]) : queued();
+      if (dedicated) expect(queue.sent).toEqual([]);
+      expect(next).toMatchObject({
+        type: "email.status",
+        id: "status-9",
+        after: expect.any(String),
+      });
+      sent.calls.length = 0;
+      await consume(next!);
+      expect(sent.emails().length).toBeGreaterThan(0);
+      expect(sent.emails().length).toBeLessThanOrEqual(6);
+    },
+  );
 });

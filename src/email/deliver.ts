@@ -1,3 +1,4 @@
+import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
 import { and, asc, desc, eq, gt, gte, lt, sql, type SQL } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
@@ -146,7 +147,7 @@ async function send(
       emails.slice(start, start + RESEND_BATCH_MAX),
     );
   if (found.length > EMAIL_SLICE)
-    await env.SYNC_QUEUE.send({ ...message, after: slice[slice.length - 1]!.id });
+    await notifyQueue().send({ ...message, after: slice[slice.length - 1]!.id });
 }
 
 async function deliver(message: EmailMessage): Promise<void> {
