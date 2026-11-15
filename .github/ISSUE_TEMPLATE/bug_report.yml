@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in Feedbax is broken, crashes, or behaves differently than the docs say.
+title: "[Bug]: "
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One problem per report. Ideas and feature requests go on the [demo portal](https://feedbax.juutech.africa) instead.
+        Security problems: see [SECURITY.md](https://github.com/jessequartey/feedbax/blob/main/.github/SECURITY.md), not a public issue.
+        Run `npx feedbax@latest doctor` first and include its output below. Remove any secrets.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I'm on the latest Feedbax release, or I said which version below.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Setup (create-feedbax)
+        - CLI (feedbax migrate / add / doctor / deploy / admin)
+        - Portal (board, posts, comments, votes, search)
+        - Admin (moderation, users, settings, changelog)
+        - Notion sync
+        - GitHub sync
+        - Email or webhooks
+        - Feedback dialog (shadcn registry block)
+        - Docs
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Feedbax version
+      placeholder: "0.3.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the board
+        2. Click …
+        3. See …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the `X-Request-ID` from any error response, and screenshots if it's visual.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`npx feedbax doctor` output"
+      render: text

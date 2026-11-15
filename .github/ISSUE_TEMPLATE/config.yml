@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Idea or feature request
+    url: https://feedbax.juutech.africa
+    about: Post it on the Feedbax demo portal. Votes decide what gets built next.
+  - name: Security problem
+    url: https://github.com/jessequartey/feedbax/security/advisories/new
+    about: Report privately. Please don't open a public issue.

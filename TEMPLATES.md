@@ -34,6 +34,6 @@ Keep Number format for Votes and Comments. Extra select options are allowed, but
 
 Open a pull request adding one row below: template name, public duplicate link, a screenshot saved under `docs/templates/`, a short description and author. Check duplication from a signed-out browser before submitting. Keep the screenshot free of private data.
 
-| Name             | Public link                                                                                | Screenshot               | Description                                   | Author                                           |
-| ---------------- | ------------------------------------------------------------------------------------------ | ------------------------ | --------------------------------------------- | ------------------------------------------------ |
-| Official Feedbax | [Duplicate](https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc) | [Preview](docs/hero.png) | Board, inbox, calendar and GitHub queue views | [Jesse Quartey](https://github.com/jessequartey) |
+| Name             | Public link                                                                                | Screenshot                         | Description                                   | Author                                           |
+| ---------------- | ------------------------------------------------------------------------------------------ | ---------------------------------- | --------------------------------------------- | ------------------------------------------------ |
+| Official Feedbax | [Duplicate](https://brave-number-c98.notion.site/Feedbax-418afe159691807c8805db7a942aedcc) | [Preview](.github/readme/hero.png) | Board, inbox, calendar and GitHub queue views | [Jesse Quartey](https://github.com/jessequartey) |

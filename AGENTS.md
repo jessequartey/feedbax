@@ -49,13 +49,37 @@ All of them must pass before you open a PR. CI runs the same set.
 8. **Tests.** Vitest runs with `isolate: false`: restore every stub (`vi.unstubAllGlobals`, restore `fetch`) and call `resetEnv()` after writing settings rows. Cover the risky path you changed, and keep the suite fast.
 9. **Notion schema.** Sync needs the 13 properties in `src/integrations/notion-schema.ts`. Extra properties are fine; never rename or retype required ones. Template changes go in `notion-template.ts` with tests.
 10. **TanStack Router, not Next.js.** For "modal and full page on one URL" use route masking, not parallel or intercepting routes.
+11. **Additive migrations only.** A 0.3.x project must upgrade with `npx feedbax migrate` and lose nothing. Name files `migrations/NNNN_<slug>.sql` with the next free number on `origin/main`, and renumber yours if a merge takes it.
+
+## Ways to hurt yourself
+
+1. **Touching production.** Never run `wrangler` against a remote account, `wrangler secret put`, `npm publish`, or edit the owner's live Notion board, Cloudflare dashboard or GitHub settings unless the task says so. Use `.dev.vars` with fake values locally.
+2. **Leaking hidden content.** Anything that leaves the Worker (RSS, Open Graph images, webhooks, email, Notion, GitHub, search, media) must respect hidden, spam, merged and draft state. Check `src/server/visibility.ts`.
+3. **Breaking old projects.** Generated projects pin a version and upgrade later. A new binding, setting or Notion property needs a fallback for projects that don't have it yet.
+
+## Hit every surface
+
+The most common defect is a change that works where you tested it and is missing everywhere else. Before calling work done, say which of these applied:
+
+- **Portal and admin.** A user-facing action usually needs its admin view, and the reverse (hide needs unhide, ban needs unban).
+- **Sync.** Does Notion need the field? GitHub? Does the change survive a Notion poll overwriting it?
+- **Notifications.** Should email or a webhook event fire? Exactly once?
+- **CLIs.** Does `create-feedbax` set it up for new projects and `feedbax migrate` / `add` / `doctor` handle existing ones?
+- **Feedback dialog.** Does the shadcn registry block (`registry/`) need it?
+- **Docs.** Does a README section become wrong? Fix it in the same PR.
+
+## Docs and plans
+
+- The README is the user guide. Lead with actions: numbered steps and commands, one line each. Put background on a linked page, not in the steps.
+- Don't document what the code already says. A short comment explains a constraint the code can't show; nothing else.
+- Don't commit plans, research notes, agent scratch files or PR screenshots. Keep them outside the repo. The merged PR is the record.
 
 ## Workflow
 
-- **Pick work by BS score.** The backlog lives as posts on the live demo portal (https://feedbax.juutech.africa), mirrored to the owner's Notion board with a `BS score` (0–100, build-next priority) and linked GitHub issues in `jessequartey/feedbax`. Take the highest-scored open issue that isn't blocked. A new idea gets a post with a score and a one-line rationale: impact × reach × confidence × strategic fit ÷ effort.
+- **Pick work by score.** The backlog lives as posts on the live demo portal (https://feedbax.juutech.africa), mirrored to the owner's Notion board with linked GitHub issues in `jessequartey/feedbax`. The owner scores posts (votes, and the admin `Priority` from 0.3.2). Take the highest-scored open issue that isn't blocked. A new idea gets a post first.
 - **One branch and one PR per change**, off `main`: `feat/…`, `fix/…`, `docs/…`, `perf/…`. Never push to `main`.
 - **Commits**: conventional prefixes (`feat:`, `fix:`, `perf:`, `docs:`, `test:`, `ci:`), imperative, one logical change each. Agent-written commits end with a `Co-Authored-By:` trailer naming the model.
-- **PR body**: what and why, the checks you ran with results, screenshots for UI (light and dark), and `Closes #N` for the issue it resolves. Closing the issue moves the post to Done through GitHub sync.
+- **PR body**: follow `.github/pull_request_template.md`: problem, change, the checks you ran with results, screenshots for UI (light and dark), `Closes #N`, and the model and harness that wrote it. Any model is welcome; see [CONTRIBUTING.md](CONTRIBUTING.md#ai-assisted-contributions). Closing the issue moves the post to Done through GitHub sync.
 - **Reviews**: a second agent or the owner reviews before merge. Address findings in the same PR.
 - **Never** deploy, publish to npm, change Cloudflare/Notion/GitHub settings, or touch secrets unless the issue explicitly says so.
 
