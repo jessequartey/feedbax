@@ -159,7 +159,7 @@ function summary(row: {
   };
 }
 // Done and closed posts sort after active ones. Literals, not bound values, so SQLite matches
-// the posts_board_done_last_idx expression (migration 0015).
+// the posts_board_done_last_idx expression (migration 0014).
 export const doneLast = sql.raw("(status IN ('done', 'closed'))");
 const authorFields = {
   id: sql<string>`${user.id}`.as("author_id_col"),

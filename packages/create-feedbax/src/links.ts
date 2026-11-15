@@ -7,4 +7,4 @@ export const GITHUB_TOKEN_URL =
   "https://github.com/settings/personal-access-tokens/new?name=Feedbax&description=Feedbax+issue+sync&issues=write";
 export const README_URL =
   "https://github.com/jessequartey/feedbax#add-the-feedback-dialog-to-your-app";
-export const VERSION = "0.3.1";
+export const VERSION = "0.3.2";
