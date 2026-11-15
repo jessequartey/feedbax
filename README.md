@@ -482,7 +482,7 @@ Hidden, spam and merged posts leave the board, roadmap and search. Authors still
 2. Hide or mark spam to restrict attachments to the author and admins; merged attachments are admin-only, and deleted attachments return 404.
 3. Restore a post to resume syncing; Feedbax restores only Notion mirrors it archived, and never mirrors new non-public posts.
 
-Public images cache for at most 60 seconds; session responses are private and revalidate each time. ETags avoid repeat R2 reads. Older releases' cached browser copies cannot be recalled. Queued webhooks recheck visibility before every attempt, RSS omits non-public linked posts, and OG images contain no post data. Changelog titles and release notes are independent editorial content; edit them separately if they contain sensitive text.
+Public images cache for at most 60 seconds; `/changelog.rss` caches for up to 5 minutes (`public, max-age=300`) with `ETag`/`304` revalidation that invalidates immediately when entries or linked post visibility change; session responses are private and revalidate each time. ETags avoid repeat R2 reads and repeat XML/Markdown renders. Older releases' cached browser copies cannot be recalled. Queued webhooks recheck visibility before every attempt, RSS omits non-public linked posts, and OG images contain no post data. Changelog titles and release notes are independent editorial content; edit them separately if they contain sensitive text.
 
 ## Search
 
@@ -492,7 +492,7 @@ Public images cache for at most 60 seconds; session responses are private and re
 
 ## Free plan
 
-Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, two Queues and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off. Moderation adds no idle cron statements or provider calls; cleanup runs only for changed mirrors in the queue.
+Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, two Queues and a Cron trigger. Browser caching, conditional ETags, and per-isolate RSS XML caching avoid repeat image reads and Markdown renders (`1` D1 query on RSS cache hits and `304` revalidations). Post detail, portal, changelog, moderation, and user lists batch D1 reads into single round-trips backed by covering and partial indexes. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off. Moderation adds no idle cron statements or provider calls; cleanup runs only for changed mirrors in the queue.
 
 Email and webhooks use `<name>-notify`; Notion and GitHub use `<name>-sync`. Run `npx feedbax@latest migrate` to add the notification queue to an existing project; deliveries use the sync queue until then. The split adds no D1 statements or queue messages per idle cron tick. Queues includes 10,000 operations/day on Free: a delivered message up to 64 KB uses three operations (write, read, delete), plus one read per retry. Moving deliveries to their own queue does not add operations.
 

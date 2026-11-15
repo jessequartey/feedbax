@@ -118,15 +118,17 @@ export async function createPostForUser(
 }
 function counts(viewer: ViewerUser | null) {
   return {
-    votes: sql<number>`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`.mapWith(Number),
+    votes: sql<number>`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`
+      .mapWith(Number)
+      .as("vote_count"),
     comments:
-      sql<number>`(SELECT count(*) FROM comments WHERE post_id = ${posts.id} AND hidden_at IS NULL)`.mapWith(
-        Number,
-      ),
+      sql<number>`(SELECT count(*) FROM comments WHERE post_id = ${posts.id} AND hidden_at IS NULL)`
+        .mapWith(Number)
+        .as("comment_count"),
     viewerHasVoted:
-      sql<number>`EXISTS (SELECT 1 FROM votes WHERE post_id = ${posts.id} AND user_id = ${viewer?.id ?? ""})`.mapWith(
-        Boolean,
-      ),
+      sql<number>`EXISTS (SELECT 1 FROM votes WHERE post_id = ${posts.id} AND user_id = ${viewer?.id ?? ""})`
+        .mapWith(Boolean)
+        .as("viewer_has_voted"),
   };
 }
 function summary(row: {
@@ -156,7 +158,11 @@ function summary(row: {
     ...(row.post.hiddenAt !== null || row.post.spam ? { hidden: true as const } : {}),
   };
 }
-const authorFields = { id: user.id, name: user.name, isAnonymous: user.isAnonymous };
+const authorFields = {
+  id: sql<string>`${user.id}`.as("author_id_col"),
+  name: sql<string>`${user.name}`.as("author_name_col"),
+  isAnonymous: sql<boolean | null>`${user.isAnonymous}`.as("author_anon_col"),
+};
 export async function listPostPage(
   input: ListPostsInput,
   viewer: ViewerUser | null,
@@ -194,7 +200,9 @@ export async function listPostPage(
     desc(posts.createdAt),
     desc(posts.id),
   ];
-  const [rows, total] = await Promise.all([
+  // Promise.all, not db.batch: Drizzle's D1 batch prepares parameterless statements twice,
+  // which the worker read meter (scripts/test-worker-auth.ts) counts as an extra read.
+  const [rows, totals] = await Promise.all([
     db
       .select({ post: posts, author: authorFields, ...counts(viewer) })
       .from(posts)
@@ -206,15 +214,15 @@ export async function listPostPage(
     db
       .select({ count: sql<number>`count(*)` })
       .from(posts)
-      .where(where)
-      .get(),
+      .where(where),
   ]);
+  const total = totals[0]!.count;
   return {
     items: rows.map(summary),
     page: data.page,
     limit: data.limit,
-    total: total!.count,
-    hasMore: data.page * data.limit < total!.count,
+    total,
+    hasMore: data.page * data.limit < total,
   };
 }
 /** The post a duplicate finally points at. Merges repoint chains, so this is one hop in practice. */
@@ -245,28 +253,26 @@ export async function getPostDetail(id: string, viewer: ViewerUser | null): Prom
         THEN 1 ELSE 0 END
       )`.mapWith(Boolean)
     : sql<number>`0`.mapWith(Boolean);
-  const row = await db
-    .select({
-      post: posts,
-      author: authorFields,
-      shipped: shippedInField,
-      viewerIsFollowing,
-      ...counts(viewer),
-    })
-    .from(posts)
-    .innerJoin(user, eq(posts.authorId, user.id))
-    .where(eq(posts.id, id))
-    .get();
+  const [rows, attached] = await db.batch([
+    db
+      .select({
+        post: posts,
+        author: authorFields,
+        shipped: shippedInField.as("shipped_in"),
+        viewerIsFollowing: viewerIsFollowing.as("viewer_is_following"),
+        ...counts(viewer),
+      })
+      .from(posts)
+      .innerJoin(user, eq(posts.authorId, user.id))
+      .where(eq(posts.id, id)),
+    db.select().from(images).where(eq(images.postId, id)).orderBy(images.position),
+  ]);
+  const row = rows[0];
   if (!row) throw notFound();
   // A hidden or spam post is visible only to its author and to admins. Direct links give
   // everyone else the same "not found" as a post that never existed.
   const moderated = row.post.hiddenAt !== null || Boolean(row.post.spam);
   if (moderated && viewer?.id !== row.post.authorId && !viewer?.admin) throw notFound();
-  const attached = await db
-    .select()
-    .from(images)
-    .where(eq(images.postId, id))
-    .orderBy(images.position);
   const shippedIn = parseShippedIn(row.shipped);
   return {
     ...summary(row),

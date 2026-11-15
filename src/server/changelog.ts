@@ -79,7 +79,7 @@ export async function listPublishedEntries(input: unknown): Promise<ChangelogPag
     page = pageNumber(data.page),
     limit = CHANGELOG_LIMITS.pageSize,
     db = createDb(env.DB);
-  const [rows, total] = await Promise.all([
+  const [rows, totals] = await db.batch([
     db
       .select()
       .from(changelogEntries)
@@ -90,9 +90,9 @@ export async function listPublishedEntries(input: unknown): Promise<ChangelogPag
     db
       .select({ count: sql<number>`count(*)` })
       .from(changelogEntries)
-      .where(published)
-      .get(),
+      .where(published),
   ]);
+  const total = totals[0]!.count;
   const linked = await linkedPosts(
     db,
     rows.map((row) => row.id),
@@ -102,8 +102,8 @@ export async function listPublishedEntries(input: unknown): Promise<ChangelogPag
     items: rows.map((row) => publicEntry(row, linked.get(row.id))),
     page,
     limit,
-    total: total!.count,
-    hasMore: page * limit < total!.count,
+    total,
+    hasMore: page * limit < total,
   };
 }
 
@@ -187,24 +187,22 @@ export async function listAdminEntries(input: unknown): Promise<AdminChangelogPa
   const data = record(input ?? {}),
     page = pageNumber(data.page),
     db = createDb(env.DB);
-  const [rows, total] = await Promise.all([
+  const [rows, totals] = await db.batch([
     db
       .select()
       .from(changelogEntries)
       .orderBy(desc(changelogEntries.updatedAt), desc(changelogEntries.id))
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(changelogEntries)
-      .get(),
+    db.select({ count: sql<number>`count(*)` }).from(changelogEntries),
   ]);
+  const total = totals[0]!.count;
   return {
     items: await adminEntries(db, rows),
     page,
     limit: PAGE_SIZE,
-    total: total!.count,
-    hasMore: page * PAGE_SIZE < total!.count,
+    total,
+    hasMore: page * PAGE_SIZE < total,
   };
 }
 

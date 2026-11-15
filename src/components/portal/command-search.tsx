@@ -2,6 +2,8 @@ import * as React from "react";
 import { SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Spinner } from "@/components/ui/spinner";
 
 const CommandPalette = React.lazy(() => import("./command-palette"));
 
@@ -33,14 +35,25 @@ export function CommandSearch() {
       >
         <SearchIcon aria-hidden="true" />
         <span className="hidden md:inline">Search</span>
-        <kbd className="hidden text-xs text-muted-foreground lg:inline">⌘ / Ctrl K</kbd>
+        <KbdGroup className="hidden text-muted-foreground lg:inline-flex">
+          <Kbd>⌘</Kbd>
+          <span aria-hidden="true">/</span>
+          <Kbd>Ctrl</Kbd>
+          <Kbd>K</Kbd>
+        </KbdGroup>
       </DialogTrigger>
       {open ? (
         <React.Suspense
           fallback={
             <DialogContent>
               <DialogTitle>Search feedback and changelog</DialogTitle>
-              <p role="status">Loading search…</p>
+              <p
+                role="status"
+                className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground"
+              >
+                <Spinner aria-hidden="true" />
+                <span>Loading search…</span>
+              </p>
             </DialogContent>
           }
         >

@@ -64,6 +64,12 @@ export const posts = sqliteTable(
     index("posts_status_created_idx").on(t.status, t.createdAt, t.id),
     index("posts_category_created_idx").on(t.category, t.createdAt, t.id),
     index("posts_author_created_idx").on(t.authorId, t.createdAt, t.id),
+    index("posts_hidden_created_idx")
+      .on(t.createdAt, t.id)
+      .where(sql`${t.hiddenAt} IS NOT NULL AND ${t.spam} = 0`),
+    index("posts_spam_created_idx")
+      .on(t.createdAt, t.id)
+      .where(sql`${t.spam} = 1`),
     // Cron sweep: the posts columns double as the sync outbox.
     index("posts_notion_pending")
       .on(t.updatedAt, t.id)
@@ -201,6 +207,7 @@ export const changelogEntries = sqliteTable(
     check("changelog_status", sql`${t.status} IN ('draft', 'published')`),
     uniqueIndex("changelog_github_release_uq").on(t.githubRepo, t.githubReleaseId),
     index("changelog_status_published_idx").on(t.status, t.publishedAt, t.id),
+    index("changelog_updated_idx").on(t.updatedAt, t.id),
   ],
 );
 
