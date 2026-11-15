@@ -235,9 +235,12 @@ describe("replies", () => {
     const author = await account("author");
     await post(POST, author);
     await account("earlier");
+    await account("held");
     await account("later");
     await account("replier");
     await comment("c-early", POST, "earlier", 10);
+    await comment("c-held", POST, "held", 10);
+    await env.DB.prepare("UPDATE comments SET hidden_at = 11 WHERE id = 'c-held'").run();
     await comment("c-same", POST, "replier", 11);
     const viewer = { id: "replier", name: "Rae", kind: "account" } as const;
     await addCommentForUser({ id: COMMENT, postId: POST, body: "Thanks, **fixed**" }, viewer);

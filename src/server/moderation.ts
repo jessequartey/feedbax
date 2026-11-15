@@ -87,6 +87,7 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
       comments: row.comments,
       createdAt: iso(row.post.createdAt),
       state: postState(row.post),
+      moderationReason: row.post.moderationReason,
       mergedInto: row.post.mergedInto,
       githubUrl: row.post.githubUrl,
       githubRequested: Boolean(row.post.githubRequested),
@@ -126,6 +127,8 @@ export async function listModerationComments(input: unknown): Promise<Page<Moder
       postId: row.comment.postId,
       postTitle: row.postTitle,
       body: row.comment.body,
+      hidden: row.comment.hiddenAt !== null,
+      moderationReason: row.comment.moderationReason,
       author: author(row.author),
       createdAt: iso(row.comment.createdAt),
     })),
@@ -154,7 +157,7 @@ export async function setPostState(input: unknown, now = Date.now()): Promise<Po
     .update(posts)
     .set({
       ...(state === "visible"
-        ? { hiddenAt: null, spam: 0 }
+        ? { hiddenAt: null, spam: 0, moderationReason: null }
         : { hiddenAt: post.hiddenAt ?? now, spam: state === "spam" ? 1 : 0 }),
       revision: sql`${posts.revision} + 1`,
       updatedAt: now,
@@ -318,4 +321,31 @@ export async function sendToGitHub(input: unknown): Promise<{ queued: true }> {
     throw new DomainError("conflict", "Only public posts can be sent to GitHub.");
   await env.SYNC_QUEUE.send({ type: "github.issue", postId }).catch(() => undefined);
   return { queued: true };
+}
+
+/** Release a held comment. Approval uses the same server-side admin gate as deletion. */
+export async function approveComment(input: unknown): Promise<{ postId: string }> {
+  const id = uuid(record(input).commentId, "commentId"),
+    db = createDb(env.DB);
+  const found = await db
+    .select({ postId: comments.postId })
+    .from(comments)
+    .where(eq(comments.id, id))
+    .get();
+  if (!found) throw new DomainError("not_found", "Comment not found.");
+  const [released] = await db.batch([
+    db
+      .update(comments)
+      .set({ hiddenAt: null, moderationReason: null })
+      .where(and(eq(comments.id, id), isNotNull(comments.hiddenAt)))
+      .returning({ id: comments.id }),
+    db
+      .update(posts)
+      .set({ revision: sql`${posts.revision} + 1`, updatedAt: Date.now() })
+      .where(and(eq(posts.id, found.postId), sql`changes() > 0`)),
+  ]);
+  // The Notion mirror shows the comment count; the cron sweep would catch up otherwise.
+  if (released.length)
+    await env.SYNC_QUEUE.send({ type: "notion.post", postId: found.postId }).catch(() => undefined);
+  return { postId: found.postId };
 }

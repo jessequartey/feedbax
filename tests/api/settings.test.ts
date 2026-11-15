@@ -6,6 +6,7 @@ import { readSettings, resolveSettings, saveSettings } from "../../src/server/se
 
 beforeEach(resetEnv);
 const defaults = {
+  moderation: { mode: "flag", blockedWords: [], allowedWords: [] },
   name: config.name,
   anonymous: config.auth.anonymous,
   categories: ["feature", "bug", "general"],
@@ -31,6 +32,7 @@ it("D1 settings override the safe config fields", async () => {
     changelog: { autoDraft: false },
   });
   expect(await readSettings()).toEqual({
+    moderation: defaults.moderation,
     name: "Acme Feedback",
     anonymous: !config.auth.anonymous,
     categories: ["bug", "feature"],

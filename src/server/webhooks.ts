@@ -304,7 +304,7 @@ async function deliveryIsPublic(payload: string): Promise<boolean> {
         inArray(posts.id, ids),
         publiclyVisible,
         "comment" in data
-          ? sql`EXISTS (SELECT 1 FROM ${comments} WHERE ${comments.id} = ${data.comment.id} AND ${comments.postId} = ${posts.id})`
+          ? sql`EXISTS (SELECT 1 FROM ${comments} WHERE ${comments.id} = ${data.comment.id} AND ${comments.postId} = ${posts.id} AND ${comments.hiddenAt} IS NULL)`
           : undefined,
       ),
     );

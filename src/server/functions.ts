@@ -172,6 +172,11 @@ export const adminDeletePost = createServerFn({ method: "POST" })
   .handler(async ({ data }) =>
     result(async () => adminApi.deletePost(await viewer(), data), "admin.action"),
   );
+export const adminApproveComment = createServerFn({ method: "POST" })
+  .validator(pass<{ commentId: string }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.approveComment(await viewer(), data), "admin.action"),
+  );
 export const adminDeleteComment = createServerFn({ method: "POST" })
   .validator(pass<{ commentId: string }>)
   .handler(async ({ data }) =>

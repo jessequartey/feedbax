@@ -1,3 +1,4 @@
+import { moderateContent } from "./content-moderation.ts";
 import { env, waitUntil } from "cloudflare:workers";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
@@ -49,16 +50,21 @@ export async function createPostForUser(
   if (files.some((file) => !(file instanceof File))) invalid("image");
   const validated = await Promise.all((files as File[]).map(validateImage));
   const db = createDb(env.DB);
-  const response = (status: number) => ({
+  const response = (status: number, heldForReview = false) => ({
     status,
-    data: { postId: id, postUrl: `${env.PORTAL_URL.replace(/\/$/, "")}/posts/${id}` },
+    data: {
+      postId: id,
+      postUrl: `${env.PORTAL_URL.replace(/\/$/, "")}/posts/${id}`,
+      ...(heldForReview ? { heldForReview: true } : {}),
+    },
   });
   const replay = await db.select().from(posts).where(eq(posts.id, id)).get();
   if (replay) {
     if (replay.authorId !== writer.id)
       throw new DomainError("conflict", "This post ID is already in use.");
-    return response(200);
+    return response(200, replay.hiddenAt !== null && replay.moderationReason !== null);
   }
+  const flagged = await moderateContent(`${title}\n${body}`, writer);
   const now = Date.now(),
     since = now - 3_600_000;
   const quota = await db
@@ -73,11 +79,11 @@ export async function createPostForUser(
   );
   // The quota predicate is in the INSERT too, so concurrent requests cannot exceed it.
   // Drizzle lists every `posts` column in schema order: a new column needs a value here
-  // (the last three are 0005's hidden_at, spam, merged_into).
+  // (including moderation state and reason).
   const insert = db
     .insert(posts)
     .select(
-      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
+      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, ${flagged ? now : null}, 0, ${flagged ? "profanity" : null}, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
     )
     .onConflictDoNothing()
     .returning({ id: posts.id });
@@ -96,18 +102,22 @@ export async function createPostForUser(
       throw new DomainError("rate_limited", "You can submit 5 posts per hour.", undefined, 3600);
     if (existing.authorId !== writer.id)
       throw new DomainError("conflict", "This post ID is already in use.");
-    return response(200);
+    return response(200, existing.hiddenAt !== null && existing.moderationReason !== null);
   }
-  enqueuePost(id);
-  waitUntil(emitPostCreated(id));
-  return response(201);
+  // A held post stays out of Notion and webhooks until an admin makes it visible.
+  if (!flagged) {
+    enqueuePost(id);
+    waitUntil(emitPostCreated(id));
+  }
+  return response(201, flagged);
 }
 function counts(viewer: ViewerUser | null) {
   return {
     votes: sql<number>`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`.mapWith(Number),
-    comments: sql<number>`(SELECT count(*) FROM comments WHERE post_id = ${posts.id})`.mapWith(
-      Number,
-    ),
+    comments:
+      sql<number>`(SELECT count(*) FROM comments WHERE post_id = ${posts.id} AND hidden_at IS NULL)`.mapWith(
+        Number,
+      ),
     viewerHasVoted:
       sql<number>`EXISTS (SELECT 1 FROM votes WHERE post_id = ${posts.id} AND user_id = ${viewer?.id ?? ""})`.mapWith(
         Boolean,

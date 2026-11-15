@@ -99,10 +99,14 @@ export function CommentSection({
         else reportError(result.error);
         return;
       }
-      setItems((current) =>
-        current.some((c) => c.id === result.data.id) ? current : [...current, result.data],
-      );
-      setTotal((n) => n + 1);
+      if (result.data.heldForReview) {
+        toast.success("Thanks! Your comment is awaiting admin review.");
+      } else {
+        setItems((current) =>
+          current.some((c) => c.id === result.data.id) ? current : [...current, result.data],
+        );
+        setTotal((n) => n + 1);
+      }
       setBody("");
       clearDraft(commentDraftKey(postId));
       commentId.current = crypto.randomUUID();

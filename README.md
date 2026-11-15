@@ -441,6 +441,12 @@ Run `npx feedbax@latest admin` from the project. It prints a sign-in link that w
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 
+1. Open **Settings → Profanity filter** to choose **Flag for review** (default), **Block**, or **Off**.
+2. Add custom blocked or allowed words, one per line, and save; allowed words override matching blocked words.
+3. Review feedback marked **Reason: profanity** in **Moderation**; unhide a post or approve a comment to publish it.
+
+The English word list runs locally without a service or fee. It checks post titles, descriptions and comments; admins bypass it. Flagged feedback stays out of public lists, counts, reply emails and webhooks. If a moderation provider fails or times out, posting stays available and a content-free warning is logged. This is a word filter, so review context before approving or removing feedback.
+
 Hidden, spam and merged posts leave the board, roadmap and search. Authors still see them under **My feedback**. A signed-in admin sees **Admin** in the header. Everyone else gets "not found" for `/admin`.
 
 1. Use **Send to GitHub** on public posts only; moderation pauses approval without changing the Notion checkbox.

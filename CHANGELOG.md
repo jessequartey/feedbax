@@ -7,6 +7,7 @@
 - Email and webhook deliveries use their own queue so slow deliveries no longer hold up Notion and GitHub sync.
 - Releases require successful main CI for the exact tagged commit before publishing.
 - **Moderation privacy.** Hidden, spam, merged and deleted posts stay out of GitHub sync and queued exports; attachments check visibility, and moderated Notion mirrors are archived.
+- **Profanity filter.** Posts and comments with profanity are held for review by default; admins can block, switch off, or customize the word lists in Settings.
 
 ## 0.3.1
 

@@ -4,6 +4,7 @@ import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
 import type {
   ChangelogSettings,
+  ModerationSettings,
   NotificationToggles,
   RuntimeSettings,
 } from "../contracts/admin.ts";
@@ -20,8 +21,11 @@ import { cachedSettings, clearSettingsCache } from "./settings-cache.ts";
 
 export type { ChangelogSettings, NotificationToggles, RuntimeSettings };
 export type SettingsPatch = {
-  [K in keyof Omit<RuntimeSettings, "notifications" | "changelog">]?: RuntimeSettings[K] | null;
+  [K in keyof Omit<RuntimeSettings, "notifications" | "changelog" | "moderation">]?:
+    | RuntimeSettings[K]
+    | null;
 } & {
+  moderation?: { [K in keyof ModerationSettings]?: ModerationSettings[K] | null };
   notifications?: { [K in keyof NotificationToggles]?: boolean | null };
   changelog?: { [K in keyof ChangelogSettings]?: boolean | null };
 };
@@ -30,6 +34,9 @@ const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[];
 const TOGGLES = ["statusChanges", "replies", "changelog", "adminDigest"] as const;
 /** Every key the settings table may hold. */
 export const SETTING_KEYS = [
+  "moderation.mode",
+  "moderation.blockedWords",
+  "moderation.allowedWords",
   "name",
   "anonymous",
   "categories",
@@ -40,6 +47,21 @@ export type SettingKey = (typeof SETTING_KEYS)[number];
 
 /** Returns the parsed value, or undefined when it is not valid for `key`. */
 function parse(key: SettingKey, value: unknown): unknown {
+  if (key === "moderation.mode")
+    return value === "off" || value === "flag" || value === "block" ? value : undefined;
+  if (key === "moderation.blockedWords" || key === "moderation.allowedWords")
+    return Array.isArray(value) &&
+      value.length <= 100 &&
+      value.every(
+        (word) =>
+          typeof word === "string" &&
+          word.trim() === word &&
+          word.length >= 1 &&
+          Array.from(word).length <= 64 &&
+          /[\p{L}\p{N}]/u.test(word),
+      )
+      ? value
+      : undefined;
   if (key === "name")
     return typeof value === "string" &&
       value.trim() === value &&
@@ -76,6 +98,11 @@ export function resolveSettings(
   const pick = <T>(key: SettingKey, fallback: T) =>
     stored.has(key) ? (stored.get(key) as T) : fallback;
   return {
+    moderation: {
+      mode: pick("moderation.mode", "flag"),
+      blockedWords: pick("moderation.blockedWords", []),
+      allowedWords: pick("moderation.allowedWords", []),
+    },
     name: pick("name", base.name),
     anonymous: pick("anonymous", base.auth.anonymous),
     categories: pick("categories", ALL_CATEGORIES),
@@ -137,7 +164,7 @@ export async function saveSettings(
 ): Promise<void> {
   const entries: [SettingKey, unknown][] = [];
   for (const [key, value] of Object.entries(patch)) {
-    if (key === "notifications" || key === "changelog") {
+    if (key === "notifications" || key === "changelog" || key === "moderation") {
       if (typeof value !== "object" || value === null || Array.isArray(value)) invalid(key);
       for (const [toggle, enabled] of Object.entries(value))
         entries.push([`${key}.${toggle}` as SettingKey, enabled]);
