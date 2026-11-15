@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { PostLink } from "./post-link";
 import { ChevronDownIcon, MessageSquareIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -98,13 +99,12 @@ export function RoadmapBoard({ data, search, onChange }: Props) {
                         className="relative border bg-background p-3 transition-colors hover:bg-muted/40"
                       >
                         <h3 className="text-sm leading-snug font-medium break-words">
-                          <Link
-                            to="/posts/$postId"
-                            params={{ postId: post.id }}
+                          <PostLink
+                            postId={post.id}
                             className="outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/60 focus-visible:after:ring-inset"
                           >
                             {post.title}
-                          </Link>
+                          </PostLink>
                         </h3>
                         {post.excerpt ? (
                           <p className="mt-1 line-clamp-2 text-xs break-words text-muted-foreground">
