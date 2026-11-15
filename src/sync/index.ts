@@ -153,14 +153,14 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const sweep: SyncMessage[] = [];
   if (notion && !providerPaused(error("notion"), now))
     for (const postId of await pendingIds(
-      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_blocked = 0 AND (notion_page_id IS NULL OR notion_revision < revision) ORDER BY updated_at, id LIMIT 25`,
+      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_blocked = 0 AND (notion_page_id IS NULL OR notion_revision < revision) AND (notion_page_id IS NOT NULL OR (hidden_at IS NULL AND spam = 0 AND merged_into IS NULL)) ORDER BY updated_at, id LIMIT 25`,
     ))
       sweep.push({ type: "notion.post", postId });
   let githubWork = false;
   if (github) {
     if (!providerPaused(error("github"), now))
       for (const postId of await pendingIds(
-        sql`SELECT id FROM posts INDEXED BY posts_github_pending WHERE github_requested = 1 AND github_number IS NULL LIMIT 10`,
+        sql`SELECT id FROM posts INDEXED BY posts_github_pending WHERE github_requested = 1 AND github_number IS NULL AND hidden_at IS NULL AND spam = 0 AND merged_into IS NULL LIMIT 10`,
       )) {
         sweep.push({ type: "github.issue", postId });
         githubWork = true;
@@ -172,7 +172,7 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
       !!error("github") ||
       (
         await pendingIds(
-          sql`SELECT id FROM posts INDEXED BY posts_github_open WHERE github_number IS NOT NULL AND github_closed_at IS NULL LIMIT 1`,
+          sql`SELECT id FROM posts INDEXED BY posts_github_open WHERE github_number IS NOT NULL AND github_closed_at IS NULL AND hidden_at IS NULL AND spam = 0 AND merged_into IS NULL LIMIT 1`,
         )
       ).length > 0;
     if (!githubWork) await watermark("github", until);

@@ -126,7 +126,7 @@ function PostRow({
 }) {
   const act = useAdminAction();
   const merged = post.mergedInto !== null;
-  const canSend = githubEnabled && !merged && post.state !== "spam" && !post.githubRequested;
+  const canSend = githubEnabled && !merged && post.state === "visible" && !post.githubRequested;
   const set = (state: "visible" | "hidden" | "spam", message: string) =>
     void act(() => adminSetPostState({ data: { postId: post.id, state } }), message);
   return (

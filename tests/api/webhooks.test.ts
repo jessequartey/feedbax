@@ -17,6 +17,7 @@ import { changelogPublishedSinks } from "../../src/server/changelog-events.ts";
 import { createPostForUser } from "../../src/server/posts.ts";
 import { setVoteForUser } from "../../src/server/votes.ts";
 import {
+  deliverWebhook,
   emitChangelogWebhook,
   emitPostCreated,
   emitStatusChanges,
@@ -731,5 +732,102 @@ describe("the delivery log", () => {
       code: "conflict",
     });
     expect(await count("webhook_deliveries")).toBe(0);
+  });
+});
+
+describe("moderation after webhook serialization", () => {
+  it("filters moderated changelog links at serialization and drops stale queued links", async () => {
+    const who = await admin(),
+      author = await writer();
+    const hidden = await post(author),
+      visible = await post(author);
+    await flushWaitUntil();
+    await add(who, URL_A, ["changelog.published"]);
+    await adminApi.setPostState(who, { postId: hidden, state: "hidden" });
+    await emitChangelogWebhook({
+      entry: {
+        id: crypto.randomUUID(),
+        title: "Release",
+        body: "Release notes",
+        publishedAt: new Date().toISOString(),
+        postIds: [hidden, visible],
+      },
+      url: `${PORTAL}/changelog`,
+    });
+    const [delivery] = await deliveries();
+    expect(JSON.parse(delivery.payload).data.entry.postIds).toEqual([visible]);
+    await adminApi.setPostState(who, { postId: visible, state: "spam" });
+    const sent = stubFetch(respond(204));
+    expect(await deliverWebhook(delivery.id)).toBeNull();
+    expect(sent).toEqual([]);
+  });
+
+  it.each(["hidden", "spam", "merged", "deleted"] as const)(
+    "drops queued post, comment and vote payloads when the post becomes %s",
+    async (state) => {
+      const who = await admin(),
+        author = await writer();
+      await add(who);
+      const id = await post(author);
+      const commentId = crypto.randomUUID();
+      await addCommentForUser({ id: commentId, postId: id, body: "A private reply" }, author);
+      await setVoteForUser({ postId: id, voted: true }, await writer());
+      await flushWaitUntil();
+      expect((await deliveries()).map((delivery) => delivery.event).sort()).toEqual([
+        "comment.created",
+        "post.created",
+        "vote.created",
+      ]);
+      if (state === "deleted") await adminApi.deletePost(who, { postId: id });
+      else if (state === "merged")
+        await adminApi.mergePost(who, { sourceId: id, targetId: await post(author) });
+      else await adminApi.setPostState(who, { postId: id, state });
+      await flushWaitUntil();
+      // The merge target's independent post.created is still public; inspect this post only.
+      const pending = (await deliveries()).filter((delivery) =>
+        JSON.stringify(JSON.parse(delivery.payload).data).includes(id),
+      );
+      const sent = stubFetch(respond(204));
+      for (const delivery of pending) {
+        expect(await deliverWebhook(delivery.id)).toBeNull();
+        expect(await deliverWebhook(delivery.id)).toBeNull();
+      }
+      expect(sent).toEqual([]);
+      const finished = (await deliveries()).filter((delivery) =>
+        pending.some((item) => item.id === delivery.id),
+      );
+      expect(finished).toHaveLength(3);
+      expect(
+        finished.every((delivery) => delivery.status === "failed" && delivery.attempts === 0),
+      ).toBe(true);
+    },
+  );
+
+  it("rechecks moderation before retrying previously sent bytes", async () => {
+    const who = await admin();
+    await add(who);
+    const id = await post(await writer());
+    await flushWaitUntil();
+    const delivery = (await deliveries())[0];
+    const sent = stubFetch(respond(500));
+    expect(await deliverWebhook(delivery.id)).toBe(30);
+    await adminApi.setPostState(who, { postId: id, state: "hidden" });
+    expect(await deliverWebhook(delivery.id)).toBeNull();
+    expect(sent).toHaveLength(1);
+  });
+
+  it("drops a deleted comment's queued payload even while its post remains public", async () => {
+    const who = await admin(),
+      author = await writer();
+    const id = await post(author);
+    await flushWaitUntil();
+    await add(who, URL_A, ["comment.created"]);
+    const commentId = crypto.randomUUID();
+    await addCommentForUser({ id: commentId, postId: id, body: "Removed reply" }, author);
+    await flushWaitUntil();
+    await adminApi.deleteComment(who, { commentId });
+    const sent = stubFetch(respond(204));
+    expect(await deliverWebhook((await deliveries())[0].id)).toBeNull();
+    expect(sent).toEqual([]);
   });
 });

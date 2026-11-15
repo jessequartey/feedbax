@@ -17,7 +17,7 @@ import {
   type WebhookPost,
 } from "../contracts/webhooks.ts";
 import { createDb } from "../db/client.ts";
-import { posts, user, votes, webhookDeliveries, webhookEndpoints } from "../db/schema.ts";
+import { comments, posts, user, votes, webhookDeliveries, webhookEndpoints } from "../db/schema.ts";
 import { markdownToPlainText } from "../lib/markdown.ts";
 import { webhookUrlProblem } from "../lib/webhook-url.ts";
 import { DomainError, invalid } from "./errors.ts";
@@ -246,19 +246,22 @@ export function emitChangelogWebhook(event: {
   entry: { id: string; title: string; body: string; publishedAt: string; postIds: string[] };
   url: string;
 }): Promise<void> {
-  return emitWebhooks("changelog.published", async () => [
-    {
-      entry: {
-        id: event.entry.id,
-        title: event.entry.title,
-        body: event.entry.body,
-        bodyText: plainText(event.entry.body),
-        publishedAt: event.entry.publishedAt,
-        url: event.url,
-        postIds: event.entry.postIds,
+  return emitWebhooks("changelog.published", async () => {
+    const publicPosts = await loadPosts(event.entry.postIds);
+    return [
+      {
+        entry: {
+          id: event.entry.id,
+          title: event.entry.title,
+          body: event.entry.body,
+          bodyText: plainText(event.entry.body),
+          publishedAt: event.entry.publishedAt,
+          url: event.url,
+          postIds: event.entry.postIds.filter((id) => publicPosts.has(id)),
+        },
       },
-    },
-  ]);
+    ];
+  });
 }
 
 // ---- Delivery (queue consumer) ----
@@ -288,6 +291,26 @@ function retryAfterSeconds(value: string | null): number {
 
 const TRANSIENT_STATUS = new Set([408, 425, 429]);
 
+/** Stored event bytes can outlive moderation (including between retries). Recheck on send. */
+async function deliveryIsPublic(payload: string): Promise<boolean> {
+  const { data } = JSON.parse(payload) as WebhookEnvelope;
+  const ids = "post" in data ? [data.post.id] : "entry" in data ? data.entry.postIds : [];
+  if (!ids.length) return true;
+  const visible = await db()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(
+      and(
+        inArray(posts.id, ids),
+        publiclyVisible,
+        "comment" in data
+          ? sql`EXISTS (SELECT 1 FROM ${comments} WHERE ${comments.id} = ${data.comment.id} AND ${comments.postId} = ${posts.id})`
+          : undefined,
+      ),
+    );
+  return visible.length === new Set(ids).size;
+}
+
 /**
  * Makes one attempt. Resolves to the delay (seconds) before the next attempt, or null when the
  * delivery is finished (delivered, failed for good, or gone) and the message can be acked.
@@ -315,6 +338,10 @@ export async function deliverWebhook(deliveryId: string): Promise<number | null>
       .where(and(eq(webhookDeliveries.id, deliveryId), eq(webhookDeliveries.status, "pending")));
   if (!endpoint || !endpoint.enabled) {
     await finish("failed", null, "Endpoint is disabled");
+    return null;
+  }
+  if (!(await deliveryIsPublic(delivery.payload))) {
+    await finish("failed", null, "Content is no longer public");
     return null;
   }
   // Checked again at send time: the rule may be stricter than when the endpoint was saved.
