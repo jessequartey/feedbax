@@ -99,3 +99,48 @@ export type AdminUser = {
   self: boolean;
   createdAt: string;
 };
+
+export type InsightsRange = "7d" | "30d" | "90d" | "all";
+export type AdminInsightsInput = { range?: InsightsRange };
+export type AdminInsightsVolumePoint = {
+  label: string;
+  date: string;
+  posts: number;
+  votes: number;
+  comments: number;
+};
+export type AdminInsightsPopularRequest = {
+  id: string;
+  title: string;
+  category: Category;
+  status: Status;
+  votes: number;
+  comments: number;
+  priority: number | null;
+  createdAt: string;
+};
+export type AdminInsightsContributor = {
+  id: string;
+  name: string;
+  posts: number;
+  comments: number;
+  votes: number;
+};
+export type AdminInsights = {
+  range: InsightsRange;
+  totals: {
+    posts: number;
+    votes: number;
+    comments: number;
+    shipped: number;
+  };
+  statusBreakdown: Record<Status, number>;
+  categoryBreakdown: Record<Category, number>;
+  timing: {
+    medianFirstResponseHours: number | null;
+    medianTimeToDeliveryDays: number | null;
+  };
+  volumeSeries: AdminInsightsVolumePoint[];
+  popularRequests: AdminInsightsPopularRequest[];
+  topContributors: AdminInsightsContributor[];
+};

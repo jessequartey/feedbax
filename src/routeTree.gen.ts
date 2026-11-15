@@ -26,6 +26,7 @@ import { Route as ApiPostsRouteImport } from './routes/api/posts'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as PortalAdminIndexRouteImport } from './routes/_portal.admin.index'
 import { Route as PortalAdminChangelogRouteImport } from './routes/_portal.admin.changelog'
+import { Route as PortalAdminInsightsRouteImport } from './routes/_portal.admin.insights'
 import { Route as PortalAdminModerationRouteImport } from './routes/_portal.admin.moderation'
 import { Route as PortalAdminSettingsRouteImport } from './routes/_portal.admin.settings'
 import { Route as PortalAdminUsersRouteImport } from './routes/_portal.admin.users'
@@ -120,6 +121,11 @@ const PortalAdminChangelogRoute = PortalAdminChangelogRouteImport.update({
   path: '/changelog',
   getParentRoute: () => PortalAdminRoute,
 } as any)
+const PortalAdminInsightsRoute = PortalAdminInsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
 const PortalAdminModerationRoute = PortalAdminModerationRouteImport.update({
   id: '/moderation',
   path: '/moderation',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/api/posts': typeof ApiPostsRoute
   '/api/search': typeof ApiSearchRoute
   '/admin/changelog': typeof PortalAdminChangelogRoute
+  '/admin/insights': typeof PortalAdminInsightsRoute
   '/admin/moderation': typeof PortalAdminModerationRoute
   '/admin/settings': typeof PortalAdminSettingsRoute
   '/admin/users': typeof PortalAdminUsersRoute
@@ -208,6 +215,7 @@ export interface FileRoutesByTo {
   '/api/search': typeof ApiSearchRoute
   '/': typeof PortalIndexRoute
   '/admin/changelog': typeof PortalAdminChangelogRoute
+  '/admin/insights': typeof PortalAdminInsightsRoute
   '/admin/moderation': typeof PortalAdminModerationRoute
   '/admin/settings': typeof PortalAdminSettingsRoute
   '/admin/users': typeof PortalAdminUsersRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/api/search': typeof ApiSearchRoute
   '/_portal/': typeof PortalIndexRoute
   '/_portal/admin/changelog': typeof PortalAdminChangelogRoute
+  '/_portal/admin/insights': typeof PortalAdminInsightsRoute
   '/_portal/admin/moderation': typeof PortalAdminModerationRoute
   '/_portal/admin/settings': typeof PortalAdminSettingsRoute
   '/_portal/admin/users': typeof PortalAdminUsersRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
     | '/api/posts'
     | '/api/search'
     | '/admin/changelog'
+    | '/admin/insights'
     | '/admin/moderation'
     | '/admin/settings'
     | '/admin/users'
@@ -292,6 +302,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/'
     | '/admin/changelog'
+    | '/admin/insights'
     | '/admin/moderation'
     | '/admin/settings'
     | '/admin/users'
@@ -320,6 +331,7 @@ export interface FileRouteTypes {
     | '/api/search'
     | '/_portal/'
     | '/_portal/admin/changelog'
+    | '/_portal/admin/insights'
     | '/_portal/admin/moderation'
     | '/_portal/admin/settings'
     | '/_portal/admin/users'
@@ -465,6 +477,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAdminChangelogRouteImport
       parentRoute: typeof PortalAdminRoute
     }
+    '/_portal/admin/insights': {
+      id: '/_portal/admin/insights'
+      path: '/insights'
+      fullPath: '/admin/insights'
+      preLoaderRoute: typeof PortalAdminInsightsRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
     '/_portal/admin/moderation': {
       id: '/_portal/admin/moderation'
       path: '/moderation'
@@ -533,6 +552,7 @@ declare module '@tanstack/react-router' {
 
 interface PortalAdminRouteChildren {
   PortalAdminChangelogRoute: typeof PortalAdminChangelogRoute
+  PortalAdminInsightsRoute: typeof PortalAdminInsightsRoute
   PortalAdminModerationRoute: typeof PortalAdminModerationRoute
   PortalAdminSettingsRoute: typeof PortalAdminSettingsRoute
   PortalAdminUsersRoute: typeof PortalAdminUsersRoute
@@ -541,6 +561,7 @@ interface PortalAdminRouteChildren {
 
 const PortalAdminRouteChildren: PortalAdminRouteChildren = {
   PortalAdminChangelogRoute: PortalAdminChangelogRoute,
+  PortalAdminInsightsRoute: PortalAdminInsightsRoute,
   PortalAdminModerationRoute: PortalAdminModerationRoute,
   PortalAdminSettingsRoute: PortalAdminSettingsRoute,
   PortalAdminUsersRoute: PortalAdminUsersRoute,
