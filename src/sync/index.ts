@@ -12,6 +12,7 @@ import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
 import { consumeNotification } from "../notifications/consume.ts";
 import { notifyQueue } from "../notifications/queue.ts";
+import { emailFailure } from "../email/state.ts";
 import { digestDue, emailEnabled, EMAIL_OUTBOX_PREFIX, queueEmails } from "../email/events.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
@@ -196,7 +197,13 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
     .map((row) => JSON.parse(row.value) as import("../contracts/sync.ts").EmailMessage);
   if (pendingEmails.length) await queueEmails(pendingEmails);
   if (digest) {
-    await notifyQueue().send(digest);
+    try {
+      await notifyQueue().send(digest);
+    } catch (error) {
+      // Report it in /api/health; the watermark stays put so the next tick resends the digest.
+      await emailFailure(error).catch(() => undefined);
+      throw error;
+    }
     await writeState("email.digest", digest.until);
   }
 }

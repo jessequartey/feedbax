@@ -266,6 +266,17 @@ describe("delivery", () => {
     expect(sent.calls).toHaveLength(2); // permanent failures and successes are terminal
   });
 
+  it("a bad key stops the slice instead of failing every recipient", async () => {
+    await account("voter");
+    await vote(POST, "voter");
+    const sent = stubResend(401);
+    const { ack, retry } = await consume(message());
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(sent.calls).toHaveLength(1);
+    expect(await readState("email.error")).toMatchObject({ status: 401 });
+  });
+
   it("skips completed sends even after the provider's 24-hour window", async () => {
     const sent = stubResend();
     await consume(message());

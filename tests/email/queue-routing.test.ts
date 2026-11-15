@@ -66,6 +66,7 @@ it("does not advance the digest watermark when the notification queue send fails
     runScheduled({ scheduledTime: Date.parse(digest.until) } as ScheduledController),
   ).rejects.toThrow();
   expect(await readState("email.digest")).toBeNull();
+  expect(await readState("email.error")).toMatchObject({ code: "storage" });
 });
 
 it("retries a failed email without stopping the rest of a notification batch or changing sync state", async () => {

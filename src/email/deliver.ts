@@ -173,6 +173,8 @@ async function send(
       .update(syncState)
       .set({ value: JSON.stringify({ state }), updatedAt: Date.now() })
       .where(eq(syncState.key, key));
+    // A bad key or sender fails every recipient: stop the slice and the continuation chain.
+    if (failure && (failure.status === 401 || failure.status === 403)) throw failure;
   }
   if (failure) await emailFailure(failure);
   else if (succeeded) await emailSuccess();
