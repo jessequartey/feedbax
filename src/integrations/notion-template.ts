@@ -66,12 +66,22 @@ export function guideBlocks() {
         icon: { type: "emoji", emoji: "💡" },
         color: "gray_background",
         children: [
-          bullet("Posts arrive automatically from your portal."),
-          bullet("Change **Status**: Open, Planned, In progress, Done, Closed."),
           bullet(
-            "Tick **Send to GitHub** to open one issue. **GitHub** is the issue link. Closing the issue sets the post to Done.",
+            "Triage: set **Status** or drag cards on the board. The portal updates within about 5 minutes.",
           ),
-          bullet("Keep the built-in properties' names. Add your own freely."),
+          bullet(
+            "Prioritize: set **Priority** (0–100). The **By priority** view sorts by it.",
+          ),
+          bullet(
+            "Ship: tick **Send to GitHub** to open an issue. A GitHub release noting `Closes #N` marks linked posts Done and adds a changelog entry.",
+          ),
+          bullet(
+            "Users can follow posts and get an email when the status changes (needs email set up).",
+          ),
+          bullet(
+            "Moderate in the portal with `npx feedbax admin`: review profanity, merge duplicates, hide or mark spam.",
+          ),
+          bullet("Keep the 13 built-in properties' names. Add your own freely."),
         ],
       },
     },
@@ -118,6 +128,7 @@ export type ExampleRow = {
   category: string;
   status: string;
   votes: number;
+  priority: number;
   daysAgo: number;
   description: string;
 };
@@ -127,6 +138,7 @@ export const EXAMPLE_ROWS: ExampleRow[] = [
     category: "Feature request",
     status: "Planned",
     votes: 12,
+    priority: 80,
     daysAgo: 4,
     description: "A dark theme for the portal, so late-night browsing is easier on the eyes.",
   },
@@ -135,6 +147,7 @@ export const EXAMPLE_ROWS: ExampleRow[] = [
     category: "Bug report",
     status: "Open",
     votes: 8,
+    priority: 95,
     daysAgo: 3,
     description: "The app closes right after I enter my password on the sign-in screen.",
   },
@@ -143,6 +156,7 @@ export const EXAMPLE_ROWS: ExampleRow[] = [
     category: "Feature request",
     status: "In progress",
     votes: 19,
+    priority: 60,
     daysAgo: 2,
     description: "Let me invite my whole team by email instead of one at a time.",
   },
@@ -151,6 +165,7 @@ export const EXAMPLE_ROWS: ExampleRow[] = [
     category: "General feedback",
     status: "Done",
     votes: 5,
+    priority: 20,
     daysAgo: 1,
     description: "Love the public roadmap. The status labels make it easy to follow.",
   },
@@ -172,6 +187,7 @@ export function exampleProperties(row: ExampleRow, now: Date) {
     Category: { select: { name: row.category } },
     Status: { select: { name: row.status } },
     Votes: { number: row.votes },
+    Priority: { number: row.priority },
     Created: { date: { start: exampleDate(now, row.daysAgo) } },
   };
 }
