@@ -1,6 +1,6 @@
 # Contributing
 
-Bug reports, pull requests and [community Notion templates](TEMPLATES.md) are welcome. The [README](README.md) is the user guide; keep setup instructions there.
+Bug reports, pull requests and [community Notion templates](TEMPLATES.md) are welcome. The [README](README.md) is the user guide; keep setup instructions there. Coding agents: read [AGENTS.md](AGENTS.md) first.
 
 ## Setup
 
