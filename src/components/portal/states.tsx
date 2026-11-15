@@ -3,32 +3,51 @@ import { Link } from "@tanstack/react-router";
 import { InboxIcon, RefreshCwIcon, TriangleAlertIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 
 export function EmptyState({
   title,
   description,
   actions,
+  action,
   icon: Icon = InboxIcon,
   titleRef,
 }: {
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  action?: React.ReactNode;
   icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
   /** When set, the heading can take focus (unsubscribe moves here once the result is known). */
   titleRef?: React.Ref<HTMLHeadingElement>;
 }) {
+  const content = actions ?? action;
   return (
-    <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-      <span className="flex size-10 items-center justify-center border bg-muted/40 text-muted-foreground">
-        <Icon className="size-5" aria-hidden="true" />
-      </span>
-      <h2 ref={titleRef} tabIndex={titleRef ? -1 : undefined} className="text-base font-medium">
-        {title}
-      </h2>
-      {description ? <p className="max-w-md text-sm text-muted-foreground">{description}</p> : null}
-      {actions ? <div className="mt-1 flex flex-wrap justify-center gap-2">{actions}</div> : null}
-    </div>
+    <Empty className="px-6 py-14">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon aria-hidden="true" />
+        </EmptyMedia>
+        <EmptyTitle className="text-base">
+          <h2 ref={titleRef} tabIndex={titleRef ? -1 : undefined}>
+            {title}
+          </h2>
+        </EmptyTitle>
+        {description ? (
+          <EmptyDescription className="max-w-md text-sm">{description}</EmptyDescription>
+        ) : null}
+      </EmptyHeader>
+      {content ? (
+        <EmptyContent className="flex-row flex-wrap justify-center gap-2">{content}</EmptyContent>
+      ) : null}
+    </Empty>
   );
 }
 

@@ -5,6 +5,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { getPlatformProxy } from "wrangler";
 import type { SyncMessage } from "../../src/contracts/sync.ts";
+import { clearFeedCache } from "../../src/server/changelog-feed.ts";
 import { clearSettingsCache } from "../../src/server/settings-cache.ts";
 
 const root = new URL("../../", import.meta.url);
@@ -139,6 +140,7 @@ export async function resetEnv(): Promise<void> {
   await env.DB.batch(TABLES_IN_DELETE_ORDER.map((table) => env.DB.prepare(`DELETE FROM ${table}`)));
   queue.reset();
   clearSettingsCache();
+  clearFeedCache();
   let cursor: string | undefined;
   do {
     const listed = await env.IMAGES.list({ cursor });

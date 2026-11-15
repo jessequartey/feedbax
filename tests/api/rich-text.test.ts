@@ -147,6 +147,16 @@ describe("lists and search use the text a reader sees", () => {
     expect((await listPostPage({ q: "**" }, null)).total).toBe(0);
   });
 
+  it("matches link labels without matching hidden link destination URLs", async () => {
+    await create(
+      "Read [the guide](https://secret-destination.example/path) or [email us](mailto:hidden@secret.example)",
+    );
+    for (const q of ["the guide", "email us"])
+      expect((await listPostPage({ q }, null)).total, q).toBe(1);
+    for (const q of ["secret-destination", "hidden@secret.example", "https://"])
+      expect((await listPostPage({ q }, null)).total, q).toBe(0);
+  });
+
   it("starts a changelog draft from the post as escaped plain text", () => {
     expect(draftExcerpt("**Bold** idea with `code` and 2 * 3 * 4")).toBe(
       "Bold idea with code and 2 \\* 3 \\* 4",

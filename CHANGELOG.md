@@ -18,6 +18,7 @@
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 - Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
 - **Reliable webhooks, inspection and replay.** Large event batches deliver without truncation, failed queue sends recover automatically, and admins can browse the webhook event catalog, filter recent deliveries, inspect payloads, and replay failed deliveries.
+- **Lower D1 and CPU cost.** `/changelog.rss` returns `ETag` headers, handles `If-None-Match` with `304 Not Modified`, and caches rendered XML per isolate (`1` D1 query on cache hits and revalidations); post detail, portal, changelog, moderation, and user lists batch D1 reads and use covering/partial indexes; board search strips Markdown link URLs when matching post bodies; portal search and empty states use Shadcn UI primitives (`Kbd`, `Spinner`, `Empty`).
 
 ## 0.3.1
 

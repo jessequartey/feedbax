@@ -9,6 +9,40 @@ import { runtimeConfig } from "./settings.ts";
 
 export const FEED_CONTENT_TYPE = "application/rss+xml; charset=utf-8";
 const FEED_LIMIT = 50;
+const FEED_CACHE_CONTROL = "public, max-age=300";
+const FEED_CACHE_MAX = 8;
+
+let feedCache = new WeakMap<D1Database, Map<string, string>>();
+
+export function clearFeedCache(): void {
+  feedCache = new WeakMap();
+}
+
+function getCachedXml(db: D1Database, etag: string): string | undefined {
+  return feedCache.get(db)?.get(etag);
+}
+
+function setCachedXml(db: D1Database, etag: string, xml: string): void {
+  let entries = feedCache.get(db);
+  if (!entries) {
+    entries = new Map();
+    feedCache.set(db, entries);
+  }
+  entries.set(etag, xml);
+  while (entries.size > FEED_CACHE_MAX) {
+    const oldest = entries.keys().next().value;
+    if (oldest !== undefined) entries.delete(oldest);
+  }
+}
+
+function matchesEtag(header: string | null, etag: string): boolean {
+  if (!header) return false;
+  const target = etag.replace(/^W\//, "");
+  return header.split(",").some((value) => {
+    const trimmed = value.trim();
+    return trimmed === "*" || trimmed.replace(/^W\//, "") === target;
+  });
+}
 
 /** Drops what XML 1.0 cannot carry at all: control codes, lone surrogates, U+FFFE and U+FFFF. */
 function stripInvalidXml(value: string): string {
@@ -77,13 +111,56 @@ ${items.join("\n")}
 `;
 }
 
-export async function handleChangelogFeed(): Promise<Response> {
-  const [entries, config] = await Promise.all([listFeedEntries(FEED_LIMIT), runtimeConfig()]);
-  return new Response(renderFeed(entries, config.name, env.PORTAL_URL), {
+export async function handleChangelogFeed(request?: Request): Promise<Response> {
+  const [stamp, config] = await Promise.all([
+    env.DB.prepare(
+      `SELECT
+         (SELECT count(*) FROM changelog_entries WHERE status = 'published') AS count,
+         (SELECT max(updated_at) FROM changelog_entries WHERE status = 'published') AS latest,
+         (SELECT max(published_at) FROM changelog_entries WHERE status = 'published') AS latest_pub,
+         (SELECT id FROM changelog_entries WHERE status = 'published' ORDER BY published_at DESC, id DESC LIMIT 1) AS newest_id,
+         (SELECT count(*) FROM changelog_posts cp
+           JOIN changelog_entries e ON e.id = cp.entry_id
+           JOIN posts p ON p.id = cp.post_id
+           WHERE e.status = 'published' AND p.hidden_at IS NULL AND p.spam = 0 AND p.merged_into IS NULL) AS linked_count,
+         (SELECT max(p.updated_at) FROM changelog_posts cp
+           JOIN changelog_entries e ON e.id = cp.entry_id
+           JOIN posts p ON p.id = cp.post_id
+           WHERE e.status = 'published' AND p.hidden_at IS NULL AND p.spam = 0 AND p.merged_into IS NULL) AS linked_latest`,
+    ).first<{
+      count: number;
+      latest: number | null;
+      latest_pub: number | null;
+      newest_id: string | null;
+      linked_count: number;
+      linked_latest: number | null;
+    }>(),
+    runtimeConfig(),
+  ]);
+  const origin = env.PORTAL_URL.replace(/\/$/, "");
+  const etag = `W/"rss-${stamp?.count ?? 0}-${stamp?.latest ?? 0}-${stamp?.latest_pub ?? 0}-${stamp?.newest_id ?? ""}-${stamp?.linked_count ?? 0}-${stamp?.linked_latest ?? 0}-${encodeURIComponent(config.name)}-${encodeURIComponent(origin)}"`;
+  if (matchesEtag(request?.headers.get("if-none-match") ?? null, etag)) {
+    return new Response(null, {
+      status: 304,
+      headers: {
+        ETag: etag,
+        "Cache-Control": FEED_CACHE_CONTROL,
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  }
+  let xml = getCachedXml(env.DB, etag);
+  if (xml === undefined) {
+    const entries = stamp?.count ? await listFeedEntries(FEED_LIMIT) : [];
+    xml = renderFeed(entries, config.name, env.PORTAL_URL);
+    setCachedXml(env.DB, etag, xml);
+  }
+  return new Response(xml, {
     headers: {
       "Content-Type": FEED_CONTENT_TYPE,
       // Feed readers poll; a few minutes of staleness after a publish is fine.
-      "Cache-Control": "public, max-age=300",
+      "Cache-Control": FEED_CACHE_CONTROL,
+      ETag: etag,
       "X-Content-Type-Options": "nosniff",
     },
   });

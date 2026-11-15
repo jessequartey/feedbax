@@ -10,7 +10,11 @@ import type { SyncErrorState, SyncMessage } from "../../src/contracts/sync.ts";
 import { NOTION_SCHEMA } from "../../src/integrations/notion-schema.ts";
 import { handleHealth } from "../../src/server/http.ts";
 import { serveImage } from "../../src/server/images.ts";
-import { createPostForUser, getPostDetail } from "../../src/server/posts.ts";
+import { grantAdmin } from "../../src/server/admin.ts";
+import { adminApi } from "../../src/server/admin-api.ts";
+import { listPublishedEntries } from "../../src/server/changelog.ts";
+import { clearFeedCache, handleChangelogFeed } from "../../src/server/changelog-feed.ts";
+import { createPostForUser, getPostDetail, listPostPage } from "../../src/server/posts.ts";
 import { queue, resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { form, png, writer } from "../api/helpers.ts";
 import { measure } from "./meter.ts";
@@ -227,6 +231,29 @@ describe("hot query plans", () => {
       ),
     ).toContain("COVERING INDEX votes_post_created_idx (post_id=? AND created_at>?)");
   });
+  test("admin moderation, user management and changelog reads use their indexes", async () => {
+    expect(
+      await plan("SELECT id FROM changelog_entries ORDER BY updated_at DESC, id DESC LIMIT 20"),
+    ).toContain("INDEX changelog_updated_idx");
+    expect(
+      await plan(
+        "SELECT id FROM posts WHERE hidden_at IS NOT NULL AND spam = 0 ORDER BY created_at DESC, id DESC LIMIT 20",
+      ),
+    ).toContain("INDEX posts_hidden_created_idx");
+    expect(
+      await plan("SELECT id FROM posts WHERE spam = 1 ORDER BY created_at DESC, id DESC LIMIT 20"),
+    ).toContain("INDEX posts_spam_created_idx");
+    expect(
+      await plan(
+        "SELECT id FROM user WHERE role = 'admin' ORDER BY created_at DESC, id DESC LIMIT 25",
+      ),
+    ).toContain("INDEX user_role_created_idx");
+    expect(
+      await plan(
+        "SELECT id FROM user WHERE banned_at IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT 25",
+      ),
+    ).toContain("INDEX user_banned_created_idx");
+  });
 });
 
 test("a revalidated image is answered from D1 without reading R2", async () => {
@@ -246,4 +273,67 @@ test("a revalidated image is answered from D1 without reading R2", async () => {
   expect(again.status).toBe(304);
   expect(again.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
   expect(get).not.toHaveBeenCalled();
+});
+
+test("changelog RSS cache hit and 304 revalidation cost 1 D1 query each", async () => {
+  const user = await writer();
+  await grantAdmin(user.id);
+  const admin = { ...user, admin: true };
+  const created = await adminApi.changelogCreate(admin, {
+    title: "v0.3.2",
+    body: "Faster **feeds**",
+  });
+  await adminApi.changelogSetStatus(admin, { id: created.id, published: true });
+  clearFeedCache();
+
+  let coldRes!: Response;
+  const cold = await measure(async () => {
+    coldRes = await handleChangelogFeed();
+  });
+  expect(coldRes.status).toBe(200);
+  const etag = coldRes.headers.get("etag")!;
+  expect(etag).toBeTruthy();
+  const coldXml = await coldRes.text();
+  expect(coldXml).toContain("<title>v0.3.2</title>");
+  expect(cold.queries).toBeGreaterThanOrEqual(3);
+
+  let hitXml = "";
+  let notModifiedStatus = 0;
+  const warmAnd304 = await measure(async () => {
+    const hit = await handleChangelogFeed();
+    const notModified = await handleChangelogFeed(
+      new Request(env.PORTAL_URL, { headers: { "if-none-match": etag } }),
+    );
+    hitXml = await hit.text();
+    notModifiedStatus = notModified.status;
+  });
+  expect(hitXml).toBe(coldXml);
+  expect(notModifiedStatus).toBe(304);
+  expect(warmAnd304.queries).toBe(2);
+});
+
+test("post detail and paginated list reads batch rows, metadata and totals into one D1 call", async () => {
+  await seed(20, { synced: false });
+  const adminUser = await writer();
+  await grantAdmin(adminUser.id);
+  const admin = { ...adminUser, admin: true };
+  const created = await adminApi.changelogCreate(admin, {
+    title: "Batch release",
+    body: "Notes",
+    postIds: [postId(0)],
+  });
+  await adminApi.changelogSetStatus(admin, { id: created.id, published: true });
+  await env.DB.prepare(
+    "INSERT INTO comments (id, post_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(crypto.randomUUID(), postId(0), "author", "Looks good", NOW)
+    .run();
+
+  expect((await measure(() => getPostDetail(postId(0), admin))).queries).toBe(1);
+  expect((await measure(() => listPostPage({}, admin))).queries).toBe(1);
+  expect((await measure(() => adminApi.listModerationPosts(admin, {}))).queries).toBe(1);
+  expect((await measure(() => adminApi.listModerationComments(admin, {}))).queries).toBe(1);
+  expect((await measure(() => adminApi.listUsers(admin, {}))).queries).toBe(1);
+  expect((await measure(() => listPublishedEntries({}))).queries).toBe(2);
+  expect((await measure(() => adminApi.changelogList(admin, {}))).queries).toBe(2);
 });

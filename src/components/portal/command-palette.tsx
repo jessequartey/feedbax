@@ -11,9 +11,12 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
+  CommandShortcut,
 } from "@/components/ui/command";
 import { DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
@@ -84,8 +87,12 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
         />
         <CommandList aria-busy={loading} className="max-h-[min(55dvh,420px)] p-2">
           {loading ? (
-            <p role="status" className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Searching…
+            <p
+              role="status"
+              className="flex items-center justify-center gap-2 px-3 py-8 text-sm text-muted-foreground"
+            >
+              <Spinner aria-hidden="true" />
+              <span>Searching…</span>
             </p>
           ) : null}
           {current?.error ? (
@@ -127,6 +134,12 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                           </span>
                         ) : null}
                       </span>
+                      <CommandShortcut
+                        aria-hidden="true"
+                        className="hidden opacity-0 group-data-selected/command-item:opacity-100 sm:inline-flex"
+                      >
+                        <Kbd>Enter</Kbd>
+                      </CommandShortcut>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -152,6 +165,12 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
                           </span>
                         ) : null}
                       </span>
+                      <CommandShortcut
+                        aria-hidden="true"
+                        className="hidden opacity-0 group-data-selected/command-item:opacity-100 sm:inline-flex"
+                      >
+                        <Kbd>Enter</Kbd>
+                      </CommandShortcut>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -161,9 +180,19 @@ export default function CommandPalette({ onClose }: { onClose: () => void }) {
         </CommandList>
       </Command>
       <div className="flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground">
-        <span>↑ ↓ Navigate · Enter Open</span>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 text-xs">
-          Esc · Close
+        <span className="flex items-center gap-2">
+          <KbdGroup>
+            <Kbd>↑</Kbd>
+            <Kbd>↓</Kbd>
+          </KbdGroup>
+          <span>Navigate</span>
+          <span aria-hidden="true">·</span>
+          <Kbd>Enter</Kbd>
+          <span>Open</span>
+        </span>
+        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 gap-1.5 text-xs">
+          <Kbd>Esc</Kbd>
+          <span>Close</span>
         </Button>
       </div>
     </DialogContent>
