@@ -2,8 +2,9 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { main } from "../../packages/feedbax/src/index.ts";
-import { ensureRunWorkerFirst } from "../../packages/feedbax/src/jsonc-edit.ts";
+import { ensureNotifyQueue, ensureRunWorkerFirst } from "../../packages/feedbax/src/jsonc-edit.ts";
 import { applyPlan, planUpgrade } from "../../packages/feedbax/src/merge.ts";
+import { parseJsonc } from "../../packages/create-feedbax/src/jsonc.ts";
 import { extractTemplate } from "../../packages/feedbax/src/registry.ts";
 import { compareVersions, detectVersion } from "../../packages/feedbax/src/version.ts";
 import { scripted } from "./fakes.ts";
@@ -16,6 +17,7 @@ import {
   git,
   project,
   REGISTRY,
+  scaffoldedPackage,
   tarball,
   template,
   wranglerJson,
@@ -349,7 +351,146 @@ describe("feedbax migrate", () => {
     expect(await read(cwd, "src/server.ts")).toContain("<<<<<<< your project");
     expect(run.prompt.log.join("\n")).toContain("src/server.ts: conflict markers written");
     expect(run.wrangler.calls).toEqual([]);
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+  });
+
+  it.each([
+    ["install", "npm install"],
+    ["migrations", "wrangler d1 migrations apply DB --remote"],
+    ["build", "npm run build"],
+    ["deploy", "wrangler deploy"],
+  ])("resumes an interrupted %s without repeating completed steps", async (step, command) => {
+    const cwd = await project({ ...files, ".feedbax/version": "0.3.0\n" }, { git: true });
+    const failed = deps(cwd);
+    const run: typeof failed.deps.run = async (cmd, args, options) => {
+      // Even during deploy, the installed version must still be the old one.
+      expect(await read(cwd, ".feedbax/version")).toBe("0.3.0\n");
+      const result = await failed.wrangler.run(cmd, args, options);
+      return failed.wrangler.calls.at(-1) === command
+        ? { ...result, code: 1, stderr: "Simulated interruption" }
+        : result;
+    };
+    expect(await main(["migrate", "--yes"], { ...failed.deps, run })).toBe(1);
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.0\n");
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe(step);
+    const source = await read(cwd, "src/server.ts");
+
+    const dry = deps(cwd);
+    const marker = await read(cwd, ".feedbax/migrate.json");
+    expect(await main(["migrate", "--dry-run"], dry.deps)).toBe(0);
+    expect(dry.prompt.log.join("\n")).toContain(`Resume 0.3.0 → 0.3.1 (dry run: nothing changes)`);
+    expect(dry.prompt.log.join("\n")).toContain("Write .feedbax/version = 0.3.1");
+    expect(await read(cwd, ".feedbax/migrate.json")).toBe(marker);
+    expect(dry.registry.requests).toEqual([]);
+    expect(dry.wrangler.calls).toEqual([]);
+
+    // Resume is offline with respect to the registry, and accepts the upgrade's dirty tree.
+    const resumed = deps(cwd);
+    const prompt = scripted([true, true, true]);
+    expect(await main(["migrate"], { ...resumed.deps, prompt, interactive: true })).toBe(0);
+    expect(prompt.log).toContain(
+      `${step === "deploy" ? "Deploy" : "Build and deploy"} 0.3.1? [default Yes]`,
+    );
+    const all = [
+      "npm install",
+      "wrangler d1 migrations apply DB --remote",
+      "npm run build",
+      "wrangler deploy",
+    ];
+    expect(resumed.wrangler.calls).toEqual(all.slice(all.indexOf(command)));
+    expect(resumed.registry.requests).toEqual([]);
+    expect(await read(cwd, "src/server.ts")).toBe(source);
     expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+    await expect(read(cwd, ".feedbax/migrate.json")).rejects.toThrow();
+    await expect(read(cwd, ".feedbax/migrate-source.json")).rejects.toThrow();
+  });
+
+  it("resumes a partially applied source plan without overwriting completed files", async () => {
+    const cwd = await project(files, { git: true });
+    const interrupted = deps(cwd);
+    const sourceNext = { ...next, files: new Map(next.files) };
+    sourceNext.files.set("src/zz.ts", {
+      bytes: Buffer.from("export const added = true;\n"),
+      mode: 0o644,
+    });
+    const registry = fakeRegistry([base, sourceNext]);
+    const prompt = scripted();
+    prompt.confirm = async () => {
+      // Simulate a filesystem failure after planning, late in source application.
+      await mkdir(join(cwd, "src/zz.ts"));
+      return true;
+    };
+    expect(
+      await main(["migrate"], {
+        ...interrupted.deps,
+        fetch: registry.fetch,
+        prompt,
+        interactive: true,
+      }),
+    ).toBe(1);
+    const state = JSON.parse(await read(cwd, ".feedbax/migrate.json"));
+    expect(state.step).toBe("source");
+    expect(state.sourceIndex).toBeGreaterThan(0);
+    expect(await read(cwd, "src/server.ts")).toBe("export const v = 4;\n");
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+    // A user's completed-source edit must survive the retry.
+    await writeFile(join(cwd, "src/server.ts"), "export const v = 44;\n");
+    await rm(join(cwd, "src/zz.ts"), { recursive: true });
+    // A torn structural write must not prevent loading the saved source plan.
+    await writeFile(join(cwd, "wrangler.jsonc"), '{ "assets":');
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(resumed.registry.requests).toEqual([]);
+    expect(await read(cwd, "src/server.ts")).toBe("export const v = 44;\n");
+    expect(await read(cwd, "src/zz.ts")).toBe("export const added = true;\n");
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+  });
+
+  it("resumes a failed version write after deploy without redeploying", async () => {
+    const cwd = await project(files, { git: true });
+    const failed = deps(cwd);
+    const run: typeof failed.deps.run = async (cmd, args, options) => {
+      const result = await failed.wrangler.run(cmd, args, options);
+      if (args.includes("deploy")) await mkdir(join(cwd, ".feedbax/version"));
+      return result;
+    };
+    expect(await main(["migrate", "--yes"], { ...failed.deps, run })).toBe(1);
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe("version");
+    await rm(join(cwd, ".feedbax/version"), { recursive: true });
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(resumed.wrangler.calls).toEqual([]);
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+  });
+
+  it("resumes after resolving conflicts without merging the source again", async () => {
+    const cwd = await project(
+      { ...files, "src/server.ts": "export const v = 33;\n" },
+      { git: true },
+    );
+    const failed = deps(cwd);
+    expect(await main(["migrate", "--yes"], failed.deps)).toBe(1);
+    const unresolved = deps(cwd);
+    expect(await main(["migrate", "--yes"], unresolved.deps)).toBe(2);
+    expect(unresolved.wrangler.calls).toEqual([]);
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+    await writeFile(join(cwd, "src/server.ts"), "export const v = 34;\n");
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(await read(cwd, "src/server.ts")).toBe("export const v = 34;\n");
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+  });
+
+  it("keeps the version unchanged when deployment is declined, then resumes", async () => {
+    const cwd = await project(files, { git: true });
+    const paused = deps(cwd);
+    const prompt = scripted([true, true, false]);
+    expect(await main(["migrate"], { ...paused.deps, interactive: true, prompt })).toBe(0);
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe("build");
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(resumed.wrangler.calls).toEqual(["npm run build", "wrangler deploy"]);
   });
 
   it("refuses downgrades and unknown targets", async () => {
@@ -362,5 +503,180 @@ describe("feedbax migrate", () => {
     expect(down.prompt.log.join("\n")).toContain("Downgrading");
     const missing = deps(cwd);
     expect(await main(["migrate", "9.9.9", "--yes"], missing.deps)).toBe(2);
+  });
+});
+
+describe("notification queue upgrade", () => {
+  const before = wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"]);
+  const base = template("0.3.1", { "wrangler.jsonc": before });
+  const next = template("0.3.2", { "wrangler.jsonc": ensureNotifyQueue(before) });
+
+  it("adds both structural edits when upgrading directly from 0.3.0", async () => {
+    const cwd = await project();
+    const plan = await planUpgrade({ cwd, baseline: template("0.3.0", {}), target: next });
+    await applyPlan(cwd, plan);
+    const w = JSON.parse(await read(cwd, "wrangler.jsonc"));
+    expect(w.assets.run_worker_first).toContain("/changelog.rss");
+    expect(w.assets.run_worker_first).toContain("/admin/enter");
+    expect(w.queues.producers).toContainEqual({
+      binding: "NOTIFY_QUEUE",
+      queue: "my-feedback-notify",
+    });
+  });
+
+  it("preserves JSONC comments, sync settings and custom names, idempotently", () => {
+    const text = before
+      .replace('"queues": {', '// keep queues\n  "queues": {')
+      .replace('"my-feedback-sync"', '"custom-sync"');
+    const after = ensureNotifyQueue(text);
+    expect(after).toContain("// keep queues");
+    const original = parseJsonc(text) as any;
+    const changed = parseJsonc(after) as any;
+    expect(changed.queues.producers[0]).toEqual(original.queues.producers[0]);
+    expect(changed.queues.consumers[0]).toEqual(original.queues.consumers[0]);
+    expect(changed.vars).toEqual(original.vars);
+    expect(changed.d1_databases).toEqual(original.d1_databases);
+    expect(changed.queues.consumers[1]).toEqual({
+      queue: "my-feedback-notify",
+      max_batch_size: 5,
+      max_concurrency: 3,
+      max_retries: 5,
+    });
+    expect(ensureNotifyQueue(after)).toBe(after);
+    const producerOnly = parseJsonc(after) as any;
+    producerOnly.queues.consumers.pop();
+    expect(JSON.parse(ensureNotifyQueue(JSON.stringify(producerOnly)))).toEqual(changed);
+  });
+
+  it("plans without remote calls, provisions once, and adopts an existing queue on rerun", async () => {
+    const cwd = await project(
+      { "package.json": scaffoldedPackage("0.3.1"), "wrangler.jsonc": before },
+      { git: true },
+    );
+    const registry = fakeRegistry([base, next]);
+    const fake = fakeWrangler();
+    let exists = false;
+    let created = 0;
+    const deps = {
+      cwd,
+      env: { npm_config_registry: REGISTRY },
+      fetch: registry.fetch,
+      prompt: scripted(),
+      interactive: false,
+      log: () => {},
+      run: async (...args: Parameters<typeof fake.run>) => {
+        const call = args[1].join(" ");
+        if (call.includes("queues create")) {
+          if (exists) return { code: 1, stdout: "", stderr: "Queue already exists" };
+          exists = true;
+          created++;
+        }
+        return fake.run(...args);
+      },
+    };
+    expect(await main(["migrate", "--dry-run"], deps)).toBe(0);
+    expect(fake.calls).toEqual([]);
+    expect(await read(cwd, "wrangler.jsonc")).toBe(before);
+    expect(await main(["migrate", "--yes"], deps)).toBe(0);
+    expect(created).toBe(1);
+    expect(fake.calls.indexOf("wrangler queues create my-feedback-notify")).toBeLessThan(
+      fake.calls.indexOf("wrangler deploy"),
+    );
+    const once = await read(cwd, "wrangler.jsonc");
+    const calls = [...fake.calls];
+    expect(await main(["migrate", "--dry-run"], deps)).toBe(0);
+    expect(fake.calls).toEqual(calls);
+    expect(await main(["migrate", "--yes", "--force"], deps)).toBe(0);
+    expect(created).toBe(1);
+    expect(fake.calls).toContain("wrangler queues info my-feedback-notify");
+    expect(await read(cwd, "wrangler.jsonc")).toBe(once);
+  });
+
+  it("keeps the installed version on queue failure and resumes at queue without --force", async () => {
+    const cwd = await project(
+      {
+        "package.json": scaffoldedPackage("0.3.1"),
+        "wrangler.jsonc": before,
+        ".feedbax/version": "0.3.1\n",
+      },
+      { git: true },
+    );
+    const registry = fakeRegistry([base, next]);
+    const fake = fakeWrangler();
+    let fail = true;
+    const deps = {
+      cwd,
+      env: { npm_config_registry: REGISTRY },
+      fetch: registry.fetch,
+      prompt: scripted(),
+      interactive: false,
+      log: () => {},
+      run: async (...args: Parameters<typeof fake.run>) => {
+        expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+        const result = await fake.run(...args);
+        return fail && args[1].includes("queues")
+          ? { ...result, code: 1, stderr: "Authentication failed" }
+          : result;
+      },
+    };
+    expect(await main(["migrate", "--yes"], deps)).toBe(1);
+    expect(fake.calls).toEqual([
+      "npm install",
+      "wrangler queues create my-feedback-notify",
+      "wrangler queues info my-feedback-notify",
+    ]);
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe("queue");
+
+    fake.calls.length = 0;
+    registry.requests.length = 0;
+    deps.prompt.log.length = 0;
+    const marker = await read(cwd, ".feedbax/migrate.json");
+    expect(await main(["migrate", "--dry-run"], deps)).toBe(0);
+    expect(deps.prompt.log.join("\n")).toContain("1. Create the notification queue if missing");
+    expect(deps.prompt.log.join("\n")).not.toContain("Install dependencies");
+    expect(await read(cwd, ".feedbax/migrate.json")).toBe(marker);
+    expect(fake.calls).toEqual([]);
+
+    fail = false;
+    expect(await main(["migrate", "--yes"], deps)).toBe(0);
+    expect(fake.calls).toEqual([
+      "wrangler queues create my-feedback-notify",
+      "wrangler d1 migrations apply DB --remote",
+      "npm run build",
+      "wrangler deploy",
+    ]);
+    expect(registry.requests).toEqual([]);
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.2\n");
+    await expect(read(cwd, ".feedbax/migrate.json")).rejects.toThrow();
+    await expect(read(cwd, ".feedbax/migrate-source.json")).rejects.toThrow();
+  });
+
+  it("stops before deployment on provisioning errors and retries on the recorded version", async () => {
+    const cwd = await project(
+      { "package.json": scaffoldedPackage("0.3.1"), "wrangler.jsonc": before },
+      { git: true },
+    );
+    const registry = fakeRegistry([base, next]);
+    const fake = fakeWrangler();
+    let fail = true;
+    const deps = {
+      cwd,
+      env: { npm_config_registry: REGISTRY },
+      fetch: registry.fetch,
+      prompt: scripted(),
+      interactive: false,
+      log: () => {},
+      run: async (...args: Parameters<typeof fake.run>) => {
+        if (fail && args[1].includes("queues"))
+          return { code: 1, stdout: "", stderr: "Authentication failed" };
+        return fake.run(...args);
+      },
+    };
+    expect(await main(["migrate", "--yes"], deps)).toBe(1);
+    expect(fake.calls).not.toContain("wrangler deploy");
+    fail = false;
+    expect(await main(["migrate", "--yes", "--force"], deps)).toBe(0);
+    expect(fake.calls).toContain("wrangler queues create my-feedback-notify");
   });
 });

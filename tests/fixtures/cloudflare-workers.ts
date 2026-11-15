@@ -28,7 +28,7 @@ export type FakeQueue = {
   sendBatch(messages: Iterable<{ body: SyncMessage }>): Promise<void>;
 };
 
-function createFakeQueue(): FakeQueue {
+export function createFakeQueue(): FakeQueue {
   let failures = 0;
   const queue: FakeQueue = {
     sent: [],

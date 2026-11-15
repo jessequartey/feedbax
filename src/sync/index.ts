@@ -1,34 +1,27 @@
-import { inArray, lt, sql } from "drizzle-orm";
+import { inArray, lt, or, sql } from "drizzle-orm";
 import { IntegrationError } from "../contracts/integrations.ts";
-import type { SyncErrorState, SyncMessage } from "../contracts/sync.ts";
+import {
+  isNotifyMessage,
+  type NotifyMessage,
+  type SyncErrorState,
+  type SyncMessage,
+} from "../contracts/sync.ts";
 import { syncState, usedTokens } from "../db/schema.ts";
 import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
 import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
-import { consumeEmail } from "../email/deliver.ts";
-import { digestDue, emailEnabled } from "../email/events.ts";
-import type { EmailMessage } from "../contracts/sync.ts";
-import { deliverWebhook } from "../server/webhooks.ts";
+import { consumeNotification } from "../notifications/consume.ts";
+import { notifyQueue } from "../notifications/queue.ts";
+import { emailFailure } from "../email/state.ts";
+import { digestDue, emailEnabled, EMAIL_OUTBOX_PREFIX, queueEmails } from "../email/events.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
   // Keep processing sequential even if a larger batch is delivered accidentally.
   for (const message of batch.messages) {
     const body = message.body;
-    if (body.type.startsWith("email.")) {
-      await consumeEmail(message as Message<EmailMessage>);
-      continue;
-    }
-    if (body.type === "webhook.deliver") {
-      // Webhooks have their own retry schedule and never touch the Notion/GitHub error state.
-      try {
-        const delaySeconds = await deliverWebhook(body.deliveryId);
-        if (delaySeconds === null) message.ack();
-        else message.retry({ delaySeconds });
-      } catch {
-        // D1 failed (the request itself never throws). Try again shortly.
-        console.error({ type: "webhook.deliver_failed", deliveryId: body.deliveryId });
-        message.retry({ delaySeconds: 60 });
-      }
+    if (isNotifyMessage(body)) {
+      // Drain deliveries queued before the notification binding was provisioned.
+      await consumeNotification(message as Message<NotifyMessage>);
       continue;
     }
     if (body.type.startsWith("github.") && !config.integrations.github) {
@@ -119,7 +112,8 @@ const STATE_KEYS = [
 ];
 
 /**
- * Cron: cheap D1 reads and at most one Queue call. External I/O stays in the consumer.
+ * Cron: cheap D1 reads and one sync Queue call, plus one notify call when a digest is due.
+ * External I/O stays in the consumer.
  * An idle tick is 2 D1 statements (4–5 with GitHub) and one `sendBatch` of the polls.
  */
 export async function runScheduled(controller: ScheduledController): Promise<void> {
@@ -127,7 +121,19 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const database = db();
   const [, rows] = await database.batch([
     database.delete(usedTokens).where(lt(usedTokens.expiresAt, now)),
-    database.select().from(syncState).where(inArray(syncState.key, STATE_KEYS)),
+    database
+      .select()
+      .from(syncState)
+      .where(
+        or(
+          inArray(syncState.key, STATE_KEYS),
+          // An indexed range in the existing read: zero extra statements/rows when idle.
+          inArray(
+            syncState.key,
+            sql`(SELECT key FROM sync_state WHERE key >= ${EMAIL_OUTBOX_PREFIX} AND key < ${"email.outbox0"} ORDER BY key LIMIT 10)`,
+          ),
+        ),
+      ),
   ]);
   const state = new Map(rows.map((row) => [row.key, JSON.parse(row.value) as unknown]));
   const error = (provider: string) => state.get(`${provider}.error`) as SyncErrorState | undefined;
@@ -147,14 +153,14 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   const sweep: SyncMessage[] = [];
   if (notion && !providerPaused(error("notion"), now))
     for (const postId of await pendingIds(
-      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_blocked = 0 AND (notion_page_id IS NULL OR notion_revision < revision) ORDER BY updated_at, id LIMIT 25`,
+      sql`SELECT id FROM posts INDEXED BY posts_notion_pending WHERE notion_blocked = 0 AND (notion_page_id IS NULL OR notion_revision < revision) AND (notion_page_id IS NOT NULL OR (hidden_at IS NULL AND spam = 0 AND merged_into IS NULL)) ORDER BY updated_at, id LIMIT 25`,
     ))
       sweep.push({ type: "notion.post", postId });
   let githubWork = false;
   if (github) {
     if (!providerPaused(error("github"), now))
       for (const postId of await pendingIds(
-        sql`SELECT id FROM posts INDEXED BY posts_github_pending WHERE github_requested = 1 AND github_number IS NULL LIMIT 10`,
+        sql`SELECT id FROM posts INDEXED BY posts_github_pending WHERE github_requested = 1 AND github_number IS NULL AND hidden_at IS NULL AND spam = 0 AND merged_into IS NULL LIMIT 10`,
       )) {
         sweep.push({ type: "github.issue", postId });
         githubWork = true;
@@ -166,7 +172,7 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
       !!error("github") ||
       (
         await pendingIds(
-          sql`SELECT id FROM posts INDEXED BY posts_github_open WHERE github_number IS NOT NULL AND github_closed_at IS NULL LIMIT 1`,
+          sql`SELECT id FROM posts INDEXED BY posts_github_open WHERE github_number IS NOT NULL AND github_closed_at IS NULL AND hidden_at IS NULL AND spam = 0 AND merged_into IS NULL LIMIT 1`,
         )
       ).length > 0;
     if (!githubWork) await watermark("github", until);
@@ -183,9 +189,21 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
     ...(github && githubWork
       ? [{ type: "github.poll", since: since("github"), until, page: 1 } as const]
       : []),
-    ...(digest ? [digest] : []),
   ];
-  // One Queue call per tick: every send is a subrequest on Workers Free (50 per invocation).
+  // No extra idle-tick work; due digests and retained enqueues use the notify queue.
   if (messages.length) await env.SYNC_QUEUE.sendBatch(messages.map((body) => ({ body })));
-  if (digest) await writeState("email.digest", digest.until);
+  const pendingEmails = rows
+    .filter((row) => row.key.startsWith(EMAIL_OUTBOX_PREFIX))
+    .map((row) => JSON.parse(row.value) as import("../contracts/sync.ts").EmailMessage);
+  if (pendingEmails.length) await queueEmails(pendingEmails);
+  if (digest) {
+    try {
+      await notifyQueue().send(digest);
+    } catch (error) {
+      // Report it in /api/health; the watermark stays put so the next tick resends the digest.
+      await emailFailure(error).catch(() => undefined);
+      throw error;
+    }
+    await writeState("email.digest", digest.until);
+  }
 }

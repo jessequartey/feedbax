@@ -53,7 +53,7 @@ Then add what you need, from the project folder. To remove spam or manage users,
 
 ## Add-ons
 
-Each add-on is optional. Run it from the project folder. It prompts, sets Cloudflare secrets, edits `feedbax.config.ts` and offers to redeploy. Secrets come from masked prompts or environment variables, never flags. `--yes` never prompts: set the variables below and pass the flag. `npx feedbax add --help` lists them.
+Each add-on is optional. Run it from the project folder. It validates inputs and checks provider access before changing anything, writes config, sets Cloudflare secrets and offers to redeploy. If a later step fails, it lists changed files and secret names with a recovery command. Secrets come from masked prompts or environment variables, never flags. `--yes` never prompts: set the variables below and pass the flag. `npx feedbax add --help` lists them.
 
 Projects created before 0.3.1 have no local `feedbax` package. Keep using `npx feedbax@latest`.
 
@@ -105,6 +105,8 @@ People with a known email (GitHub, Google or host login) are emailed when a post
 npx feedbax@latest add email
 RESEND_API_KEY=… npx feedbax@latest add email --from "Feedbax <feedback@example.com>" --yes
 ```
+
+Email deliveries retry temporary failures and continue large audiences in small slices. Completed recipients are skipped on redelivery; unsubscribes are checked before each send. If a send remains uncertain for 24 hours, it is recorded as `idempotency_expired` rather than replayed outside Resend’s deduplication window.
 
 This sets `RESEND_API_KEY` and `notifications.email.from`. Remove `notifications.email` from `feedbax.config.ts` to turn email off.
 
@@ -213,7 +215,7 @@ People → Cloudflare portal → D1 (source of truth)
 Images live in R2. The portal keeps working if Notion or GitHub is down. Sync catches up later. Posts and images are public as soon as they are submitted.
 
 - Change **Status** in Notion: Open, Planned, In progress, Done or Closed. **Done** means delivered. **Closed** means declined, duplicate or out of scope. Allow about 5 minutes.
-- With GitHub enabled, tick **Send to GitHub** to create one issue. Changing Status does not create an issue. Unticking later does nothing. Closing the issue marks the post **Done**. Reopening it does not undo that.
+- With GitHub enabled, tick **Send to GitHub** to create one issue. Changing Status does not create an issue. Unticking later does nothing. Hidden, spam, merged and deleted posts are skipped; their checkbox stays unchanged, and restoring a post resumes its approval. Closing the issue marks a public post **Done**. Reopening it does not undo that.
 - Keep the database property names and types. Extra properties and views are fine. Feedbax writes the author, counts and links. Your team changes Status and Send to GitHub.
 - Votes update on the portal immediately. Bursts are combined before Notion sync. Each user can change a vote up to 10 times in 10 seconds and 120 times an hour. Repeating the same vote does not count again.
 
@@ -418,14 +420,15 @@ Edit `feedbax.config.ts` and redeploy to change options. Conflicting setup flags
 ```sh
 npx feedbax@latest migrate --dry-run   # print the plan, change nothing
 npx feedbax@latest migrate             # upgrade to the latest release
-npx feedbax@latest migrate 0.3.1       # or a specific version
+npx feedbax@latest migrate 0.3.2       # or a specific version
 ```
 
-`migrate` downloads the published `create-feedbax` template for your version and the target, then merges upstream changes into your files. After you confirm, it installs dependencies if they changed, applies new D1 migrations and deploys. `--yes` confirms every step.
+`migrate` downloads the published `create-feedbax` template for your version and the target, then merges upstream changes into your files. After you confirm, it installs dependencies if they changed, creates any missing notification queue, applies new D1 migrations and deploys. `--yes` confirms every step.
 
 - **Clean tree.** It refuses uncommitted changes, and it refuses a folder that is not a Git repository. Commit first, or pass `--force`.
-- **Conflicts.** Where you and upstream edited the same lines, it writes conflict markers, lists the files and stops before install, migrate or deploy. Resolve them, then run `npx feedbax deploy`.
+- **Conflicts.** Where you and upstream edited the same lines, it writes conflict markers, lists the files and stops before install, migrate or deploy. Resolve them, run your checks, then rerun `npx feedbax migrate`.
 - **Protected.** It does not change your `feedbax.config.ts` values, `wrangler.jsonc` resource IDs, names, routes and vars, `.dev.vars`, `.env*`, or Cloudflare secrets. Required structural edits to those files keep your values.
+- **Resume.** Rerun `npx feedbax migrate` after a failure or interruption, including queue provisioning. Progress is saved in `.feedbax/`; completed steps are skipped, and `--dry-run` lists the remaining steps. The installed version advances only after queue provisioning, migrations and deploy succeed.
 - **Baseline.** The installed version is `.feedbax/version`. A 0.3.0 project has no such file. It is detected from `package.json`. Because 0.3.0 does not depend on `feedbax`, run `npx feedbax@latest migrate`. If detection fails, pass `--baseline <version>` with the `create-feedbax` version you started from.
 
 There is no migration from 0.2.x. Start a new project. See [CHANGELOG.md](CHANGELOG.md).
@@ -440,9 +443,17 @@ Run `npx feedbax@latest admin` from the project. It prints a sign-in link that w
 
 Hidden, spam and merged posts leave the board, roadmap and search. Authors still see them under **My feedback**. A signed-in admin sees **Admin** in the header. Everyone else gets "not found" for `/admin`.
 
+1. Use **Send to GitHub** on public posts only; moderation pauses approval without changing the Notion checkbox.
+2. Hide or mark spam to restrict attachments to the author and admins; merged attachments are admin-only, and deleted attachments return 404.
+3. Restore a post to resume syncing; Feedbax restores only Notion mirrors it archived, and never mirrors new non-public posts.
+
+Public images cache for at most 60 seconds; session responses are private and revalidate each time. ETags avoid repeat R2 reads. Older releases' cached browser copies cannot be recalled. Queued webhooks recheck visibility before every attempt, RSS omits non-public linked posts, and OG images contain no post data. Changelog titles and release notes are independent editorial content; edit them separately if they contain sensitive text.
+
 ## Free plan
 
-Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, one Queue and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off.
+Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, two Queues and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off. Moderation adds no idle cron statements or provider calls; cleanup runs only for changed mirrors in the queue.
+
+Email and webhooks use `<name>-notify`; Notion and GitHub use `<name>-sync`. Run `npx feedbax@latest migrate` to add the notification queue to an existing project; deliveries use the sync queue until then. The split adds no D1 statements or queue messages per idle cron tick. Queues includes 10,000 operations/day on Free: a delivered message up to 64 KB uses three operations (write, read, delete), plus one read per retry. Moving deliveries to their own queue does not add operations.
 
 Workers Free allows 10 ms of CPU per HTTP request. Some measured social, host-login and data requests exceeded that budget. The tested flows still worked. Further CPU optimization is deferred. This release does not guarantee every request fits the Free limit. CPU time is processing time. Waiting on the network is excluded.
 
@@ -454,7 +465,7 @@ Vote on planned work on the [demo roadmap](https://feedbax.juutech.africa/roadma
 
 ## Troubleshooting
 
-Run `npx feedbax@latest doctor` first. It checks config, Cloudflare secrets and bindings, `/api/health`, Notion access and GitHub access when GitHub is enabled, and prints a fix for each failure. `/api/health` reports `notion` and `github` as `ok`, `failing` or `off`. For logs, run `npx wrangler tail` or open Workers Logs.
+Run `npx feedbax@latest doctor` first. It checks config, Cloudflare secrets and bindings, `/api/health`, Notion access and GitHub access when GitHub is enabled, and prints a fix for each failure. `/api/health` reports `notion`, `github` and `email` as `ok`, `failing` or `off`. For logs, run `npx wrangler tail` or open Workers Logs.
 
 If one post stops syncing because its Notion row was trashed, restore that row. Other posts keep syncing. A later poll reconnects the restored row. Feedbax does not recreate it. Unexpected HTTP errors include `X-Request-ID`. Use it with Workers Logs. Keep secrets out of bug reports.
 
@@ -465,7 +476,7 @@ If one post stops syncing because its Notion row was trashed, restore that row. 
 | Public template missing or shows “No results” | Continue with a blank page you own: connect it in step 2 and let setup create the database. Report the template link on [GitHub issues](https://github.com/jessequartey/feedbax/issues).                                              |
 | “R2 isn't enabled on this account”            | Follow the CLI link, click **Enable R2**, then press Enter. A payment method is required on the free tier.                                                                                                                            |
 | workers.dev subdomain fails                   | Pick another name, or follow the CLI's Workers & Pages link and press Enter when ready.                                                                                                                                               |
-| Resource name already exists                  | Choose another project name. `<name>-db`, `<name>-images` and `<name>-sync` must be unused.                                                                                                                                           |
+| Resource name already exists                  | Choose another project name. `<name>-db`, `<name>-images`, `<name>-sync` and `<name>-notify` must be unused.                                                                                                                          |
 | Setup stopped halfway                         | Rerun the same command and accept **Finish setting up …?** Secrets and resources are reused.                                                                                                                                          |
 | GitHub repo rejected                          | Use `owner/repo`, enable Issues, unarchive the repo, and give the token Issues read/write. Then rerun `npx feedbax@latest add github`.                                                                                                |
 | GitHub/Google sign-in fails                   | Check both OAuth credentials and the exact deployed callback. An Issues token does not enable login. For Google, also check consent-screen publishing and test users.                                                                 |

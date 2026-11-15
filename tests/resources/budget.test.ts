@@ -244,6 +244,6 @@ test("a revalidated image is answered from D1 without reading R2", async () => {
     image.id,
   );
   expect(again.status).toBe(304);
-  expect(again.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  expect(again.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
   expect(get).not.toHaveBeenCalled();
 });

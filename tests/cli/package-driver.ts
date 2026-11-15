@@ -21,7 +21,10 @@ const fetch: typeof globalThis.fetch = async (input, init) => {
   if ((input instanceof Request ? input.url : input.toString()).includes("/queues?"))
     return Response.json({
       success: true,
-      result: state.queue ? [{ queue_name: "my-feedback-sync" }] : [],
+      result: [
+        ...(state.queue ? [{ queue_name: "my-feedback-sync" }] : []),
+        ...(state.notifyQueue ? [{ queue_name: "my-feedback-notify" }] : []),
+      ],
     });
   return Response.json({ success: true, result: { subdomain: "team" } });
 };

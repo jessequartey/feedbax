@@ -463,3 +463,22 @@ function assertWellFormed(xml: string) {
   expect(stack).toEqual([]);
   expect(sawRoot).toBe(true);
 }
+
+it.each(["hidden", "spam", "merged", "deleted"] as const)(
+  "RSS never serializes a linked post that later becomes %s",
+  async (state) => {
+    const who = await admin(),
+      author = await writer();
+    const id = await post(author, "Confidential post title");
+    await entry(who, { title: "Release", body: "Editorial release note", postIds: [id] });
+    expect(await (await handleChangelogFeed()).text()).toContain("Confidential post title");
+    if (state === "deleted") await adminApi.deletePost(who, { postId: id });
+    else if (state === "merged")
+      await adminApi.mergePost(who, { sourceId: id, targetId: await post(author) });
+    else await adminApi.setPostState(who, { postId: id, state });
+    const feed = await (await handleChangelogFeed()).text();
+    expect(feed).toContain("Editorial release note");
+    expect(feed).not.toContain("Confidential post title");
+    expect(feed).not.toContain(`/posts/${id}`);
+  },
+);

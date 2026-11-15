@@ -1,9 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { CliError } from "../../create-feedbax/src/flags.ts";
 import { confirmStep, loadProject, tools, type Context } from "./context.ts";
+import { ensureNotifyQueue } from "./jsonc-edit.ts";
 import { applyPlan, planSummary, planUpgrade, type Plan } from "./merge.ts";
-import { fetchPackument, fetchTemplate, registryUrl } from "./registry.ts";
+import { fetchPackument, fetchTemplate, registryUrl, safeRelativePath } from "./registry.ts";
 import {
   compareVersions,
   detectVersion,
@@ -34,10 +37,27 @@ export async function gitChanges(cwd: string): Promise<string[] | null> {
 }
 
 export async function migrate(ctx: Context, options: MigrateOptions): Promise<number> {
-  const project = await loadProject(ctx);
   for (const version of [options.version, options.baseline])
     if (version !== undefined && !isVersion(version))
       throw new CliError(`${version} is not a version (expected x.y.z).`, 2);
+  const progress = await readProgress(ctx.cwd);
+  if (progress) {
+    if (
+      (options.version && options.version !== progress.to) ||
+      (options.baseline && options.baseline !== progress.from)
+    )
+      throw new CliError(
+        `An upgrade ${progress.from} → ${progress.to} is unfinished. Rerun npx feedbax migrate to resume it.`,
+        2,
+      );
+    ctx.prompt.note(
+      remainingSteps(progress).join("\n"),
+      `Resume ${progress.from} → ${progress.to}${options.dryRun ? " (dry run: nothing changes)" : ""}`,
+    );
+    if (options.dryRun) return 0;
+    return resume(ctx, progress);
+  }
+  const project = await loadProject(ctx);
   const changes = await gitChanges(ctx.cwd);
   if (!options.force && !options.dryRun) {
     if (changes === null)
@@ -78,7 +98,15 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   ctx.prompt.info(`Project is on ${from} (from ${sourceLabel}); target is ${to}.`);
   const order = compareVersions(to, from);
   if (order === 0) {
-    ctx.prompt.info(`Already on ${to}. Run npx feedbax doctor to check the project.`);
+    // Repair a previous upgrade that wrote sources but failed before provisioning/deploy.
+    if (compareVersions(to, "0.3.2") >= 0 && !options.dryRun) {
+      if (!(await confirmStep(ctx, "Ensure the notification queue exists in Cloudflare?")))
+        return 0;
+      await provisionNotifyQueue(ctx);
+    }
+    ctx.prompt.info(
+      `Already on ${to}. Run npx feedbax doctor to check the project; npx feedbax deploy to deploy any pending changes.`,
+    );
     return 0;
   }
   if (order < 0) throw new CliError(`Downgrading from ${from} to ${to} is not supported.`, 2);
@@ -95,16 +123,15 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   );
   const plan = await planUpgrade({ cwd: ctx.cwd, baseline, target });
   const conflicts = plan.actions.filter((action) => action.kind === "conflict");
-  const packageChanged = plan.actions.some(
-    (action) => action.path === "package.json" && action.kind !== "conflict",
-  );
+  const packageChanged = plan.actions.some((action) => action.path === "package.json");
   const steps = [
-    `Write .feedbax/version = ${to}`,
     ...(packageChanged ? [`${project.pm} install`] : []),
+    ...(compareVersions(to, "0.3.2") >= 0 ? ["Create the notification queue if missing"] : []),
     plan.migrations.length
       ? `Apply ${plan.migrations.length} new D1 migration(s) to production: ${plan.migrations.map((path) => path.slice("migrations/".length)).join(", ")}`
       : "Apply D1 migrations to production (none are new)",
     "Build and deploy",
+    `Write .feedbax/version = ${to}`,
   ];
   ctx.prompt.note(
     `${planSummary(plan)}\n\nThen:\n${steps.map((step, index) => `${index + 1}. ${step}`).join("\n")}${
@@ -121,47 +148,221 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   }
   if (!(await confirmStep(ctx, `Apply the source changes for ${to}?`)))
     throw new CliError("Upgrade cancelled. Nothing changed.", 130);
-  await applyPlan(ctx.cwd, plan);
-  await recordVersion(ctx.cwd, to);
-  if (conflicts.length) {
-    ctx.prompt.error(conflictReport(plan));
-    return 1;
+  const state: Progress = {
+    from,
+    to,
+    step: "source",
+    sourceIndex: 0,
+    packageChanged,
+    conflicts: conflicts.map((action) => action.path),
+  };
+  // Persist the exact source writes before starting, so interrupted merges are never merged twice.
+  await saveJson(ctx.cwd, SOURCE_FILE, plan);
+  await saveProgress(ctx.cwd, state);
+  return resume(ctx, state);
+}
+
+const PROGRESS_FILE = ".feedbax/migrate.json";
+const SOURCE_FILE = ".feedbax/migrate-source.json";
+const STEPS = [
+  "source",
+  "conflicts",
+  "install",
+  "queue",
+  "migrations",
+  "build",
+  "deploy",
+  "version",
+] as const;
+type Step = (typeof STEPS)[number];
+type Progress = {
+  from: string;
+  to: string;
+  step: Step;
+  sourceIndex: number;
+  packageChanged: boolean;
+  conflicts: string[];
+};
+
+async function saveJson(cwd: string, path: string, value: unknown): Promise<void> {
+  await mkdir(join(cwd, ".feedbax"), { recursive: true });
+  await writeFile(join(cwd, `${path}.tmp`), `${JSON.stringify(value)}\n`);
+  await rename(join(cwd, `${path}.tmp`), join(cwd, path));
+}
+const saveProgress = (cwd: string, progress: Progress) => saveJson(cwd, PROGRESS_FILE, progress);
+
+async function readProgress(cwd: string): Promise<Progress | null> {
+  let text: string;
+  try {
+    text = await readFile(join(cwd, PROGRESS_FILE), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
-  ctx.prompt.info(`Source upgraded to ${to}. Review it with git diff.`);
-  return finish(ctx, plan, packageChanged);
-}
-
-function conflictReport(plan: Plan): string {
-  const lines = plan.actions.flatMap((action) =>
-    action.kind === "conflict" ? [`  ${action.path}: ${action.reason}`] : [],
-  );
-  return `Source updated to ${plan.to} with ${lines.length} conflict(s):\n${lines.join("\n")}\nResolve each one (search for <<<<<<<), run your checks, then run npx feedbax deploy. To undo everything: git checkout -- . && git clean -fd`;
-}
-
-async function finish(ctx: Context, plan: Plan, packageChanged: boolean): Promise<number> {
-  const project = await loadProject(ctx);
-  const { pm, wrangler } = tools(ctx, project);
-  if (packageChanged)
-    await ctx.prompt.step(`Install dependencies (${project.pm} install)`, () => pm(["install"]));
-  if (
-    await confirmStep(
-      ctx,
-      plan.migrations.length
-        ? `Apply ${plan.migrations.length} new D1 migration(s) to the production database?`
-        : "Apply pending D1 migrations to the production database?",
+  try {
+    const state = JSON.parse(text) as Progress;
+    if (
+      !isVersion(state.from) ||
+      !isVersion(state.to) ||
+      !STEPS.includes(state.step) ||
+      !Number.isInteger(state.sourceIndex) ||
+      state.sourceIndex < 0 ||
+      typeof state.packageChanged !== "boolean" ||
+      !Array.isArray(state.conflicts) ||
+      !state.conflicts.every((path) => typeof path === "string" && safeRelativePath(path))
     )
-  )
-    await ctx.prompt.step("Apply D1 migrations (remote)", () =>
-      wrangler(["d1", "migrations", "apply", "DB", "--remote"]),
+      throw new Error("invalid progress");
+    return state;
+  } catch {
+    throw new CliError(
+      `${PROGRESS_FILE} is invalid. Restore it from your backup before resuming.`,
+      2,
     );
-  else {
-    ctx.prompt.info("Skipped migrations and deploy. Run npx feedbax deploy when ready.");
-    return 0;
   }
-  if (await confirmStep(ctx, `Build and deploy ${plan.to}?`)) {
-    await ctx.prompt.step("Build", () => pm(["run", "build"]));
-    await ctx.prompt.step("Deploy", () => wrangler(["deploy"]));
-    ctx.prompt.outro(`Upgraded to ${plan.to}. Commit the changes, then run npx feedbax doctor.`);
-  } else ctx.prompt.info("Skipped deploy. Run npx feedbax deploy when ready.");
-  return 0;
+}
+
+function remainingSteps(state: Progress): string[] {
+  const labels: Record<Step, string> = {
+    source: "Finish source merge",
+    conflicts: "Resolve source conflicts",
+    install: "Install dependencies",
+    queue: "Create the notification queue if missing",
+    migrations: "Apply pending D1 migrations to production",
+    build: "Build",
+    deploy: "Deploy",
+    version: `Write .feedbax/version = ${state.to}`,
+  };
+  return STEPS.slice(STEPS.indexOf(state.step))
+    .filter(
+      (step) =>
+        (step !== "install" || state.packageChanged) &&
+        (step !== "queue" || compareVersions(state.to, "0.3.2") >= 0) &&
+        (step !== "conflicts" || state.conflicts.length),
+    )
+    .map((step, index) => `${index + 1}. ${labels[step]}`);
+}
+
+async function resume(ctx: Context, state: Progress): Promise<number> {
+  const advance = async (step: Step) => {
+    state.step = step;
+    await saveProgress(ctx.cwd, state);
+  };
+  try {
+    if (state.step === "source") {
+      const plan = JSON.parse(await readFile(join(ctx.cwd, SOURCE_FILE), "utf8"), (_key, value) =>
+        value?.type === "Buffer" && Array.isArray(value.data) ? Buffer.from(value.data) : value,
+      ) as Plan;
+      if (plan.from !== state.from || plan.to !== state.to)
+        throw new CliError("Saved source plan does not match the unfinished upgrade.", 2);
+      for (; state.sourceIndex < plan.actions.length;) {
+        await applyPlan(ctx.cwd, { ...plan, actions: [plan.actions[state.sourceIndex]!] });
+        state.sourceIndex++;
+        await saveProgress(ctx.cwd, state);
+      }
+      await advance(state.conflicts.length ? "conflicts" : "install");
+      if (state.conflicts.length) {
+        ctx.prompt.error(
+          `Source updated to ${state.to} with conflicts:\n${plan.actions
+            .filter((action) => action.kind === "conflict")
+            .map((action) => `  ${action.path}: ${action.reason}`)
+            .join("\n")}\nResolve each conflict, run your checks, then rerun npx feedbax migrate.`,
+        );
+        return 1;
+      }
+    }
+    if (state.step === "conflicts") {
+      for (const path of state.conflicts) {
+        let text = "";
+        try {
+          text = await readFile(join(ctx.cwd, path), "utf8");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+        if (/^(?:<<<<<<< your project|>>>>>>> feedbax )/m.test(text))
+          throw new CliError(`Resolve the conflict in ${path}, then rerun npx feedbax migrate.`, 2);
+      }
+      if (
+        !(await confirmStep(
+          ctx,
+          "Have you resolved every listed source conflict and run your checks?",
+        ))
+      )
+        return 0;
+      await advance("install");
+    }
+    const project = await loadProject(ctx);
+    const { pm, wrangler } = tools(ctx, project);
+    if (state.step === "install") {
+      if (state.packageChanged)
+        await ctx.prompt.step(`Install dependencies (${project.pm} install)`, () =>
+          pm(["install"]),
+        );
+      await advance("queue");
+    }
+    if (state.step === "queue") {
+      if (compareVersions(state.to, "0.3.2") >= 0) await provisionNotifyQueue(ctx);
+      await advance("migrations");
+    }
+    if (state.step === "migrations") {
+      if (!(await confirmStep(ctx, "Apply pending D1 migrations to the production database?"))) {
+        ctx.prompt.info("Paused. Run npx feedbax migrate to resume.");
+        return 0;
+      }
+      await ctx.prompt.step("Apply D1 migrations (remote)", () =>
+        wrangler(["d1", "migrations", "apply", "DB", "--remote"]),
+      );
+      await advance("build");
+    }
+    if (state.step === "build" || state.step === "deploy") {
+      if (
+        !(await confirmStep(
+          ctx,
+          `${state.step === "deploy" ? "Deploy" : "Build and deploy"} ${state.to}?`,
+        ))
+      ) {
+        ctx.prompt.info("Paused. Run npx feedbax migrate to resume.");
+        return 0;
+      }
+      if (state.step === "build") {
+        await ctx.prompt.step("Build", () => pm(["run", "build"]));
+        await advance("deploy");
+      }
+      await ctx.prompt.step("Deploy", () => wrangler(["deploy"]));
+      await advance("version");
+    }
+    await recordVersion(ctx.cwd, state.to);
+    await rm(join(ctx.cwd, SOURCE_FILE), { force: true });
+    await rm(join(ctx.cwd, PROGRESS_FILE));
+    ctx.prompt.outro(`Upgraded to ${state.to}. Commit the changes, then run npx feedbax doctor.`);
+    return 0;
+  } catch (error) {
+    ctx.prompt.error(`Upgrade paused at ${state.step}.\nRecovery: npx feedbax migrate`);
+    throw error;
+  }
+}
+
+/** Wrangler owns authentication; an existing queue is safe to adopt on retries. */
+async function provisionNotifyQueue(ctx: Context): Promise<void> {
+  const file = join(ctx.cwd, "wrangler.jsonc");
+  const before = await readFile(file, "utf8");
+  const after = ensureNotifyQueue(before);
+  if (after !== before) await writeFile(file, after);
+  const project = await loadProject(ctx);
+  const queue = project.wrangler.queues!.producers!.find(
+    (entry) => entry.binding === "NOTIFY_QUEUE",
+  )!.queue!;
+  const { wrangler } = tools(ctx, project);
+  await ctx.prompt.step("Create notification queue (if missing)", async () => {
+    try {
+      await wrangler(["queues", "create", queue]);
+    } catch (error) {
+      // Creation can also succeed while its response is lost. Confirm existence rather
+      // than matching Wrangler's error text or swallowing authentication failures.
+      try {
+        await wrangler(["queues", "info", queue]);
+      } catch {
+        throw error;
+      }
+    }
+  });
 }

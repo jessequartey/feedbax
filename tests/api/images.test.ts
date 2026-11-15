@@ -4,8 +4,40 @@ import { resetEnv, flushWaitUntil, queue } from "../fixtures/cloudflare-workers.
 import { form, png, writer } from "./helpers.ts";
 import { createPostForUser, getPostDetail } from "../../src/server/posts.ts";
 import { serveImage, validateImage } from "../../src/server/images.ts";
+import { mintAdminLink } from "../../src/server/admin-link.ts";
+import { adminApi } from "../../src/server/admin-api.ts";
+import { viewerUser } from "../../src/server/auth.ts";
+import { handleAdminEnter } from "../../src/server/http.ts";
 
 beforeEach(resetEnv);
+it("lets authors revalidate their hidden/spam images without sharing the response", async () => {
+  const { url: login } = await mintAdminLink({
+    secret: env.BETTER_AUTH_SECRET,
+    portalUrl: env.PORTAL_URL,
+  });
+  const session = await handleAdminEnter(
+    new Request(login, { method: "POST", headers: { origin: env.PORTAL_URL } }),
+  );
+  const cookie = session.headers.get("set-cookie")!.split(";")[0];
+  const author = (await viewerUser(new Headers({ cookie })))!;
+  const data = form();
+  data.append("image", png());
+  await createPostForUser(data, author);
+  const post = await getPostDetail(data.get("id") as string, author);
+  const image = post.images[0];
+  const url = `${env.PORTAL_URL}${image.url}`;
+  await env.DB.prepare("UPDATE user SET role = 'user' WHERE id = ?").bind(author.id).run();
+  for (const spam of [0, 1]) {
+    await env.DB.prepare("UPDATE posts SET hidden_at = 1, spam = ? WHERE id = ?")
+      .bind(spam, post.id)
+      .run();
+    const response = await serveImage(new Request(url, { headers: { cookie } }), image.id);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+    expect(response.headers.get("vary")).toBe("Cookie");
+    expect((await serveImage(new Request(url), image.id)).status).toBe(404);
+  }
+});
 it("stores an attachment in private R2 and serves only attached image IDs with safe cache headers", async () => {
   const user = await writer(),
     data = form(),
@@ -24,7 +56,7 @@ it("stores an attachment in private R2 and serves only attached image IDs with s
   expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toBe("image/png");
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-  expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  expect(response.headers.get("cache-control")).toBe("public, max-age=60, must-revalidate");
   expect(new Uint8Array(await response.arrayBuffer())).toEqual(
     new Uint8Array(await png().arrayBuffer()),
   );
@@ -164,3 +196,58 @@ it("recognizes complete JPEG and WebP containers and rejects truncation", async 
     ).rejects.toMatchObject({ code: "unsupported_image" });
   }
 });
+
+it.each(["hidden", "spam", "merged", "deleted"] as const)(
+  "checks %s attachment visibility for anonymous users and real admin sessions, including ETags",
+  async (state) => {
+    const author = await writer();
+    const data = form();
+    const id = data.get("id") as string;
+    data.append("image", png());
+    await createPostForUser(data, author);
+    const image = (await getPostDetail(id, author)).images[0];
+    const url = `${env.PORTAL_URL}${image.url}`;
+    const before = await serveImage(new Request(url), image.id);
+    const etag = before.headers.get("etag")!;
+    const { url: login } = await mintAdminLink({
+      secret: env.BETTER_AUTH_SECRET,
+      portalUrl: env.PORTAL_URL,
+    });
+    const session = await handleAdminEnter(
+      new Request(login, { method: "POST", headers: { origin: env.PORTAL_URL } }),
+    );
+    const cookie = session.headers.get("set-cookie")!.split(";")[0];
+    if (state === "deleted")
+      await adminApi.deletePost((await viewerUser(new Headers({ cookie })))!, { postId: id });
+    else if (state === "merged") {
+      const target = form();
+      await createPostForUser(target, author);
+      await env.DB.prepare("UPDATE posts SET merged_into = ? WHERE id = ?")
+        .bind(target.get("id"), id)
+        .run();
+    } else
+      await env.DB.prepare("UPDATE posts SET hidden_at = 1, spam = ? WHERE id = ?")
+        .bind(state === "spam" ? 1 : 0, id)
+        .run();
+    for (const conditional of [false, true]) {
+      const headers: Record<string, string> = conditional ? { "if-none-match": etag } : {};
+      const anon = await serveImage(new Request(url, { headers }), image.id);
+      expect(anon.status).toBe(404);
+      expect(anon.headers.get("cache-control")).toBe("no-store");
+      const admin = await serveImage(
+        new Request(url, { headers: { ...headers, cookie } }),
+        image.id,
+      );
+      expect(admin.status).toBe(state === "deleted" ? 404 : conditional ? 304 : 200);
+      if (state !== "deleted") {
+        expect(admin.headers.get("cache-control")).toBe("private, max-age=0, must-revalidate");
+        expect(admin.headers.get("vary")).toBe("Cookie");
+      }
+    }
+    // Revoking the real session's admin role immediately removes attachment access.
+    await env.DB.prepare("UPDATE user SET role = 'user' WHERE role = 'admin'").run();
+    expect((await serveImage(new Request(url, { headers: { cookie } }), image.id)).status).toBe(
+      404,
+    );
+  },
+);

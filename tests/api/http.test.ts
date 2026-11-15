@@ -1,4 +1,4 @@
-import { beforeEach, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { env } from "cloudflare:workers";
 import { resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { handlePosts, handleHealth, handleAuth } from "../../src/server/http.ts";
@@ -8,6 +8,10 @@ import { form } from "./helpers.ts";
 import { mintToken } from "./helpers.ts";
 
 beforeEach(resetEnv);
+afterEach(async () => {
+  delete env.RESEND_API_KEY;
+  await resetEnv();
+});
 it("authenticates bearer only and adds exact-origin CORS to success, errors, and preflight", async () => {
   const settings = { ...config, appUrl: "https://app.example.com/path" };
   const make = (method: string, origin: string, token?: string) =>
@@ -83,7 +87,12 @@ it("concurrent host arrivals converge on one user, and unsafe redirects fall bac
   expect(viewers[0]!.id).toBe(viewers[1]!.id);
 });
 it("health reports provider failures without exposing details", async () => {
-  expect(await (await handleHealth()).json()).toEqual({ ok: true, notion: "ok", github: "off" });
+  expect(await (await handleHealth()).json()).toEqual({
+    ok: true,
+    notion: "ok",
+    github: "off",
+    email: "off",
+  });
   await env.DB.prepare("INSERT INTO sync_state VALUES (?, ?, ?)")
     .bind("notion.error", JSON.stringify({ message: "SENTINEL_SECRET" }), Date.now())
     .run();
@@ -91,6 +100,7 @@ it("health reports provider failures without exposing details", async () => {
     ok: true,
     notion: "failing",
     github: "off",
+    email: "off",
   });
 });
 
@@ -102,9 +112,49 @@ it("health exposes active transient backoff without provider details", async () 
     ok: true,
     notion: "failing",
     github: "off",
+    email: "off",
   });
   await env.DB.prepare("UPDATE sync_state SET value = ? WHERE key = 'notion.backoff'")
     .bind(JSON.stringify(new Date(Date.now() - 1).toISOString()))
     .run();
-  expect(await (await handleHealth()).json()).toEqual({ ok: true, notion: "ok", github: "off" });
+  expect(await (await handleHealth()).json()).toEqual({
+    ok: true,
+    notion: "ok",
+    github: "off",
+    email: "off",
+  });
+});
+
+it("health reports email off, ok or failing without exposing failure details", async () => {
+  const settings = {
+    ...config,
+    notifications: { ...config.notifications, email: { from: "Feedbax <fake@example.com>" } },
+  };
+  expect(await (await handleHealth(settings)).json()).toMatchObject({ email: "off" });
+  env.RESEND_API_KEY = "re_test_only_fake";
+  expect(await (await handleHealth(settings)).json()).toMatchObject({ email: "ok" });
+  await env.DB.prepare("INSERT INTO sync_state VALUES (?, ?, ?)")
+    .bind(
+      "email.error",
+      JSON.stringify({
+        code: "http_403",
+        at: new Date().toISOString(),
+        message: "SENTINEL_SECRET",
+      }),
+      Date.now(),
+    )
+    .run();
+  const response = await handleHealth(settings);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  const body = await response.json();
+  expect(body).toMatchObject({ email: "failing", notion: "ok", github: "off" });
+  expect(JSON.stringify(body)).not.toContain("SENTINEL");
+  expect(
+    await (
+      await handleHealth({
+        ...settings,
+        notifications: { ...settings.notifications, email: false },
+      })
+    ).json(),
+  ).toMatchObject({ email: "off" });
 });

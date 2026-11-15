@@ -29,7 +29,10 @@ if (args[0] === "d1" && args[1] === "info")
   console.log(JSON.stringify({ uuid: "12345678-1234-4234-8234-123456789abc" }));
 if (args[0] === "d1" && args[1] === "create") state.database = true;
 if (args[0] === "r2" && args[1] === "bucket" && args[2] === "create") state.bucket = true;
-if (args[0] === "queues" && args[1] === "create") state.queue = true;
+if (args[0] === "queues" && args[1] === "create") {
+  if (args[2] === "my-feedback-sync") state.queue = true;
+  if (args[2] === "my-feedback-notify") state.notifyQueue = true;
+}
 // `feedbax deploy` / `feedbax migrate` deploy without a secrets file; secrets already exist.
 if (args[0] === "deploy" && args[1] !== "--secrets-file") state.redeployed = true;
 else if (args[0] === "deploy") {

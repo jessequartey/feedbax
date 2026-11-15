@@ -88,6 +88,7 @@ export function fakeCloudflare() {
     database: false,
     bucket: false,
     queue: false,
+    notifyQueue: false,
     disabled: 0,
     taken: 0,
     subdomain: "team",
@@ -139,7 +140,8 @@ export function fakeCloudflare() {
     if (key.startsWith("d1 info"))
       return { code: 0, stdout: JSON.stringify({ uuid: ID, name: "my-feedback-db" }), stderr: "" };
     if (key.startsWith("r2 bucket create")) state.bucket = true;
-    if (key.startsWith("queues create")) state.queue = true;
+    if (key === "queues create my-feedback-sync") state.queue = true;
+    if (key === "queues create my-feedback-notify") state.notifyQueue = true;
     if (key.startsWith("deploy")) {
       state.secretFile = action[2]!;
       state.deploySecrets = JSON.parse(readFileSync(state.secretFile, "utf8"));
@@ -167,7 +169,10 @@ export function fakeCloudflare() {
     if (url.includes("/queues?"))
       return Response.json({
         success: true,
-        result: state.queue ? [{ queue_name: "my-feedback-sync" }] : [],
+        result: [
+          ...(state.queue ? [{ queue_name: "my-feedback-sync" }] : []),
+          ...(state.notifyQueue ? [{ queue_name: "my-feedback-notify" }] : []),
+        ],
       });
     if (init?.method === "PUT" && state.taken-- > 0)
       return Response.json(

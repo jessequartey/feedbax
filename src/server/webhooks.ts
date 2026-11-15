@@ -1,7 +1,8 @@
+import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { CommentView, Status } from "../contracts/domain.ts";
-import type { SyncMessage } from "../contracts/sync.ts";
+import type { NotifyMessage } from "../contracts/sync.ts";
 import {
   WEBHOOK_EVENTS,
   WEBHOOK_LIMITS,
@@ -16,7 +17,7 @@ import {
   type WebhookPost,
 } from "../contracts/webhooks.ts";
 import { createDb } from "../db/client.ts";
-import { posts, user, votes, webhookDeliveries, webhookEndpoints } from "../db/schema.ts";
+import { comments, posts, user, votes, webhookDeliveries, webhookEndpoints } from "../db/schema.ts";
 import { markdownToPlainText } from "../lib/markdown.ts";
 import { webhookUrlProblem } from "../lib/webhook-url.ts";
 import { DomainError, invalid } from "./errors.ts";
@@ -25,8 +26,8 @@ import { publiclyVisible } from "./visibility.ts";
 
 // Webhooks (opt-in): admins add endpoints in /admin/settings → Webhooks; nothing is stored,
 // queued or sent until one exists. Events are written as `webhook_deliveries` rows (the payload
-// is kept so every retry sends the same bytes) and delivered through the existing SYNC_QUEUE
-// as `webhook.deliver` messages. Each request is signed with the endpoint's own secret:
+// is kept so every retry sends the same bytes) and delivered as `webhook.deliver` messages
+// through NOTIFY_QUEUE (SYNC_QUEUE until migrated). Each request is signed with the endpoint's own secret:
 //   X-Feedbax-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">
 // The secret is stored so it can sign; it leaves the server only at creation, rotate and
 // reveal, each an admin-only call.
@@ -171,9 +172,9 @@ async function storeAndEnqueue(rows: NewDelivery[], endpointIds: string[]): Prom
     ...typeof inserts,
   ]);
   try {
-    await env.SYNC_QUEUE.sendBatch(
+    await notifyQueue().sendBatch(
       rows.map((row) => ({
-        body: { type: "webhook.deliver", deliveryId: row.id } satisfies SyncMessage,
+        body: { type: "webhook.deliver", deliveryId: row.id } satisfies NotifyMessage,
       })),
     );
   } catch {
@@ -245,19 +246,22 @@ export function emitChangelogWebhook(event: {
   entry: { id: string; title: string; body: string; publishedAt: string; postIds: string[] };
   url: string;
 }): Promise<void> {
-  return emitWebhooks("changelog.published", async () => [
-    {
-      entry: {
-        id: event.entry.id,
-        title: event.entry.title,
-        body: event.entry.body,
-        bodyText: plainText(event.entry.body),
-        publishedAt: event.entry.publishedAt,
-        url: event.url,
-        postIds: event.entry.postIds,
+  return emitWebhooks("changelog.published", async () => {
+    const publicPosts = await loadPosts(event.entry.postIds);
+    return [
+      {
+        entry: {
+          id: event.entry.id,
+          title: event.entry.title,
+          body: event.entry.body,
+          bodyText: plainText(event.entry.body),
+          publishedAt: event.entry.publishedAt,
+          url: event.url,
+          postIds: event.entry.postIds.filter((id) => publicPosts.has(id)),
+        },
       },
-    },
-  ]);
+    ];
+  });
 }
 
 // ---- Delivery (queue consumer) ----
@@ -287,6 +291,26 @@ function retryAfterSeconds(value: string | null): number {
 
 const TRANSIENT_STATUS = new Set([408, 425, 429]);
 
+/** Stored event bytes can outlive moderation (including between retries). Recheck on send. */
+async function deliveryIsPublic(payload: string): Promise<boolean> {
+  const { data } = JSON.parse(payload) as WebhookEnvelope;
+  const ids = "post" in data ? [data.post.id] : "entry" in data ? data.entry.postIds : [];
+  if (!ids.length) return true;
+  const visible = await db()
+    .select({ id: posts.id })
+    .from(posts)
+    .where(
+      and(
+        inArray(posts.id, ids),
+        publiclyVisible,
+        "comment" in data
+          ? sql`EXISTS (SELECT 1 FROM ${comments} WHERE ${comments.id} = ${data.comment.id} AND ${comments.postId} = ${posts.id})`
+          : undefined,
+      ),
+    );
+  return visible.length === new Set(ids).size;
+}
+
 /**
  * Makes one attempt. Resolves to the delay (seconds) before the next attempt, or null when the
  * delivery is finished (delivered, failed for good, or gone) and the message can be acked.
@@ -314,6 +338,10 @@ export async function deliverWebhook(deliveryId: string): Promise<number | null>
       .where(and(eq(webhookDeliveries.id, deliveryId), eq(webhookDeliveries.status, "pending")));
   if (!endpoint || !endpoint.enabled) {
     await finish("failed", null, "Endpoint is disabled");
+    return null;
+  }
+  if (!(await deliveryIsPublic(delivery.payload))) {
+    await finish("failed", null, "Content is no longer public");
     return null;
   }
   // Checked again at send time: the rule may be stricter than when the endpoint was saved.

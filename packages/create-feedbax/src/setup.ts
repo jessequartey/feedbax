@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { GitHubSetupClient, NotionSetupClient } from "../../../src/contracts/integrations.ts";
 import { CliError, portalOrigin, subdomainProblem } from "./flags.ts";
 import { redact } from "./io.ts";
+import { notificationConsumer } from "./queues.ts";
 import { parseJsonc } from "./jsonc.ts";
 import { verifyDeployment, viewerRpcId } from "./verify.ts";
 import { loginCheckpoint } from "./login.ts";
@@ -293,6 +294,10 @@ export async function setup(
   const dbName = ownsResources ? config!.d1_databases[0]!.database_name : `${answers.name}-db`;
   const bucketName = ownsResources ? config!.r2_buckets[0]!.bucket_name : `${answers.name}-images`;
   const queueName = ownsResources ? config!.queues.producers[0]!.queue : `${answers.name}-sync`;
+  const notifyName =
+    (ownsResources &&
+      config!.queues.producers.find((entry) => entry.binding === "NOTIFY_QUEUE")?.queue) ||
+    `${answers.name}-notify`;
   const databases = parseJsonOutput<{ uuid: string; name: string }[]>(
     await wrangler(["d1", "list", "--json"]),
   );
@@ -310,7 +315,8 @@ export async function setup(
   const database = databases.find((item) => item.name === dbName);
   const bucket = buckets.find((item) => item.name === bucketName);
   const queue = queues.find((item) => item.queue_name === queueName);
-  if (!ownsResources && (database || bucket || queue))
+  const notify = queues.find((item) => item.queue_name === notifyName);
+  if (!ownsResources && (database || bucket || queue || notify))
     throw new CliError(
       "This project name already has Cloudflare resources. Choose a different project name; no resources were created.",
       2,
@@ -350,8 +356,14 @@ export async function setup(
     ],
     r2_buckets: [{ binding: "IMAGES", bucket_name: bucketName }],
     queues: {
-      producers: [{ binding: "SYNC_QUEUE", queue: queueName }],
-      consumers: [{ queue: queueName, max_batch_size: 1, max_concurrency: 1, max_retries: 10 }],
+      producers: [
+        { binding: "SYNC_QUEUE", queue: queueName },
+        { binding: "NOTIFY_QUEUE", queue: notifyName },
+      ],
+      consumers: [
+        { queue: queueName, max_batch_size: 1, max_concurrency: 1, max_retries: 10 },
+        notificationConsumer(notifyName),
+      ],
     },
     triggers: { crons: ["*/5 * * * *"] },
   };
@@ -398,6 +410,10 @@ export async function setup(
     if (!queue) {
       deps.onRemote?.();
       await wrangler(["queues", "create", queueName]);
+    }
+    if (!notify) {
+      deps.onRemote?.();
+      await wrangler(["queues", "create", notifyName]);
     }
   });
   await prompt.step("Write config", async () => {

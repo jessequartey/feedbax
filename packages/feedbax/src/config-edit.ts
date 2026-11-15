@@ -1,7 +1,7 @@
 // Targeted, comment-preserving edits to feedbax.config.ts for `feedbax add`. Each edit must
 // find exactly one unambiguous literal; otherwise it stops and names the manual edit.
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -86,20 +86,40 @@ export function setEmailFrom(text: string, from: string): string {
 }
 
 export async function editConfig(cwd: string, edit: (text: string) => string): Promise<boolean> {
+  const prepared = await prepareConfigEdit(cwd, edit);
+  await prepared.write();
+  return prepared.changed;
+}
+
+/** Resolve every edit before the caller writes files or production secrets. */
+export async function prepareConfigEdit(cwd: string, edit: (text: string) => string) {
   const path = join(cwd, CONFIG);
   const before = await readFile(path, "utf8");
   const after = edit(before);
-  if (after !== before) await writeFile(path, after);
-  return after !== before;
+  const config = await loadConfig(cwd, after);
+  return {
+    config,
+    changed: after !== before,
+    write: async () => {
+      if (after !== before) await writeFile(path, after);
+    },
+  };
 }
 
 /**
  * Evaluate feedbax.config.ts the way the Worker does (its own defineConfig validation), in a
  * separate Node process with type stripping, so a broken config never crashes the CLI.
  */
-export async function loadConfig(cwd: string): Promise<FeedbaxConfig> {
+export async function loadConfig(cwd: string, source?: string): Promise<FeedbaxConfig> {
   // Reports { config } or { error } on stdout, so Node's own crash output never leaks in.
   const script = [
+    "import { registerHooks } from 'node:module';",
+    "if (process.env.FEEDBAX_CONFIG_SOURCE !== undefined) registerHooks({",
+    "  load(url, context, nextLoad) {",
+    "    if (url === process.argv[1]) return { format: 'module-typescript', source: process.env.FEEDBAX_CONFIG_SOURCE, shortCircuit: true };",
+    "    return nextLoad(url, context);",
+    "  }",
+    "});",
     "let out;",
     "try { out = { config: (await import(process.argv[1])).default }; }",
     "catch (e) { out = { error: e instanceof Error ? e.message : String(e) }; }",
@@ -109,8 +129,18 @@ export async function loadConfig(cwd: string): Promise<FeedbaxConfig> {
   try {
     const { stdout } = await execFileAsync(
       process.execPath,
-      ["--no-warnings", "--input-type=module", "-e", script, pathToFileURL(join(cwd, CONFIG)).href],
-      { cwd, timeout: 20_000, env: { ...process.env, NODE_OPTIONS: "" } },
+      [
+        "--no-warnings",
+        "--input-type=module",
+        "-e",
+        script,
+        pathToFileURL(await realpath(join(cwd, CONFIG))).href,
+      ],
+      {
+        cwd,
+        timeout: 20_000,
+        env: { ...process.env, NODE_OPTIONS: "", FEEDBAX_CONFIG_SOURCE: source },
+      },
     );
     result = JSON.parse(stdout) as typeof result;
   } catch {
