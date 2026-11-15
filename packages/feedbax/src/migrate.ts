@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CliError } from "../../create-feedbax/src/flags.ts";
 import { confirmStep, loadProject, tools, type Context } from "./context.ts";
+import { ensureNotifyQueue } from "./jsonc-edit.ts";
 import { applyPlan, planSummary, planUpgrade, type Plan } from "./merge.ts";
 import { fetchPackument, fetchTemplate, registryUrl, safeRelativePath } from "./registry.ts";
 import {
@@ -97,7 +98,15 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   ctx.prompt.info(`Project is on ${from} (from ${sourceLabel}); target is ${to}.`);
   const order = compareVersions(to, from);
   if (order === 0) {
-    ctx.prompt.info(`Already on ${to}. Run npx feedbax doctor to check the project.`);
+    // Repair a previous upgrade that wrote sources but failed before provisioning/deploy.
+    if (compareVersions(to, "0.3.2") >= 0 && !options.dryRun) {
+      if (!(await confirmStep(ctx, "Ensure the notification queue exists in Cloudflare?")))
+        return 0;
+      await provisionNotifyQueue(ctx);
+    }
+    ctx.prompt.info(
+      `Already on ${to}. Run npx feedbax doctor to check the project; npx feedbax deploy to deploy any pending changes.`,
+    );
     return 0;
   }
   if (order < 0) throw new CliError(`Downgrading from ${from} to ${to} is not supported.`, 2);
@@ -117,6 +126,7 @@ export async function migrate(ctx: Context, options: MigrateOptions): Promise<nu
   const packageChanged = plan.actions.some((action) => action.path === "package.json");
   const steps = [
     ...(packageChanged ? [`${project.pm} install`] : []),
+    ...(compareVersions(to, "0.3.2") >= 0 ? ["Create the notification queue if missing"] : []),
     plan.migrations.length
       ? `Apply ${plan.migrations.length} new D1 migration(s) to production: ${plan.migrations.map((path) => path.slice("migrations/".length)).join(", ")}`
       : "Apply D1 migrations to production (none are new)",
@@ -158,6 +168,7 @@ const STEPS = [
   "source",
   "conflicts",
   "install",
+  "queue",
   "migrations",
   "build",
   "deploy",
@@ -215,6 +226,7 @@ function remainingSteps(state: Progress): string[] {
     source: "Finish source merge",
     conflicts: "Resolve source conflicts",
     install: "Install dependencies",
+    queue: "Create the notification queue if missing",
     migrations: "Apply pending D1 migrations to production",
     build: "Build",
     deploy: "Deploy",
@@ -224,6 +236,7 @@ function remainingSteps(state: Progress): string[] {
     .filter(
       (step) =>
         (step !== "install" || state.packageChanged) &&
+        (step !== "queue" || compareVersions(state.to, "0.3.2") >= 0) &&
         (step !== "conflicts" || state.conflicts.length),
     )
     .map((step, index) => `${index + 1}. ${labels[step]}`);
@@ -284,6 +297,10 @@ async function resume(ctx: Context, state: Progress): Promise<number> {
         await ctx.prompt.step(`Install dependencies (${project.pm} install)`, () =>
           pm(["install"]),
         );
+      await advance("queue");
+    }
+    if (state.step === "queue") {
+      if (compareVersions(state.to, "0.3.2") >= 0) await provisionNotifyQueue(ctx);
       await advance("migrations");
     }
     if (state.step === "migrations") {
@@ -297,7 +314,12 @@ async function resume(ctx: Context, state: Progress): Promise<number> {
       await advance("build");
     }
     if (state.step === "build" || state.step === "deploy") {
-      if (!(await confirmStep(ctx, `Build and deploy ${state.to}?`))) {
+      if (
+        !(await confirmStep(
+          ctx,
+          `${state.step === "deploy" ? "Deploy" : "Build and deploy"} ${state.to}?`,
+        ))
+      ) {
         ctx.prompt.info("Paused. Run npx feedbax migrate to resume.");
         return 0;
       }
@@ -317,4 +339,30 @@ async function resume(ctx: Context, state: Progress): Promise<number> {
     ctx.prompt.error(`Upgrade paused at ${state.step}.\nRecovery: npx feedbax migrate`);
     throw error;
   }
+}
+
+/** Wrangler owns authentication; an existing queue is safe to adopt on retries. */
+async function provisionNotifyQueue(ctx: Context): Promise<void> {
+  const file = join(ctx.cwd, "wrangler.jsonc");
+  const before = await readFile(file, "utf8");
+  const after = ensureNotifyQueue(before);
+  if (after !== before) await writeFile(file, after);
+  const project = await loadProject(ctx);
+  const queue = project.wrangler.queues!.producers!.find(
+    (entry) => entry.binding === "NOTIFY_QUEUE",
+  )!.queue!;
+  const { wrangler } = tools(ctx, project);
+  await ctx.prompt.step("Create notification queue (if missing)", async () => {
+    try {
+      await wrangler(["queues", "create", queue]);
+    } catch (error) {
+      // Creation can also succeed while its response is lost. Confirm existence rather
+      // than matching Wrangler's error text or swallowing authentication failures.
+      try {
+        await wrangler(["queues", "info", queue]);
+      } catch {
+        throw error;
+      }
+    }
+  });
 }

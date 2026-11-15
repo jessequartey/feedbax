@@ -5,6 +5,8 @@ import { createDb } from "../db/client.ts";
 import { images, posts } from "../db/schema.ts";
 import { DomainError } from "./errors.ts";
 import { uuid } from "./validation.ts";
+import { viewerUser } from "./auth.ts";
+import { isPublicPost } from "./visibility.ts";
 
 type Mime = "image/png" | "image/jpeg" | "image/webp";
 export type ValidImage = {
@@ -188,21 +190,40 @@ export async function serveImage(request: Request, id: string): Promise<Response
     return imageNotFound();
   }
   const image = await createDb(env.DB)
-    .select({ image: images })
+    .select({
+      image: images,
+      post: {
+        authorId: posts.authorId,
+        hiddenAt: posts.hiddenAt,
+        spam: posts.spam,
+        mergedInto: posts.mergedInto,
+      },
+    })
     .from(images)
     .innerJoin(posts, eq(posts.id, images.postId))
     .where(eq(images.id, id))
     .get();
   if (!image) return imageNotFound();
-  // An image ID always names the same bytes: storeImage is write-once (first upload wins)
-  // and nothing deletes images. So the ID is the ETag, the response is immutable, and a
-  // revalidation is answered from D1 alone without an R2 read (Class B operation).
+  const publicPost = isPublicPost(image.post);
+  if (!publicPost) {
+    const viewer = await viewerUser(request.headers);
+    const admin = viewer?.admin && !viewer.banned && viewer.kind !== "anonymous";
+    // Authors can still read their hidden/spam feedback. Merged posts redirect instead.
+    if (!admin && (image.post.mergedInto !== null || viewer?.id !== image.post.authorId))
+      return imageNotFound();
+  }
+  // Recheck visibility before conditional responses too. Public images cache for one minute;
+  // private/session responses always revalidate. The stable ETag saves repeat R2 reads.
   const etag = `"${image.image.id}"`;
   const headers = {
     "Content-Type": image.image.mime,
     "X-Content-Type-Options": "nosniff",
     ETag: etag,
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Cache-Control":
+      publicPost && !request.headers.has("cookie")
+        ? "public, max-age=60, must-revalidate"
+        : "private, max-age=0, must-revalidate",
+    Vary: "Cookie",
   };
   const match = request.headers.get("if-none-match");
   if (match && match.split(",").some((value) => value.trim().replace(/^W\//, "") === etag))

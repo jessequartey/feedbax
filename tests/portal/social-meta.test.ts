@@ -72,3 +72,22 @@ describe("social meta", () => {
     expect(png.length).toBeLessThan(1_000_000);
   });
 });
+
+it.each(["hidden", "spam", "merged"])(
+  "OG images stay independent of %s post data",
+  async (state) => {
+    const head = await RootRoute.options.head!({
+      loaderData: {
+        post: {
+          title: "Secret title",
+          body: "Secret body",
+          state,
+          images: [{ url: "/api/media/secret" }],
+        },
+      },
+    } as never);
+    const meta = head!.meta as Record<string, string>[];
+    expect(tag(meta, "og:image")).toBe("/og.png");
+    expect(JSON.stringify(meta)).not.toMatch(/Secret|api\/media/);
+  },
+);

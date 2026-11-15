@@ -3,6 +3,7 @@ import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./server/reques
 import { errorResponse } from "./server/http.ts";
 import handler from "@tanstack/react-start/server-entry";
 import { consumeQueue, runScheduled } from "./sync/index.ts";
+import { consumeNotifications } from "./notifications/consume.ts";
 import type { SyncMessage } from "./contracts/sync.ts";
 
 export default {
@@ -32,6 +33,7 @@ export default {
       return errorResponse(error);
     }
   },
-  queue: (batch, _env, _ctx) => consumeQueue(batch),
+  queue: (batch, _env, _ctx) =>
+    batch.queue.endsWith("-notify") ? consumeNotifications(batch) : consumeQueue(batch),
   scheduled: (controller, _env, ctx) => ctx.waitUntil(runScheduled(controller)),
 } satisfies ExportedHandler<Env, SyncMessage>;

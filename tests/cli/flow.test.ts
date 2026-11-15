@@ -134,6 +134,16 @@ describe("setup", () => {
     ).toHaveLength(count);
     const config = JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8"));
     expect(config.vars.PORTAL_URL).toBe("https://my-feedback.team.workers.dev");
+    expect(config.queues.producers).toEqual([
+      { binding: "SYNC_QUEUE", queue: "my-feedback-sync" },
+      { binding: "NOTIFY_QUEUE", queue: "my-feedback-notify" },
+    ]);
+    expect(config.queues.consumers[1]).toEqual({
+      queue: "my-feedback-notify",
+      max_batch_size: 5,
+      max_concurrency: 3,
+      max_retries: 5,
+    });
     expect(config.queues.consumers[0]).toMatchObject({
       max_concurrency: 1,
       max_batch_size: 1,
@@ -164,6 +174,7 @@ describe("setup", () => {
     "d1 info",
     "r2 bucket create",
     "queues create",
+    "queues create my-feedback-notify",
     "d1 migrations apply DB --local",
     "d1 migrations apply DB --remote",
     "deploy",
@@ -173,24 +184,33 @@ describe("setup", () => {
     const argv = ["my-feedback", "--yes"];
     expect(await main(argv, f)).toBe(1);
     const before = await readVars(join(f.cwd, "my-feedback"));
-    const resources = { database: f.state.database, bucket: f.state.bucket, queue: f.state.queue };
+    const resources = {
+      database: f.state.database,
+      bucket: f.state.bucket,
+      queue: f.state.queue,
+      notifyQueue: f.state.notifyQueue,
+    };
     const callStart = f.state.calls.length;
     expect(await main(argv, f)).toBe(0);
     expect(await readVars(join(f.cwd, "my-feedback"))).toEqual(before);
     const later = f.state.calls.slice(callStart).join("\n");
     if (resources.database) expect(later).not.toContain("d1 create");
     if (resources.bucket) expect(later).not.toContain("r2 bucket create");
-    if (resources.queue) expect(later).not.toContain("queues create");
+    if (resources.queue) expect(later).not.toContain("queues create my-feedback-sync");
+    if (resources.notifyQueue) expect(later).not.toContain("queues create my-feedback-notify");
     expect(f.prompt.log.join("\n")).not.toContain(f.env.NOTION_TOKEN);
     await expect(stat(f.state.secretFile)).rejects.toThrow();
   });
-  it("refuses collisions on every fresh attempt before creating anything", async () => {
-    const f = await fixture();
-    f.state.queue = true;
-    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
-    expect(await main(["my-feedback", "--yes"], f)).toBe(2);
-    expect(f.state.calls.join("\n")).not.toMatch(/d1 create|r2 bucket create|queues create/);
-  });
+  it.each(["queue", "notifyQueue"] as const)(
+    "refuses %s collisions before creating anything",
+    async (binding) => {
+      const f = await fixture();
+      f.state[binding] = true;
+      expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+      expect(await main(["my-feedback", "--yes"], f)).toBe(2);
+      expect(f.state.calls.join("\n")).not.toMatch(/d1 create|r2 bucket create|queues create/);
+    },
+  );
   it("cancels cleanly and removes only the fresh directory before remote work", async () => {
     const f = await fixture();
     f.prompt = scripted(["my-feedback", cancel()]);
@@ -558,7 +578,8 @@ describe("selected login checkpoint", () => {
       (await readFile(join(project, "wrangler.jsonc"), "utf8"))
         .replaceAll("feedbax-db", "my-feedback-db")
         .replaceAll("feedbax-images", "my-feedback-images")
-        .replaceAll("feedbax-sync", "my-feedback-sync"),
+        .replaceAll("feedbax-sync", "my-feedback-sync")
+        .replaceAll("feedbax-notify", "my-feedback-notify"),
     ) as {
       name: string;
       account_id: string;
