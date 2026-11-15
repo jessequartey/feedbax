@@ -3,6 +3,7 @@ import config from "../../feedbax.config.ts";
 import type { AdminSettings } from "../contracts/admin.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
 import { requireAdmin } from "./auth.ts";
+import { listSimilarGroups } from "./similar-groups.ts";
 import {
   createEntry,
   deleteEntry,
@@ -56,6 +57,7 @@ async function adminSettings(): Promise<AdminSettings> {
     effective: await readSettings(),
     defaults: resolveSettings(config, []),
     githubEnabled: !!config.integrations.github && !!env.GITHUB_TOKEN?.trim(),
+    aiKeyConfigured: !!env.AI_API_KEY?.trim(),
   };
 }
 
@@ -92,14 +94,21 @@ export const adminApi = {
   webhookDelivery: admin((_who, input: unknown) => getWebhookDelivery(input)),
   webhookReplay: admin((_who, input: unknown) => replayWebhookDelivery(input)),
   getSettings: admin(() => adminSettings()),
+  similarGroups: admin(() => listSimilarGroups()),
   saveSettings: admin(async (_who, input: unknown) => {
     const data = record(input);
     // Only the safe fields; saveSettings rejects anything else and any invalid value.
     for (const key of Object.keys(data))
       if (
-        !["name", "anonymous", "categories", "notifications", "changelog", "moderation"].includes(
-          key,
-        )
+        ![
+          "name",
+          "anonymous",
+          "categories",
+          "notifications",
+          "changelog",
+          "moderation",
+          "ai",
+        ].includes(key)
       )
         invalid(key);
     await saveSettings(data as SettingsPatch);

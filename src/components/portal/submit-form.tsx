@@ -1,14 +1,17 @@
 import * as React from "react";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { GlobeIcon, Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type { SuggestSimilarResult } from "@/contracts/ai";
 import { CATEGORY_LABELS, LIMITS, type Category } from "@/contracts/domain";
 import { createPost } from "@/server/functions";
+import { plural } from "./format";
 import { clearDraft, loadDraft, parsePostDraft, POST_DRAFT_KEY, saveDraft } from "./draft";
 import { ImageAttachments, extensionFor, useImageAttachments } from "./image-attachments";
 import { CATEGORY_ICONS } from "./post-badges";
@@ -27,6 +30,40 @@ export function SubmitForm() {
   const [category, setCategory] = React.useState<Category>(offered[0] ?? "feature");
   const [errors, setErrors] = React.useState<Errors>({});
   const [pending, setPending] = React.useState(false);
+  const [similar, setSimilar] = React.useState<SuggestSimilarResult | null>(null);
+  // Once the user picks a post type by hand, the suggestion no longer applies.
+  const [categoryTouched, setCategoryTouched] = React.useState(false);
+
+  // Only suggest a type this portal offers, that the user has not picked by hand, and that
+  // differs from what is already selected.
+  const suggestedCategory =
+    similar?.suggestedCategory &&
+    !categoryTouched &&
+    similar.suggestedCategory !== category &&
+    offered.includes(similar.suggestedCategory)
+      ? similar.suggestedCategory
+      : null;
+
+  // Duplicate suggestions while typing: local FTS only, debounced, title only
+  // (the rich-text editor stays lazy; its plain text is not needed here).
+  React.useEffect(() => {
+    const query = title.trim();
+    if (query.length < 4) {
+      setSimilar(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/search/similar?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => setSimilar(data as SuggestSimilarResult | null))
+        .catch(() => undefined);
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [title]);
   // The post id is the idempotency key. It is reused for retries and renewed on any edit.
   const postId = React.useRef("");
   const edited = React.useCallback(() => {
@@ -150,6 +187,50 @@ export function SubmitForm() {
             {errors.title}
           </p>
         ) : null}
+        {similar && (similar.items.length > 0 || suggestedCategory) ? (
+          <div className="flex flex-col gap-2 border p-3" aria-live="polite">
+            {similar.items.length > 0 ? (
+              <>
+                <p className="text-sm font-medium">
+                  Similar posts already exist — vote on one instead?
+                </p>
+                <ul className="flex flex-col gap-1">
+                  {similar.items.map((item) => (
+                    <li key={item.id}>
+                      <Link
+                        to="/posts/$postId"
+                        params={{ postId: item.id }}
+                        className="text-sm underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+                      >
+                        {item.title}
+                      </Link>{" "}
+                      <span className="text-xs text-muted-foreground">
+                        ({plural(item.votes, "vote")})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+            {suggestedCategory ? (
+              <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                Suggested post type:
+                <Badge variant="outline">{CATEGORY_LABELS[suggestedCategory]}</Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 max-md:h-11"
+                  onClick={() => {
+                    setCategoryTouched(true);
+                    update({ category: suggestedCategory });
+                  }}
+                >
+                  Use suggestion
+                </Button>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -194,7 +275,10 @@ export function SubmitForm() {
           value={[category]}
           onValueChange={(next) => {
             const chosen = next[0] as Category | undefined;
-            if (chosen) update({ category: chosen });
+            if (chosen) {
+              setCategoryTouched(true);
+              update({ category: chosen });
+            }
           }}
           className="grid w-full grid-cols-1 sm:grid-cols-[repeat(auto-fit,minmax(0,1fr))]"
         >

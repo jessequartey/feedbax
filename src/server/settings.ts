@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { inArray, sql } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig } from "../contracts/config.ts";
+import type { AiProviderName, AiSettings } from "../contracts/ai.ts";
+import { AI_PROVIDERS } from "../contracts/ai.ts";
 import type {
   ChangelogSettings,
   ModerationSettings,
@@ -21,13 +23,14 @@ import { cachedSettings, clearSettingsCache } from "./settings-cache.ts";
 
 export type { ChangelogSettings, NotificationToggles, RuntimeSettings };
 export type SettingsPatch = {
-  [K in keyof Omit<RuntimeSettings, "notifications" | "changelog" | "moderation">]?:
+  [K in keyof Omit<RuntimeSettings, "notifications" | "changelog" | "moderation" | "ai">]?:
     | RuntimeSettings[K]
     | null;
 } & {
   moderation?: { [K in keyof ModerationSettings]?: ModerationSettings[K] | null };
   notifications?: { [K in keyof NotificationToggles]?: boolean | null };
   changelog?: { [K in keyof ChangelogSettings]?: ChangelogSettings[K] | null };
+  ai?: { [K in keyof AiSettings]?: AiSettings[K] | null };
 };
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[];
@@ -43,6 +46,8 @@ export const SETTING_KEYS = [
   ...TOGGLES.map((toggle) => `notifications.${toggle}` as const),
   "changelog.autoDraft",
   "changelog.source",
+  "ai.provider",
+  "ai.model",
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
@@ -65,6 +70,16 @@ function parse(key: SettingKey, value: unknown): unknown {
       : undefined;
   if (key === "changelog.source")
     return value === "portal" || value === "github" ? value : undefined;
+  if (key === "ai.provider")
+    return AI_PROVIDERS.includes(value as AiProviderName) ? value : undefined;
+  if (key === "ai.model")
+    return value === null ||
+      (typeof value === "string" &&
+        value.trim() === value &&
+        value.length >= 1 &&
+        value.length <= 80)
+      ? value
+      : undefined;
   if (key === "name")
     return typeof value === "string" &&
       value.trim() === value &&
@@ -115,6 +130,10 @@ export function resolveSettings(
     changelog: {
       autoDraft: pick("changelog.autoDraft", true),
       source: base.integrations.github ? pick("changelog.source", "portal" as const) : "portal",
+    },
+    ai: {
+      provider: pick("ai.provider", "local"),
+      model: pick("ai.model", null),
     },
   };
 }
@@ -170,7 +189,7 @@ export async function saveSettings(
 ): Promise<void> {
   const entries: [SettingKey, unknown][] = [];
   for (const [key, value] of Object.entries(patch)) {
-    if (key === "notifications" || key === "changelog" || key === "moderation") {
+    if (key === "notifications" || key === "changelog" || key === "moderation" || key === "ai") {
       if (typeof value !== "object" || value === null || Array.isArray(value)) invalid(key);
       for (const [toggle, enabled] of Object.entries(value))
         entries.push([`${key}.${toggle}` as SettingKey, enabled]);

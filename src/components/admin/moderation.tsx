@@ -23,7 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import type { SimilarGroupsResult } from "@/contracts/ai";
 import type {
+  MergeCandidate,
   ModerationComment,
   ModerationFilter,
   ModerationPost,
@@ -338,6 +340,101 @@ export function PostModeration({
       />
       <MergeDialog post={merging} onClose={() => setMerging(null)} />
       <VotersDialog post={votersPost} onClose={() => setVotersPost(null)} />
+    </>
+  );
+}
+
+export function SimilarGroups({ result }: { result: SimilarGroupsResult }) {
+  const [merging, setMerging] = React.useState<{
+    source: { id: string; title: string };
+    target: MergeCandidate;
+  } | null>(null);
+  if (result.provider === "off")
+    return (
+      <div className="border">
+        <EmptyState
+          title="Similar groups are off"
+          description="Choose a provider in Settings → AI suggestions to group similar posts."
+        />
+      </div>
+    );
+  if (result.groups.length === 0)
+    return (
+      <div className="border">
+        <EmptyState
+          title="No similar posts found"
+          description={`Checked the ${result.scanned} newest open posts. Groups with matching titles show up here.`}
+        />
+      </div>
+    );
+  return (
+    <>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Checked the {result.scanned} newest open posts ({result.provider}). Merge a duplicate into
+        the suggested post to keep.
+      </p>
+      <ul className="flex flex-col gap-4" aria-label="Similar post groups">
+        {result.groups.map((group) => (
+          <li key={group.target.id} className="border p-4">
+            <p className="text-sm text-muted-foreground">Keep</p>
+            <h3 className="text-base font-medium">
+              <Link
+                to="/posts/$postId"
+                params={{ postId: group.target.id }}
+                className="underline-offset-4 hover:underline"
+              >
+                {group.target.title}
+              </Link>{" "}
+              <span className="text-xs text-muted-foreground">
+                ({plural(group.target.votes, "vote")})
+              </span>
+            </h3>
+            <ul className="mt-3 flex flex-col gap-2">
+              {group.duplicates.map((duplicate) => (
+                <li
+                  key={duplicate.id}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  <span className="min-w-0 text-sm">
+                    <Link
+                      to="/posts/$postId"
+                      params={{ postId: duplicate.id }}
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {duplicate.title}
+                    </Link>{" "}
+                    <span className="text-xs text-muted-foreground">
+                      ({plural(duplicate.votes, "vote")})
+                    </span>
+                  </span>
+                  <Button
+                    variant="outline"
+                    className="h-9 max-md:h-11"
+                    onClick={() =>
+                      setMerging({
+                        source: { id: duplicate.id, title: duplicate.title },
+                        target: {
+                          id: group.target.id,
+                          title: group.target.title,
+                          votes: group.target.votes,
+                          createdAt: group.target.createdAt,
+                        },
+                      })
+                    }
+                  >
+                    <GitMergeIcon aria-hidden="true" /> Merge into suggested
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+      <MergeDialog
+        post={merging?.source ?? null}
+        initialTarget={merging?.target ?? null}
+        onClose={() => setMerging(null)}
+      />
     </>
   );
 }

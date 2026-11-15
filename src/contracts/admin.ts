@@ -1,3 +1,4 @@
+import type { AiSettings } from "./ai.ts";
 import type { Category, Page, PublicAuthor, Status } from "./domain.ts";
 
 // Shapes shared by the admin server functions and the /admin pages. Types only.
@@ -27,12 +28,14 @@ export type RuntimeSettings = {
   /** Site-wide email switches; per-user choices live in `email_prefs`. */
   notifications: NotificationToggles;
   changelog: ChangelogSettings;
+  ai: AiSettings;
 };
 /** What /admin/settings edits: the effective values, and what feedbax.config.ts would give. */
 export type AdminSettings = {
   effective: RuntimeSettings;
   defaults: RuntimeSettings;
   githubEnabled?: boolean;
+  aiKeyConfigured?: boolean;
 };
 
 export type ModerationFilter = "all" | "hidden" | "spam";

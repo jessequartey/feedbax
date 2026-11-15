@@ -135,6 +135,21 @@ Endpoints are managed in the portal, not in files or secrets. `npx feedbax@lates
 
 Events: `post.created`, `post.status_changed`, `comment.created`, `vote.created`, `changelog.published`. Bodies are Markdown plus plain text. Open **Event catalog** on the same screen for schemas and example payloads. Failed deliveries retry with backoff (6 attempts over about 7 hours) and unqueued deliveries recover automatically. Filter recent deliveries by status or endpoint, inspect payloads, and replay failed deliveries.
 
+### AI suggestions and duplicate detection
+
+No key is needed: while someone types a post title, Feedbax suggests similar public posts and a post type using local search on your portal. Admins can group similar open posts under **Moderation → Similar groups** and merge a duplicate into the suggested post.
+
+An external provider (Jev, Gemini or OpenAI) is optional and only re-ranks those admin groups. If its key is missing or it fails, local grouping is used.
+
+```sh
+npx feedbax@latest add ai --provider gemini
+AI_API_KEY=… npx feedbax@latest add ai --provider openai --yes
+```
+
+1. Run the command above and enter the key when asked (it is validated before anything is saved).
+2. Open `/admin/settings` → **AI suggestions** and choose the same provider (and a model, if you want one).
+3. Choose **Local** to stop external calls. **Off** also hides Similar groups. Suggestions while typing always stay local.
+
 ## Set up with an agent
 
 Paste this into a coding agent. It should follow this README, use a terminal, and ask you for sign-in, MFA and payment. Keep tokens in the agent's secret input or the environment, not in chat.
@@ -459,7 +474,7 @@ There is no migration from 0.2.x. Start a new project. See [CHANGELOG.md](CHANGE
 
 Run `npx feedbax@latest admin` from the project. It prints a sign-in link that works once and expires after 15 minutes. Open it, confirm, and you land on `/admin/moderation`. No sign-in provider is required.
 
-- **Moderation** lists posts and comments. Sort posts by newest or Priority, and click a post's vote count (or **View voters** on the post page) to inspect who voted on it. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
+- **Moderation** lists posts and comments. Sort posts by newest or Priority, and click a post's vote count (or **View voters** on the post page) to inspect who voted on it. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row. **Similar groups** lists open posts with matching titles so you can merge duplicates into the suggested post.
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 

@@ -1,15 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { unwrap } from "@/components/admin/use-admin";
-import { CommentModeration, FilterControl, PostModeration } from "@/components/admin/moderation";
+import {
+  CommentModeration,
+  FilterControl,
+  PostModeration,
+  SimilarGroups,
+} from "@/components/admin/moderation";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { buttonVariants } from "@/components/ui/button";
 import type { ModerationFilter } from "@/contracts/admin";
 import { cn } from "@/lib/utils";
-import { adminListComments, adminListPosts } from "@/server/functions";
+import { adminListComments, adminListPosts, adminSimilarGroups } from "@/server/functions";
 
 type ModerationSearch = {
-  view?: "comments";
+  view?: "comments" | "similar";
   filter?: "hidden" | "spam";
   sort?: "priority";
   page?: number;
@@ -22,11 +27,15 @@ function parsePage(raw: unknown): number | undefined {
 
 export const Route = createFileRoute("/_portal/admin/moderation")({
   validateSearch: (raw: Record<string, unknown>): ModerationSearch => ({
-    ...(raw.view === "comments" ? { view: "comments" as const } : {}),
-    ...(raw.view !== "comments" && (raw.filter === "hidden" || raw.filter === "spam")
+    ...(raw.view === "comments" || raw.view === "similar" ? { view: raw.view } : {}),
+    ...(raw.view !== "comments" &&
+    raw.view !== "similar" &&
+    (raw.filter === "hidden" || raw.filter === "spam")
       ? { filter: raw.filter }
       : {}),
-    ...(raw.view !== "comments" && raw.sort === "priority" ? { sort: "priority" as const } : {}),
+    ...(raw.view !== "comments" && raw.view !== "similar" && raw.sort === "priority"
+      ? { sort: "priority" as const }
+      : {}),
     ...(parsePage(raw.page) ? { page: parsePage(raw.page) } : {}),
   }),
   loaderDeps: ({ search }) => search,
@@ -36,12 +45,14 @@ export const Route = createFileRoute("/_portal/admin/moderation")({
           view: "comments",
           comments: await unwrap(adminListComments({ data: { page: deps.page } })),
         } as const)
-      : ({
-          view: "posts",
-          posts: await unwrap(
-            adminListPosts({ data: { filter: deps.filter, page: deps.page, sort: deps.sort } }),
-          ),
-        } as const),
+      : deps.view === "similar"
+        ? ({ view: "similar", similar: await unwrap(adminSimilarGroups()) } as const)
+        : ({
+            view: "posts",
+            posts: await unwrap(
+              adminListPosts({ data: { filter: deps.filter, page: deps.page, sort: deps.sort } }),
+            ),
+          } as const),
   component: ModerationPage,
 });
 
@@ -75,6 +86,14 @@ function ModerationPage() {
             className={tab(view === "comments")}
           >
             Comments
+          </Link>
+          <Link
+            to="/admin/moderation"
+            search={{ view: "similar" }}
+            aria-current={view === "similar" ? "true" : undefined}
+            className={tab(view === "similar")}
+          >
+            Similar groups
           </Link>
         </div>
         {data.view === "posts" ? (
@@ -127,6 +146,8 @@ function ModerationPage() {
             void navigate({ search: (prev) => ({ ...prev, page: page > 1 ? page : undefined }) })
           }
         />
+      ) : data.view === "similar" ? (
+        <SimilarGroups result={data.similar} />
       ) : (
         <CommentModeration
           page={data.comments}

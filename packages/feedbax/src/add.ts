@@ -22,6 +22,7 @@ import type { GitHubSetupClient } from "../../../src/contracts/integrations.ts";
 import type { SetupAnswers, Secrets } from "../../create-feedbax/src/types.ts";
 import { emailFromProblem } from "../../../src/contracts/config.ts";
 import type { FeedbaxConfig } from "../../../src/contracts/config.ts";
+import { AI_CLI_PROVIDERS, validateAiKey, type AiCliProvider } from "./ai.ts";
 import { validateResendKey } from "./resend.ts";
 import {
   loadConfig,
@@ -48,9 +49,10 @@ export const INTEGRATIONS = [
   "host-login",
   "email",
   "webhooks",
+  "ai",
 ] as const;
 export type Integration = (typeof INTEGRATIONS)[number];
-export type AddOptions = { repo?: string; appUrl?: string; from?: string };
+export type AddOptions = { repo?: string; appUrl?: string; from?: string; provider?: string };
 
 type Change = {
   /** Production secrets (Cloudflare). */
@@ -90,7 +92,9 @@ export async function add(
         ? await hostLogin(ctx, project, options)
         : integration === "email"
           ? await email(ctx, project, options)
-          : await oauthLogin(ctx, project, integration === "github-login" ? "github" : "google");
+          : integration === "ai"
+            ? await ai(ctx, project, options)
+            : await oauthLogin(ctx, project, integration === "github-login" ? "github" : "google");
   const config = change.config ? await prepareConfigEdit(ctx.cwd, change.config) : undefined;
   if (config && change.checkConfig && !change.checkConfig(config.config))
     throw new CliError(
@@ -321,6 +325,31 @@ async function hostLogin(ctx: Context, project: Project, options: AddOptions): P
     config: (text) => setAppUrl(text, appUrl),
     checkConfig: (config) => config.appUrl === appUrl,
     done: `Host login: appUrl = ${appUrl}. Next, in your app: copy FEEDBAX_HOST_SECRET from .dev.vars to its server environment (keep it unchanged and server-side), then add the token endpoint and FeedbaxLink: ${README_URL}`,
+  };
+}
+
+async function ai(ctx: Context, project: Project, options: AddOptions): Promise<Change> {
+  let provider: AiCliProvider;
+  if (options.provider !== undefined) {
+    if (!(AI_CLI_PROVIDERS as readonly string[]).includes(options.provider))
+      throw new CliError("--provider must be jev, gemini or openai.", 2);
+    provider = options.provider as AiCliProvider;
+  } else if (ctx.yes) {
+    throw new CliError("Pass --provider jev, gemini or openai.", 2);
+  } else {
+    provider = (await ctx.prompt.select("Which AI provider?", [
+      { value: "gemini", label: "Google Gemini" },
+      { value: "openai", label: "OpenAI" },
+      { value: "jev", label: "Jev (TypeSafe AI)" },
+    ])) as AiCliProvider;
+  }
+  const key = await secretInput(ctx, "AI_API_KEY", "AI API key", project.vars.AI_API_KEY);
+  await validateAiKey(provider, key, ctx.fetch);
+  return {
+    retryOptions: { provider },
+    secrets: { AI_API_KEY: key },
+    local: { AI_API_KEY: key },
+    done: `AI provider key saved for ${provider}. Choose ${provider} in /admin/settings → AI suggestions. Local suggestions need no key.`,
   };
 }
 
