@@ -85,6 +85,20 @@ it("sorts top by lifetime votes, trending by seven-day votes, then new by timest
     .run();
   const trending = (await listPostPage({ sort: "trending" }, null)).items.map((p) => p.id);
   expect(trending.slice(0, 2)).toEqual([ids[2], ids[1]]);
+
+  // Done and closed posts sort after active ones for every sort, however popular or new.
+  await env.DB.prepare("UPDATE posts SET status = 'done', created_at = 5000 WHERE id = ?")
+    .bind(ids[0])
+    .run();
+  await setVoteForUser({ postId: ids[0], voted: true }, user);
+  await setVoteForUser({ postId: ids[0], voted: true }, voter);
+  for (const sort of ["trending", "top", "new"] as const)
+    for (const mine of [false, true]) {
+      const items = (await listPostPage({ sort }, mine ? user : null, mine)).items;
+      expect(items.at(-1)!.id, `${sort} mine=${mine}`).toBe(ids[0]);
+    }
+  await env.DB.prepare("UPDATE posts SET status = 'closed' WHERE id = ?").bind(ids[0]).run();
+  expect((await listPostPage({ sort: "new" }, null)).items.at(-1)!.id).toBe(ids[0]);
 });
 it("orders comments ascending with deterministic UUID ties and returns notFound for missing reads", async () => {
   const user = await writer(),

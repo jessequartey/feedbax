@@ -240,6 +240,7 @@ Images live in R2. The portal keeps working if Notion or GitHub is down. Sync ca
 2. Press **Back**, **Escape** or **Close** to return to the same filters, page and scroll position.
 3. Copy the post URL, open it in a new tab, reload, or choose **Open full page** to read the full page.
 4. Choose **New post** to write in a dialog, or open `/submit` for the full page; **Open full page** keeps your title, description and post type. Images stay in the current form and must be reattached after switching views.
+5. Done and closed posts appear after active ones.
 
 ## Add the feedback dialog to your app
 

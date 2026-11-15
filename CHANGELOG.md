@@ -2,6 +2,7 @@
 
 ## 0.3.2 (unreleased)
 
+- **Done posts last.** Done and closed posts sit below active feedback on the board and in My feedback.
 - **Safer CLI changes.** Add-ons validate credentials before changing config or production secrets; interrupted upgrades resume and record the installed version only after deployment succeeds.
 - `feedbax add`, `doctor`, and `deploy` notify when a newer Feedbax release is available.
 - Email retries skip completed recipients, large audiences continue safely, failed enqueues recover automatically, and `/api/health` reports delivery failures.

@@ -156,6 +156,9 @@ function summary(row: {
     ...(row.post.hiddenAt !== null || row.post.spam ? { hidden: true as const } : {}),
   };
 }
+// Done and closed posts sort after active ones. Literals, not bound values, so SQLite matches
+// the posts_board_done_last_idx expression (migration 0015).
+export const doneLast = sql.raw("(status IN ('done', 'closed'))");
 const authorFields = { id: user.id, name: user.name, isAnonymous: user.isAnonymous };
 export async function listPostPage(
   input: ListPostsInput,
@@ -186,6 +189,7 @@ export async function listPostPage(
       ? sql`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`
       : sql`(SELECT coalesce(sum(604800000 + created_at - ${windowStart}), 0) FROM votes WHERE post_id = ${posts.id} AND created_at >= ${windowStart})`;
   const order = [
+    doneLast,
     ...(data.sort === "priority"
       ? [desc(posts.priority)]
       : data.sort === "new"

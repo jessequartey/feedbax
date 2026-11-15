@@ -10,7 +10,11 @@ import type { SyncErrorState, SyncMessage } from "../../src/contracts/sync.ts";
 import { NOTION_SCHEMA } from "../../src/integrations/notion-schema.ts";
 import { handleHealth } from "../../src/server/http.ts";
 import { serveImage } from "../../src/server/images.ts";
-import { createPostForUser, getPostDetail } from "../../src/server/posts.ts";
+import { desc, eq } from "drizzle-orm";
+import { createDb } from "../../src/db/client.ts";
+import { posts, user as users } from "../../src/db/schema.ts";
+import { createPostForUser, doneLast, getPostDetail } from "../../src/server/posts.ts";
+import { publiclyVisible } from "../../src/server/visibility.ts";
 import { queue, resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { form, png, writer } from "../api/helpers.ts";
 import { measure } from "./meter.ts";
@@ -219,6 +223,21 @@ describe("hot query plans", () => {
         "SELECT id FROM posts INDEXED BY posts_github_open WHERE github_number IS NOT NULL AND github_closed_at IS NULL LIMIT 1",
       ),
     ).toContain("USING INDEX posts_github_open");
+  });
+  test("the board's new sort reads the done-last index with no temp B-tree", async () => {
+    // Drizzle's own SQL for the board query: the plan only holds if the ORDER BY and WHERE match the index text.
+    const { sql, params } = createDb(env.DB)
+      .select({ post: posts })
+      .from(posts)
+      .innerJoin(users, eq(posts.authorId, users.id))
+      .where(publiclyVisible)
+      .orderBy(doneLast, desc(posts.createdAt), desc(posts.id))
+      .limit(20)
+      .offset(0)
+      .toSQL();
+    const detail = await plan(sql.replace(/\?/g, () => String(params.shift())));
+    expect(detail).toContain("posts_board_done_last_idx");
+    expect(detail).not.toContain("USE TEMP B-TREE");
   });
   test("the trending sort counts recent votes from a covering index", async () => {
     expect(
