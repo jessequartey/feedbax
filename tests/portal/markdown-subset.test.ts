@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  escapeMarkdownText,
-  markdownToGitHub,
   markdownToHtml,
   markdownToPlainText,
   markdownToText,
-  normalizeMarkdown,
   parseMarkdown,
   safeHref,
   type Block,
   type Inline,
 } from "../../src/lib/markdown.ts";
+import {
+  escapeMarkdownText,
+  markdownToGitHub,
+  normalizeMarkdown,
+} from "../../src/lib/markdown-write.ts";
 
 // Every anchor in the tree, and every text node, walked once.
 function links(blocks: Block[]): string[] {

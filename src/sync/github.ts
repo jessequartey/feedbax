@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { CATEGORY_LABELS } from "../contracts/domain.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
 import { githubRepoPath } from "../integrations/github.ts";
-import { markdownToGitHub } from "../lib/markdown.ts";
+import { markdownToGitHub } from "../lib/markdown-write.ts";
 import type { GitHubIssue } from "../integrations/github.ts";
 import {
   config,

@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "../db/client.ts";
 import { changelogEntries, changelogPosts, posts } from "../db/schema.ts";
-import { escapeMarkdownText } from "../lib/markdown.ts";
+import { escapeMarkdownText } from "../lib/markdown-write.ts";
 import { excerptOf } from "./excerpt.ts";
 import { readSettings } from "./settings.ts";
 

@@ -1,4 +1,4 @@
-import { normalizeMarkdown } from "../lib/markdown.ts";
+import { normalizeMarkdown } from "../lib/markdown-write.ts";
 import { invalid } from "./errors.ts";
 import type { Category, ListPostsInput, Status } from "../contracts/domain.ts";
 

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vite-plus/test";
 import { renderToString } from "react-dom/server";
 
@@ -99,5 +101,14 @@ describe("the editor seam", () => {
     expect(output).toContain('aria-invalid="true"');
     expect(output).toContain('aria-describedby="body-error"');
     expect(output).not.toContain("Markdown supported");
+  });
+
+  it("keeps the editor in a lazy chunk so the textarea is what renders first", () => {
+    const source = readFileSync(
+      new URL("../../src/components/portal/rich-text-field.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('import("./rich-text-editor")');
+    expect(source).not.toContain("@tiptap/");
   });
 });
