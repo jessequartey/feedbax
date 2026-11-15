@@ -1,6 +1,7 @@
-// A per-isolate cache for the admin insights result, one entry per range. The popular-requests
-// query walks every vote on every open post, so one load is shared by every admin request in an
-// isolate for a few minutes. Nothing invalidates it: the page says when it was last updated.
+// A per-isolate cache for the admin insights result, one entry per range. A load reads every
+// vote, comment and post in the range (and scans the public posts once for the breakdowns),
+// so one load is shared by every admin request in an isolate for a few minutes. Nothing
+// invalidates it: the page says when it was last updated.
 // Admin data never goes in the Cache API. No Cloudflare imports: the test fixture clears it
 // between tests.
 import type { AdminInsights, InsightsRange } from "../contracts/admin.ts";

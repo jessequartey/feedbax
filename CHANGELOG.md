@@ -18,7 +18,7 @@
 - **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 - Use GitHub releases as the changelog source: release notes and edits sync automatically, and linked feedback is marked Done.
 - **Reliable webhooks, inspection and replay.** Large event batches deliver without truncation, failed queue sends recover automatically, and admins can browse the webhook event catalog, filter recent deliveries, inspect payloads, and replay failed deliveries.
-- **Admin insights dashboard.** Track feedback volume, votes, median response and delivery times, status and category breakdowns, popular open requests, and active signed-in contributors at `/admin/insights`.
+- **Admin insights dashboard.** Track feedback volume, votes, median response and delivery times, status and category breakdowns, the most voted open requests, and active signed-in contributors over 7, 30 or 90 days at `/admin/insights`.
 
 ## 0.3.1
 

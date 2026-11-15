@@ -100,7 +100,7 @@ export type AdminUser = {
   createdAt: string;
 };
 
-export type InsightsRange = "7d" | "30d" | "90d" | "all";
+export type InsightsRange = "7d" | "30d" | "90d";
 export type AdminInsightsInput = { range?: InsightsRange };
 export type AdminInsightsVolumePoint = {
   label: string;
@@ -114,6 +114,7 @@ export type AdminInsightsPopularRequest = {
   title: string;
   category: Category;
   status: Status;
+  /** Votes cast in the selected range, not the post's lifetime total. */
   votes: number;
   comments: number;
   priority: number | null;

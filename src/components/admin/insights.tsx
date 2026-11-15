@@ -40,7 +40,6 @@ const RANGES: { value: InsightsRange; label: string; caption: string }[] = [
   { value: "7d", label: "7 days", caption: "In the last 7 days" },
   { value: "30d", label: "30 days", caption: "In the last 30 days" },
   { value: "90d", label: "90 days", caption: "In the last 90 days" },
-  { value: "all", label: "All time", caption: "Across all time" },
 ];
 
 const STATUSES: Status[] = ["open", "planned", "in_progress", "done", "closed"];
@@ -424,8 +423,10 @@ export function InsightsDashboard({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Popular open requests</CardTitle>
-            <CardDescription>Top open, planned, and in-progress requests by votes.</CardDescription>
+            <CardTitle>Most voted in this period</CardTitle>
+            <CardDescription>
+              Open, planned, and in-progress requests by votes cast in this range.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {insights.popularRequests.length === 0 ? (
@@ -434,9 +435,9 @@ export function InsightsDashboard({
                   <EmptyMedia variant="icon">
                     <InboxIcon aria-hidden="true" />
                   </EmptyMedia>
-                  <EmptyTitle>No open requests</EmptyTitle>
+                  <EmptyTitle>No votes in this period</EmptyTitle>
                   <EmptyDescription>
-                    Active requests in open, planned, or in-progress stages will appear here.
+                    Votes on open, planned, or in-progress requests will appear here.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>

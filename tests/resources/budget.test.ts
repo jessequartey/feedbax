@@ -233,8 +233,8 @@ describe("hot query plans", () => {
       ),
     ).toContain("COVERING INDEX votes_post_created_idx (post_id=? AND created_at>?)");
   });
-  test("admin insights read a 7d or 30d window through the created_at indexes", async () => {
-    for (const range of ["7d", "30d"] as const) {
+  test("admin insights read every range through the created_at indexes", async () => {
+    for (const range of ["7d", "30d", "90d"] as const) {
       const captured: { query: string; params: unknown[] }[] = [];
       const spy = {
         prepare: (query: string) => ({
@@ -246,22 +246,31 @@ describe("hot query plans", () => {
         batch: (all: D1PreparedStatement[]) => env.DB.batch(all),
       } as unknown as D1Database;
       await getInsights({ range }, NOW, spy);
-      // 1 and 5 (all-time breakdowns, popular requests) scan by design and are cached.
-      // 2 (activity), 3 (first response) and 4 (delivery) are bounded by the window.
-      const [activity, response, delivery] = await Promise.all(
-        [1, 2, 3].map(async (i) => plan(`${captured[i]!.query}`, captured[i]!.params)),
+      // Statement 0 (all-time status and category breakdowns) scans the public posts by
+      // design: no index holds the visibility columns. The other four are bounded by the range.
+      const [activity, response, delivery, popular] = await Promise.all(
+        [1, 2, 3, 4].map(async (i) => plan(captured[i]!.query, captured[i]!.params)),
       );
-      for (const detail of [activity, response, delivery]) {
+      for (const detail of [activity, response, delivery, popular]) {
         expect(detail).not.toMatch(/SCAN (posts|votes|comments)\b/);
       }
+      expect(activity).toContain(
+        "SEARCH votes USING COVERING INDEX votes_created_post_idx (created_at>? AND created_at<?)",
+      );
       expect(activity).toContain("SEARCH votes USING INDEX votes_created_post_idx (created_at>?)");
       expect(activity).toContain(
         "SEARCH comments USING INDEX comments_created_post_idx (created_at>?)",
       );
       expect(activity).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
       expect(response).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain(
+        "SEARCH c USING INDEX comments_author_created_idx (author_id=? AND created_at>?)",
+      );
       expect(response).toContain("SEARCH cp USING INDEX changelog_posts_post_idx (post_id=?)");
       expect(delivery).toContain("SEARCH posts USING INDEX posts_status_created_idx (status=?)");
+      expect(popular).toContain(
+        "SEARCH votes USING COVERING INDEX votes_created_post_idx (created_at>?)",
+      );
       clearInsightsCache();
     }
   });

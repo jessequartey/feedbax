@@ -145,10 +145,12 @@ describe("admin insights", () => {
     expect(result.popularRequests).toEqual([]);
     expect(result.topContributors).toEqual([]);
 
-    await expect(adminApi.insights(adminUser, { range: "1y" })).rejects.toMatchObject({
-      code: "invalid_input",
-      field: "range",
-    });
+    for (const range of ["1y", "all"]) {
+      await expect(adminApi.insights(adminUser, { range })).rejects.toMatchObject({
+        code: "invalid_input",
+        field: "range",
+      });
+    }
   });
 
   it("loads the entire dashboard in one D1 batch and caches it per range for 5 minutes", async () => {
@@ -284,10 +286,6 @@ describe("admin insights", () => {
     expect(ninetyDay.volumeSeries).toHaveLength(13);
     expect(ninetyDay.volumeSeries[0]?.date).toBe("2026-08-18");
     expect(ninetyDay.volumeSeries.at(-1)?.date).toBe("2026-11-10");
-
-    const allTime = await getInsights({ range: "all" }, NOW);
-    expect(allTime.totals).toEqual({ posts: 3, votes: 3, comments: 1, shipped: 1 });
-    expect(allTime.volumeSeries.reduce((s, b) => s + b.posts, 0)).toBe(3);
   });
 
   it("computes median first response and delivery from stamps, never updated_at", async () => {
@@ -497,6 +495,16 @@ describe("admin insights", () => {
     });
     for (const u of [anon1, anon2, alice, bob]) await makeVote(mergedPost, u, NOW - DAY_MS);
 
+    // Votes outside the range don't count: four of its five votes are 60 days old.
+    const oldFavourite = await makePost({
+      authorId: bob,
+      title: "Old favourite",
+      status: "open",
+      createdAt: NOW - 100 * DAY_MS,
+    });
+    for (const u of [anon1, anon2, alice, bob]) await makeVote(oldFavourite, u, NOW - 60 * DAY_MS);
+    await makeVote(oldFavourite, bannedUser, NOW - DAY_MS);
+
     // Anonymous user posts heavily; must still be excluded from topContributors
     await makeComment({ postId: openIds[0]!, authorId: anon1, createdAt: NOW - DAY_MS });
     await makeComment({ postId: openIds[1]!, authorId: anon1, createdAt: NOW - DAY_MS });
@@ -511,6 +519,14 @@ describe("admin insights", () => {
       "Request 3",
       "Request 4",
       "Request 5",
+    ]);
+    // Votes cast in the range, not lifetime totals.
+    expect(insights.popularRequests.map((r) => r.votes)).toEqual([5, 5, 4, 3, 2]);
+    const ninety = await getInsights({ range: "90d" }, NOW);
+    expect(ninety.popularRequests.map((r) => [r.title, r.votes]).slice(0, 3)).toEqual([
+      ["Request 1", 5],
+      ["Request 2", 5],
+      ["Old favourite", 5],
     ]);
     expect(insights.popularRequests[0]?.priority).toBe(90);
     expect(insights.popularRequests[0]?.comments).toBe(2);

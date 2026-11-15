@@ -10,7 +10,7 @@ type InsightsSearch = { range?: InsightsRange };
 
 export const Route = createFileRoute("/_portal/admin/insights")({
   validateSearch: (raw: Record<string, unknown>): InsightsSearch =>
-    raw.range === "7d" || raw.range === "90d" || raw.range === "all" ? { range: raw.range } : {},
+    raw.range === "7d" || raw.range === "90d" ? { range: raw.range } : {},
   loaderDeps: ({ search }) => search,
   loader: ({ deps }) => unwrap(adminInsights({ data: deps.range ? { range: deps.range } : {} })),
   pendingComponent: InsightsPending,

@@ -30,7 +30,7 @@ import { publiclyVisible } from "./visibility.ts";
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
-const RANGE_DAYS: Record<Exclude<InsightsRange, "all">, number> = {
+const RANGE_DAYS: Record<InsightsRange, number> = {
   "7d": 7,
   "30d": 30,
   "90d": 90,
@@ -43,11 +43,6 @@ const dayLabelFormat = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   timeZone: "UTC",
 });
-const monthLabelFormat = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 const dialect = new SQLiteSyncDialect();
 function prepare(d1: D1Database, statement: SQL) {
@@ -57,21 +52,7 @@ function prepare(d1: D1Database, statement: SQL) {
 
 const utcDayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 const utcDayMs = (dayKey: string) => Date.parse(`${dayKey}T00:00:00.000Z`);
-const utcWeekStartMs = (dayKey: string) => {
-  const ms = utcDayMs(dayKey);
-  const dow = new Date(ms).getUTCDay(); // 0=Sun..6=Sat
-  const offsetToMonday = (dow + 6) % 7;
-  return ms - offsetToMonday * DAY_MS;
-};
 const formatDayLabel = (dayKey: string) => dayLabelFormat.format(new Date(utcDayMs(dayKey)));
-const formatMonthLabel = (monthKey: string) =>
-  monthLabelFormat.format(new Date(Date.parse(`${monthKey}-01T00:00:00.000Z`)));
-
-function nextMonthKey(monthKey: string): string {
-  const [y, m] = monthKey.split("-").map(Number) as [number, number];
-  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-}
-
 const round1 = (value: number) => Math.round(value * 10) / 10;
 
 type SummaryRow = {
@@ -113,7 +94,7 @@ type PopularRow = {
 function buildVolumeSeries(
   rows: ActivityRow[],
   range: InsightsRange,
-  since: number | null,
+  since: number,
   now: number,
 ): { series: AdminInsightsVolumePoint[]; votes: number; comments: number } {
   let votes = 0;
@@ -123,39 +104,12 @@ function buildVolumeSeries(
     comments += Number(row.comments);
   }
 
-  if (range === "all" && rows.length === 0) {
-    return { series: [], votes, comments };
-  }
-
-  let mode: "day" | "week" | "month";
-  let startKey: string;
-  let endKey = utcDayKey(now);
-
-  if (range === "all") {
-    let minDay = rows[0]!.bucket;
-    let maxDay = endKey;
-    for (const row of rows) {
-      if (row.bucket < minDay) minDay = row.bucket;
-      if (row.bucket > maxDay) maxDay = row.bucket;
-    }
-    startKey = minDay;
-    endKey = maxDay;
-    const spanDays = Math.round((utcDayMs(endKey) - utcDayMs(startKey)) / DAY_MS) + 1;
-    mode = spanDays <= 35 ? "day" : spanDays <= 180 ? "week" : "month";
-  } else {
-    // `since` is a UTC day start, so the first bucket is whole: 7d is 7 bars, 30d is 30.
-    mode = range === "90d" ? "week" : "day";
-    startKey = utcDayKey(since!);
-  }
-
-  // 90d weeks count from `since` (so the first one is whole and the last one ends today);
-  // all-time weeks are calendar weeks starting on Monday.
+  // `since` is a UTC day start, so the first bucket is whole: 7d is 7 bars, 30d is 30, and 90d
+  // is 13 weeks counted from `since` (the last one ends today).
+  const weekly = range === "90d";
   const weekStartMs = (dayKey: string) =>
-    range === "90d"
-      ? since! + Math.floor((utcDayMs(dayKey) - since!) / WEEK_MS) * WEEK_MS
-      : utcWeekStartMs(dayKey);
-  const bucketKeyForDay = (dayKey: string) =>
-    mode === "day" ? dayKey : mode === "week" ? utcDayKey(weekStartMs(dayKey)) : dayKey.slice(0, 7);
+    since + Math.floor((utcDayMs(dayKey) - since) / WEEK_MS) * WEEK_MS;
+  const bucketKeyForDay = (dayKey: string) => (weekly ? utcDayKey(weekStartMs(dayKey)) : dayKey);
 
   const counts = new Map<string, { posts: number; votes: number; comments: number }>();
   for (const row of rows) {
@@ -167,63 +121,50 @@ function buildVolumeSeries(
     counts.set(key, entry);
   }
 
-  const point = (label: string, date: string): AdminInsightsVolumePoint => {
+  const series: AdminInsightsVolumePoint[] = [];
+  const startKey = utcDayKey(since);
+  const endKey = utcDayKey(now);
+  const first = weekly ? weekStartMs(startKey) : utcDayMs(startKey);
+  const last = weekly ? weekStartMs(endKey) : utcDayMs(endKey);
+  for (let ms = first; ms <= last; ms += weekly ? WEEK_MS : DAY_MS) {
+    const date = utcDayKey(ms);
     const entry = counts.get(date);
-    return {
-      label,
+    series.push({
+      label: formatDayLabel(date),
       date,
       posts: entry?.posts ?? 0,
       votes: entry?.votes ?? 0,
       comments: entry?.comments ?? 0,
-    };
-  };
-
-  const series: AdminInsightsVolumePoint[] = [];
-  if (mode === "day") {
-    const endMs = utcDayMs(endKey);
-    for (let ms = utcDayMs(startKey); ms <= endMs; ms += DAY_MS) {
-      const date = utcDayKey(ms);
-      series.push(point(formatDayLabel(date), date));
-    }
-  } else if (mode === "week") {
-    const endMs = weekStartMs(endKey);
-    for (let ms = weekStartMs(startKey); ms <= endMs; ms += WEEK_MS) {
-      const date = utcDayKey(ms);
-      series.push(point(formatDayLabel(date), date));
-    }
-  } else {
-    const endMonth = endKey.slice(0, 7);
-    for (let month = startKey.slice(0, 7); month <= endMonth; month = nextMonthKey(month)) {
-      series.push(point(formatMonthLabel(month), month));
-    }
+    });
   }
 
   return { series, votes, comments };
 }
 
 /**
- * The median duration in SQL, so one row comes back however many posts there are: count the
- * rows, then average the one or two in the middle. `signals` yields (created_at, at) once per
- * post (materialized, so a correlated lookup runs once); `at` is NULL when there is no signal.
+ * The median duration in SQL, so one row comes back however many posts there are: number the
+ * durations in order, then average the one or two in the middle. `signals` yields
+ * (created_at, at) once per post; `at` is NULL when there is no signal. It is materialized so
+ * the per-post lookups behind `at` run once per post, not once per use. `ctes` are extra
+ * leading CTEs (each ending in a comma).
  */
-function medianStatement(signals: SQL, window: SQL = sql``): SQL {
-  return sql`WITH signals AS MATERIALIZED (${signals}),
-    durations AS (
-      SELECT at - created_at AS ms FROM signals
-      WHERE at IS NOT NULL AND at >= created_at${window}
-    ),
-    total AS (SELECT count(*) AS n FROM durations)
-  SELECT
-    (SELECT n FROM total) AS n,
-    (SELECT avg(ms) FROM (
-      SELECT ms FROM durations ORDER BY ms
-      LIMIT 2 - ((SELECT n FROM total) % 2) OFFSET ((SELECT n FROM total) - 1) / 2
-    )) AS median_ms`;
+function medianStatement(signals: SQL, window: SQL = sql``, ctes: SQL = sql``): SQL {
+  return sql`WITH ${ctes}signals AS MATERIALIZED (${signals}),
+  ranked AS (
+    SELECT at - created_at AS ms,
+      row_number() OVER (ORDER BY at - created_at) AS rn,
+      count(*) OVER () AS n
+    FROM signals
+    WHERE at IS NOT NULL AND at >= created_at${window}
+  )
+  SELECT max(n) AS n, avg(CASE WHEN rn IN ((n + 1) / 2, (n + 2) / 2) THEN ms END) AS median_ms
+  FROM ranked`;
 }
 
 /**
  * Compute all admin insights in a single `env.DB.batch(...)` call (1 D1 round-trip,
  * 5 SQL statements, zero N+1s, zero idle cron cost). Cached per isolate for 5 minutes.
+ * Every read except the all-time status and category breakdowns is bounded by the range.
  */
 export async function getInsights(
   input: unknown = {},
@@ -232,7 +173,7 @@ export async function getInsights(
 ): Promise<AdminInsights> {
   const data = input === undefined ? {} : record(input);
   const range: InsightsRange =
-    data.range === undefined ? "30d" : choice(data.range, ["7d", "30d", "90d", "all"], "range");
+    data.range === undefined ? "30d" : choice(data.range, ["7d", "30d", "90d"], "range");
   return cachedInsights(range, d1, now, () => loadInsights(range, now, d1));
 }
 
@@ -242,12 +183,7 @@ async function loadInsights(
   d1: D1Database,
 ): Promise<AdminInsights> {
   // Whole UTC days, today included, so the totals and the first bar start on the same day.
-  const since =
-    range === "all" ? null : Math.floor(now / DAY_MS) * DAY_MS - (RANGE_DAYS[range] - 1) * DAY_MS;
-  // A plain `col >= ?` (nothing for "all"): a bound value inside an OR would stop SQLite
-  // from using the created_at indexes.
-  const inRange = (column: SQLWrapper) =>
-    since === null ? sql`` : sql` AND ${column} >= ${since}`;
+  const since = Math.floor(now / DAY_MS) * DAY_MS - (RANGE_DAYS[range] - 1) * DAY_MS;
 
   // CROSS JOIN fixes the order: start from the post's own links (changelog_posts_post_idx).
   // Left to itself the planner walks every published entry for every post.
@@ -260,11 +196,15 @@ async function loadInsights(
       AND ce.published_at IS NOT NULL
   )`;
   const noSignal = sql.raw(NO_SIGNAL.toString());
+  // One UTC day, `d` being the day's start (a column of the `days` CTE below).
+  const day = (column: SQLWrapper) => sql`${column} >= d AND ${column} < d + ${DAY_MS}`;
+  const sinceVotes = sql`${votes.createdAt} >= ${since}`;
 
   const statements = [
-    // 1. Posts in range + the all-time status and category breakdowns, in one pass.
+    // 1. Posts in range + the all-time status and category breakdowns, in one pass over the
+    //    public posts (about one row read per post, whatever the range).
     sql`SELECT
-      ${since === null ? sql`count(*)` : sql`count(CASE WHEN ${posts.createdAt} >= ${since} THEN 1 END)`} AS posts_in_range,
+      count(CASE WHEN ${posts.createdAt} >= ${since} THEN 1 END) AS posts_in_range,
       count(CASE WHEN ${posts.status} = 'open' THEN 1 END) AS status_open,
       count(CASE WHEN ${posts.status} = 'planned' THEN 1 END) AS status_planned,
       count(CASE WHEN ${posts.status} = 'in_progress' THEN 1 END) AS status_in_progress,
@@ -276,36 +216,45 @@ async function loadInsights(
     FROM posts
     WHERE ${publiclyVisible}`,
 
-    // 2. Everything people did in range, read once per table (votes and comments drive from
-    //    their created_at index, then join to posts for visibility): per-day volume rows and
-    //    the top 5 non-anonymous, non-banned contributors.
-    sql`WITH activity AS MATERIALIZED (
-      SELECT ${posts.authorId} AS user_id, ${posts.createdAt} AS ts, 1 AS p, 0 AS c, 0 AS v
-      FROM posts
-      WHERE ${publiclyVisible}${inRange(posts.createdAt)}
-      UNION ALL
-      SELECT ${comments.authorId}, ${comments.createdAt}, 0, 1, 0
-      FROM comments
-      JOIN posts ON posts.id = ${comments.postId}
-      WHERE ${comments.hiddenAt} IS NULL
-        AND ${publiclyVisible}${inRange(comments.createdAt)}
-      UNION ALL
-      SELECT ${votes.userId}, ${votes.createdAt}, 0, 0, 1
-      FROM votes
-      JOIN posts ON posts.id = ${votes.postId}
-      WHERE ${publiclyVisible}${inRange(votes.createdAt)}
+    // 2. Everything people did in range. Volume: per-day counts, each a range read of a
+    //    created_at index joined to posts for visibility (CROSS JOIN: votes and comments
+    //    first). Contributors: the same rows summed per user, top 5 non-anonymous,
+    //    non-banned.
+    sql`WITH RECURSIVE days(d) AS (
+      SELECT ${since} UNION ALL SELECT d + ${DAY_MS} FROM days WHERE d + ${DAY_MS} <= ${now}
     )
     SELECT 'volume' AS kind,
-      strftime('%Y-%m-%d', ts / 1000, 'unixepoch') AS bucket,
-      NULL AS name, SUM(p) AS posts, SUM(c) AS comments, SUM(v) AS votes
-    FROM activity
-    GROUP BY bucket
+      strftime('%Y-%m-%d', d / 1000, 'unixepoch') AS bucket,
+      NULL AS name,
+      (SELECT count(*) FROM posts WHERE ${publiclyVisible} AND ${day(posts.createdAt)}) AS posts,
+      (SELECT count(*) FROM comments
+        CROSS JOIN posts ON posts.id = ${comments.postId}
+        WHERE ${comments.hiddenAt} IS NULL AND ${publiclyVisible} AND ${day(comments.createdAt)}) AS comments,
+      (SELECT count(*) FROM votes
+        CROSS JOIN posts ON posts.id = ${votes.postId}
+        WHERE ${publiclyVisible} AND ${day(votes.createdAt)}) AS votes
+    FROM days
     UNION ALL
     SELECT * FROM (
       SELECT 'contributor' AS kind, user.id AS bucket, user.name AS name,
         totals.p AS posts, totals.c AS comments, totals.v AS votes
       FROM (
-        SELECT user_id, SUM(p) AS p, SUM(c) AS c, SUM(v) AS v FROM activity GROUP BY user_id
+        SELECT user_id, SUM(p) AS p, SUM(c) AS c, SUM(v) AS v FROM (
+          SELECT ${posts.authorId} AS user_id, 1 AS p, 0 AS c, 0 AS v
+          FROM posts
+          WHERE ${publiclyVisible} AND ${posts.createdAt} >= ${since}
+          UNION ALL
+          SELECT ${comments.authorId}, 0, 1, 0
+          FROM comments
+          CROSS JOIN posts ON posts.id = ${comments.postId}
+          WHERE ${comments.hiddenAt} IS NULL
+            AND ${publiclyVisible} AND ${comments.createdAt} >= ${since}
+          UNION ALL
+          SELECT ${votes.userId}, 0, 0, 1
+          FROM votes
+          CROSS JOIN posts ON posts.id = ${votes.postId}
+          WHERE ${publiclyVisible} AND ${sinceVotes}
+        ) GROUP BY user_id
       ) totals
       JOIN user ON user.id = totals.user_id
       WHERE COALESCE(user.is_anonymous, 0) = 0
@@ -316,20 +265,28 @@ async function loadInsights(
 
     // 3. Median first response (ms) of posts created in range: the earliest of the first move
     //    off 'open', the first admin comment and a linked release. No signal, not counted.
-    medianStatement(sql`SELECT
+    //    Admin comments come from the admins' own comments in range (comments_author_created_idx),
+    //    not from every comment on every post.
+    medianStatement(
+      sql`SELECT
         ${posts.createdAt} AS created_at,
         NULLIF(MIN(
           COALESCE(${posts.statusChangedAt}, ${noSignal}),
-          COALESCE((SELECT MIN(c.created_at)
-            FROM comments c
-            JOIN user u ON u.id = c.author_id
-            WHERE c.post_id = ${posts.id}
-              AND c.hidden_at IS NULL
-              AND u.role = 'admin'), ${noSignal}),
+          COALESCE(admin_first.at, ${noSignal}),
           COALESCE(${publishedAt}, ${noSignal})
         ), ${noSignal}) AS at
       FROM posts
-      WHERE ${publiclyVisible}${inRange(posts.createdAt)}`),
+      LEFT JOIN admin_first ON admin_first.post_id = ${posts.id}
+      WHERE ${publiclyVisible} AND ${posts.createdAt} >= ${since}`,
+      sql``,
+      sql`admin_first AS MATERIALIZED (
+        SELECT c.post_id AS post_id, MIN(c.created_at) AS at
+        FROM user u
+        CROSS JOIN comments c ON c.author_id = u.id
+        WHERE u.role = 'admin' AND c.hidden_at IS NULL AND c.created_at >= ${since}
+        GROUP BY c.post_id
+      ), `,
+    ),
 
     // 4. Posts shipped in range (n) and their median time to delivery (ms).
     medianStatement(
@@ -339,24 +296,33 @@ async function loadInsights(
       FROM posts
       WHERE ${publiclyVisible}
         AND ${posts.status} = 'done'`,
-      since === null ? sql`` : sql` AND at >= ${since}`,
+      sql` AND at >= ${since}`,
     ),
 
-    // 5. Top 5 open/planned/in_progress public requests by votes.
-    sql`SELECT
-      ${posts.id} AS id,
-      ${posts.title} AS title,
-      ${posts.category} AS category,
-      ${posts.status} AS status,
-      ${posts.priority} AS priority,
-      ${posts.createdAt} AS created_at,
-      (SELECT count(*) FROM votes WHERE votes.post_id = ${posts.id}) AS votes,
-      (SELECT count(*) FROM comments WHERE comments.post_id = ${posts.id} AND comments.hidden_at IS NULL) AS comments
-    FROM posts
-    WHERE ${publiclyVisible}
-      AND ${posts.status} IN ('open', 'planned', 'in_progress')
-    ORDER BY votes DESC, comments DESC, ${posts.createdAt} DESC, ${posts.id} DESC
-    LIMIT 5`,
+    // 5. Most voted in range: open/planned/in_progress public posts ranked by votes cast
+    //    since `since`, driven from votes_created_post_idx. Comments are counted for the
+    //    five winners only.
+    sql`SELECT top.id, top.title, top.category, top.status, top.priority, top.created_at, top.votes,
+      (SELECT count(*) FROM comments WHERE comments.post_id = top.id AND comments.hidden_at IS NULL) AS comments
+    FROM (
+      SELECT
+        ${posts.id} AS id,
+        ${posts.title} AS title,
+        ${posts.category} AS category,
+        ${posts.status} AS status,
+        ${posts.priority} AS priority,
+        ${posts.createdAt} AS created_at,
+        count(*) AS votes
+      FROM votes
+      CROSS JOIN posts ON posts.id = ${votes.postId}
+      WHERE ${sinceVotes}
+        AND ${publiclyVisible}
+        AND ${posts.status} IN ('open', 'planned', 'in_progress')
+      GROUP BY ${posts.id}
+      ORDER BY votes DESC, ${posts.createdAt} DESC, ${posts.id} DESC
+      LIMIT 5
+    ) top
+    ORDER BY top.votes DESC, top.created_at DESC, top.id DESC`,
   ];
 
   const [summaryRes, activityRes, responseRes, deliveryRes, popularRes] = await d1.batch(
