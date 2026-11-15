@@ -10,6 +10,7 @@
 - **Moderation privacy.** Hidden, spam, merged and deleted posts stay out of GitHub sync and queued exports; attachments check visibility, and moderated Notion mirrors are archived.
 - **Accessibility and settings.** Rich-text fields announce their labels and errors; settings, email and webhook switches keep your latest choice when saves are slow.
 - Open posts and create feedback in dialogs from the board or roadmap, keep your place when closing, and share the same URLs as full pages; text drafts survive switching views.
+- **Faster post reading.** Formatting tools load only when you start writing; early typing and keyboard focus stay in place.
 
 ## 0.3.1
 

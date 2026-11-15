@@ -51,6 +51,11 @@ You need **Node 24.15 or newer 24.x**, a Notion workspace you own, and a [free C
 
 Then add what you need, from the project folder. To remove spam or manage users, run `npx feedbax@latest admin` ([Moderation](#moderation)).
 
+## Write feedback
+
+1. Open a post and focus **Add a comment** to load the formatting tools, or open **Create post** and focus its description.
+2. Start typing immediately; your text stays in place while the editor loads. If it cannot load, keep writing in the textarea using Markdown.
+
 ## Add-ons
 
 Each add-on is optional. Run it from the project folder. It validates inputs and checks provider access before changing anything, writes config, sets Cloudflare secrets and offers to redeploy. If a later step fails, it lists changed files and secret names with a recovery command. Secrets come from masked prompts or environment variables, never flags. `--yes` never prompts: set the variables below and pass the flag. `npx feedbax add --help` lists them.

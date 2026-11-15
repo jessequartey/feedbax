@@ -39,6 +39,7 @@ import "./rich-text-editor.css";
 
 export type RichTextEditorProps = {
   id: string;
+  autoFocus?: boolean;
   value: string;
   onChange: (markdown: string) => void;
   maxLength: number;
@@ -76,12 +77,13 @@ function contentAttributes(
     ...(invalid ? { "aria-invalid": "true" } : {}),
     ...(describedBy ? { "aria-describedby": describedBy } : {}),
     class: cn("px-2.5 py-2 text-xs outline-none max-md:text-base", className),
-    ...(className ? {} : { style: `min-height: ${rows * 1.5}rem` }),
+    style: `min-height: ${rows * 1.5}rem`,
   };
 }
 
 export function RichTextEditor({
   id,
+  autoFocus,
   value,
   onChange,
   maxLength,
@@ -181,6 +183,12 @@ export function RichTextEditor({
       if (transaction.docChanged) publish(current);
     },
   });
+
+  React.useLayoutEffect(() => {
+    if (autoFocus && !disabled) editor.commands.focus("end", { scrollIntoView: false });
+    // Transfer focus only on replacement, never steal it back on later renders.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   const active = useEditorState({
     editor,
@@ -293,7 +301,10 @@ export function RichTextEditor({
       <div
         role="toolbar"
         aria-label={compact ? "Comment formatting" : "Formatting"}
-        className={cn("flex flex-wrap items-center gap-0.5 border-b", compact ? "p-0.5" : "p-1")}
+        className={cn(
+          "flex items-center gap-0.5 overflow-x-auto border-b",
+          compact ? "p-0.5" : "p-1",
+        )}
       >
         <ToolButton
           label="Bold"
@@ -446,7 +457,7 @@ export function RichTextEditor({
 }
 
 function Bar() {
-  return <span aria-hidden="true" className="mx-0.5 h-4 w-px bg-border" />;
+  return <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-border" />;
 }
 
 function ToolButton({
