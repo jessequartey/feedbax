@@ -1,6 +1,6 @@
 import { IntegrationError } from "../contracts/integrations.ts";
 import type { BatchItem } from "drizzle-orm/batch";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { CATEGORY_LABELS, STATUS_LABELS } from "../contracts/domain.ts";
 import type { Status } from "../contracts/domain.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
@@ -9,6 +9,8 @@ import type { NotionProperties } from "../integrations/notion-schema.ts";
 import { markdownToNotionBlocks } from "../integrations/notion-blocks.ts";
 import { notionText } from "../integrations/notion.ts";
 import { markdownToPlainText } from "../lib/markdown.ts";
+import { syncState } from "../db/schema.ts";
+import { isPublicPost, publiclyVisible } from "../server/visibility.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
 import { emitStatusChanges } from "../server/webhooks.ts";
 import type { NotionList, NotionPage } from "../integrations/notion.ts";
@@ -20,6 +22,8 @@ import {
   posts,
   providerRequest,
   readPost,
+  readState,
+  writeState,
   watermark,
 } from "./shared.ts";
 import type { SyncPost } from "./shared.ts";
@@ -60,8 +64,40 @@ function bodyBlocks(post: SyncPost) {
 export async function mirrorPost(postId: string): Promise<void> {
   const database = db();
   const post = await readPost(postId);
-  if (!post || post.notionBlocked || (post.notionPageId && post.notionRevision >= post.revision))
+  if (!post) return;
+  const moderationKey = `notion.moderated.${post.id}`;
+  const archive = async (id: string) => {
+    // Persist a discovered/created page before archiving: if moderation won the lookup
+    // race, the cron must still be able to retry cleanup and restore this same mirror.
+    const current = await database.select().from(posts).where(eq(posts.id, post.id)).get();
+    if (current) {
+      await database.update(posts).set({ notionPageId: id }).where(eq(posts.id, post.id));
+      if ((await readState<string>(moderationKey)) !== id) {
+        // Do not claim a page someone already trashed: unhide must respect that choice.
+        let page: NotionPage | undefined;
+        try {
+          page = await providerRequest("notion")<NotionPage>(`/pages/${id}`);
+        } catch (error) {
+          if (!(error instanceof IntegrationError) || error.status !== 404) throw error;
+        }
+        if (page && !page.in_trash && !page.archived && !page.is_archived)
+          await writeState(moderationKey, id);
+      }
+    }
+    await archiveNotionPage(id);
+    await database
+      .update(posts)
+      .set({ notionRevision: post.revision })
+      .where(eq(posts.id, post.id));
+  };
+  if (!isPublicPost(post)) {
+    // Never serialize moderated content. Existing mirrors go to trash; remember ownership
+    // before the request so a retry can restore only pages that Feedbax itself archived.
+    if (!post.notionPageId || post.notionRevision >= post.revision) return;
+    await archive(post.notionPageId);
     return;
+  }
+  if (post.notionBlocked || (post.notionPageId && post.notionRevision >= post.revision)) return;
   const request = providerRequest("notion");
   let pageId = post.notionPageId;
   const block = async (id: string | null) => {
@@ -72,6 +108,12 @@ export async function mirrorPost(postId: string): Promise<void> {
     console.warn({ type: "notion.mirror.blocked", postId: post.id });
   };
   const patch = async (id: string, body: unknown) => {
+    // A provider lookup may have yielded to moderation. Never send the stale snapshot.
+    const current = await database.select().from(posts).where(eq(posts.id, post.id)).get();
+    if (!isPublicPost(current)) {
+      await archive(id);
+      return false;
+    }
     try {
       await request(`/pages/${id}`, "PATCH", body);
       return true;
@@ -115,6 +157,8 @@ export async function mirrorPost(postId: string): Promise<void> {
     }
     pageId = existing?.id ?? null;
     if (!pageId) {
+      const current = await database.select().from(posts).where(eq(posts.id, post.id)).get();
+      if (!isPublicPost(current)) return;
       const created = await request<NotionPage>("/pages", "POST", {
         parent: { type: "data_source_id", data_source_id: config.integrations.notion.dataSourceId },
         properties: {
@@ -127,6 +171,13 @@ export async function mirrorPost(postId: string): Promise<void> {
       });
       pageId = created.id;
       if (!pageId) throw schemaError("Notion did not return the created page ID.");
+      // A create already in flight cannot be recalled. Archive its result if the post
+      // was moderated/deleted while Notion handled it, rather than orphaning a mirror.
+      const afterCreate = await database.select().from(posts).where(eq(posts.id, post.id)).get();
+      if (!isPublicPost(afterCreate)) {
+        await archive(pageId);
+        return;
+      }
       // A late create can follow a GitHub close. Its final status still needs repair.
       if (post.githubClosedAt !== null)
         if (!(await patch(pageId, { properties: { Status: { select: { name: "Done" } } } })))
@@ -143,8 +194,10 @@ export async function mirrorPost(postId: string): Promise<void> {
         return;
     }
   } else {
+    const restore = (await readState<string>(moderationKey)) === pageId;
     if (
       !(await patch(pageId, {
+        ...(restore ? { in_trash: false } : {}),
         properties: {
           ...mirrorProperties(post),
           ...(post.githubClosedAt !== null ? { Status: { select: { name: "Done" } } } : {}),
@@ -152,6 +205,7 @@ export async function mirrorPost(postId: string): Promise<void> {
       }))
     )
       return;
+    if (restore) await database.delete(syncState).where(eq(syncState.key, moderationKey));
   }
   await database
     .update(posts)
@@ -226,6 +280,9 @@ export async function pollNotion(
     if (!id) continue;
     const post = byId.get(id);
     if (!post || post.notionPageId !== page.id) continue;
+    // Leave Send to GitHub untouched for non-public posts. No approval, status update,
+    // notification or re-enqueue; restoring the post makes the existing choice active again.
+    if (!isPublicPost(post)) continue;
     const statusProperty = page.properties.Status;
     const approvalProperty = page.properties["Send to GitHub"];
     if (
@@ -267,7 +324,7 @@ export async function pollNotion(
       const update = database
         .update(posts)
         .set({ ...changes, ...(changes.revision ? { revision: sql`${posts.revision} + 1` } : {}) })
-        .where(eq(posts.id, post.id));
+        .where(and(eq(posts.id, post.id), publiclyVisible));
       updates.push(update);
     }
   }

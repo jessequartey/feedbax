@@ -21,6 +21,7 @@ import type { ProviderRequest } from "../integrations/request.ts";
 import { autoDraftStatements } from "../server/changelog-draft.ts";
 import { queueEmails, statusEmails } from "../email/events.ts";
 import { emitStatusChanges } from "../server/webhooks.ts";
+import { isPublicPost, publiclyVisible } from "../server/visibility.ts";
 let actor: { token: string; id: number } | undefined;
 async function actorId(request: ProviderRequest): Promise<number> {
   if (actor && actor.token === env.GITHUB_TOKEN) return actor.id;
@@ -68,7 +69,7 @@ async function searchMarkedIssues(
 export async function createIssue(postId: string): Promise<void> {
   if (!config.integrations.github) return;
   const post = await readPost(postId);
-  if (!post || !post.githubRequested || post.githubNumber !== null) return;
+  if (!post || !isPublicPost(post) || !post.githubRequested || post.githubNumber !== null) return;
   const database = db();
   const request = providerRequest("github");
   const path = `${githubRepoPath(config.integrations.github.repo)}/issues`;
@@ -102,6 +103,9 @@ export async function createIssue(postId: string): Promise<void> {
       "GitHub issue search was incomplete.",
     );
   }
+  // Search can take time: moderation/deletion during it must cancel the outgoing write.
+  const current = await database.select().from(posts).where(eq(posts.id, postId)).get();
+  if (!isPublicPost(current)) return;
   if (!issue) {
     const body = [
       // Sanitized Markdown, not escaped text: formatting survives, HTML and mentions do not.
@@ -129,7 +133,7 @@ export async function createIssue(postId: string): Promise<void> {
       updatedAt: Date.now(),
       ...(closed ? { githubClosedAt: closedAt, status: "done" as const } : {}),
     })
-    .where(and(eq(posts.id, postId), isNull(posts.githubNumber)))
+    .where(and(eq(posts.id, postId), isNull(posts.githubNumber), publiclyVisible))
     .returning({ id: posts.id });
   // An issue that was already closed when it was linked makes the post Done: draft its entry
   // in the same batch (idempotent in SQL, so a replayed message adds nothing).
@@ -193,6 +197,7 @@ export async function pollGitHub(
               closed.map((issue) => issue.number),
             ),
             isNull(posts.githubClosedAt),
+            publiclyVisible,
           ),
         )
     : [];
@@ -220,7 +225,9 @@ export async function pollGitHub(
           updatedAt: Date.now(),
           revision: sql`${posts.revision} + 1`,
         })
-        .where(and(eq(posts.githubNumber, issue.number), isNull(posts.githubClosedAt))),
+        .where(
+          and(eq(posts.githubNumber, issue.number), isNull(posts.githubClosedAt), publiclyVisible),
+        ),
     ];
   });
   const shipped = verified
