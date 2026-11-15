@@ -13,5 +13,12 @@ export const publiclyVisible = and(
   isNull(posts.mergedInto),
 );
 
+/** In-memory equivalent for serializers and queue consumers; a missing/deleted post fails. */
+export function isPublicPost(
+  post: { hiddenAt: number | null; spam: number; mergedInto: string | null } | null | undefined,
+): boolean {
+  return !!post && post.hiddenAt === null && post.spam === 0 && post.mergedInto === null;
+}
+
 /** How far a merge chain is followed before giving up. Merges repoint chains, so it is short. */
 export const MAX_MERGE_DEPTH = 10;

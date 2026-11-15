@@ -505,6 +505,25 @@ describe("the moderation list", () => {
   });
 });
 
+it.each(["hidden", "spam", "merged", "deleted"] as const)(
+  "refuses admin GitHub sends for %s posts",
+  async (state) => {
+    config.integrations.github = { repo: "acme/app" };
+    const actor = await admin(),
+      author = await writer();
+    const id = await post(author);
+    if (state === "deleted") await adminApi.deletePost(actor, { postId: id });
+    else if (state === "merged")
+      await adminApi.mergePost(actor, { sourceId: id, targetId: await post(author) });
+    else await adminApi.setPostState(actor, { postId: id, state });
+    queue.reset();
+    await expect(adminApi.sendToGitHub(actor, { postId: id })).rejects.toMatchObject({
+      code: state === "deleted" ? "not_found" : "conflict",
+    });
+    expect(queue.sent).toEqual([]);
+  },
+);
+
 describe("user management", () => {
   it("bans and unbans, and a banned user keeps reading but cannot write", async () => {
     const actor = await admin(),

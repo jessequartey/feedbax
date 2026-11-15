@@ -921,3 +921,143 @@ test.each([
   expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("SECRET");
   expect(JSON.stringify(await readState("notion.error"))).not.toContain("SECRET");
 });
+
+describe("moderation at export time", () => {
+  const states = [
+    ["hidden", { hiddenAt: 1 }],
+    ["spam", { spam: 1 }],
+    ["merged", { mergedInto: ID }],
+  ] as const;
+
+  test.each(states)(
+    "acks %s GitHub creates without provider calls or cron re-enqueues",
+    async (_name, state) => {
+      await seed({ ...state, githubRequested: 1, notionPageId: PAGE, notionRevision: 1 });
+      const fake = mock();
+      await deliver({ type: "github.issue", postId: ID });
+      expect(fake.requests).toEqual([]);
+      expect(await readState("github.error")).toBeNull();
+      await runScheduled(controller);
+      expect(queue.sent.some((message) => message.type.startsWith("github."))).toBe(false);
+      expect(await post()).toMatchObject({ githubNumber: null });
+    },
+  );
+
+  test.each(states)(
+    "ignores a checked Notion approval and status change for %s posts",
+    async (_name, state) => {
+      await seed({ ...state, notionPageId: PAGE });
+      const fake = mock(
+        schema,
+        list([notionRow("Done", true)]),
+        schema,
+        list([notionRow("Done", true)]),
+      );
+      await deliver(poll);
+      await deliver(poll);
+      expect(await post()).toMatchObject({ githubRequested: 0, status: "open" });
+      expect(queue.sent).toEqual([]);
+      expect(fake.requests.every((request) => !request.url.includes(`/pages/${PAGE}`))).toBe(true);
+    },
+  );
+
+  test.each(states)(
+    "does not mirror new %s content and archives an existing mirror once",
+    async (_name, state) => {
+      await seed(state);
+      const fake = mock({ id: PAGE }, {});
+      await deliver({ type: "notion.post", postId: ID });
+      expect(fake.requests).toEqual([]);
+      await db().update(posts).set({ notionPageId: PAGE }).where(eq(posts.id, ID));
+      await deliver({ type: "notion.post", postId: ID });
+      await deliver({ type: "notion.post", postId: ID });
+      expect(fake.requests.map((request) => request.body)).toEqual([{}, { in_trash: true }]);
+      expect(JSON.stringify(fake.requests)).not.toContain("Feedback title");
+      expect(await readState(`notion.moderated.${ID}`)).toBe(PAGE);
+    },
+  );
+
+  test("restores only a mirror archived by Feedbax after the post is restored", async () => {
+    await seed({ hiddenAt: 1, notionPageId: PAGE });
+    const fake = mock({ id: PAGE }, {}, {});
+    await deliver({ type: "notion.post", postId: ID });
+    await db().update(posts).set({ hiddenAt: null, revision: 2 }).where(eq(posts.id, ID));
+    await deliver({ type: "notion.post", postId: ID });
+    expect(fake.requests[2].body).toMatchObject({
+      in_trash: false,
+      properties: { Name: { title: richText("Feedback title") } },
+    });
+    expect(await readState(`notion.moderated.${ID}`)).toBeNull();
+  });
+
+  test.each(["lookup", "create"])(
+    "tracks and archives a mirror when moderation happens during its %s",
+    async (phase) => {
+      await seed();
+      const moderate = async () => {
+        await db().update(posts).set({ hiddenAt: 1, revision: 2 }).where(eq(posts.id, ID));
+        return phase === "lookup" ? list([notionRow()]) : { id: PAGE };
+      };
+      const fake =
+        phase === "lookup"
+          ? mock(moderate, { id: PAGE }, {})
+          : mock(list(), moderate, { id: PAGE }, {});
+      await deliver({ type: "notion.post", postId: ID });
+      expect(fake.requests.at(-1)?.body).toEqual({ in_trash: true });
+      expect(await post()).toMatchObject({ notionPageId: PAGE, hiddenAt: 1 });
+      expect(await readState(`notion.moderated.${ID}`)).toBe(PAGE);
+      await db().update(posts).set({ hiddenAt: null, revision: 3 }).where(eq(posts.id, ID));
+      const restored = mock({});
+      await deliver({ type: "notion.post", postId: ID });
+      expect(restored.requests[0].body).toMatchObject({ in_trash: false });
+    },
+  );
+
+  test("does not restore a mirror that a person trashed before moderation", async () => {
+    await seed({ hiddenAt: 1, notionPageId: PAGE });
+    mock({ id: PAGE, in_trash: true }, {});
+    await deliver({ type: "notion.post", postId: ID });
+    expect(await readState(`notion.moderated.${ID}`)).toBeNull();
+    await db().update(posts).set({ hiddenAt: null, revision: 2 }).where(eq(posts.id, ID));
+    const fake = mock({});
+    await deliver({ type: "notion.post", postId: ID });
+    expect(fake.requests[0].body).not.toHaveProperty("in_trash");
+  });
+
+  test("restoring an approved post resumes GitHub work without changing its checkbox", async () => {
+    await seed({ hiddenAt: 1, notionPageId: PAGE });
+    mock(schema, list([notionRow("Open", true)]));
+    await deliver(poll);
+    expect(await post()).toMatchObject({ githubRequested: 0 });
+    await db().update(posts).set({ hiddenAt: null }).where(eq(posts.id, ID));
+    const fake = mock(schema, list([notionRow("Open", true)]));
+    await deliver(poll);
+    expect(await post()).toMatchObject({ githubRequested: 1 });
+    expect(queue.sent).toContainEqual({ type: "github.issue", postId: ID });
+    expect(fake.requests.every((request) => request.method !== "PATCH")).toBe(true);
+  });
+
+  test.each(states)(
+    "does not move a %s post to Done when its existing GitHub issue closes",
+    async (_name, state) => {
+      await seed({ ...state, githubRequested: 1, githubNumber: 7, githubCreatorId: 123 });
+      mock([githubIssue(7, "closed")]);
+      await deliver(ghPoll);
+      expect(await post()).toMatchObject({ status: "open", githubClosedAt: null });
+    },
+  );
+
+  test("acks a deleted post and cancels a create if moderation happens during issue search", async () => {
+    const fake = mock();
+    await deliver({ type: "github.issue", postId: ID });
+    expect(fake.requests).toEqual([]);
+    await seed({ githubRequested: 1 });
+    const searching = mock(async () => {
+      await db().update(posts).set({ hiddenAt: 1 }).where(eq(posts.id, ID));
+      return [];
+    });
+    await deliver({ type: "github.issue", postId: ID });
+    expect(searching.requests).toHaveLength(1);
+    expect(await post()).toMatchObject({ githubNumber: null });
+  });
+});

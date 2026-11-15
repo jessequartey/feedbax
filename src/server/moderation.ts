@@ -16,7 +16,7 @@ import { changelogPosts, comments, images, posts, user, votes } from "../db/sche
 import { DomainError, invalid } from "./errors.ts";
 import { pageNumber, record, text, uuid } from "./validation.ts";
 import { excerptOf } from "./excerpt.ts";
-import { publiclyVisible } from "./visibility.ts";
+import { isPublicPost, publiclyVisible } from "./visibility.ts";
 
 // Moderation actions. Callers must already have passed `requireAdmin` (admin-api.ts): these
 // functions trust their caller, like saveSettings. Hide, spam and merge never delete data;
@@ -152,12 +152,15 @@ export async function setPostState(input: unknown, now = Date.now()): Promise<Po
   const post = await findPost(postId);
   await createDb(env.DB)
     .update(posts)
-    .set(
-      state === "visible"
+    .set({
+      ...(state === "visible"
         ? { hiddenAt: null, spam: 0 }
-        : { hiddenAt: post.hiddenAt ?? now, spam: state === "spam" ? 1 : 0 },
-    )
+        : { hiddenAt: post.hiddenAt ?? now, spam: state === "spam" ? 1 : 0 }),
+      revision: sql`${posts.revision} + 1`,
+      updatedAt: now,
+    })
     .where(eq(posts.id, postId));
+  await env.SYNC_QUEUE.send({ type: "notion.post", postId }).catch(() => undefined);
   return state;
 }
 
@@ -204,6 +207,7 @@ export async function mergePost(input: unknown, now = Date.now()): Promise<{ tar
       .set({ revision: sql`${posts.revision} + 1`, updatedAt: now })
       .where(eq(posts.id, targetId)),
   ]);
+  await env.SYNC_QUEUE.send({ type: "notion.post", postId: sourceId }).catch(() => undefined);
   return { targetId };
 }
 
@@ -301,11 +305,17 @@ export async function sendToGitHub(input: unknown): Promise<{ queued: true }> {
   if (!config.integrations.github)
     throw new DomainError("conflict", "GitHub sync is not enabled for this portal.");
   const post = await findPost(postId);
-  if (post.spam || post.mergedInto)
-    throw new DomainError("conflict", "Spam and merged posts cannot be sent to GitHub.");
+  if (!isPublicPost(post))
+    throw new DomainError("conflict", "Only public posts can be sent to GitHub.");
   if (post.githubNumber !== null)
     throw new DomainError("conflict", "This post already has a GitHub issue.");
-  await createDb(env.DB).update(posts).set({ githubRequested: 1 }).where(eq(posts.id, postId));
+  const requested = await createDb(env.DB)
+    .update(posts)
+    .set({ githubRequested: 1 })
+    .where(and(eq(posts.id, postId), publiclyVisible))
+    .returning({ id: posts.id });
+  if (!requested.length)
+    throw new DomainError("conflict", "Only public posts can be sent to GitHub.");
   await env.SYNC_QUEUE.send({ type: "github.issue", postId }).catch(() => undefined);
   return { queued: true };
 }
