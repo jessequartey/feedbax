@@ -38,6 +38,7 @@
     "@tiptap/starter-kit": "3.34.0",
     "better-auth": "1.7.23",
     "class-variance-authority": "0.7.1",
+    "cmdk": "^1.1.1",
     "cn": "0.5.2",
     "cuss": "2.2.0",
     "drizzle-orm": "0.45.4",

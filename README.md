@@ -468,6 +468,12 @@ Hidden, spam and merged posts leave the board, roadmap and search. Authors still
 
 Public images cache for at most 60 seconds; session responses are private and revalidate each time. ETags avoid repeat R2 reads. Older releases' cached browser copies cannot be recalled. Queued webhooks recheck visibility before every attempt, RSS omits non-public linked posts, and OG images contain no post data. Changelog titles and release notes are independent editorial content; edit them separately if they contain sensitive text.
 
+## Search
+
+1. Click **Search** in the header (the magnifying glass on mobile), or press **Cmd/Ctrl+K** anywhere in the portal.
+2. Type words to search feedback and published changelog entries; leave it empty for top posts and recent releases.
+3. Use **↑ / ↓** and **Enter** to open a result, or **Esc** to close.
+
 ## Free plan
 
 Feedbax targets Cloudflare's Free plan: one Worker, one D1 database, one R2 bucket, two Queues and a Cron trigger. Browser caching avoids repeat image and asset reads. Idle sync checks Notion every 5 minutes and skips GitHub when no linked issue needs checking. Failures back off. Moderation adds no idle cron statements or provider calls; cleanup runs only for changed mirrors in the queue.

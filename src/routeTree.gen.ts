@@ -23,6 +23,7 @@ import { Route as PortalUnsubscribeRouteImport } from './routes/_portal.unsubscr
 import { Route as AdminEnterRouteImport } from './routes/admin.enter'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as PortalAdminIndexRouteImport } from './routes/_portal.admin.index'
 import { Route as PortalAdminChangelogRouteImport } from './routes/_portal.admin.changelog'
 import { Route as PortalAdminModerationRouteImport } from './routes/_portal.admin.moderation'
@@ -104,6 +105,11 @@ const ApiPostsRoute = ApiPostsRouteImport.update({
   path: '/api/posts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalAdminIndexRoute = PortalAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
+  '/api/search': typeof ApiSearchRoute
   '/admin/changelog': typeof PortalAdminChangelogRoute
   '/admin/moderation': typeof PortalAdminModerationRoute
   '/admin/settings': typeof PortalAdminSettingsRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
+  '/api/search': typeof ApiSearchRoute
   '/': typeof PortalIndexRoute
   '/admin/changelog': typeof PortalAdminChangelogRoute
   '/admin/moderation': typeof PortalAdminModerationRoute
@@ -226,6 +234,7 @@ export interface FileRoutesById {
   '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
+  '/api/search': typeof ApiSearchRoute
   '/_portal/': typeof PortalIndexRoute
   '/_portal/admin/changelog': typeof PortalAdminChangelogRoute
   '/_portal/admin/moderation': typeof PortalAdminModerationRoute
@@ -255,6 +264,7 @@ export interface FileRouteTypes {
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
+    | '/api/search'
     | '/admin/changelog'
     | '/admin/moderation'
     | '/admin/settings'
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
+    | '/api/search'
     | '/'
     | '/admin/changelog'
     | '/admin/moderation'
@@ -306,6 +317,7 @@ export interface FileRouteTypes {
     | '/admin/enter'
     | '/api/health'
     | '/api/posts'
+    | '/api/search'
     | '/_portal/'
     | '/_portal/admin/changelog'
     | '/_portal/admin/moderation'
@@ -326,6 +338,7 @@ export interface RootRouteChildren {
   AdminEnterRoute: typeof AdminEnterRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPostsRoute: typeof ApiPostsRoute
+  ApiSearchRoute: typeof ApiSearchRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEmailUnsubscribeRoute: typeof ApiEmailUnsubscribeRoute
   ApiMediaIdRoute: typeof ApiMediaIdRoute
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       path: '/api/posts'
       fullPath: '/api/posts'
       preLoaderRoute: typeof ApiPostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_portal/admin/': {
@@ -570,6 +590,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminEnterRoute: AdminEnterRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPostsRoute: ApiPostsRoute,
+  ApiSearchRoute: ApiSearchRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEmailUnsubscribeRoute: ApiEmailUnsubscribeRoute,
   ApiMediaIdRoute: ApiMediaIdRoute,
