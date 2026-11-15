@@ -3,13 +3,34 @@ import { IntegrationError } from "../contracts/integrations.ts";
 import type { SyncErrorState, SyncMessage } from "../contracts/sync.ts";
 import { syncState, usedTokens } from "../db/schema.ts";
 import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
-import { mirrorPost, pollNotion } from "./notion.ts";
+import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
+import { consumeEmail } from "../email/deliver.ts";
+import { digestDue, emailEnabled } from "../email/events.ts";
+import type { EmailMessage } from "../contracts/sync.ts";
+import { deliverWebhook } from "../server/webhooks.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
   // Keep processing sequential even if a larger batch is delivered accidentally.
   for (const message of batch.messages) {
     const body = message.body;
+    if (body.type.startsWith("email.")) {
+      await consumeEmail(message as Message<EmailMessage>);
+      continue;
+    }
+    if (body.type === "webhook.deliver") {
+      // Webhooks have their own retry schedule and never touch the Notion/GitHub error state.
+      try {
+        const delaySeconds = await deliverWebhook(body.deliveryId);
+        if (delaySeconds === null) message.ack();
+        else message.retry({ delaySeconds });
+      } catch {
+        // D1 failed (the request itself never throws). Try again shortly.
+        console.error({ type: "webhook.deliver_failed", deliveryId: body.deliveryId });
+        message.retry({ delaySeconds: 60 });
+      }
+      continue;
+    }
     if (body.type.startsWith("github.") && !config.integrations.github) {
       message.ack();
       continue;
@@ -18,6 +39,9 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
       switch (body.type) {
         case "notion.post":
           await mirrorPost(body.postId);
+          break;
+        case "notion.archive":
+          await archiveNotionPage(body.pageId);
           break;
         case "notion.poll":
           await pollNotion(body);
@@ -86,9 +110,13 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
   }
 }
 
-const STATE_KEYS = ["notion", "github"].flatMap((provider) =>
-  ["error", "backoff", "watermark"].map((name) => `${provider}.${name}`),
-);
+const STATE_KEYS = [
+  ...["notion", "github"].flatMap((provider) =>
+    ["error", "backoff", "watermark"].map((name) => `${provider}.${name}`),
+  ),
+  // The previous admin digest's `until` (email notifications).
+  "email.digest",
+];
 
 /**
  * Cron: cheap D1 reads and at most one Queue call. External I/O stays in the consumer.
@@ -143,6 +171,10 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
       ).length > 0;
     if (!githubWork) await watermark("github", until);
   }
+  // Once a day, when email is on: the admin digest (src/email/events.ts).
+  const digest = emailEnabled()
+    ? digestDue(state.get("email.digest") as string | undefined, now)
+    : null;
   const messages: SyncMessage[] = [
     ...sweep,
     ...(notion
@@ -151,7 +183,9 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
     ...(github && githubWork
       ? [{ type: "github.poll", since: since("github"), until, page: 1 } as const]
       : []),
+    ...(digest ? [digest] : []),
   ];
   // One Queue call per tick: every send is a subrequest on Workers Free (50 per invocation).
   if (messages.length) await env.SYNC_QUEUE.sendBatch(messages.map((body) => ({ body })));
+  if (digest) await writeState("email.digest", digest.until);
 }

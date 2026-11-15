@@ -158,9 +158,12 @@ it("projects only public capabilities, validates host keys and keeps host login 
   expect(Object.keys(publicConfig(settings)).sort()).toEqual([
     "anonymous",
     "appUrl",
+    "categories",
+    "email",
     "hostLogin",
     "name",
     "oauth",
+    "showcase",
   ]);
   expect(publicConfig(settings).hostLogin).toBe(true);
   expect(publicConfig(settings, { ...env, FEEDBAX_HOST_SECRET: "" }).hostLogin).toBe(false);

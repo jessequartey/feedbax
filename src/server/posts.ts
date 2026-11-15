@@ -1,7 +1,6 @@
 import { env, waitUntil } from "cloudflare:workers";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { notFound } from "@tanstack/react-router";
-import config from "../../feedbax.config.ts";
 import { LIMITS } from "../contracts/domain.ts";
 import type {
   ListPostsInput,
@@ -10,12 +9,18 @@ import type {
   PostSummary,
   ViewerUser,
 } from "../contracts/domain.ts";
+import type { FeedbaxConfig } from "../contracts/config.ts";
 import { createDb } from "../db/client.ts";
 import { images, posts, user } from "../db/schema.ts";
 import { DomainError, invalid } from "./errors.ts";
-import { category, listInput, text, uuid } from "./validation.ts";
+import { category, listInput, markdownText, text, uuid } from "./validation.ts";
 import { requireWriter } from "./auth.ts";
 import { storeImage, validateImage } from "./images.ts";
+import { parseShippedIn, shippedInField } from "./changelog.ts";
+import { effectiveSettings, runtimeConfig } from "./settings.ts";
+import { MAX_MERGE_DEPTH, publiclyVisible } from "./visibility.ts";
+import { emitPostCreated } from "./webhooks.ts";
+import { excerptOf, plainBodySql, plainQuery } from "./excerpt.ts";
 
 export function enqueuePost(postId: string) {
   waitUntil(env.SYNC_QUEUE.send({ type: "notion.post", postId }).catch(() => undefined));
@@ -23,9 +28,11 @@ export function enqueuePost(postId: string) {
 export async function createPostForUser(
   value: unknown,
   viewer: ViewerUser | null,
-  settings = config,
+  settings?: FeedbaxConfig,
 ) {
-  const writer = requireWriter(viewer, settings);
+  // The anonymous switch can be overridden at runtime (/admin/settings), so decide from the
+  // effective config unless the caller (a test, the bearer API) pins one.
+  const writer = requireWriter(viewer, settings ?? (await runtimeConfig()));
   if (!(value instanceof FormData)) invalid();
   for (const key of ["id", "title", "body", "category"])
     if (value.getAll(key).length !== 1) invalid(key);
@@ -33,8 +40,9 @@ export async function createPostForUser(
     if (!["id", "title", "body", "category", "image"].includes(key)) invalid(key);
   const id = uuid(value.get("id"));
   const title = text(value.get("title"), LIMITS.title, "title");
-  const body = text(value.get("body"), LIMITS.body, "body");
+  const body = markdownText(value.get("body"), LIMITS.body, "body");
   const kind = category(value.get("category"));
+  if (!(await effectiveSettings()).categories.includes(kind)) invalid("category");
   const files = value.getAll("image");
   if (files.length > LIMITS.images)
     throw new DomainError("too_large", "Attach at most 3 images.", "image");
@@ -64,10 +72,12 @@ export async function createPostForUser(
     validated.map((image, i) => storeImage(image, id, i, writer.id)),
   );
   // The quota predicate is in the INSERT too, so concurrent requests cannot exceed it.
+  // Drizzle lists every `posts` column in schema order: a new column needs a value here
+  // (the last three are 0005's hidden_at, spam, merged_into).
   const insert = db
     .insert(posts)
     .select(
-      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
+      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, NULL, 0, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
     )
     .onConflictDoNothing()
     .returning({ id: posts.id });
@@ -89,6 +99,7 @@ export async function createPostForUser(
     return response(200);
   }
   enqueuePost(id);
+  waitUntil(emitPostCreated(id));
   return response(201);
 }
 function counts(viewer: ViewerUser | null) {
@@ -110,11 +121,10 @@ function summary(row: {
   comments: number;
   viewerHasVoted: boolean;
 }): PostSummary {
-  const body = Array.from(row.post.body.replace(/\s+/gu, " ").trim());
   return {
     id: row.post.id,
     title: row.post.title,
-    excerpt: body.slice(0, 180).join("") + (body.length > 180 ? "…" : ""),
+    excerpt: excerptOf(row.post.body, 180),
     category: row.post.category,
     status: row.post.status,
     author: {
@@ -127,6 +137,8 @@ function summary(row: {
     viewerHasVoted: Boolean(row.viewerHasVoted),
     createdAt: new Date(row.post.createdAt).toISOString(),
     updatedAt: new Date(row.post.updatedAt).toISOString(),
+    // Only the author's own lists can hold a moderated post, so the flag is rare.
+    ...(row.post.hiddenAt !== null || row.post.spam ? { hidden: true as const } : {}),
   };
 }
 const authorFields = { id: user.id, name: user.name, isAnonymous: user.isAnonymous };
@@ -139,13 +151,17 @@ export async function listPostPage(
     db = createDb(env.DB);
   if (mine && !viewer)
     return { items: [], page: data.page, limit: data.limit, total: 0, hasMore: false };
-  const pattern = `%${(data.q ?? "").replace(/[\\%_]/g, "\\$&")}%`;
+  const like = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+  const pattern = like(data.q ?? "");
+  const plain = data.q ? plainQuery(data.q) : null;
   const where = and(
+    // The public board, roadmap and search never show hidden, spam or merged posts, and their
+    // totals never count them. "My feedback" is the author's own view: everything they wrote.
+    mine ? eq(posts.authorId, viewer!.id) : publiclyVisible,
     data.category ? eq(posts.category, data.category) : undefined,
     data.status ? eq(posts.status, data.status) : undefined,
-    mine ? eq(posts.authorId, viewer!.id) : undefined,
     data.q
-      ? sql`(${posts.title} LIKE ${pattern} ESCAPE ${"\\"} OR ${posts.body} LIKE ${pattern} ESCAPE ${"\\"})`
+      ? sql`(${posts.title} LIKE ${pattern} ESCAPE ${"\\"}${plain ? sql` OR ${plainBodySql} LIKE ${like(plain)} ESCAPE ${"\\"}` : sql``})`
       : undefined,
   );
   const voteOrder =
@@ -180,25 +196,47 @@ export async function listPostPage(
     hasMore: data.page * data.limit < total!.count,
   };
 }
+/** The post a duplicate finally points at. Merges repoint chains, so this is one hop in practice. */
+async function mergeTarget(id: string): Promise<string> {
+  const db = createDb(env.DB);
+  let current = id;
+  for (let depth = 0; depth < MAX_MERGE_DEPTH; depth++) {
+    const next = await db
+      .select({ mergedInto: posts.mergedInto })
+      .from(posts)
+      .where(eq(posts.id, current))
+      .get();
+    if (!next?.mergedInto) break;
+    current = next.mergedInto;
+  }
+  return current;
+}
 export async function getPostDetail(id: string, viewer: ViewerUser | null): Promise<PostDetail> {
   uuid(id);
   const db = createDb(env.DB);
   const row = await db
-    .select({ post: posts, author: authorFields, ...counts(viewer) })
+    .select({ post: posts, author: authorFields, shipped: shippedInField, ...counts(viewer) })
     .from(posts)
     .innerJoin(user, eq(posts.authorId, user.id))
     .where(eq(posts.id, id))
     .get();
   if (!row) throw notFound();
+  // A hidden or spam post is visible only to its author and to admins. Direct links give
+  // everyone else the same "not found" as a post that never existed.
+  const moderated = row.post.hiddenAt !== null || Boolean(row.post.spam);
+  if (moderated && viewer?.id !== row.post.authorId && !viewer?.admin) throw notFound();
   const attached = await db
     .select()
     .from(images)
     .where(eq(images.postId, id))
     .orderBy(images.position);
+  const shippedIn = parseShippedIn(row.shipped);
   return {
     ...summary(row),
     body: row.post.body,
+    ...(shippedIn.length ? { shippedIn } : {}),
     githubUrl: row.post.githubUrl,
+    ...(row.post.mergedInto ? { mergedInto: await mergeTarget(row.post.mergedInto) } : {}),
     images: attached.map((image) => ({
       id: image.id,
       url: `/api/media/${image.id}`,

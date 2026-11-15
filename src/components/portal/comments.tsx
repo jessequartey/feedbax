@@ -5,9 +5,10 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { LIMITS, type CommentView, type Page } from "@/contracts/domain";
 import { addComment, listComments } from "@/server/functions";
+import { Markdown } from "./markdown";
+import { RichTextField } from "./rich-text-field";
 import { clearDraft, commentDraftKey, loadDraft, parseCommentDraft, saveDraft } from "./draft";
 import { formatDate, initialOf, plural } from "./format";
 import { useWriteGate } from "./viewer";
@@ -27,7 +28,7 @@ function CommentItem({ comment }: { comment: CommentView }) {
             {formatDate(comment.createdAt)}
           </time>
         </p>
-        <p className="mt-1 text-sm break-words whitespace-pre-wrap">{comment.body}</p>
+        <Markdown source={comment.body} className="mt-1 space-y-2 text-sm leading-normal" />
       </div>
     </li>
   );
@@ -141,16 +142,16 @@ export function CommentSection({
         <Label htmlFor={fieldId} className="sr-only">
           Add a comment
         </Label>
-        <Textarea
+        <RichTextField
           id={fieldId}
+          variant="comment"
           value={body}
-          rows={3}
+          onChange={onChange}
           maxLength={LIMITS.comment}
           placeholder="Add a comment…"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${fieldId}-error` : undefined}
-          onChange={(event) => onChange(event.target.value)}
-          className="min-h-20 max-md:text-base"
+          className="min-h-20"
         />
         <div className="flex items-start justify-between gap-3">
           <p

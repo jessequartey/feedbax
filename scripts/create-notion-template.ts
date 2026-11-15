@@ -4,7 +4,7 @@ import { parseArgs } from "node:util";
 import type { NotionSetupClient } from "../src/contracts/integrations.ts";
 import { pageProblem, tokenProblem } from "../packages/create-feedbax/src/flags.ts";
 import { redact } from "../packages/create-feedbax/src/io.ts";
-import { MANUAL_VIEW_STEPS } from "../src/integrations/notion-template.ts";
+import { MANUAL_VIEW_STEPS, TEMPLATE_VIEWS } from "../src/integrations/notion-template.ts";
 
 const USAGE =
   "Usage: NOTION_TOKEN=… npm run notion:template -- (--page <id-or-url> | --parent-page <id-or-url>) [--examples]\n" +
@@ -63,7 +63,7 @@ export async function createNotionTemplate(
       [
         `Feedbax template: ${created.pageUrl}`,
         views
-          ? `Created through the API: the guide, the Feedbax database and its 7 views${rows}.`
+          ? `Created through the API: the guide, the Feedbax database and its ${TEMPLATE_VIEWS.length} views${rows}.`
           : `Created through the API: the guide and the Feedbax database${rows}.`,
         "Then, in Notion:\nBoard: drag the columns into Open, Planned, In progress, Done, Closed. The API cannot set their order.\n1. Share → Publish → Publish to web.\n2. Turn on Allow duplicate as template.\n3. Copy the public URL into NOTION_TEMPLATE_URL in packages/create-feedbax/src/links.ts.\n4. Use the same URL in README.md before releasing.\n(Optional: ••• → Full width on the page. The API cannot set it.)",
         ...(views

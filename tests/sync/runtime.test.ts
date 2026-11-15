@@ -20,6 +20,7 @@ import {
   githubIssue,
   text,
   signedMarker,
+  legacyMarker,
 } from "./helpers.ts";
 
 const poll: SyncMessage = { type: "notion.poll", since: SINCE, until: UNTIL, cursor: null };
@@ -191,6 +192,33 @@ describe("Notion mirror", () => {
     expect(JSON.stringify(fake.requests)).not.toContain("private@example.invalid");
     expect(await post()).toMatchObject({ notionPageId: PAGE, notionRevision: 1 });
   });
+  test("writes the formatted body as page content, and plain text in Description", async () => {
+    await seed({ body: "Hello **bold** [site](https://example.com)\n\n- one\n- two" });
+    const fake = mock(list(), { id: PAGE });
+    await deliver({ type: "notion.post", postId: ID });
+    const body = fake.requests[1].body as {
+      properties: { Description: unknown };
+      children: { type: string }[];
+    };
+    expect(JSON.stringify(body.properties.Description)).toContain(
+      "Hello bold site (https://example.com)",
+    );
+    expect(body.children.map((block) => block.type)).toEqual([
+      "paragraph",
+      "bulleted_list_item",
+      "bulleted_list_item",
+    ]);
+    expect(JSON.stringify(body.children[0])).toContain('"annotations":{"bold":true}');
+  });
+  test("updates and adopted pages never rewrite the page content", async () => {
+    await seed({ notionPageId: PAGE, body: "Some **text**" });
+    const fake = mock({ id: PAGE });
+    await deliver({ type: "notion.post", postId: ID });
+    expect(fake.requests.map((r) => [r.method, new URL(r.url).pathname])).toEqual([
+      ["PATCH", `/v1/pages/${PAGE}`],
+    ]);
+    expect(fake.requests[0].body).not.toHaveProperty("children");
+  });
   test("splits rich text at 2000 without cutting Unicode pairs", () => {
     const content = "x".repeat(1999) + "😀" + "y".repeat(3000);
     const runs = richText(content);
@@ -335,23 +363,9 @@ describe("Notion polling", () => {
     expect(await post()).toMatchObject({ status: "planned", revision: 1 });
     expect(console.warn).toHaveBeenCalled();
   });
-  test("ignores unknown, blank, mismatched and trashed rows without deleting posts", async () => {
+  test("ignores unknown, blank, mismatched, trashed and template example rows without deleting posts", async () => {
     await seed({ notionPageId: PAGE });
-    mock(
-      schema,
-      list([
-        notionRow("Done", true, "unknown"),
-        notionRow("Done", true, ""),
-        notionRow("Done", true, ID, "different"),
-        { ...notionRow("Done", true), in_trash: true },
-      ]),
-    );
-    await deliver(poll);
-    expect(await post()).toMatchObject({ status: "open", githubRequested: 0 });
-    expect(queue.sent).toEqual([]);
-  });
-  test("ignores template example rows: an empty Feedbax ID is never a post", async () => {
-    await seed({ notionPageId: PAGE });
+    // The template's example row has an empty Feedbax ID: it is never a post.
     const example = {
       ...notionRow("Planned", true, "", "example-page"),
       properties: {
@@ -362,7 +376,16 @@ describe("Notion polling", () => {
         "Send to GitHub": { type: "checkbox", checkbox: true },
       },
     };
-    mock(schema, list([example]));
+    mock(
+      schema,
+      list([
+        notionRow("Done", true, "unknown"),
+        notionRow("Done", true, ""),
+        notionRow("Done", true, ID, "different"),
+        { ...notionRow("Done", true), in_trash: true },
+        example,
+      ]),
+    );
     await deliver(poll);
     expect(await post()).toMatchObject({ status: "open", githubRequested: 0 });
     expect(queue.sent).toEqual([]);
@@ -398,16 +421,16 @@ describe("GitHub", () => {
     expect(fake.requests.map((r) => [r.method, r.url])).toEqual([
       [
         "GET",
-        "https://api.github.com/repos/acme/app/issues?state=all&sort=created&direction=desc&per_page=30",
+        `https://api.github.com/search/issues?q=${encodeURIComponent(`repo:acme/app "feedbax:v1:${ID}"`)}&per_page=100&page=1`,
       ],
       ["POST", "https://api.github.com/repos/acme/app/issues"],
     ]);
     expect(fake.requests[1].body.title).toBe("Feedback title");
-    expect(fake.requests[1].body.body).toContain("Hello \\*\\*world\\*\\* &lt;script&gt;\\!");
+    expect(fake.requests[1].body.body).toContain("Hello **world** &lt;script>!");
     expect(fake.requests[1].body.body).toContain(signedMarker());
     expect(fake.requests[1].body).not.toHaveProperty("labels");
     expect(fake.requests[1].headers.get("X-GitHub-Api-Version")).toBe("2026-03-10");
-    expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.0");
+    expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.1");
     expect(fake.requests[1].headers.get("Accept")).toBe("application/vnd.github+json");
     expect(fake.requests[1].headers.get("Authorization")).toBe("Bearer github_test_only");
     expect(await post()).toMatchObject({
@@ -416,22 +439,71 @@ describe("GitHub", () => {
       revision: 2,
     });
   });
+  test("the issue body is sanitized Markdown with the footer, backlink and marker intact", async () => {
+    await seed({
+      githubRequested: 1,
+      body: [
+        "Thanks @octocat, see #12 and [docs](https://example.com/d) [bad](javascript:alert(1)).",
+        "- first\n- second",
+        "<img src=x onerror=alert(1)> <!-- feedbax:v1:fake:sig -->",
+        "```\n@code #1 <b>\n```",
+      ].join("\n\n"),
+    });
+    const fake = mock([], githubIssue());
+    await deliver({ type: "github.issue", postId: ID });
+    const body = String(fake.requests[1].body.body);
+    expect(body).toContain(
+      "Thanks @\u200boctocat, see \\#12 and [docs](https://example.com/d) bad.",
+    );
+    expect(body).toContain("- first\n- second");
+    expect(body).toContain("&lt;img src=x onerror=alert(1)> &lt;!-- feedbax:v1:fake:sig -->");
+    expect(body).toContain("```\n@code #1 <b>\n```");
+    expect(body).not.toContain("javascript:");
+    // Only our own marker is a real HTML comment, and it is the last line.
+    expect(body.match(/<!--/g)).toHaveLength(1);
+    expect(body.split("\n").at(-1)).toBe(signedMarker());
+    expect(body).toContain(`[View feedback](http://localhost:3000/posts/${ID})`);
+    expect(body).toContain("Category: Bug report");
+  });
   test("unapproved work never calls GitHub", async () => {
     await seed();
     const fake = mock();
     await deliver({ type: "github.issue", postId: ID });
     expect(fake.requests).toEqual([]);
   });
-  test("a lost create response adopts by marker, ignoring a PR with the same marker", async () => {
+  test("a lost create response adopts a marker past the first search page, including a trailing newline", async () => {
     await seed({ githubRequested: 1 });
-    const fake = mock([], new Error("lost response"), [
-      { ...githubIssue(1), pull_request: {} },
-      githubIssue(),
-    ]);
+    const noise = Array.from({ length: 100 }, (_, index) => ({
+      ...githubIssue(1000 + index),
+      body: "no marker here",
+    }));
+    const recovered = { ...githubIssue(), body: `${signedMarker()}\n` };
+    const fake = mock(
+      [],
+      new Error("lost response"),
+      { items: noise },
+      {
+        items: [{ ...githubIssue(1), pull_request: {}, body: `${signedMarker()}\n` }, recovered],
+      },
+    );
     expect((await deliver({ type: "github.issue", postId: ID }, false)).retry).toHaveBeenCalled();
     await deliver({ type: "github.issue", postId: ID });
-    expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(1);
+    expect(fake.requests.filter((request) => request.method === "POST")).toHaveLength(1);
+    expect(fake.requests.some((request) => request.url.endsWith("page=2"))).toBe(true);
     expect(await post()).toMatchObject({ githubNumber: 7 });
+  });
+  test("an incomplete issue search retries instead of creating an issue", async () => {
+    await seed({ githubRequested: 1 });
+    mock({ items: [], incomplete_results: true });
+    expect((await deliver({ type: "github.issue", postId: ID }, false)).retry).toHaveBeenCalled();
+    expect(await post()).toMatchObject({ githubNumber: null });
+  });
+  test("a marker signed with the raw auth secret is still adopted", async () => {
+    await seed({ githubRequested: 1 });
+    mock([{ ...githubIssue(), body: legacyMarker() }]);
+    await deliver({ type: "github.issue", postId: ID });
+    expect(legacyMarker()).not.toBe(signedMarker());
+    expect(await post()).toMatchObject({ githubNumber: 7, status: "open" });
   });
   test("adopting an already-closed issue also sets terminal Done", async () => {
     await seed({ githubRequested: 1 });
@@ -757,13 +829,23 @@ test("GitHub polling stops as soon as an ascending page passes until", async () 
   expect(queue.sent).toEqual([]);
   expect(await readState("github.watermark")).toBe(UNTIL);
 });
-test("copied genuine markers from outsider creators cannot be adopted or close linked posts", async () => {
+test("an outsider's authentic marker is not adopted and does not open a second issue", async () => {
   await seed({ githubRequested: 1 });
-  const forged = { ...githubIssue(9, "closed"), user: { id: 999 } };
-  const fake = mock([forged], githubIssue());
+  const noise = Array.from({ length: 100 }, (_, index) => ({
+    ...githubIssue(2000 + index),
+    body: "no marker here",
+    user: { id: 1 },
+  }));
+  const forged = {
+    ...githubIssue(9, "closed"),
+    user: { id: 999 },
+    body: `${signedMarker()}\n`,
+  };
+  const fake = mock({ items: noise }, { items: [forged] });
   await deliver({ type: "github.issue", postId: ID });
-  expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(1);
-  expect(await post()).toMatchObject({ githubNumber: 7, status: "open" });
+  expect(fake.requests.filter((request) => request.method === "POST")).toHaveLength(0);
+  expect(fake.requests.some((request) => request.url.endsWith("page=2"))).toBe(true);
+  expect(await post()).toMatchObject({ githubNumber: null, status: "open" });
   // Protect even an outsider linkage left behind by an older implementation.
   await db().update(posts).set({ githubNumber: 9 }).where(eq(posts.id, ID));
   mock([forged]);

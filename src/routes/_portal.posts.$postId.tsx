@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 
 import { PostDetailSkeleton, PostDetailView } from "@/components/portal/post-detail";
 import { pageTitle } from "@/components/portal/route-head";
@@ -17,6 +17,9 @@ export const Route = createFileRoute("/_portal/posts/$postId")({
       getPost({ data: { id: params.postId } }),
       listComments({ data: { postId: params.postId } }),
     ]);
+    // A duplicate that was merged into another post sends its visitors to that post.
+    if (post.mergedInto)
+      throw redirect({ to: "/posts/$postId", params: { postId: post.mergedInto }, replace: true });
     return { post, comments };
   },
   head: ({ loaderData, matches }) => pageTitle(matches, loaderData?.post.title),

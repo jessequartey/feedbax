@@ -2,7 +2,7 @@
 
 Your self-hosted feedback portal, created by [create-feedbax](https://github.com/jessequartey/feedbax). Full docs: the [Feedbax README](https://github.com/jessequartey/feedbax#readme).
 
-For help finishing setup, copy the [agent setup prompt](https://github.com/jessequartey/feedbax#set-up-with-an-agent) into your coding agent. It covers account access, deployment, verification and test-data cleanup.
+For help finishing setup, copy the [agent setup prompt](https://github.com/jessequartey/feedbax#set-up-with-an-agent) into your coding agent. It sets up the core portal (Notion token, then deploy); add-ons come after.
 
 ## Develop
 
@@ -18,11 +18,35 @@ Secrets live in `.dev.vars` (git-ignored). Local data is separate from productio
 npm run deploy   # build, apply migrations, deploy
 ```
 
+## Manage
+
+The `feedbax` CLI is a dev dependency of this project:
+
+```sh
+npm run admin              # print a single-use admin sign-in link (15 minutes)
+npm run doctor             # check config, secrets, bindings, health, Notion and GitHub
+npm run migrate            # upgrade to the latest Feedbax release (--dry-run to preview)
+npx feedbax add <thing>    # github, github-login, google-login, host-login, email, webhooks
+```
+
+`migrate` merges upstream changes into your source, keeps your `feedbax.config.ts` values, `wrangler.jsonc` resources and secrets, then applies new database migrations and redeploys after asking. Commit your work first; it refuses to run on uncommitted changes.
+
 ## Configure
 
-Edit `feedbax.config.ts`: `name`, `appUrl` (your app's URL, for **Back to app** and the dialog), `auth.anonymous` and `integrations.github`. Run `npm run deploy` after a change.
+Edit `feedbax.config.ts`: `name`, `appUrl` (your app's URL, for **Back to app** and the dialog), `auth.anonymous`, `notifications.email` and `integrations.github`. Run `npm run deploy` after a change.
 
-Sign in with GitHub, Google or your app's existing login; email/password login is disabled. OAuth login needs both client credentials and your portal's exact callback registered with the provider. For local OAuth testing, use separate development credentials in `.dev.vars`, leaving production credentials unchanged. See [login configuration](https://github.com/jessequartey/feedbax#configuration).
+Your portal starts with anonymous feedback on and no sign-in provider. Add what you need with one command each, from this folder:
+
+```sh
+npx feedbax add github        # GitHub issue sync (GITHUB_TOKEN + --repo owner/repo)
+npx feedbax add github-login  # GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET
+npx feedbax add google-login  # GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET
+npx feedbax add host-login    # --app-url https://your-app.example
+npx feedbax add email         # RESEND_API_KEY + --from "Name <feedback@example.com>"
+npx feedbax add webhooks      # how to manage endpoints in /admin/settings
+```
+
+Add `--yes` with those environment variables and flags to skip every prompt. Email/password login is disabled. For OAuth, register your portal's exact callback with the provider; for local testing use separate development credentials in `.dev.vars`, leaving production credentials unchanged. See [the add-ons](https://github.com/jessequartey/feedbax#add-ons).
 
 With host login, finish the server token endpoint and `FeedbaxLink` integration in your app before expecting signed-in participation. Setting `appUrl` adds **Back to app** but does not establish a session.
 

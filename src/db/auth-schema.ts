@@ -1,6 +1,8 @@
 // Generated once with `auth@1.7.23 generate` from scripts/auth-schema.config.ts
 // (anonymous plugin, user.hostSubject, database rate limiter). Do not edit by hand
 // and never generate at runtime. See decisions.md for differences from the spec list.
+// Exception: `role` and `bannedAt` (migration 0005) are Feedbax columns, not Better Auth
+// fields. Better Auth never writes them; re-add them by hand after any regeneration.
 import { relations, sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
@@ -21,6 +23,10 @@ export const user = sqliteTable("user", {
     .notNull(),
   isAnonymous: integer("is_anonymous", { mode: "boolean" }).default(false),
   hostSubject: text("host_subject").unique(),
+  role: text("role", { enum: ["user", "admin"] })
+    .default("user")
+    .notNull(),
+  bannedAt: integer("banned_at"),
 });
 
 export const session = sqliteTable(

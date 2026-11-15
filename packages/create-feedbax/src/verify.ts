@@ -55,6 +55,7 @@ export async function verifyDeployment(
   const publicViewer = result.result;
   if (result.error || !publicViewer || publicViewer.user !== null) throw failed();
   const config = publicViewer.config;
+  if (!answers.login) return;
   if (answers.login === "host") {
     if (!config.hostLogin || config.appUrl !== answers.appUrl) throw failed();
     return;

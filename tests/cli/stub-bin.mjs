@@ -30,7 +30,9 @@ if (args[0] === "d1" && args[1] === "info")
 if (args[0] === "d1" && args[1] === "create") state.database = true;
 if (args[0] === "r2" && args[1] === "bucket" && args[2] === "create") state.bucket = true;
 if (args[0] === "queues" && args[1] === "create") state.queue = true;
-if (args[0] === "deploy") {
+// `feedbax deploy` / `feedbax migrate` deploy without a secrets file; secrets already exist.
+if (args[0] === "deploy" && args[1] !== "--secrets-file") state.redeployed = true;
+else if (args[0] === "deploy") {
   const path = args[2];
   const secrets = JSON.parse(readFileSync(path, "utf8"));
   const githubOAuth = Boolean(secrets.GITHUB_CLIENT_ID && secrets.GITHUB_CLIENT_SECRET);
@@ -46,8 +48,7 @@ if (args[0] === "deploy") {
     (statSync(dirname(path)).mode & 0o777) !== 0o700 ||
     "PORTAL_URL" in secrets ||
     !secrets.FEEDBAX_HOST_SECRET ||
-    !secrets.NOTION_TOKEN ||
-    (!githubOAuth && !googleOAuth && !hostConfigured)
+    !secrets.NOTION_TOKEN
   )
     process.exit(4);
   state.secretPath = path;

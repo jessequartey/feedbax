@@ -1,6 +1,13 @@
+import { ShowcaseSlot } from "./showcase-card";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
-import { ArrowLeftIcon, ExternalLinkIcon, MessageSquareIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  EyeOffIcon,
+  ExternalLinkIcon,
+  MessageSquareIcon,
+  RocketIcon,
+} from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -13,6 +20,7 @@ import {
 import { CommentSection } from "./comments";
 import { formatDate, plural } from "./format";
 import { ImageGallery } from "./image-gallery";
+import { Markdown } from "./markdown";
 import { CategoryBadge, StatusBadge } from "./post-badges";
 import { VoteButton } from "./vote-button";
 
@@ -45,10 +53,37 @@ export function PostDetailView({
       </Link>
       <div className="mt-4 grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-0">
         <article className="min-w-0 lg:pr-8" aria-labelledby="post-title">
+          {post.hidden ? (
+            <p
+              role="note"
+              className="mb-4 flex items-center gap-2 border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+            >
+              <EyeOffIcon className="size-4 shrink-0" aria-hidden="true" />
+              This post is hidden. Only its author and the admins can see it.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <CategoryBadge category={post.category} />
             <StatusBadge status={post.status} />
           </div>
+          {post.shippedIn?.length ? (
+            <p className="mt-3 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+              <RocketIcon className="size-4 shrink-0" aria-hidden="true" />
+              <span>Shipped in</span>
+              {post.shippedIn.map((entry, index) => (
+                <React.Fragment key={entry.id}>
+                  {index > 0 ? <span aria-hidden="true">,</span> : null}
+                  <Link
+                    to="/changelog/$entryId"
+                    params={{ entryId: entry.id }}
+                    className="font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                  >
+                    {entry.title}
+                  </Link>
+                </React.Fragment>
+              ))}
+            </p>
+          ) : null}
           <h1
             id="post-title"
             className="mt-4 text-3xl leading-tight font-semibold tracking-tight break-words md:text-4xl"
@@ -58,9 +93,7 @@ export function PostDetailView({
           <p className="mt-2 text-sm text-muted-foreground">
             {post.author.name} · <time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time>
           </p>
-          <p className="mt-5 text-base leading-relaxed break-words whitespace-pre-wrap">
-            {post.body}
-          </p>
+          <Markdown source={post.body} className="mt-5" />
           {post.images.length > 0 ? (
             <div className="mt-6">
               <ImageGallery images={post.images} title={post.title} />
@@ -105,6 +138,7 @@ export function PostDetailView({
               </Detail>
             ) : null}
           </dl>
+          <ShowcaseSlot />
         </aside>
       </div>
     </div>

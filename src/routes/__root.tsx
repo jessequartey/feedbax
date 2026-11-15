@@ -1,9 +1,13 @@
 import * as React from "react";
 import { HeadContent, Outlet, Scripts, createRootRoute, useRouter } from "@tanstack/react-router";
 
+import { FEEDBAX_DESCRIPTION } from "@/contracts/brand";
 import { ErrorState, NotFoundState } from "@/components/portal/states";
 import { themeInitScript } from "@/components/portal/theme";
+import { socialBuild, socialMeta } from "@/lib/social-meta";
 import appCss from "../styles.css?url";
+// Latin covers the shell. Other subsets stay in CSS and download only if the text needs them.
+import geistLatin from "@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url";
 
 export const Route = createRootRoute({
   pendingComponent: RootPending,
@@ -12,9 +16,25 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "color-scheme", content: "light dark" },
-      { title: "Feedbax" },
+      { title: socialBuild()?.name || "Feedbax" },
+      { name: "description", content: FEEDBAX_DESCRIPTION },
+      // Open Graph and X cards. Crawlers read the static shell, so these are fixed at build time.
+      ...socialMeta(FEEDBAX_DESCRIPTION, socialBuild()),
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      {
+        rel: "preload",
+        href: geistLatin,
+        as: "font",
+        type: "font/woff2",
+        crossOrigin: "anonymous",
+      },
+      // The header's F mark; /favicon.ico redirects here (public/_redirects).
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+      // Feed readers and browsers discover the changelog from any page.
+      { rel: "alternate", type: "application/rss+xml", title: "Changelog", href: "/changelog.rss" },
+    ],
   }),
   shellComponent: RootDocument,
   component: Outlet,

@@ -9,18 +9,23 @@ export function EmptyState({
   description,
   actions,
   icon: Icon = InboxIcon,
+  titleRef,
 }: {
   title: string;
   description?: React.ReactNode;
   actions?: React.ReactNode;
   icon?: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }>;
+  /** When set, the heading can take focus (unsubscribe moves here once the result is known). */
+  titleRef?: React.Ref<HTMLHeadingElement>;
 }) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
       <span className="flex size-10 items-center justify-center border bg-muted/40 text-muted-foreground">
         <Icon className="size-5" aria-hidden="true" />
       </span>
-      <h2 className="text-base font-medium">{title}</h2>
+      <h2 ref={titleRef} tabIndex={titleRef ? -1 : undefined} className="text-base font-medium">
+        {title}
+      </h2>
       {description ? <p className="max-w-md text-sm text-muted-foreground">{description}</p> : null}
       {actions ? <div className="mt-1 flex flex-wrap justify-center gap-2">{actions}</div> : null}
     </div>

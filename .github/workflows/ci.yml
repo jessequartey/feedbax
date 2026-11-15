@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, rebuild]
+    branches: [main]
 
 permissions:
   contents: read
@@ -22,10 +22,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
-      - run: npm install -g npm@12.2.2 pnpm@10.29.3
-      - run: npm install -g bun@1.3.9 --allow-scripts=bun # Bun's installer needs its postinstall under npm 12
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/create-feedbax/package-lock.json
+      - run: npm install -g npm@12.2.2
       - run: npm ci
       - run: npm ci --prefix packages/create-feedbax # the CLI package has its own install
+      # The packed-CLI test (create-feedbax + feedbax) is network-bound (it installs and builds a generated app), so it runs
+      # alongside the CPU-bound steps below and is joined in the last step. PR CI installs and
+      # builds the generated app with npm only; release.yml sets FULL_PM_MATRIX=1 for npm/pnpm/bun.
+      - name: Start packed-CLI test in the background
+        run: |
+          setsid nohup bash -c '
+            npm install -g pnpm@10.29.3 &&
+            npm install -g bun@1.3.9 --allow-scripts=bun && # Bun needs its postinstall under npm 12
+            npm run test:package
+            echo $? > "$RUNNER_TEMP/package.exit"
+          ' > "$RUNNER_TEMP/package.log" 2>&1 < /dev/null &
       - run: npm run check
       - run: npm run typecheck
       - run: npm test
@@ -50,8 +64,11 @@ jobs:
         run: |
           npm run registry:build
           git diff --exit-code -- public/r
-      - run: npm run cli:build
-      - run: npm run test:package
+      - name: Packed CLI test result (npm run test:package)
+        run: |
+          for _ in $(seq 1 600); do [ -f "$RUNNER_TEMP/package.exit" ] && break; sleep 1; done
+          cat "$RUNNER_TEMP/package.log"
+          [ "$(cat "$RUNNER_TEMP/package.exit" 2>/dev/null)" = 0 ]
       - name: Scan for secrets
         run: |
           if git grep -nE '(ntn_[A-Za-z0-9]{20,}|secret_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)' -- . ':!package-lock.json' ':!tests/fixtures'; then

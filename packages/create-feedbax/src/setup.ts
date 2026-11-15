@@ -269,23 +269,24 @@ export async function setup(
         2,
       );
   }
-  await prompt.step("Configure sign-in", () =>
-    loginCheckpoint(
-      answers,
-      secrets,
-      portalUrl,
-      prompt,
-      Boolean(yes),
-      (value) => {
-        hidden.push(value);
-        deps.onSecret?.(value);
-      },
-      async () => {
-        vars = await ensureSecrets(cwd, secrets);
-        hidden.push(...Object.values(vars));
-      },
-    ),
-  );
+  if (answers.login)
+    await prompt.step("Configure sign-in", () =>
+      loginCheckpoint(
+        answers,
+        secrets,
+        portalUrl,
+        prompt,
+        Boolean(yes),
+        (value) => {
+          hidden.push(value);
+          deps.onSecret?.(value);
+        },
+        async () => {
+          vars = await ensureSecrets(cwd, secrets);
+          hidden.push(...Object.values(vars));
+        },
+      ),
+    );
   // Refresh the early snapshot even when credentials came from saved vars or explicit env.
   vars = await ensureSecrets(cwd, secrets);
   hidden.push(...Object.values(vars));
@@ -326,8 +327,9 @@ export async function setup(
     assets: {
       ...(ownsResources ? config?.assets : {}),
       not_found_handling: "single-page-application",
-      // Auth callbacks and RPCs must reach the Worker even for browser navigation.
-      run_worker_first: ["/api/*", "/_serverFn/*"],
+      // Auth callbacks, RPCs, the admin sign-in link and the changelog RSS feed must reach
+      // the Worker even for browser navigation.
+      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"],
     },
     observability: {
       ...(ownsResources ? config?.observability : {}),

@@ -8,15 +8,30 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { eq, sql } from "drizzle-orm";
 import config from "../../feedbax.config.ts";
 import type { FeedbaxConfig, PublicConfig } from "../contracts/config.ts";
-import type { ViewerUser } from "../contracts/domain.ts";
+import { CATEGORY_LABELS } from "../contracts/domain.ts";
+import type { Category, ViewerUser } from "../contracts/domain.ts";
 import { createDb, schema } from "../db/client.ts";
 import { decode64 } from "./encoding.ts";
 import { consumeHostToken, resolveHostUser, verifyHostToken } from "./host-token.ts";
+import { ADMIN_LINK_PATH, verifyAdminToken } from "./admin-link.ts";
+import {
+  ADMIN_HOME,
+  SYNTHETIC_ADMIN_ID,
+  adminLinkUsed,
+  consumeAdminNonce,
+  ensureSyntheticAdmin,
+  grantAdmin,
+} from "./admin.ts";
 import { DomainError, reportUnexpected } from "./errors.ts";
 import { requireSameOrigin } from "./request.ts";
 import { text } from "./validation.ts";
+import { emailEnabled } from "../email/events.ts";
 
-export function publicConfig(settings = config, bindings: Cloudflare.Env = env): PublicConfig {
+export function publicConfig(
+  settings = config,
+  bindings: Cloudflare.Env = env,
+  categories: Category[] = Object.keys(CATEGORY_LABELS) as Category[],
+): PublicConfig {
   for (const provider of ["GITHUB", "GOOGLE"] as const) {
     if (
       Boolean(bindings[`${provider}_CLIENT_ID`]) !==
@@ -41,11 +56,39 @@ export function publicConfig(settings = config, bindings: Cloudflare.Env = env):
     name: settings.name,
     appUrl: settings.appUrl,
     anonymous: settings.auth.anonymous,
+    categories,
+    showcase: settings.showcase,
+    email: emailEnabled(bindings, settings),
     oauth: {
       github: Boolean(bindings.GITHUB_CLIENT_ID && bindings.GITHUB_CLIENT_SECRET),
       google: Boolean(bindings.GOOGLE_CLIENT_ID && bindings.GOOGLE_CLIENT_SECRET),
     },
   };
+}
+function htmlPage(title: string, body: string, status: number, form = false) {
+  // no-referrer makes native form posts send Origin: null in Chrome, so a page with a
+  // form sends only the origin (never the token's path/query) instead.
+  const referrer = form ? "strict-origin" : "no-referrer";
+  return new Response(
+    `<!doctype html><html><head><meta name="referrer" content="${referrer}"><title>${escapeHtml(title)}</title></head><body>${body}</body></html>`,
+    {
+      status,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": referrer,
+        "Content-Security-Policy": `default-src 'none'; ${form ? "form-action 'self'; " : ""}frame-ancestors 'none'; base-uri 'none'`,
+        "X-Content-Type-Options": "nosniff",
+      },
+    },
+  );
+}
+function adminLinkExpired() {
+  return htmlPage(
+    "Link expired",
+    "<p>This admin link expired or was already used. Run <code>npx feedbax admin</code> for a new one.</p>",
+    401,
+  );
 }
 function escapeHtml(value: string) {
   return value.replace(
@@ -254,6 +297,68 @@ export function createAuth(settings: FeedbaxConfig = config, bindings: Cloudflar
       {
         id: "feedbax",
         endpoints: {
+          // Reached only through /admin/enter (handleAdminEnter); not in handleAuth's allowlist.
+          feedbaxAdminEnter: createAuthEndpoint(
+            "/feedbax/admin-enter",
+            {
+              method: ["GET", "POST"],
+              metadata: {
+                allowedMediaTypes: ["application/json", "application/x-www-form-urlencoded"],
+              },
+            },
+            async (ctx) => {
+              const token = new URL(ctx.request!.url).searchParams.get("t") ?? "";
+              const claims = await verifyAdminToken(token, bindings.BETTER_AUTH_SECRET);
+              if (!claims || (await adminLinkUsed(claims.nonce, bindings.DB)))
+                return adminLinkExpired();
+              const current = await getSessionFromCtx(ctx, { disableRefresh: true });
+              // An anonymous session is throwaway; it is never promoted.
+              const promote = current && !current.user.isAnonymous ? current.user : null;
+              if (ctx.request!.method === "GET") {
+                // Confirm first: link unfurlers and prefetchers must not burn the link.
+                const action = `${ADMIN_LINK_PATH}?${new URLSearchParams({ t: token })}`;
+                const intro = promote
+                  ? `<p>Make <strong>${escapeHtml(promote.name)}</strong> an admin of ${escapeHtml(settings.name)}? This account stays an admin until an admin revokes it.</p>`
+                  : `<p>Sign in to ${escapeHtml(settings.name)} as the built-in admin. Sign in with your own account first if you want to keep admin on it.</p>`;
+                return htmlPage(
+                  "Admin sign in",
+                  `<h1>Admin sign in</h1>${intro}<form method="post" action="${escapeHtml(action)}"><button type="submit">${promote ? "Make me an admin" : "Continue as admin"}</button></form>`,
+                  200,
+                  true,
+                );
+              }
+              try {
+                requireSameOrigin(ctx.request!, bindings.PORTAL_URL);
+              } catch {
+                throw new APIError("FORBIDDEN", { message: "This origin is not allowed." });
+              }
+              let created: { session: { token: string }; user: object } | null = null;
+              if (!promote) {
+                const admin = await ensureSyntheticAdmin(bindings.DB);
+                const session = await ctx.context.internalAdapter.createSession(admin.id);
+                if (!session)
+                  throw new APIError("SERVICE_UNAVAILABLE", {
+                    message: "Please try again shortly.",
+                  });
+                created = { session, user: admin };
+              }
+              // Consume after the fallible session creation, before granting or exposing it.
+              try {
+                await consumeAdminNonce(claims, bindings.DB);
+              } catch (error) {
+                if (created)
+                  await ctx.context.internalAdapter
+                    .deleteSession(created.session.token)
+                    .catch(() => undefined);
+                if (error instanceof DomainError) return adminLinkExpired();
+                throw error;
+              }
+              await grantAdmin(promote ? promote.id : SYNTHETIC_ADMIN_ID, bindings.DB);
+              if (created)
+                await setSessionCookie(ctx, created as Parameters<typeof setSessionCookie>[1]);
+              throw ctx.redirect(ADMIN_HOME);
+            },
+          ),
           feedbaxSignIn: createAuthEndpoint(
             "/feedbax/sign-in",
             {
@@ -369,9 +474,14 @@ export async function viewerUser(
   if (!getSessionCookie(headers)) return null;
   const session = await createAuth(settings, bindings).api.getSession({ headers });
   if (!session) return null;
-  // hostSubject is deliberately absent from Better Auth's public user output.
+  // hostSubject, role and bannedAt are deliberately absent from Better Auth's user output.
   const row = await createDb(bindings.DB)
-    .select({ hostSubject: schema.user.hostSubject, isAnonymous: schema.user.isAnonymous })
+    .select({
+      hostSubject: schema.user.hostSubject,
+      isAnonymous: schema.user.isAnonymous,
+      role: schema.user.role,
+      bannedAt: schema.user.bannedAt,
+    })
     .from(schema.user)
     .where(eq(schema.user.id, session.user.id))
     .get();
@@ -380,11 +490,26 @@ export async function viewerUser(
     id: session.user.id,
     name: row.isAnonymous ? "Anonymous" : session.user.name,
     kind: row.isAnonymous ? "anonymous" : row.hostSubject !== null ? "host" : "account",
+    ...(row.role === "admin" ? { admin: true } : {}),
+    ...(row.bannedAt !== null ? { banned: true } : {}),
   };
 }
+/** Guard for every post, vote and comment write. Banned users can still read. */
 export function requireWriter(user: ViewerUser | null, settings = config): ViewerUser {
   if (!user) throw new DomainError("unauthenticated", "Sign in to continue.");
   if (user.kind === "anonymous" && !settings.auth.anonymous)
     throw new DomainError("forbidden", "Anonymous feedback is disabled.");
+  if (user.banned)
+    throw new DomainError("forbidden", "This account can no longer post, vote or comment.");
   return user;
+}
+/**
+ * Guard for admin server functions: `requireAdmin(await viewer())` in functions.ts.
+ * `viewerUser` reads role and ban from D1 on every request, so revocation is immediate.
+ */
+export function requireAdmin(user: ViewerUser | null): ViewerUser & { admin: true } {
+  if (!user) throw new DomainError("unauthenticated", "Sign in to continue.");
+  if (!user.admin || user.banned || user.kind === "anonymous")
+    throw new DomainError("forbidden", "Admins only.");
+  return user as ViewerUser & { admin: true };
 }

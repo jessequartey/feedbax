@@ -35,7 +35,7 @@ export default { async fetch(request) {
   const inert = { prepare() { throw new Error("construction performed I/O"); } };
   if(createDb(inert)!==createDb(inert)) throw new Error("wrapper not reused");
   if(createDb(env.DB)===createDb(env.DB_OTHER)) throw new Error("binding crossed");
-  const settings={name:"Test",appUrl:"https://host.example.com",auth:{anonymous:false},integrations:{notion:{dataSourceId:"00000000-0000-0000-0000-000000000000"},github:false}};
+  const settings={name:"Test",appUrl:"https://host.example.com",auth:{anonymous:false},notifications:{email:false},integrations:{notion:{dataSourceId:"00000000-0000-0000-0000-000000000000"},github:false}};
   const bindings={...env,DB:env.DB_OTHER};
   const phase=new URL(request.url).pathname;
   if(phase==="/host") return createAuth(settings,bindings).handler(new Request("https://portal.example.com/api/auth/feedbax/sign-in"+new URL(request.url).search,{method:"POST",headers:{origin:env.PORTAL_URL}}));
@@ -50,13 +50,17 @@ export default { async fetch(request) {
 const meteredCode = `
 import {env} from "cloudflare:workers";
 import worker from "./index.js";
+// One proxy for the isolate, like the real stable env.DB, so per-isolate caches keyed on the
+// binding (the settings cache) behave as in production; only the counter resets per request.
+const original=env.DB;
+let reads=0;
+const metered=new Proxy(original,{get(target,key){
+  if(key==="prepare")return sql=>{if(/^\\s*select\\b/i.test(sql))reads++;return target.prepare(sql);};
+  const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
+}});
 export default {async fetch(request){
-  const original=env.DB;
-  let reads=0;
-  env.DB=new Proxy(original,{get(target,key){
-    if(key==="prepare")return sql=>{if(/^\\s*select\\b/i.test(sql))reads++;return target.prepare(sql);};
-    const value=Reflect.get(target,key);return typeof value==="function"?value.bind(target):value;
-  }});
+  reads=0;
+  env.DB=metered;
   try {
     const response=await worker.fetch(request);
     // Drain before restoring bindings, retaining per-request accounting for streamed RPCs.
@@ -84,7 +88,12 @@ const common = {
 };
 const emittedConfig = JSON.parse(await readFile(resolve(root, "wrangler.json"), "utf8"));
 assert.equal(emittedConfig.assets.not_found_handling, "single-page-application");
-assert.deepEqual(emittedConfig.assets.run_worker_first, ["/api/*", "/_serverFn/*"]);
+assert.deepEqual(emittedConfig.assets.run_worker_first, [
+  "/api/*",
+  "/_serverFn/*",
+  "/admin/enter",
+  "/changelog.rss",
+]);
 const staticAssets = {
   directory: resolve(root, emittedConfig.assets.directory),
   run_worker_first: emittedConfig.assets.run_worker_first,
@@ -375,6 +384,32 @@ try {
       "host GET remains its confirmation handler",
     );
     assert.equal(confirmation.headers.has("set-cookie"), false, "GET never consumes host token");
+    // The admin sign-in link is a page path, not /api/*: run_worker_first must route it.
+    const adminEnter = await app.fetch("https://portal.example.com/admin/enter?t=invalid", {
+      headers,
+    });
+    assert.equal(adminEnter.status, 401, "admin link navigation reaches the Worker");
+    assert.match(await adminEnter.text(), /admin link expired/);
+    // Likewise the RSS feed: a feed reader's navigation must reach the Worker, not the shell.
+    const feed = await app.fetch("https://portal.example.com/changelog.rss", { headers });
+    assert.equal(feed.status, 200, "changelog feed reaches the Worker");
+    assert.match(feed.headers.get("content-type") ?? "", /^application\/rss\+xml/);
+    assert.match(await feed.text(), /^<\?xml[^>]*\?>\s*<rss version="2\.0"/);
+    // The one-click unsubscribe is under /api/*, so mail clients' POSTs reach the Worker; a
+    // link that was not signed here is refused, and a GET only redirects.
+    const bad = "?u=nobody&k=status&t=" + "A".repeat(43);
+    const oneClick = await app.fetch("https://portal.example.com/api/email/unsubscribe" + bad, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/x-www-form-urlencoded" },
+      body: "List-Unsubscribe=One-Click",
+    });
+    assert.equal(oneClick.status, 400, "unsigned unsubscribe is refused by the Worker");
+    const confirm = await app.fetch("https://portal.example.com/api/email/unsubscribe" + bad, {
+      headers,
+      redirect: "manual",
+    });
+    assert.equal(confirm.status, 303);
+    assert.equal(confirm.headers.get("location"), "/unsubscribe" + bad);
     for (const path of [
       "/api/auth/sign-up/email",
       "/api/auth/callback/google",

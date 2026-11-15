@@ -1,15 +1,30 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { stripVTControlCharacters } from "node:util";
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildCli } from "./cli-build.ts";
 import { viewerRpcId } from "../packages/create-feedbax/src/verify.ts";
 import { createRunner } from "../packages/create-feedbax/src/io.ts";
+import { readVars } from "../packages/create-feedbax/src/project.ts";
+import { verifyAdminToken } from "../src/server/admin-link.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const run = createRunner();
-export function parsePackedPackage(output: string) {
+export function parsePackedPackage(output: string, name = "create-feedbax") {
   const parsed: unknown = JSON.parse(output);
   assert(parsed && typeof parsed === "object", "npm pack returned no package metadata");
   // npm 11 emits an array; npm 12 keys the same metadata by package name.
@@ -17,7 +32,7 @@ export function parsePackedPackage(output: string) {
   assert.equal(packages.length, 1, "npm pack must return exactly one package");
   const packed = packages[0];
   assert(packed && typeof packed === "object", "npm pack returned invalid package metadata");
-  assert("name" in packed && packed.name === "create-feedbax", "npm pack returned another package");
+  assert("name" in packed && packed.name === name, "npm pack returned another package");
   assert(
     "filename" in packed &&
       typeof packed.filename === "string" &&
@@ -48,6 +63,146 @@ async function checked(
     );
   return result.stdout;
 }
+/**
+ * Run the packed feedbax inside a generated project (a copy): --version, admin, and migrate
+ * (--dry-run, then a real run) against a local registry serving the packed create-feedbax as
+ * the baseline and a repacked "next" version with one changed file and one new migration.
+ */
+async function testFeedbaxInProject(options: {
+  temp: string;
+  project: string;
+  packedFeedbax: string;
+  creatorTarball: string;
+  env: Record<string, string>;
+  feedbaxVersion: string;
+}): Promise<void> {
+  const { temp, packedFeedbax } = options;
+  const project = join(temp, "feedbax-project");
+  await cp(options.project, project, { recursive: true });
+  const feedbax = (args: string[], env: Record<string, string> = {}) =>
+    checked(process.execPath, [packedFeedbax, ...args], project, { ...options.env, ...env });
+  assert.equal((await feedbax(["--version"])).trim(), options.feedbaxVersion);
+  const vars = await readVars(project);
+  const link = /https:\/\/\S+\/admin\/enter\?t=\S+/.exec(
+    stripVTControlCharacters(await feedbax(["admin"])),
+  )?.[0];
+  assert(link, "feedbax admin prints a sign-in link");
+  const url = new URL(link);
+  assert.equal(url.origin, "https://my-feedback.team.workers.dev");
+  assert(await verifyAdminToken(url.searchParams.get("t"), vars.BETTER_AUTH_SECRET!));
+  console.log("package: packed feedbax --version and admin passed in a generated project");
+
+  // A "next" create-feedbax: the packed one with a changed file and a new migration.
+  const base = (await readFile(join(project, ".feedbax/version"), "utf8")).trim();
+  const [major, minor, patch] = base.split(".").map(Number);
+  const next = `${major}.${minor}.${patch! + 1}`;
+  const unpacked = join(temp, "next");
+  await mkdir(unpacked);
+  await checked("tar", ["-xzf", options.creatorTarball, "-C", unpacked], temp);
+  const pkgDir = join(unpacked, "package");
+  for (const file of ["package.json", "template/package.json"]) {
+    const json = JSON.parse(await readFile(join(pkgDir, file), "utf8"));
+    json.version = next;
+    await writeFile(join(pkgDir, file), `${JSON.stringify(json, null, 2)}\n`);
+  }
+  const server = join(pkgDir, "template/src/server.ts");
+  await writeFile(server, `${await readFile(server, "utf8")}// migrate test\n`);
+  await writeFile(join(pkgDir, "template/migrations/9999_migrate_test.sql"), "SELECT 1;\n");
+  const nextOut = join(temp, "next-out");
+  await mkdir(nextOut);
+  const nextTarball = join(
+    nextOut,
+    parsePackedPackage(
+      await checked("npm", ["pack", "--json", "--pack-destination", nextOut], pkgDir),
+    ).filename,
+  );
+  const tarballs: Record<string, string> = { [base]: options.creatorTarball, [next]: nextTarball };
+  const integrity = async (path: string) =>
+    `sha512-${createHash("sha512")
+      .update(await readFile(path))
+      .digest("base64")}`;
+  const versions: Record<string, unknown> = {};
+  for (const [version, path] of Object.entries(tarballs))
+    versions[version] = {
+      dist: { tarball: `/create-feedbax-${version}.tgz`, integrity: await integrity(path) },
+    };
+  const registry = createServer((request, response) => {
+    void (async () => {
+      const origin = `http://${request.headers.host}`;
+      if (request.url === "/create-feedbax") {
+        const absolute = Object.fromEntries(
+          Object.entries(versions).map(([version, meta]) => [
+            version,
+            {
+              dist: {
+                ...(meta as { dist: object }).dist,
+                tarball: `${origin}/create-feedbax-${version}.tgz`,
+              },
+            },
+          ]),
+        );
+        response.setHeader("content-type", "application/json");
+        response.end(JSON.stringify({ "dist-tags": { latest: next }, versions: absolute }));
+        return;
+      }
+      const version = /^\/create-feedbax-(.+)\.tgz$/.exec(request.url ?? "")?.[1];
+      if (version && tarballs[version]) {
+        response.end(await readFile(tarballs[version]));
+        return;
+      }
+      response.statusCode = 404;
+      response.end();
+    })();
+  });
+  await new Promise<void>((resolve) => registry.listen(0, "127.0.0.1", resolve));
+  try {
+    const registryEnv = {
+      npm_config_registry: `http://127.0.0.1:${(registry.address() as AddressInfo).port}/`,
+    };
+    const git = (...args: string[]) =>
+      checked(
+        "git",
+        ["-c", "user.name=test", "-c", "user.email=test@example.invalid", ...args],
+        project,
+      );
+    await git("init", "-q");
+    await git("add", "-A");
+    await git("commit", "-qm", "generated");
+    const plan = stripVTControlCharacters(await feedbax(["migrate", "--dry-run"], registryEnv));
+    assert(
+      plan.includes(`Project is on ${base} (from .feedbax/version); target is ${next}.`),
+      plan,
+    );
+    assert(plan.includes("~ update   src/server.ts"), plan);
+    assert(plan.includes("+ add      migrations/9999_migrate_test.sql"), plan);
+    assert(plan.includes("~ update   package.json"), plan);
+    assert.equal(await git("status", "--porcelain"), "");
+    const applied = stripVTControlCharacters(await feedbax(["migrate", "--yes"], registryEnv));
+    assert(applied.includes(`Upgraded to ${next}`), applied);
+    assert((await readFile(join(project, "src/server.ts"), "utf8")).endsWith("// migrate test\n"));
+    assert.equal(await readFile(join(project, ".feedbax/version"), "utf8"), `${next}\n`);
+    const upgradedPkg = JSON.parse(await readFile(join(project, "package.json"), "utf8"));
+    assert.equal(upgradedPkg.name, "my-feedback");
+    assert.equal(upgradedPkg.version, next);
+    const commands = (await readFile(options.env.FEEDBAX_TEST_LOG!, "utf8"))
+      .trim()
+      .split("\n")
+      .slice(-4)
+      .map((line) => (JSON.parse(line) as { argv: string[] }).argv.join(" "));
+    assert.deepEqual(commands, [
+      "install",
+      "--no-install wrangler d1 migrations apply DB --remote",
+      "run build",
+      "--no-install wrangler deploy",
+    ]);
+    console.log(
+      "package: packed feedbax migrate --dry-run and migrate passed against a local registry",
+    );
+  } finally {
+    await new Promise((resolve) => registry.close(resolve));
+  }
+}
+
 // Root may prepare the final template separately; CLI-only acceptance can reuse that snapshot.
 export async function testPackage(
   options: { build?: boolean; apps?: boolean } = {},
@@ -75,9 +230,45 @@ export async function testPackage(
       harness,
     );
     const packedCli = join(harness, "node_modules/create-feedbax/dist/index.mjs");
+    // The feedbax CLI ships beside create-feedbax; generated projects pin it.
+    const feedbaxDir = join(root, "packages/feedbax");
+    const feedbaxVersion = (
+      JSON.parse(await readFile(join(feedbaxDir, "package.json"), "utf8")) as { version: string }
+    ).version;
+    const feedbaxPacked = parsePackedPackage(
+      await checked("npm", ["pack", "--json", "--pack-destination", temp], feedbaxDir),
+      "feedbax",
+    );
+    const feedbaxTarball = join(temp, feedbaxPacked.filename);
+    assert.deepEqual(feedbaxPacked.files.map((file) => file.path).sort(), [
+      "LICENSE",
+      "README.md",
+      "dist/index.mjs",
+      "dist/providers.mjs",
+      "package.json",
+    ]);
+    await checked(
+      "npm",
+      ["install", "--ignore-scripts", "--no-audit", "--no-fund", feedbaxTarball],
+      harness,
+    );
+    const packedFeedbax = join(harness, "node_modules/feedbax/dist/index.mjs");
+    assert.equal(
+      (await checked(process.execPath, [packedFeedbax, "--version"], harness)).trim(),
+      feedbaxVersion,
+    );
+    assert(
+      (await checked(process.execPath, [packedFeedbax, "--help"], harness)).includes("migrate"),
+    );
+    await checked(
+      "npm",
+      ["exec", "--yes", `--package=${feedbaxTarball}`, "--", "feedbax", "--version"],
+      harness,
+    );
+    console.log("package: packed feedbax --version/--help and npm exec launch passed");
     assert.equal(
       (await checked(process.execPath, [packedCli, "--version"], harness)).trim(),
-      "0.3.0",
+      "0.3.1",
     );
     assert(
       (await checked(process.execPath, [packedCli, "--help"], harness)).includes("--notion-page"),
@@ -150,7 +341,7 @@ export async function testPackage(
     const bindings = JSON.parse(await readFile(join(project, "wrangler.jsonc"), "utf8"));
     assert.deepEqual(bindings.assets, {
       not_found_handling: "single-page-application",
-      run_worker_first: ["/api/*", "/_serverFn/*"],
+      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"],
     });
     assert.deepEqual(bindings.observability, { enabled: true, redact_query_string: true });
     assert.equal(bindings.d1_databases[0].binding, "DB");
@@ -184,6 +375,17 @@ export async function testPackage(
     console.log(
       "package: packed CLI non-interactive E2E + rerun + private secrets passed (fake providers and PATH binaries)",
     );
+    const generatedPkg = JSON.parse(await readFile(join(project, "package.json"), "utf8"));
+    assert.equal(generatedPkg.devDependencies.feedbax, feedbaxVersion);
+    assert.equal(generatedPkg.scripts.migrate, "feedbax migrate");
+    await testFeedbaxInProject({
+      temp,
+      project,
+      packedFeedbax,
+      creatorTarball: tarball,
+      env: { PATH: env.PATH, FEEDBAX_TEST_STATE: state, FEEDBAX_TEST_LOG: log },
+      feedbaxVersion,
+    });
     // Exercise the packed entry's selected-login contract with independent fresh projects.
     for (const login of ["github", "google", "host"] as const) {
       const caseDir = join(temp, `login-${login}`);
@@ -244,6 +446,38 @@ export async function testPackage(
         );
       }
     }
+    // The default path: only NOTION_TOKEN and Cloudflare credentials, no sign-in provider.
+    const minimalDir = join(temp, "minimal");
+    await mkdir(minimalDir);
+    const minimalState = join(minimalDir, "state.json");
+    await writeFile(minimalState, "{}");
+    await writeFile(join(minimalDir, "commands.jsonl"), "");
+    const minimalEnv = {
+      PATH: env.PATH,
+      FEEDBAX_TEST_STATE: minimalState,
+      FEEDBAX_TEST_LOG: join(minimalDir, "commands.jsonl"),
+      NOTION_TOKEN: env.NOTION_TOKEN,
+      CLOUDFLARE_API_TOKEN: env.CLOUDFLARE_API_TOKEN,
+      CLOUDFLARE_ACCOUNT_ID: env.CLOUDFLARE_ACCOUNT_ID,
+    };
+    const minimalArgs = [argv[0]!, packedCli, "my-feedback", "--yes"];
+    const minimalOutput = stripVTControlCharacters(
+      await checked(process.execPath, minimalArgs, minimalDir, minimalEnv),
+    );
+    assert(minimalOutput.includes("Anyone can post"));
+    assert(!minimalOutput.includes("sentinel-"));
+    const minimalDeployed = JSON.parse(await readFile(minimalState, "utf8"));
+    assert(minimalDeployed.deployed);
+    assert.equal(minimalDeployed.githubOAuth, false);
+    assert.equal(minimalDeployed.googleOAuth, false);
+    assert.equal(minimalDeployed.hostConfigured, false);
+    assert(
+      (await readFile(join(minimalDir, "my-feedback", "feedbax.config.ts"), "utf8")).includes(
+        "anonymous: true",
+      ),
+    );
+    await checked(process.execPath, minimalArgs, minimalDir, minimalEnv);
+    console.log("package: default setup with only NOTION_TOKEN + Cloudflare credentials passed");
     const rejectedDir = join(temp, "rejected");
     await mkdir(rejectedDir);
     for (const args of [["--login=google"], ["--login=host"], ["--login=github"]]) {
@@ -261,12 +495,24 @@ export async function testPackage(
     );
     if (options.apps === false) return;
     // All real installs/builds use the generated tree, never a second template.
+    // PR CI installs and builds with npm only; the release workflow sets FULL_PM_MATRIX=1 for
+    // the npm + pnpm + bun matrix (the pnpm dlx and bunx tarball launches above always run).
+    const managers = process.env.FULL_PM_MATRIX === "1" ? ["npm", "pnpm", "bun"] : ["npm"];
     const failures: string[] = [];
-    for (const pm of ["npm", "pnpm", "bun"]) {
+    for (const pm of managers) {
       await rm(join(project, "node_modules"), { recursive: true, force: true });
+      // feedbax@<this version> may not be published yet: install the packed tarball instead.
+      const appPkg = JSON.parse(await readFile(join(project, "package.json"), "utf8"));
+      appPkg.devDependencies.feedbax = `file:${feedbaxTarball}`;
+      await writeFile(join(project, "package.json"), `${JSON.stringify(appPkg, null, 2)}\n`);
       try {
         await checked(pm, ["install"], project, { CI: "true" });
         console.log(`package: generated app installs with ${pm}`);
+        if (pm === "npm")
+          assert.equal(
+            (await checked("npx", ["--no-install", "feedbax", "--version"], project)).trim(),
+            feedbaxVersion,
+          );
         await checked(pm, ["run", "build"], project, { CI: "true" });
         assert(await viewerRpcId(project), "generated build exposes its actual getViewer RPC ID");
         const emitted = JSON.parse(
@@ -274,7 +520,12 @@ export async function testPackage(
         );
         assert.equal(emitted.observability.redact_query_string, true);
         assert.equal(emitted.assets.not_found_handling, "single-page-application");
-        assert.deepEqual(emitted.assets.run_worker_first, ["/api/*", "/_serverFn/*"]);
+        assert.deepEqual(emitted.assets.run_worker_first, [
+          "/api/*",
+          "/_serverFn/*",
+          "/admin/enter",
+          "/changelog.rss",
+        ]);
         assert.equal(typeof emitted.assets.directory, "string");
         assert(emitted.assets.directory.length > 0, "generated build declares its client assets");
         const shell = await readFile(join(project, "dist/client/index.html"), "utf8");

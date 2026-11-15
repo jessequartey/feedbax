@@ -10,25 +10,48 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PortalRouteImport } from './routes/_portal'
+import { Route as ChangelogDotrssRouteImport } from './routes/changelog[.]rss'
 import { Route as PortalIndexRouteImport } from './routes/_portal.index'
+import { Route as PortalAdminRouteImport } from './routes/_portal.admin'
 import { Route as PortalLoginRouteImport } from './routes/_portal.login'
 import { Route as PortalMyFeedbackRouteImport } from './routes/_portal.my-feedback'
+import { Route as PortalNotificationsRouteImport } from './routes/_portal.notifications'
 import { Route as PortalRoadmapRouteImport } from './routes/_portal.roadmap'
 import { Route as PortalSignupRouteImport } from './routes/_portal.signup'
 import { Route as PortalSubmitRouteImport } from './routes/_portal.submit'
+import { Route as PortalUnsubscribeRouteImport } from './routes/_portal.unsubscribe'
+import { Route as AdminEnterRouteImport } from './routes/admin.enter'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiPostsRouteImport } from './routes/api/posts'
+import { Route as PortalAdminIndexRouteImport } from './routes/_portal.admin.index'
+import { Route as PortalAdminChangelogRouteImport } from './routes/_portal.admin.changelog'
+import { Route as PortalAdminModerationRouteImport } from './routes/_portal.admin.moderation'
+import { Route as PortalAdminSettingsRouteImport } from './routes/_portal.admin.settings'
+import { Route as PortalAdminUsersRouteImport } from './routes/_portal.admin.users'
+import { Route as PortalChangelogIndexRouteImport } from './routes/_portal.changelog.index'
+import { Route as PortalChangelogEntryIdRouteImport } from './routes/_portal.changelog.$entryId'
 import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiEmailUnsubscribeRouteImport } from './routes/api/email/unsubscribe'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
 
 const PortalRoute = PortalRouteImport.update({
   id: '/_portal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChangelogDotrssRoute = ChangelogDotrssRouteImport.update({
+  id: '/changelog.rss',
+  path: '/changelog.rss',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalAdminRoute = PortalAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalLoginRoute = PortalLoginRouteImport.update({
@@ -39,6 +62,11 @@ const PortalLoginRoute = PortalLoginRouteImport.update({
 const PortalMyFeedbackRoute = PortalMyFeedbackRouteImport.update({
   id: '/my-feedback',
   path: '/my-feedback',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalNotificationsRoute = PortalNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => PortalRoute,
 } as any)
 const PortalRoadmapRoute = PortalRoadmapRouteImport.update({
@@ -56,6 +84,16 @@ const PortalSubmitRoute = PortalSubmitRouteImport.update({
   path: '/submit',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalUnsubscribeRoute = PortalUnsubscribeRouteImport.update({
+  id: '/unsubscribe',
+  path: '/unsubscribe',
+  getParentRoute: () => PortalRoute,
+} as any)
+const AdminEnterRoute = AdminEnterRouteImport.update({
+  id: '/admin/enter',
+  path: '/admin/enter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -65,6 +103,41 @@ const ApiPostsRoute = ApiPostsRouteImport.update({
   id: '/api/posts',
   path: '/api/posts',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PortalAdminIndexRoute = PortalAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminChangelogRoute = PortalAdminChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminModerationRoute = PortalAdminModerationRouteImport.update({
+  id: '/moderation',
+  path: '/moderation',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminSettingsRoute = PortalAdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalAdminUsersRoute = PortalAdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => PortalAdminRoute,
+} as any)
+const PortalChangelogIndexRoute = PortalChangelogIndexRouteImport.update({
+  id: '/changelog/',
+  path: '/changelog/',
+  getParentRoute: () => PortalRoute,
+} as any)
+const PortalChangelogEntryIdRoute = PortalChangelogEntryIdRouteImport.update({
+  id: '/changelog/$entryId',
+  path: '/changelog/$entryId',
+  getParentRoute: () => PortalRoute,
 } as any)
 const PortalPostsPostIdRoute = PortalPostsPostIdRouteImport.update({
   id: '/posts/$postId',
@@ -76,6 +149,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiEmailUnsubscribeRoute = ApiEmailUnsubscribeRouteImport.update({
+  id: '/api/email/unsubscribe',
+  path: '/api/email/unsubscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
   id: '/api/media/$id',
   path: '/api/media/$id',
@@ -84,93 +162,172 @@ const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof PortalIndexRoute
+  '/changelog.rss': typeof ChangelogDotrssRoute
+  '/admin': typeof PortalAdminRouteWithChildren
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
+  '/notifications': typeof PortalNotificationsRoute
   '/roadmap': typeof PortalRoadmapRoute
   '/signup': typeof PortalSignupRoute
   '/submit': typeof PortalSubmitRoute
+  '/unsubscribe': typeof PortalUnsubscribeRoute
+  '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
+  '/admin/changelog': typeof PortalAdminChangelogRoute
+  '/admin/moderation': typeof PortalAdminModerationRoute
+  '/admin/settings': typeof PortalAdminSettingsRoute
+  '/admin/users': typeof PortalAdminUsersRoute
+  '/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
+  '/admin/': typeof PortalAdminIndexRoute
+  '/changelog/': typeof PortalChangelogIndexRoute
 }
 export interface FileRoutesByTo {
+  '/changelog.rss': typeof ChangelogDotrssRoute
   '/login': typeof PortalLoginRoute
   '/my-feedback': typeof PortalMyFeedbackRoute
+  '/notifications': typeof PortalNotificationsRoute
   '/roadmap': typeof PortalRoadmapRoute
   '/signup': typeof PortalSignupRoute
   '/submit': typeof PortalSubmitRoute
+  '/unsubscribe': typeof PortalUnsubscribeRoute
+  '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/': typeof PortalIndexRoute
+  '/admin/changelog': typeof PortalAdminChangelogRoute
+  '/admin/moderation': typeof PortalAdminModerationRoute
+  '/admin/settings': typeof PortalAdminSettingsRoute
+  '/admin/users': typeof PortalAdminUsersRoute
+  '/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
+  '/admin': typeof PortalAdminIndexRoute
+  '/changelog': typeof PortalChangelogIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_portal': typeof PortalRouteWithChildren
+  '/changelog.rss': typeof ChangelogDotrssRoute
+  '/_portal/admin': typeof PortalAdminRouteWithChildren
   '/_portal/login': typeof PortalLoginRoute
   '/_portal/my-feedback': typeof PortalMyFeedbackRoute
+  '/_portal/notifications': typeof PortalNotificationsRoute
   '/_portal/roadmap': typeof PortalRoadmapRoute
   '/_portal/signup': typeof PortalSignupRoute
   '/_portal/submit': typeof PortalSubmitRoute
+  '/_portal/unsubscribe': typeof PortalUnsubscribeRoute
+  '/admin/enter': typeof AdminEnterRoute
   '/api/health': typeof ApiHealthRoute
   '/api/posts': typeof ApiPostsRoute
   '/_portal/': typeof PortalIndexRoute
+  '/_portal/admin/changelog': typeof PortalAdminChangelogRoute
+  '/_portal/admin/moderation': typeof PortalAdminModerationRoute
+  '/_portal/admin/settings': typeof PortalAdminSettingsRoute
+  '/_portal/admin/users': typeof PortalAdminUsersRoute
+  '/_portal/changelog/$entryId': typeof PortalChangelogEntryIdRoute
   '/_portal/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
+  '/_portal/admin/': typeof PortalAdminIndexRoute
+  '/_portal/changelog/': typeof PortalChangelogIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/changelog.rss'
+    | '/admin'
     | '/login'
     | '/my-feedback'
+    | '/notifications'
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/unsubscribe'
+    | '/admin/enter'
     | '/api/health'
     | '/api/posts'
+    | '/admin/changelog'
+    | '/admin/moderation'
+    | '/admin/settings'
+    | '/admin/users'
+    | '/changelog/$entryId'
     | '/posts/$postId'
     | '/api/auth/$'
+    | '/api/email/unsubscribe'
     | '/api/media/$id'
+    | '/admin/'
+    | '/changelog/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/changelog.rss'
     | '/login'
     | '/my-feedback'
+    | '/notifications'
     | '/roadmap'
     | '/signup'
     | '/submit'
+    | '/unsubscribe'
+    | '/admin/enter'
     | '/api/health'
     | '/api/posts'
     | '/'
+    | '/admin/changelog'
+    | '/admin/moderation'
+    | '/admin/settings'
+    | '/admin/users'
+    | '/changelog/$entryId'
     | '/posts/$postId'
     | '/api/auth/$'
+    | '/api/email/unsubscribe'
     | '/api/media/$id'
+    | '/admin'
+    | '/changelog'
   id:
     | '__root__'
     | '/_portal'
+    | '/changelog.rss'
+    | '/_portal/admin'
     | '/_portal/login'
     | '/_portal/my-feedback'
+    | '/_portal/notifications'
     | '/_portal/roadmap'
     | '/_portal/signup'
     | '/_portal/submit'
+    | '/_portal/unsubscribe'
+    | '/admin/enter'
     | '/api/health'
     | '/api/posts'
     | '/_portal/'
+    | '/_portal/admin/changelog'
+    | '/_portal/admin/moderation'
+    | '/_portal/admin/settings'
+    | '/_portal/admin/users'
+    | '/_portal/changelog/$entryId'
     | '/_portal/posts/$postId'
     | '/api/auth/$'
+    | '/api/email/unsubscribe'
     | '/api/media/$id'
+    | '/_portal/admin/'
+    | '/_portal/changelog/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   PortalRoute: typeof PortalRouteWithChildren
+  ChangelogDotrssRoute: typeof ChangelogDotrssRoute
+  AdminEnterRoute: typeof AdminEnterRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiPostsRoute: typeof ApiPostsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiEmailUnsubscribeRoute: typeof ApiEmailUnsubscribeRoute
   ApiMediaIdRoute: typeof ApiMediaIdRoute
 }
 
@@ -183,11 +340,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/changelog.rss': {
+      id: '/changelog.rss'
+      path: '/changelog.rss'
+      fullPath: '/changelog.rss'
+      preLoaderRoute: typeof ChangelogDotrssRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_portal/': {
       id: '/_portal/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/admin': {
+      id: '/_portal/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof PortalAdminRouteImport
       parentRoute: typeof PortalRoute
     }
     '/_portal/login': {
@@ -202,6 +373,13 @@ declare module '@tanstack/react-router' {
       path: '/my-feedback'
       fullPath: '/my-feedback'
       preLoaderRoute: typeof PortalMyFeedbackRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/notifications': {
+      id: '/_portal/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof PortalNotificationsRouteImport
       parentRoute: typeof PortalRoute
     }
     '/_portal/roadmap': {
@@ -225,6 +403,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalSubmitRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/_portal/unsubscribe': {
+      id: '/_portal/unsubscribe'
+      path: '/unsubscribe'
+      fullPath: '/unsubscribe'
+      preLoaderRoute: typeof PortalUnsubscribeRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/admin/enter': {
+      id: '/admin/enter'
+      path: '/admin/enter'
+      fullPath: '/admin/enter'
+      preLoaderRoute: typeof AdminEnterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -238,6 +430,55 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/posts'
       preLoaderRoute: typeof ApiPostsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_portal/admin/': {
+      id: '/_portal/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof PortalAdminIndexRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/changelog': {
+      id: '/_portal/admin/changelog'
+      path: '/changelog'
+      fullPath: '/admin/changelog'
+      preLoaderRoute: typeof PortalAdminChangelogRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/moderation': {
+      id: '/_portal/admin/moderation'
+      path: '/moderation'
+      fullPath: '/admin/moderation'
+      preLoaderRoute: typeof PortalAdminModerationRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/settings': {
+      id: '/_portal/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof PortalAdminSettingsRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/admin/users': {
+      id: '/_portal/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof PortalAdminUsersRouteImport
+      parentRoute: typeof PortalAdminRoute
+    }
+    '/_portal/changelog/': {
+      id: '/_portal/changelog/'
+      path: '/changelog'
+      fullPath: '/changelog/'
+      preLoaderRoute: typeof PortalChangelogIndexRouteImport
+      parentRoute: typeof PortalRoute
+    }
+    '/_portal/changelog/$entryId': {
+      id: '/_portal/changelog/$entryId'
+      path: '/changelog/$entryId'
+      fullPath: '/changelog/$entryId'
+      preLoaderRoute: typeof PortalChangelogEntryIdRouteImport
+      parentRoute: typeof PortalRoute
     }
     '/_portal/posts/$postId': {
       id: '/_portal/posts/$postId'
@@ -253,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/email/unsubscribe': {
+      id: '/api/email/unsubscribe'
+      path: '/api/email/unsubscribe'
+      fullPath: '/api/email/unsubscribe'
+      preLoaderRoute: typeof ApiEmailUnsubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/media/$id': {
       id: '/api/media/$id'
       path: '/api/media/$id'
@@ -263,24 +511,54 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PortalAdminRouteChildren {
+  PortalAdminChangelogRoute: typeof PortalAdminChangelogRoute
+  PortalAdminModerationRoute: typeof PortalAdminModerationRoute
+  PortalAdminSettingsRoute: typeof PortalAdminSettingsRoute
+  PortalAdminUsersRoute: typeof PortalAdminUsersRoute
+  PortalAdminIndexRoute: typeof PortalAdminIndexRoute
+}
+
+const PortalAdminRouteChildren: PortalAdminRouteChildren = {
+  PortalAdminChangelogRoute: PortalAdminChangelogRoute,
+  PortalAdminModerationRoute: PortalAdminModerationRoute,
+  PortalAdminSettingsRoute: PortalAdminSettingsRoute,
+  PortalAdminUsersRoute: PortalAdminUsersRoute,
+  PortalAdminIndexRoute: PortalAdminIndexRoute,
+}
+
+const PortalAdminRouteWithChildren = PortalAdminRoute._addFileChildren(
+  PortalAdminRouteChildren,
+)
+
 interface PortalRouteChildren {
+  PortalAdminRoute: typeof PortalAdminRouteWithChildren
   PortalLoginRoute: typeof PortalLoginRoute
   PortalMyFeedbackRoute: typeof PortalMyFeedbackRoute
+  PortalNotificationsRoute: typeof PortalNotificationsRoute
   PortalRoadmapRoute: typeof PortalRoadmapRoute
   PortalSignupRoute: typeof PortalSignupRoute
   PortalSubmitRoute: typeof PortalSubmitRoute
+  PortalUnsubscribeRoute: typeof PortalUnsubscribeRoute
   PortalIndexRoute: typeof PortalIndexRoute
+  PortalChangelogEntryIdRoute: typeof PortalChangelogEntryIdRoute
   PortalPostsPostIdRoute: typeof PortalPostsPostIdRoute
+  PortalChangelogIndexRoute: typeof PortalChangelogIndexRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
+  PortalAdminRoute: PortalAdminRouteWithChildren,
   PortalLoginRoute: PortalLoginRoute,
   PortalMyFeedbackRoute: PortalMyFeedbackRoute,
+  PortalNotificationsRoute: PortalNotificationsRoute,
   PortalRoadmapRoute: PortalRoadmapRoute,
   PortalSignupRoute: PortalSignupRoute,
   PortalSubmitRoute: PortalSubmitRoute,
+  PortalUnsubscribeRoute: PortalUnsubscribeRoute,
   PortalIndexRoute: PortalIndexRoute,
+  PortalChangelogEntryIdRoute: PortalChangelogEntryIdRoute,
   PortalPostsPostIdRoute: PortalPostsPostIdRoute,
+  PortalChangelogIndexRoute: PortalChangelogIndexRoute,
 }
 
 const PortalRouteWithChildren =
@@ -288,9 +566,12 @@ const PortalRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRouteWithChildren,
+  ChangelogDotrssRoute: ChangelogDotrssRoute,
+  AdminEnterRoute: AdminEnterRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiPostsRoute: ApiPostsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiEmailUnsubscribeRoute: ApiEmailUnsubscribeRoute,
   ApiMediaIdRoute: ApiMediaIdRoute,
 }
 export const routeTree = rootRouteImport

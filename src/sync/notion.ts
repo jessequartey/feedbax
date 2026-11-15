@@ -6,7 +6,11 @@ import type { Status } from "../contracts/domain.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
 import { notionSchemaChanges, richText, schemaError } from "../integrations/notion-schema.ts";
 import type { NotionProperties } from "../integrations/notion-schema.ts";
+import { markdownToNotionBlocks } from "../integrations/notion-blocks.ts";
 import { notionText } from "../integrations/notion.ts";
+import { markdownToPlainText } from "../lib/markdown.ts";
+import { autoDraftStatements } from "../server/changelog-draft.ts";
+import { emitStatusChanges } from "../server/webhooks.ts";
 import type { NotionList, NotionPage } from "../integrations/notion.ts";
 import {
   config,
@@ -19,11 +23,13 @@ import {
   watermark,
 } from "./shared.ts";
 import type { SyncPost } from "./shared.ts";
+import { queueEmails, statusEmails, type StatusChange } from "../email/events.ts";
 
 function mirrorProperties(post: SyncPost) {
   return {
     Name: { title: richText(post.title) },
-    Description: { rich_text: richText(post.body) },
+    // The text only; the formatted body is the page content (see `bodyBlocks`).
+    Description: { rich_text: richText(markdownToPlainText(post.body)) },
     Category: { select: { name: CATEGORY_LABELS[post.category] } },
     Votes: { number: post.votes },
     Comments: { number: post.comments },
@@ -39,6 +45,16 @@ function mirrorProperties(post: SyncPost) {
     },
     Created: { date: { start: new Date(post.createdAt).toISOString() } },
   };
+}
+
+/**
+ * The formatted body as page content, written once when the page is created. Posts are not
+ * edited after they are written, and updates only touch the properties above, so the body
+ * never has to be rewritten block by block.
+ */
+function bodyBlocks(post: SyncPost) {
+  const children = markdownToNotionBlocks(post.body, `${portalUrl()}/posts/${post.id}`);
+  return children.length ? { children } : {};
 }
 
 export async function mirrorPost(postId: string): Promise<void> {
@@ -107,6 +123,7 @@ export async function mirrorPost(postId: string): Promise<void> {
           Status: { select: { name: "Open" } },
           "Send to GitHub": { checkbox: false },
         },
+        ...bodyBlocks(post),
       });
       pageId = created.id;
       if (!pageId) throw schemaError("Notion did not return the created page ID.");
@@ -142,6 +159,32 @@ export async function mirrorPost(postId: string): Promise<void> {
     .where(eq(posts.id, post.id));
 }
 
+const NOTION_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Moves the Notion row of a post deleted from /admin/moderation to trash. The post is already
+ * gone from D1, so a row that is missing or already in trash counts as done.
+ */
+export async function archiveNotionPage(pageId: string): Promise<void> {
+  if (!NOTION_UUID.test(pageId)) return;
+  const request = providerRequest("notion");
+  try {
+    await request(`/pages/${pageId}`, "PATCH", { in_trash: true });
+  } catch (error) {
+    if (!(error instanceof IntegrationError) || ![400, 404].includes(error.status ?? 0))
+      throw error;
+    let row: NotionPage;
+    try {
+      row = await request<NotionPage>(`/pages/${pageId}`);
+    } catch (readError) {
+      if (readError instanceof IntegrationError && readError.status === 404) return;
+      throw readError;
+    }
+    if (row.in_trash || row.archived || row.is_archived) return;
+    throw error;
+  }
+}
+
 export async function pollNotion(
   message: Extract<SyncMessage, { type: "notion.poll" }>,
 ): Promise<void> {
@@ -170,7 +213,11 @@ export async function pollNotion(
   const known = ids.length ? await database.select().from(posts).where(inArray(posts.id, ids)) : [];
   const byId = new Map(known.map((post) => [post.id, post]));
   const updates: BatchItem<"sqlite">[] = [];
+  // Posts this poll moves to Done get a draft changelog entry in the same batch.
+  const shipped: { id: string; body: string }[] = [];
+  const statusChanges: { id: string; previous: Status }[] = [];
   const approvals = new Set<string>();
+  const emailChanges: StatusChange[] = [];
   const seen = new Set<string>();
   for (const page of result.results) {
     if (page.in_trash || page.archived || page.is_archived || seen.has(page.id)) continue;
@@ -202,6 +249,13 @@ export async function pollNotion(
     } else if (status && status !== post.status) {
       changes.status = status;
       changes.updatedAt = Date.now();
+      statusChanges.push({ id: post.id, previous: post.status });
+      if (status === "done") shipped.push({ id: post.id, body: post.body });
+      emailChanges.push({
+        post: { id: post.id, title: post.title, body: post.body },
+        from: post.status,
+        to: status,
+      });
     }
     if (config.integrations.github && approvalProperty.checkbox === true) {
       if (!post.githubRequested) changes.githubRequested = 1;
@@ -217,8 +271,14 @@ export async function pollNotion(
       updates.push(update);
     }
   }
+  // After the status updates: the draft statements check the post is Done at that point.
+  updates.push(...(await autoDraftStatements(database, shipped)));
   if (updates.length)
     await database.batch(updates as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+  // After the batch, so only stored changes notify. Best effort, never fails the poll.
+  await queueEmails(statusEmails(emailChanges));
+  // After the write: webhooks never fail the poll, and a retry would not see a change again.
+  if (statusChanges.length) await emitStatusChanges(statusChanges);
   if (approvals.size)
     await env.SYNC_QUEUE.sendBatch(
       [...approvals].map((postId) => ({

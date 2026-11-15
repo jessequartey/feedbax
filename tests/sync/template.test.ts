@@ -167,12 +167,7 @@ describe("template via --page --examples", () => {
       `GET /data_sources/${SOURCE}`,
       `GET /views?database_id=${DATABASE}`,
       "POST /views",
-      "POST /views",
       "PATCH /views/default",
-      "POST /views",
-      "POST /views",
-      "POST /views",
-      "POST /views",
     ]);
     const [, , , setPage, guide, database, footer, ...rest] = notion.log.slice(0);
     // Page properties
@@ -202,15 +197,20 @@ describe("template via --page --examples", () => {
       is_toggleable: true,
       rich_text: [{ text: { content: "Getting started" } }],
     });
-    expect(blocks[2]!.heading_3.children).toHaveLength(3);
+    expect(blocks[2]!.heading_3.children).toHaveLength(4);
     expect(blocks[2]!.heading_3.children.map((c: any) => c.type)).toEqual(
-      Array(3).fill("numbered_list_item"),
+      Array(4).fill("numbered_list_item"),
     );
     expect(blocks[2]!.heading_3.children[1].numbered_list_item.rich_text).toEqual([
       { type: "text", text: { content: "Run " } },
       { type: "text", text: { content: "npx create-feedbax@latest" }, annotations: { code: true } },
-      { type: "text", text: { content: "." } },
+      { type: "text", text: { content: ". Anonymous feedback is on." } },
     ]);
+    const checklist = JSON.stringify(blocks[2]!.heading_3.children[3]);
+    expect(checklist).toContain("npx feedbax admin");
+    expect(checklist).toContain("/admin/settings");
+    expect(checklist).toContain("npx feedbax add email");
+    expect(checklist).toContain("npx feedbax add webhooks");
     // The database sits directly on the page, inline, with the one schema.
     expect(database!.body).toEqual({
       parent: { type: "page_id", page_id: PARENT },
@@ -248,11 +248,12 @@ describe("template via --page --examples", () => {
     expect(rows.every((r) => r.body.properties.Description.rich_text[0].text.content)).toBe(true);
   });
 
-  test("creates the seven views through the Views API, board first", async () => {
+  test("creates the board and renames the default table", async () => {
     const notion = fakeNotion();
     await run(["--page", PARENT], notion.client);
     const views = notion.log.filter((r) => r.path.startsWith("/views") && r.method !== "GET");
     const common = { database_id: DATABASE, data_source_id: SOURCE };
+    expect(views).toHaveLength(2);
     expect(views[0]!.body).toMatchObject({
       ...common,
       name: "📋 Board",
@@ -263,37 +264,9 @@ describe("template via --page --examples", () => {
         group_by: { type: "select", property_id: "id-Status", sort: { type: "manual" } },
       },
     });
-    expect(views[1]!.body).toMatchObject({
-      ...common,
-      name: "📥 Inbox",
-      type: "list",
-      filter: { property: "Status", select: { equals: "Open" } },
-      sorts: [{ property: "Created", direction: "descending" }],
-      position: { type: "after_view", view_id: "view-1" },
-    });
-    expect(views[2]).toMatchObject({ method: "PATCH", path: "/views/default" });
-    expect(views[2]!.body).toEqual({ name: "🗂 All feedback" });
-    expect(views[3]!.body).toMatchObject({
-      name: "📅 Calendar",
-      type: "calendar",
-      configuration: { type: "calendar", date_property_id: "id-Created" },
-    });
-    expect(views[4]!.body).toMatchObject({
-      name: "🐞 Bugs",
-      type: "list",
-      filter: { property: "Category", select: { equals: "Bug report" } },
-    });
-    expect(views[5]!.body).toMatchObject({
-      name: "💡 Ideas",
-      type: "list",
-      filter: { property: "Category", select: { equals: "Feature request" } },
-    });
-    expect(views[6]!.body).toMatchObject({
-      name: "🐙 GitHub queue",
-      type: "table",
-      filter: { property: "Send to GitHub", checkbox: { equals: true } },
-    });
-    expect(printed()).toContain("its 7 views");
+    expect(views[1]).toMatchObject({ method: "PATCH", path: "/views/default" });
+    expect(views[1]!.body).toEqual({ name: "🗂 All feedback" });
+    expect(printed()).toContain("its 2 views");
     expect(printed()).not.toContain("Views need the browser");
   });
 
@@ -303,8 +276,9 @@ describe("template via --page --examples", () => {
     expect(printed()).toContain("Views need the browser");
     expect(printed()).toContain("Could not create 📋 Board");
     expect(printed()).toContain(
-      "🐙 GitHub queue: layout Table. Filter: Send to GitHub is checked.",
+      "2. 🗂 All feedback: layout Table (the default view, just renamed).",
     );
+    expect(printed()).not.toContain("GitHub queue");
   });
 
   test("refuses a page that already has content, before changing anything", async () => {

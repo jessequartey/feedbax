@@ -26,7 +26,15 @@ export const LIMITS = {
 } as const;
 
 export type PublicAuthor = { id: string; name: string; anonymous: boolean };
-export type ViewerUser = { id: string; name: string; kind: "account" | "host" | "anonymous" };
+export type ViewerUser = {
+  id: string;
+  name: string;
+  kind: "account" | "host" | "anonymous";
+  /** Present (true) only for admins. */
+  admin?: boolean;
+  /** Present (true) only for banned users: they can read but not post, vote or comment. */
+  banned?: boolean;
+};
 export type ImageView = { id: string; url: string; width: number; height: number };
 export type PostSummary = {
   id: string;
@@ -40,11 +48,17 @@ export type PostSummary = {
   viewerHasVoted: boolean;
   createdAt: string;
   updatedAt: string;
+  /** True only in lists and pages the author or an admin can see: hidden or spam. */
+  hidden?: true;
 };
 export type PostDetail = PostSummary & {
   body: string;
   images: ImageView[];
   githubUrl: string | null;
+  /** Set on a merged duplicate: the page redirects to this post. */
+  mergedInto?: string;
+  /** Published changelog entries that link this post ("Shipped in …"). Present only when any. */
+  shippedIn?: { id: string; title: string }[];
 };
 export type CommentView = {
   id: string;

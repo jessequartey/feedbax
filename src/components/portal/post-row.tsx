@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { MessageSquareIcon } from "lucide-react";
+import { EyeOffIcon, MessageSquareIcon } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { PostSummary } from "@/contracts/domain";
 import { formatDate } from "./format";
@@ -32,6 +33,12 @@ export function PostRow({ post }: { post: PostSummary }) {
           </p>
         ) : null}
         <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2">
+          {post.hidden ? (
+            <Badge variant="secondary" className="h-6 gap-1.5 px-2 font-normal">
+              <EyeOffIcon aria-hidden="true" />
+              Hidden
+            </Badge>
+          ) : null}
           <CategoryBadge category={post.category} />
           <StatusBadge status={post.status} />
           <span className="flex items-center gap-1 text-sm text-muted-foreground md:hidden">

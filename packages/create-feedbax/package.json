@@ -1,7 +1,7 @@
 {
   "name": "create-feedbax",
-  "version": "0.3.0",
-  "description": "Your feedback portal, live on Cloudflare with a Notion team dashboard.",
+  "version": "0.3.1",
+  "description": "A self-hosted feedback portal: collect ideas, votes and comments, triage in Notion, and turn approved posts into GitHub issues.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

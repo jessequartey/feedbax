@@ -1,3 +1,4 @@
+import { ShowcaseSlot } from "./showcase-card";
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { PlusIcon, SearchXIcon, InboxIcon } from "lucide-react";
@@ -11,6 +12,7 @@ import { PaginationBar } from "./pagination-bar";
 import { PostList, PostListSkeleton } from "./post-row";
 import { clearFilters, hasActiveFilters, type BoardSearch } from "./portal-search";
 import { EmptyState } from "./states";
+import { useViewer } from "./viewer";
 
 export function NewPostButton({ className }: { className?: string }) {
   return (
@@ -50,7 +52,9 @@ type Props = {
 export function PostBrowser({ title, description, kind, search, page, onChange, onClear }: Props) {
   const filtered = hasActiveFilters(search);
   const activeCount = [search.category, search.status].filter(Boolean).length;
+  const { config } = useViewer();
   const panel = {
+    categories: config.categories,
     category: search.category,
     status: search.status,
     onCategory: (category: BoardSearch["category"]) => onChange({ category }),
@@ -127,6 +131,7 @@ export function PostBrowser({ title, description, kind, search, page, onChange, 
         </section>
         <aside aria-label="Filters" className="hidden border-l py-10 pl-8 lg:block">
           <FilterPanel {...panel} />
+          <ShowcaseSlot />
         </aside>
       </div>
     </div>
