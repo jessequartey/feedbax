@@ -10,6 +10,8 @@ import type { SyncErrorState, SyncMessage } from "../../src/contracts/sync.ts";
 import { NOTION_SCHEMA } from "../../src/integrations/notion-schema.ts";
 import { handleHealth } from "../../src/server/http.ts";
 import { serveImage } from "../../src/server/images.ts";
+import { getInsights } from "../../src/server/insights.ts";
+import { clearInsightsCache } from "../../src/server/insights-cache.ts";
 import { createPostForUser, getPostDetail } from "../../src/server/posts.ts";
 import { queue, resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { form, png, writer } from "../api/helpers.ts";
@@ -199,8 +201,12 @@ describe("failures never loop", () => {
 });
 
 describe("hot query plans", () => {
-  const plan = async (query: string) =>
-    (await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`).all<{ detail: string }>()).results
+  const plan = async (query: string, params: unknown[] = []) =>
+    (
+      await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .bind(...params)
+        .all<{ detail: string }>()
+    ).results
       .map((row) => row.detail)
       .join(" | ");
   test("cron sweeps read only their partial indexes", async () => {
@@ -226,6 +232,38 @@ describe("hot query plans", () => {
         "SELECT id FROM posts ORDER BY (SELECT coalesce(sum(604800000 + created_at - 0), 0) FROM votes WHERE post_id = posts.id AND created_at >= 0) DESC LIMIT 20",
       ),
     ).toContain("COVERING INDEX votes_post_created_idx (post_id=? AND created_at>?)");
+  });
+  test("admin insights read a 7d or 30d window through the created_at indexes", async () => {
+    for (const range of ["7d", "30d"] as const) {
+      const captured: { query: string; params: unknown[] }[] = [];
+      const spy = {
+        prepare: (query: string) => ({
+          bind: (...params: unknown[]) => {
+            captured.push({ query, params });
+            return env.DB.prepare(query).bind(...params);
+          },
+        }),
+        batch: (all: D1PreparedStatement[]) => env.DB.batch(all),
+      } as unknown as D1Database;
+      await getInsights({ range }, NOW, spy);
+      // 1 and 5 (all-time breakdowns, popular requests) scan by design and are cached.
+      // 2 (activity), 3 (first response) and 4 (delivery) are bounded by the window.
+      const [activity, response, delivery] = await Promise.all(
+        [1, 2, 3].map(async (i) => plan(`${captured[i]!.query}`, captured[i]!.params)),
+      );
+      for (const detail of [activity, response, delivery]) {
+        expect(detail).not.toMatch(/SCAN (posts|votes|comments)\b/);
+      }
+      expect(activity).toContain("SEARCH votes USING INDEX votes_created_post_idx (created_at>?)");
+      expect(activity).toContain(
+        "SEARCH comments USING INDEX comments_created_post_idx (created_at>?)",
+      );
+      expect(activity).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain("SEARCH posts USING INDEX posts_created_idx (created_at>?)");
+      expect(response).toContain("SEARCH cp USING INDEX changelog_posts_post_idx (post_id=?)");
+      expect(delivery).toContain("SEARCH posts USING INDEX posts_status_created_idx (status=?)");
+      clearInsightsCache();
+    }
   });
 });
 

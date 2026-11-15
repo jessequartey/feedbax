@@ -128,6 +128,8 @@ export type AdminInsightsContributor = {
 };
 export type AdminInsights = {
   range: InsightsRange;
+  /** When this result was computed (ISO). It is cached per isolate for up to 5 minutes. */
+  generatedAt: string;
   totals: {
     posts: number;
     votes: number;

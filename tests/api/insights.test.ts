@@ -4,6 +4,7 @@ import { resetEnv } from "../fixtures/cloudflare-workers.ts";
 import type { Category, Status, ViewerUser } from "../../src/contracts/domain.ts";
 import { adminApi } from "../../src/server/admin-api.ts";
 import { getInsights } from "../../src/server/insights.ts";
+import { clearInsightsCache, INSIGHTS_TTL_MS } from "../../src/server/insights-cache.ts";
 import { writer } from "./helpers.ts";
 
 const HOUR_MS = 3_600_000;
@@ -50,6 +51,8 @@ async function makePost(opts: {
   status?: Status;
   createdAt: number;
   updatedAt?: number;
+  statusChangedAt?: number | null;
+  doneAt?: number | null;
   githubClosedAt?: number | null;
   hiddenAt?: number | null;
   spam?: number;
@@ -58,8 +61,8 @@ async function makePost(opts: {
 }) {
   const id = opts.id ?? crypto.randomUUID();
   await env.DB.prepare(
-    `INSERT INTO posts (id, author_id, title, body, category, status, created_at, updated_at, github_closed_at, hidden_at, spam, merged_into, priority)
-     VALUES (?, ?, ?, 'Post body', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO posts (id, author_id, title, body, category, status, created_at, updated_at, status_changed_at, done_at, github_closed_at, hidden_at, spam, merged_into, priority)
+     VALUES (?, ?, ?, 'Post body', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -69,6 +72,8 @@ async function makePost(opts: {
       opts.status ?? "open",
       opts.createdAt,
       opts.updatedAt ?? opts.createdAt,
+      opts.statusChangedAt ?? null,
+      opts.doneAt ?? null,
       opts.githubClosedAt ?? null,
       opts.hiddenAt ?? null,
       opts.spam ?? 0,
@@ -146,15 +151,34 @@ describe("admin insights", () => {
     });
   });
 
-  it("loads the entire dashboard in a single D1 batch round-trip", async () => {
+  it("loads the entire dashboard in one D1 batch and caches it per range for 5 minutes", async () => {
     const batch = vi.fn((statements: D1PreparedStatement[]) => env.DB.batch(statements));
     const spyDb = {
       prepare: (query: string) => env.DB.prepare(query),
       batch,
     } as unknown as D1Database;
-    await getInsights({ range: "30d" }, NOW, spyDb);
+    const first = await getInsights({ range: "30d" }, NOW, spyDb);
     expect(batch).toHaveBeenCalledTimes(1);
-    expect(batch.mock.calls[0]?.[0]).toHaveLength(6);
+    expect(batch.mock.calls[0]?.[0]).toHaveLength(5);
+    expect(first.generatedAt).toBe(new Date(NOW).toISOString());
+
+    // Within the TTL: same result, no D1 read. Another range is its own entry.
+    expect(await getInsights({ range: "30d" }, NOW + INSIGHTS_TTL_MS - 1, spyDb)).toBe(first);
+    expect(batch).toHaveBeenCalledTimes(1);
+    await getInsights({ range: "7d" }, NOW, spyDb);
+    expect(batch).toHaveBeenCalledTimes(2);
+
+    const later = await getInsights({ range: "30d" }, NOW + INSIGHTS_TTL_MS, spyDb);
+    expect(batch).toHaveBeenCalledTimes(3);
+    expect(later.generatedAt).toBe(new Date(NOW + INSIGHTS_TTL_MS).toISOString());
+
+    // A failed load is not kept.
+    clearInsightsCache();
+    batch.mockRejectedValueOnce(new Error("d1 down"));
+    await expect(getInsights({ range: "90d" }, NOW, spyDb)).rejects.toThrow("d1 down");
+    await expect(getInsights({ range: "90d" }, NOW, spyDb)).resolves.toMatchObject({
+      range: "90d",
+    });
   });
 
   it("filters totals, volume series, and breakdowns by range while excluding hidden, spam, and merged posts", async () => {
@@ -173,7 +197,7 @@ describe("admin insights", () => {
       category: "bug",
       status: "done",
       createdAt: NOW - 10 * DAY_MS,
-      updatedAt: NOW - 1 * DAY_MS,
+      doneAt: NOW - 1 * DAY_MS,
     });
     // Older visible post (45 days ago -> in 90d & all, outside 7d & 30d)
     const p3 = await makePost({
@@ -235,32 +259,47 @@ describe("admin insights", () => {
       bug: 1,
       general: 1,
     });
+    // Whole UTC days, today included: 7d draws 7 bars from the same day the totals start on.
+    expect(sevenDay.volumeSeries.map((b) => b.date)).toEqual([
+      "2026-11-09",
+      "2026-11-10",
+      "2026-11-11",
+      "2026-11-12",
+      "2026-11-13",
+      "2026-11-14",
+      "2026-11-15",
+    ]);
     expect(sevenDay.volumeSeries.reduce((s, b) => s + b.posts, 0)).toBe(1);
     expect(sevenDay.volumeSeries.reduce((s, b) => s + b.votes, 0)).toBe(2);
     expect(sevenDay.volumeSeries.reduce((s, b) => s + b.comments, 0)).toBe(1);
 
     const thirtyDay = await getInsights({ range: "30d" }, NOW);
     expect(thirtyDay.totals).toEqual({ posts: 2, votes: 2, comments: 1, shipped: 1 });
+    expect(thirtyDay.volumeSeries).toHaveLength(30);
 
     const ninetyDay = await getInsights({ range: "90d" }, NOW);
     expect(ninetyDay.totals).toEqual({ posts: 3, votes: 3, comments: 1, shipped: 1 });
     expect(ninetyDay.volumeSeries.reduce((s, b) => s + b.posts, 0)).toBe(3);
+    // Weekly bars count from the first day of the window, so none starts before it.
+    expect(ninetyDay.volumeSeries).toHaveLength(13);
+    expect(ninetyDay.volumeSeries[0]?.date).toBe("2026-08-18");
+    expect(ninetyDay.volumeSeries.at(-1)?.date).toBe("2026-11-10");
 
     const allTime = await getInsights({ range: "all" }, NOW);
     expect(allTime.totals).toEqual({ posts: 3, votes: 3, comments: 1, shipped: 1 });
     expect(allTime.volumeSeries.reduce((s, b) => s + b.posts, 0)).toBe(3);
   });
 
-  it("computes median first response hours and median time to delivery days", async () => {
+  it("computes median first response and delivery from stamps, never updated_at", async () => {
     const adminId = await makeUser({ name: "Maintainer", role: "admin" });
     const userId = await makeUser({ name: "Reporter", role: "user" });
+    const bump = (createdAt: number) => ({ updatedAt: createdAt + 20 * DAY_MS });
 
-    // Post A: open, non-admin comment at +1h (ignored!), admin comment at +4h -> 4.0h response
+    // A: a reporter comment at +1h is ignored; the admin comment at +4h -> 4h.
     const postA = await makePost({
       authorId: userId,
-      status: "open",
       createdAt: NOW - 10 * DAY_MS,
-      updatedAt: NOW - 10 * DAY_MS + 1 * HOUR_MS,
+      ...bump(NOW - 10 * DAY_MS),
     });
     await makeComment({
       postId: postA,
@@ -272,71 +311,128 @@ describe("admin insights", () => {
       authorId: adminId,
       createdAt: NOW - 10 * DAY_MS + 4 * HOUR_MS,
     });
-
-    // Post B: moved to planned at +10h -> 10.0h response
+    // B: moved to planned at +10h -> 10h.
     await makePost({
       authorId: userId,
       status: "planned",
       createdAt: NOW - 8 * DAY_MS,
-      updatedAt: NOW - 8 * DAY_MS + 10 * HOUR_MS,
+      statusChangedAt: NOW - 8 * DAY_MS + 10 * HOUR_MS,
     });
-
-    // Post C: open, linked to changelog entry at +2h -> 2.0h response
-    const postC = await makePost({
-      authorId: userId,
-      status: "open",
-      createdAt: NOW - 6 * DAY_MS,
-    });
+    // C: linked to a published release at +2h -> 2h. A draft entry never counts.
+    const postC = await makePost({ authorId: userId, createdAt: NOW - 6 * DAY_MS });
     await makeChangelogEntry({
       status: "published",
       createdAt: NOW - 6 * DAY_MS + 2 * HOUR_MS,
       publishedAt: NOW - 6 * DAY_MS + 2 * HOUR_MS,
       postIds: [postC],
     });
+    await makeChangelogEntry({
+      status: "draft",
+      createdAt: NOW - 6 * DAY_MS + 1 * HOUR_MS,
+      postIds: [postC],
+    });
+    // D: no admin activity, only a bumped updated_at -> left out of the median.
+    await makePost({ authorId: userId, createdAt: NOW - 5 * DAY_MS, ...bump(NOW - 5 * DAY_MS) });
 
-    // Post D: still open with zero admin activity -> excluded from response median
+    // Delivery: done_at (3 days), github_closed_at (2 days), a release (6 days).
     await makePost({
       authorId: userId,
-      status: "open",
-      createdAt: NOW - 5 * DAY_MS,
+      status: "done",
+      createdAt: NOW - 6 * DAY_MS,
+      doneAt: NOW - 3 * DAY_MS,
+      githubClosedAt: NOW - 1 * DAY_MS,
     });
-
-    // Shipped post 1: delivered via github_closed_at after 2.0 days
     await makePost({
       authorId: userId,
       status: "done",
       createdAt: NOW - 5 * DAY_MS,
-      updatedAt: NOW - 1 * DAY_MS,
       githubClosedAt: NOW - 3 * DAY_MS,
     });
-
-    // Shipped post 2: delivered via changelog published_at after 6.0 days
-    const shipped2 = await makePost({
+    const released = await makePost({
       authorId: userId,
       status: "done",
       createdAt: NOW - 8 * DAY_MS,
-      updatedAt: NOW - 1 * DAY_MS,
     });
     await makeChangelogEntry({
       status: "published",
       createdAt: NOW - 2 * DAY_MS,
       publishedAt: NOW - 2 * DAY_MS,
-      postIds: [shipped2],
+      postIds: [released],
     });
-
-    // Shipped post 3: delivered via updated_at after 4.0 days
+    // Done with no stamp at all (a 0.3.1 row): not shipped, not in the median.
     await makePost({
       authorId: userId,
       status: "done",
-      createdAt: NOW - 6 * DAY_MS,
-      updatedAt: NOW - 2 * DAY_MS,
+      createdAt: NOW - 4 * DAY_MS,
+      updatedAt: NOW - 1 * DAY_MS,
     });
 
     const insights = await getInsights({ range: "30d" }, NOW);
-    // Response times: Post C (2h), Post A (4h), Post B (10h), Shipped 1 (48h), Shipped 3 (96h), Shipped 2 (144h) -> median (10+48)/2 = 29h
-    expect(insights.timing.medianFirstResponseHours).toBe(29);
-    // Delivery times: [2d, 4d, 6d] -> median 4.0d
-    expect(insights.timing.medianTimeToDeliveryDays).toBe(4);
+    // [2h, 4h, 10h, 144h (the released done post)]: an even set averages the middle two.
+    expect(insights.timing.medianFirstResponseHours).toBe(7);
+    // [2d, 3d, 6d] -> 3d.
+    expect(insights.timing.medianTimeToDeliveryDays).toBe(3);
+    expect(insights.totals.shipped).toBe(3);
+
+    // The earliest signal wins: E moved at +6h but an admin replied at +3h, so [2, 3, 4, 10, 144].
+    const postE = await makePost({
+      authorId: userId,
+      createdAt: NOW - 4 * DAY_MS,
+      statusChangedAt: NOW - 4 * DAY_MS + 6 * HOUR_MS,
+    });
+    await makeComment({
+      postId: postE,
+      authorId: adminId,
+      createdAt: NOW - 4 * DAY_MS + 3 * HOUR_MS,
+    });
+    clearInsightsCache();
+    expect((await getInsights({ range: "30d" }, NOW)).timing.medianFirstResponseHours).toBe(4);
+  });
+
+  it("stamps status_changed_at and done_at by trigger, and only on status moves", async () => {
+    const author = await makeUser();
+    const voter = await makeUser();
+    const now = Date.now();
+    const id = await makePost({
+      authorId: author,
+      createdAt: now - 2 * HOUR_MS,
+      updatedAt: now - 2 * HOUR_MS,
+    });
+    const stamps = async () =>
+      (await env.DB.prepare(
+        "SELECT status_changed_at AS moved, done_at AS done FROM posts WHERE id = ?",
+      )
+        .bind(id)
+        .first<{ moved: number | null; done: number | null }>())!;
+    const set = (statement: string, ...values: unknown[]) =>
+      env.DB.prepare(statement)
+        .bind(...values)
+        .run();
+
+    expect(await stamps()).toEqual({ moved: null, done: null });
+    await set("UPDATE posts SET status = 'planned', updated_at = ? WHERE id = ?", now, id);
+    const planned = await stamps();
+    expect(planned.moved).toBeGreaterThanOrEqual(now);
+    expect(planned.done).toBeNull();
+
+    // A vote, a comment-style updated_at bump, an edit and a no-op status write do not stamp.
+    await makeVote(id, voter, now + 1_000);
+    await set("UPDATE posts SET updated_at = ?, title = 'Edited' WHERE id = ?", now + 1_000, id);
+    await set("UPDATE posts SET status = 'planned' WHERE id = ?", id);
+    expect(await stamps()).toEqual(planned);
+
+    // The response time is the time to planned, not the later activity.
+    const insights = await getInsights({ range: "7d" }, now);
+    expect(insights.timing.medianFirstResponseHours).toBe(2);
+
+    // Only the first move off 'open' counts; every move to 'done' restamps done_at.
+    await set("UPDATE posts SET status = 'done', done_at = 1 WHERE id = ?", id);
+    await set("UPDATE posts SET done_at = 1 WHERE id = ?", id);
+    await set("UPDATE posts SET status = 'open' WHERE id = ?", id);
+    await set("UPDATE posts SET status = 'done' WHERE id = ?", id);
+    const done = await stamps();
+    expect(done.moved).toBe(planned.moved);
+    expect(done.done).toBeGreaterThanOrEqual(now);
   });
 
   it("ranks top 5 open/planned/in_progress public requests and protects anonymous contributor privacy", async () => {

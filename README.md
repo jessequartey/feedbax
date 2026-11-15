@@ -460,7 +460,7 @@ There is no migration from 0.2.x. Start a new project. See [CHANGELOG.md](CHANGE
 Run `npx feedbax@latest admin` from the project. It prints a sign-in link that works once and expires after 15 minutes. Open it, confirm, and you land on `/admin/moderation`. No sign-in provider is required.
 
 - **Moderation** lists posts and comments. Sort posts by newest or Priority, and click a post's vote count (or **View voters** on the post page) to inspect who voted on it. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
-- **Insights** (`/admin/insights`) shows feedback volume, votes cast, median response and delivery times, status and category breakdowns, top open requests, and active signed-in contributors across 7, 30, 90 days or all time. Counts exclude hidden, spam, and merged posts; anonymous and banned accounts are excluded from contributor rankings.
+- **Insights** (`/admin/insights`) shows feedback volume, votes cast, median response and delivery times, status and category breakdowns, top open requests, and active signed-in contributors across 7, 30, 90 days or all time. Counts exclude hidden, spam, and merged posts; anonymous and banned accounts are excluded from contributor rankings. Response and delivery times count from 0.3.2 onward. Numbers refresh at most every 5 minutes.
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 

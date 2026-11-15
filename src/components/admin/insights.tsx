@@ -46,6 +46,15 @@ const RANGES: { value: InsightsRange; label: string; caption: string }[] = [
 const STATUSES: Status[] = ["open", "planned", "in_progress", "done", "closed"];
 const CATEGORIES: Category[] = ["feature", "bug", "general"];
 
+// UTC, so the server render and the browser print the same text.
+const updatedFormat = new Intl.DateTimeFormat("en-US", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "UTC",
+});
+const formatUpdated = (iso: string) => `${updatedFormat.format(new Date(iso))} UTC`;
+
 function formatHours(hours: number | null): string {
   if (hours === null) return "—";
   if (hours > 0 && hours < 0.1) return "< 0.1 hrs";
@@ -280,7 +289,9 @@ export function InsightsDashboard({
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <p className="text-sm text-muted-foreground">
-          Visible feedback only — hidden, spam, and merged posts are excluded.
+          Visible feedback only — hidden, spam, and merged posts are excluded. Updated{" "}
+          <time dateTime={insights.generatedAt}>{formatUpdated(insights.generatedAt)}</time>;
+          numbers refresh at most every 5 minutes.
         </p>
         <ToggleGroup
           aria-label="Insights time range"
