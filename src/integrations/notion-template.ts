@@ -69,9 +69,7 @@ export function guideBlocks() {
           bullet(
             "Triage: set **Status** or drag cards on the board. The portal updates within about 5 minutes.",
           ),
-          bullet(
-            "Prioritize: set **Priority** (0–100). The **By priority** view sorts by it.",
-          ),
+          bullet("Prioritize: set **Priority** (0–100). The **By priority** view sorts by it."),
           bullet(
             "Ship: tick **Send to GitHub** to open an issue. A GitHub release noting `Closes #N` marks linked posts Done and adds a changelog entry.",
           ),
