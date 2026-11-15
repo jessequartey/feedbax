@@ -292,6 +292,20 @@ describe("feedbax add", () => {
     expect(h.output()).not.toContain(h.deps.env.RESEND_API_KEY);
   });
 
+  it("email: cancelling the live key check exits 130 without changes", async () => {
+    const cwd = await project();
+    const before = await read(cwd, ".dev.vars");
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSendingKey1234567890" });
+    h.deps.fetch = async () => {
+      throw new DOMException("The operation was aborted", "AbortError");
+    };
+    expect(await main(["add", "email", "--from=feedback@acme.dev", "--yes"], h.deps)).toBe(130);
+    expect(h.output()).toContain("Cancelled.");
+    expect(h.wrangler.calls).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(configSource());
+    expect(await read(cwd, ".dev.vars")).toBe(before);
+  });
+
   it("preflights unsupported config edits before uploading secrets", async () => {
     const cwd = await project();
     const config = configSource().replace("github: false", "github: getGithubConfig()");

@@ -11,7 +11,8 @@ export async function validateResendKey(key: string, fetcher: typeof fetch): Pro
       signal: AbortSignal.timeout(10_000),
       redirect: "error",
     });
-  } catch {
+  } catch (error) {
+    if ((error as Error)?.name === "AbortError") throw error;
     throw new CliError(
       "Could not reach Resend to validate RESEND_API_KEY. Check your connection and retry.",
     );
