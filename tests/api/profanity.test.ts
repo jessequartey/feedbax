@@ -58,6 +58,7 @@ describe("local word list", () => {
     "Breast cancer screening",
     "A jig for the pudding",
     "Identity: gay, lesbian, transgender; medical: breast cancer",
+    `100%_test\\\n${"😀 ".repeat(20)}`,
   ])("allows %s", (text) => {
     expect(local.check(text)).toEqual({ verdict: "allow", reasons: [] });
   });

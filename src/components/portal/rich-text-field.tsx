@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // comment form, /admin/changelog) renders this instead of a bare <Textarea>. The value is the
 // Markdown subset of src/lib/markdown.ts and `onChange` receives Markdown.
 //
-// The editor chunk is loaded after mount. Until it arrives — and if it fails — this textarea
+// The editor chunk is loaded only on focus/click. Until it arrives — and if it fails — this textarea
 // is the control, and a form can still submit it without the editor. Callers keep their state,
 // drafts, limits and error handling.
 
@@ -51,20 +51,29 @@ export function RichTextField({
   ...aria
 }: RichTextFieldProps) {
   const [Editor, setEditor] = React.useState<EditorComponent | null>(null);
+  const [requested, setRequested] = React.useState(false);
+  const [composing, setComposing] = React.useState(false);
+  const focused = React.useRef(false);
   React.useEffect(() => {
+    if (!requested) return;
     let live = true;
-    // Separate chunk: the board's first load does not include the editor.
+    // Do not run this on mount: reading a post must not download the writer.
     void import("./rich-text-editor")
       .then((mod) => {
         if (live) setEditor(() => mod.RichTextEditor);
       })
       .catch(() => {
-        if (live) setEditor(null);
+        if (live) setRequested(false);
       });
     return () => {
       live = false;
     };
-  }, []);
+  }, [requested]);
+
+  const ready = Editor && !composing;
+  function activate() {
+    if (!disabled) setRequested(true);
+  }
 
   const hintId = `${id}-markdown`;
   const describedBy = [aria["aria-describedby"], hideHint ? undefined : hintId]
@@ -75,13 +84,19 @@ export function RichTextField({
   return (
     <div
       data-rich-text={variant}
-      data-rich-text-mode={Editor ? "editor" : "textarea"}
-      className="flex flex-col gap-1"
+      data-rich-text-mode={ready ? "editor" : "textarea"}
+      className={cn(
+        "flex flex-col gap-1",
+        variant === "comment"
+          ? "[--editor-toolbar-height:33px] max-md:[--editor-toolbar-height:49px]"
+          : "[--editor-toolbar-height:37px] max-md:[--editor-toolbar-height:53px]",
+      )}
     >
-      {Editor ? (
+      {ready ? (
         <>
           <Editor
             id={id}
+            autoFocus={focused.current}
             value={value}
             onChange={onChange}
             maxLength={maxLength}
@@ -112,7 +127,25 @@ export function RichTextField({
           aria-multiline="true"
           aria-invalid={invalid}
           aria-describedby={describedBy || undefined}
+          onFocus={() => {
+            focused.current = true;
+            activate();
+          }}
+          onBlur={() => {
+            focused.current = false;
+          }}
+          onClick={activate}
+          onCompositionStart={() => setComposing(true)}
+          onCompositionEnd={(event) => {
+            onChange(event.currentTarget.value);
+            setComposing(false);
+          }}
           onChange={(event) => onChange(event.target.value)}
+          // Reserve the toolbar as well as the body before importing its CSS.
+          style={{
+            minHeight: `calc(${rows * 1.5}rem + var(--editor-toolbar-height) + 2px)`,
+            paddingTop: "calc(var(--editor-toolbar-height) + 0.5rem)",
+          }}
           className={cn("max-md:text-base", className)}
         />
       )}

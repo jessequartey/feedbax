@@ -13,9 +13,12 @@ import {
   AUTH_SECRET,
   cleanup,
   configSource,
+  fakeRegistry,
   fakeWrangler,
   PORTAL,
   project,
+  REGISTRY,
+  template,
   wranglerJson,
 } from "./feedbax-helpers.ts";
 
@@ -558,6 +561,48 @@ describe("feedbax doctor and deploy", () => {
       "wrangler d1 migrations apply DB --remote",
       "wrangler deploy",
     ]);
+  });
+});
+
+describe("CLI update notice", () => {
+  it("prints an update hint when interactive and a newer version is published, and stays silent offline or when suppressed", async () => {
+    const cwd = await project();
+    const registry = fakeRegistry([template("0.3.0", {}), template("0.3.2", {})]);
+    const h = harness(cwd, { npm_config_registry: REGISTRY });
+    expect(
+      await main(["add", "webhooks"], {
+        ...h.deps,
+        interactive: true,
+        fetch: registry.fetch,
+      }),
+    ).toBe(0);
+    expect(h.output()).toContain(
+      "Update available: 0.3.0 → 0.3.2. Run npx feedbax@latest migrate when ready.",
+    );
+
+    const offline = harness(cwd, { npm_config_registry: REGISTRY });
+    expect(
+      await main(["add", "webhooks"], {
+        ...offline.deps,
+        interactive: true,
+        fetch: async () => {
+          throw new Error("offline");
+        },
+      }),
+    ).toBe(0);
+    expect(offline.output()).not.toContain("Update available:");
+
+    const suppressed = harness(cwd, { npm_config_registry: REGISTRY, NO_UPDATE_NOTIFIER: "1" });
+    const beforeRequests = registry.requests.length;
+    expect(
+      await main(["add", "webhooks"], {
+        ...suppressed.deps,
+        interactive: true,
+        fetch: registry.fetch,
+      }),
+    ).toBe(0);
+    expect(registry.requests).toHaveLength(beforeRequests);
+    expect(suppressed.output()).not.toContain("Update available:");
   });
 });
 

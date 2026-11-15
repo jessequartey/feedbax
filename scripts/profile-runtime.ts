@@ -7,7 +7,6 @@ import { resolve, basename } from "node:path";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { SourceMapConsumer } from "source-map";
 import { toJSONAsync, fromCrossJSON } from "seroval";
-// @ts-expect-error ws is the Inspector transport supplied by Miniflare.
 import WebSocket from "ws";
 
 const authOnly = process.argv.includes("--auth");
@@ -102,7 +101,7 @@ const runtime = new Miniflare(
     },
   }),
 );
-let socket: globalThis.WebSocket | undefined;
+let socket: InstanceType<typeof WebSocket> | undefined;
 const maps = new Map<string, SourceMapConsumer>();
 try {
   const db = await runtime.getD1Database("DB");
@@ -160,8 +159,12 @@ try {
     number,
     { resolve: (value: any) => void; reject: (error: Error) => void }
   >();
-  socket!.onmessage = (event: MessageEvent) => {
-    const msg = JSON.parse(String(event.data));
+  socket!.onmessage = (event) => {
+    const raw =
+      typeof event.data === "string"
+        ? event.data
+        : Buffer.from(event.data as ArrayBuffer).toString("utf8");
+    const msg = JSON.parse(raw);
     if (msg.id) {
       const entry = pending.get(msg.id);
       pending.delete(msg.id);

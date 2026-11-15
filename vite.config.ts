@@ -9,6 +9,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 
 import feedbax from "./feedbax.config.ts";
+import { editorBundleGuard } from "./src/lib/editor-bundle-guard.ts";
 import { portalUrlFromWrangler } from "./src/lib/social-meta.ts";
 
 // Tests run in plain Node: the Cloudflare and TanStack Start plugins are only for dev/build.
@@ -63,6 +64,7 @@ const config = defineConfig({
         }),
         viteReact(),
         tailwindcss(),
+        editorBundleGuard(),
       ]),
   test: {
     environment: "node",

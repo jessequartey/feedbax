@@ -141,7 +141,9 @@ export function createWordListProvider(
           }
           let next = end,
             spaced = false;
-          while (next < stop && !word(next)) spaced ||= kinds[next++] === SPACE_KIND;
+          while (next < stop && !word(next)) {
+            if (kinds[next++] === SPACE_KIND) spaced = true;
+          }
           if (spaced) {
             const phrase = current.next.get(" ");
             if (phrase) current = phrase;

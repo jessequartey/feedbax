@@ -1,6 +1,13 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", ".wrangler", "packages/**/dist", "packages/**/template"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".wrangler",
+    "packages/**/dist",
+    "packages/**/template",
+    "packages/**/provider-entry.ts"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",
