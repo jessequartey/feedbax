@@ -104,6 +104,24 @@ describe("Markdown to Notion blocks", () => {
     const runs = runsOf(paragraph!);
     expect(runs.length).toBeLessThanOrEqual(NOTION_RICH_TEXT_LIMIT);
     expect(runs.every((run) => run.text.content.length <= NOTION_TEXT_LIMIT)).toBe(true);
+    expect(runs.map((run) => run.text.content).join("")).toBe(
+      Array.from({ length: 400 }, (_, i) => `b${i} i${i}`).join(" "),
+    );
+  });
+
+  it("keeps every character when one paragraph has more than 100 rich-text runs", () => {
+    const marks = "**x** ".repeat(80);
+    const zs = "Z".repeat(4680 - marks.length);
+    const source = marks + zs;
+    const text = `${"x ".repeat(80)}${zs}`;
+    expect(source).toHaveLength(4680);
+    expect(source.length).toBeLessThanOrEqual(5000);
+    const [paragraph] = markdownToNotionBlocks(source);
+    const runs = runsOf(paragraph!);
+    expect(runs.length).toBeLessThanOrEqual(NOTION_RICH_TEXT_LIMIT);
+    expect(runs.length).toBeGreaterThan(1);
+    expect(runs.every((run) => run.text.content.length <= NOTION_TEXT_LIMIT)).toBe(true);
+    expect(runs.map((run) => run.text.content).join("")).toBe(text);
   });
 
   it("keeps at most 100 blocks and points at the full post for the rest", () => {

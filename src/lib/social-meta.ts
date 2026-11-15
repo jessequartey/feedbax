@@ -33,8 +33,19 @@ export function publicOrigin(portalUrl: string | undefined): string | null {
   if (url.protocol !== "https:" || url.username || url.password) return null;
   const host = url.hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".localhost") || host === "[::1]") return null;
-  if (/^(?:127\.|0\.0\.0\.0$)/.test(host)) return null;
+  if (/^(?:127\.|0\.0\.0\.0$)/.test(host) || privateLan(host)) return null;
   return url.origin;
+}
+
+/** RFC1918 ranges. Crawlers cannot fetch og:image from these, so they are not public. */
+function privateLan(host: string): boolean {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!match) return false;
+  const octets = match.slice(1).map(Number);
+  if (octets.some((octet) => octet > 255)) return false;
+  const a = octets[0]!;
+  const b = octets[1]!;
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 
 /** `vars.PORTAL_URL` from wrangler.jsonc text; null if absent. */

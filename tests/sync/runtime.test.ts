@@ -20,6 +20,7 @@ import {
   githubIssue,
   text,
   signedMarker,
+  legacyMarker,
 } from "./helpers.ts";
 
 const poll: SyncMessage = { type: "notion.poll", since: SINCE, until: UNTIL, cursor: null };
@@ -420,7 +421,7 @@ describe("GitHub", () => {
     expect(fake.requests.map((r) => [r.method, r.url])).toEqual([
       [
         "GET",
-        "https://api.github.com/repos/acme/app/issues?state=all&sort=created&direction=desc&per_page=30",
+        `https://api.github.com/search/issues?q=${encodeURIComponent(`repo:acme/app "feedbax:v1:${ID}"`)}&per_page=100&page=1`,
       ],
       ["POST", "https://api.github.com/repos/acme/app/issues"],
     ]);
@@ -470,16 +471,39 @@ describe("GitHub", () => {
     await deliver({ type: "github.issue", postId: ID });
     expect(fake.requests).toEqual([]);
   });
-  test("a lost create response adopts by marker, ignoring a PR with the same marker", async () => {
+  test("a lost create response adopts a marker past the first search page, including a trailing newline", async () => {
     await seed({ githubRequested: 1 });
-    const fake = mock([], new Error("lost response"), [
-      { ...githubIssue(1), pull_request: {} },
-      githubIssue(),
-    ]);
+    const noise = Array.from({ length: 100 }, (_, index) => ({
+      ...githubIssue(1000 + index),
+      body: "no marker here",
+    }));
+    const recovered = { ...githubIssue(), body: `${signedMarker()}\n` };
+    const fake = mock(
+      [],
+      new Error("lost response"),
+      { items: noise },
+      {
+        items: [{ ...githubIssue(1), pull_request: {}, body: `${signedMarker()}\n` }, recovered],
+      },
+    );
     expect((await deliver({ type: "github.issue", postId: ID }, false)).retry).toHaveBeenCalled();
     await deliver({ type: "github.issue", postId: ID });
-    expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(1);
+    expect(fake.requests.filter((request) => request.method === "POST")).toHaveLength(1);
+    expect(fake.requests.some((request) => request.url.endsWith("page=2"))).toBe(true);
     expect(await post()).toMatchObject({ githubNumber: 7 });
+  });
+  test("an incomplete issue search retries instead of creating an issue", async () => {
+    await seed({ githubRequested: 1 });
+    mock({ items: [], incomplete_results: true });
+    expect((await deliver({ type: "github.issue", postId: ID }, false)).retry).toHaveBeenCalled();
+    expect(await post()).toMatchObject({ githubNumber: null });
+  });
+  test("a marker signed with the raw auth secret is still adopted", async () => {
+    await seed({ githubRequested: 1 });
+    mock([{ ...githubIssue(), body: legacyMarker() }]);
+    await deliver({ type: "github.issue", postId: ID });
+    expect(legacyMarker()).not.toBe(signedMarker());
+    expect(await post()).toMatchObject({ githubNumber: 7, status: "open" });
   });
   test("adopting an already-closed issue also sets terminal Done", async () => {
     await seed({ githubRequested: 1 });
@@ -805,13 +829,23 @@ test("GitHub polling stops as soon as an ascending page passes until", async () 
   expect(queue.sent).toEqual([]);
   expect(await readState("github.watermark")).toBe(UNTIL);
 });
-test("copied genuine markers from outsider creators cannot be adopted or close linked posts", async () => {
+test("an outsider's authentic marker is not adopted and does not open a second issue", async () => {
   await seed({ githubRequested: 1 });
-  const forged = { ...githubIssue(9, "closed"), user: { id: 999 } };
-  const fake = mock([forged], githubIssue());
+  const noise = Array.from({ length: 100 }, (_, index) => ({
+    ...githubIssue(2000 + index),
+    body: "no marker here",
+    user: { id: 1 },
+  }));
+  const forged = {
+    ...githubIssue(9, "closed"),
+    user: { id: 999 },
+    body: `${signedMarker()}\n`,
+  };
+  const fake = mock({ items: noise }, { items: [forged] });
   await deliver({ type: "github.issue", postId: ID });
-  expect(fake.requests.filter((r) => r.method === "POST")).toHaveLength(1);
-  expect(await post()).toMatchObject({ githubNumber: 7, status: "open" });
+  expect(fake.requests.filter((request) => request.method === "POST")).toHaveLength(0);
+  expect(fake.requests.some((request) => request.url.endsWith("page=2"))).toBe(true);
+  expect(await post()).toMatchObject({ githubNumber: null, status: "open" });
   // Protect even an outsider linkage left behind by an older implementation.
   await db().update(posts).set({ githubNumber: 9 }).where(eq(posts.id, ID));
   mock([forged]);

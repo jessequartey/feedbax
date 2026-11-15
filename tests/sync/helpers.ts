@@ -55,9 +55,19 @@ export const notionRow = (
     "Send to GitHub": { type: "checkbox", checkbox: approved },
   },
 });
-export const signedMarker = (postId = ID) =>
+const markerPayload = (postId: string) =>
+  JSON.stringify(["feedbax-github-v1", "http://localhost:3000", "acme/app", postId]);
+/** Marker signed the way new issues are: HMAC under `feedbax/github-marker/v1`. */
+export const signedMarker = (postId = ID) => {
+  const derived = createHmac("sha256", TEST_SECRETS.BETTER_AUTH_SECRET)
+    .update("feedbax/github-marker/v1")
+    .digest();
+  return `<!-- feedbax:v1:${postId}:${createHmac("sha256", derived).update(markerPayload(postId)).digest("base64url")} -->`;
+};
+/** Marker signed with the raw auth secret, as issues created before key derivation were. */
+export const legacyMarker = (postId = ID) =>
   `<!-- feedbax:v1:${postId}:${createHmac("sha256", TEST_SECRETS.BETTER_AUTH_SECRET)
-    .update(JSON.stringify(["feedbax-github-v1", "http://localhost:3000", "acme/app", postId]))
+    .update(markerPayload(postId))
     .digest("base64url")} -->`;
 export const githubIssue = (number = 7, state = "open", body = signedMarker()) => ({
   user: { id: 123 },

@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { CATEGORY_LABELS } from "../contracts/domain.ts";
+import { IntegrationError } from "../contracts/integrations.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
 import { githubRepoPath } from "../integrations/github.ts";
 import { markdownToGitHub } from "../lib/markdown-write.ts";
@@ -28,6 +29,42 @@ async function actorId(request: ProviderRequest): Promise<number> {
   actor = { token: env.GITHUB_TOKEN!, id: user.id };
   return user.id;
 }
+
+const ISSUE_SEARCH_PAGE = 100;
+const ISSUE_SEARCH_PAGES = 10;
+type IssueSearch = { items?: GitHubIssue[]; incomplete_results?: boolean };
+
+function searchItems(page: IssueSearch | GitHubIssue[]): GitHubIssue[] {
+  return Array.isArray(page) ? page : (page.items ?? []);
+}
+
+/**
+ * Every open or closed issue (not a pull request) whose body carries this post's marker.
+ * Search is paginated: the newest page alone misses an issue once the repo has moved on.
+ */
+async function searchMarkedIssues(
+  request: ProviderRequest,
+  repo: string,
+  postId: string,
+): Promise<{ issues: GitHubIssue[]; incomplete: boolean }> {
+  const q = encodeURIComponent(`repo:${repo} "feedbax:v1:${postId}"`);
+  const issues: GitHubIssue[] = [];
+  let incomplete = false;
+  for (let page = 1; page <= ISSUE_SEARCH_PAGES; page++) {
+    const result = await request<IssueSearch | GitHubIssue[]>(
+      `/search/issues?q=${q}&per_page=${ISSUE_SEARCH_PAGE}&page=${page}`,
+    );
+    const items = searchItems(result);
+    for (const candidate of items)
+      if (!candidate.pull_request && (await authenticMarker(candidate.body, postId)))
+        issues.push(candidate);
+    if (!Array.isArray(result) && result.incomplete_results) incomplete = true;
+    if (items.length < ISSUE_SEARCH_PAGE) return { issues, incomplete };
+  }
+  // A full last page can still hide a hit. Do not create while that is possible.
+  return { issues, incomplete: true };
+}
+
 export async function createIssue(postId: string): Promise<void> {
   if (!config.integrations.github) return;
   const post = await readPost(postId);
@@ -35,20 +72,35 @@ export async function createIssue(postId: string): Promise<void> {
   const database = db();
   const request = providerRequest("github");
   const path = `${githubRepoPath(config.integrations.github.repo)}/issues`;
-  const recent = await request<GitHubIssue[]>(
-    `${path}?state=all&sort=created&direction=desc&per_page=30`,
-  );
+  const found = await searchMarkedIssues(request, config.integrations.github.repo, postId);
   let issue: GitHubIssue | undefined;
-  const candidates: GitHubIssue[] = [];
-  for (const candidate of recent)
-    if (!candidate.pull_request && (await authenticMarker(candidate.body, postId)))
-      candidates.push(candidate);
-  if (candidates.length) {
-    // The HMAC prevents pre-approval forgery. Immutable creator identity also rejects
-    // outsiders copying a genuine marker after a lost response. Only recovery costs
-    // the identity request, cached for this token within the isolate.
+  if (found.issues.length) {
+    // The HMAC prevents pre-approval forgery. Creator identity rejects an outsider who
+    // copied a genuine marker. The identity request is cached for this token.
     const creator = await actorId(request);
-    issue = candidates.find((candidate) => candidate.user?.id === creator);
+    issue = found.issues.find((candidate) => candidate.user?.id === creator);
+    if (!issue) {
+      if (found.incomplete)
+        throw new IntegrationError(
+          "github",
+          "transient",
+          null,
+          null,
+          "GitHub issue search was incomplete.",
+        );
+      // The only authentic marker belongs to someone else. Adopting it would attach the
+      // post to their issue; opening another would duplicate it. Leave the post unlinked.
+      console.error({ type: "github.issue.foreign_marker", postId });
+      return;
+    }
+  } else if (found.incomplete) {
+    throw new IntegrationError(
+      "github",
+      "transient",
+      null,
+      null,
+      "GitHub issue search was incomplete.",
+    );
   }
   if (!issue) {
     const body = [

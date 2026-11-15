@@ -45,6 +45,13 @@ describe("social meta", () => {
     expect(publicOrigin("https://a.b.workers.dev")).toBe("https://a.b.workers.dev");
     expect(publicOrigin("http://feedback.example.com")).toBeNull();
     expect(publicOrigin("https://127.0.0.1:8787")).toBeNull();
+    expect(publicOrigin("https://10.1.2.3")).toBeNull();
+    expect(publicOrigin("https://192.168.1.20")).toBeNull();
+    expect(publicOrigin("https://172.16.0.1")).toBeNull();
+    expect(publicOrigin("https://172.31.255.255")).toBeNull();
+    expect(publicOrigin("https://172.15.0.1")).toBe("https://172.15.0.1");
+    expect(publicOrigin("https://172.32.0.1")).toBe("https://172.32.0.1");
+    expect(publicOrigin("https://11.0.0.1")).toBe("https://11.0.0.1");
     expect(publicOrigin("https://user:pw@feedback.example.com")).toBeNull();
   });
 

@@ -20,6 +20,7 @@ import {
   queued,
   setPrefs,
   stubResend,
+  vote,
 } from "./helpers.ts";
 
 const POST = "11111111-1111-4111-8111-111111111111";
@@ -218,8 +219,8 @@ describe("delivery", () => {
     expect(new Set(sent.calls.map((call) => call.headers.get("idempotency-key"))).size).toBe(1);
   });
 
-  it.each([403, 409])("drops a permanent %i instead of retrying it", async (status) => {
-    stubResend(status);
+  it("drops a permanent 403 instead of retrying it", async () => {
+    stubResend(403);
     const { ack, retry } = await consume(message());
     expect(ack).toHaveBeenCalledOnce();
     expect(retry).not.toHaveBeenCalled();
@@ -227,6 +228,49 @@ describe("delivery", () => {
     const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
     expect(logged).toContain("email.failure");
     expect(logged).not.toMatch(/re_test|@example\.com/);
+  });
+
+  it("sends a 409 once more under a fresh idempotency key", async () => {
+    const sent = stubResend(409, 200);
+    const { ack, retry } = await consume(message());
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(sent.calls.map((call) => call.headers.get("idempotency-key"))).toEqual([
+      "feedbax/status-9/-/0",
+      "feedbax/status-9/-/0/conflict",
+    ]);
+  });
+
+  it("drops a 409 that still conflicts on the fresh key", async () => {
+    const sent = stubResend(409, 409);
+    const { ack, retry } = await consume(message());
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(sent.calls).toHaveLength(2);
+    const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+    expect(logged).toContain("email.failure");
+    expect(logged).not.toMatch(/re_test|@example\.com/);
+  });
+
+  it("resends a 422 batch one recipient at a time and drops only the bad address", async () => {
+    await account("voter");
+    await vote(POST, "voter");
+    const sent = stubResend(422, 200, 422);
+    const { ack, retry } = await consume(message());
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(sent.calls.map((call) => call.emails.length)).toEqual([2, 1, 1]);
+    expect(sent.calls.map((call) => call.headers.get("idempotency-key"))).toEqual([
+      "feedbax/status-9/-/0",
+      "feedbax/status-9/-/0/0",
+      "feedbax/status-9/-/0/1",
+    ]);
+    // The batch was refused. The author is sent alone; the bad address is refused alone.
+    expect(sent.calls[1]!.emails.map((email) => email.to)).toEqual([["author@example.com"]]);
+    expect(sent.calls[2]!.emails.map((email) => email.to)).toEqual([["voter@example.com"]]);
+    const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+    expect(logged).toContain('"status":422');
+    expect(logged).not.toMatch(/@example\.com/);
   });
 
   it("retries when Resend cannot be reached", async () => {

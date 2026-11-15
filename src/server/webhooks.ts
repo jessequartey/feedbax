@@ -152,15 +152,16 @@ type NewDelivery = typeof webhookDeliveries.$inferInsert;
 
 async function storeAndEnqueue(rows: NewDelivery[], endpointIds: string[]): Promise<void> {
   const database = db();
-  // The history cap: keep the newest rows per endpoint. A pruned pending delivery is simply
-  // dropped by the consumer (its row is gone).
+  // Cap delivered and failed history. A pending row is still in flight: the consumer treats
+  // a missing row as success, so pruning one would drop a delivery that may never be sent.
   const prune = [...new Set(endpointIds)].map((id) =>
     database
       .delete(webhookDeliveries)
       .where(
         and(
           eq(webhookDeliveries.endpointId, id),
-          sql`${webhookDeliveries.id} NOT IN (SELECT id FROM webhook_deliveries WHERE endpoint_id = ${id} ORDER BY created_at DESC, id DESC LIMIT ${WEBHOOK_LIMITS.historyPerEndpoint})`,
+          sql`${webhookDeliveries.status} <> 'pending'`,
+          sql`${webhookDeliveries.id} NOT IN (SELECT id FROM webhook_deliveries WHERE endpoint_id = ${id} AND status <> 'pending' ORDER BY created_at DESC, id DESC LIMIT ${WEBHOOK_LIMITS.historyPerEndpoint})`,
         ),
       ),
   );
