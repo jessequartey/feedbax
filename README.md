@@ -449,7 +449,7 @@ There is no migration from 0.2.x. Start a new project. See [CHANGELOG.md](CHANGE
 
 Run `npx feedbax@latest admin` from the project. It prints a sign-in link that works once and expires after 15 minutes. Open it, confirm, and you land on `/admin/moderation`. No sign-in provider is required.
 
-- **Moderation** lists recent posts and comments, newest first. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
+- **Moderation** lists posts and comments. Sort posts by newest or Priority. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
 
@@ -459,6 +459,12 @@ Run `npx feedbax@latest admin` from the project. It prints a sign-in link that w
 4. Review feedback marked **Reason: profanity** in **Moderation**; unhide a post or approve a comment to publish it.
 
 The English word list runs locally without a service or fee. It checks post titles, descriptions and comments; admins bypass it. Flagged feedback stays out of public lists, counts, reply emails and webhooks. If a moderation provider fails or times out, posting stays available and a content-free warning is logged. This is a word filter, so review context before approving or removing feedback.
+
+### Priority scores
+
+1. Open a post as an admin or go to **Admin → Moderation**, enter a **Priority** from 0–100, then **Save**. Choose **Clear**, then **Save** to remove it.
+2. Choose **Priority** on the board or moderation list to see highest scores first; unscored posts follow. Only admins see this sort or the score.
+3. To edit scores in Notion, use the optional **Priority** number property (0–100, or empty). Changes sync both ways; databases without it keep syncing normally.
 
 Hidden, spam and merged posts leave the board, roadmap and search. Authors still see them under **My feedback**. A signed-in admin sees **Admin** in the header. Everyone else gets "not found" for `/admin`.
 

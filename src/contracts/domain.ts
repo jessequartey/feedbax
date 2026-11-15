@@ -1,6 +1,6 @@
 export type Category = "feature" | "bug" | "general";
 export type Status = "open" | "planned" | "in_progress" | "done" | "closed";
-export type Sort = "new" | "top" | "trending";
+export type Sort = "new" | "top" | "trending" | "priority";
 export const CATEGORY_LABELS: Record<Category, string> = {
   feature: "Feature request",
   bug: "Bug report",
@@ -52,6 +52,8 @@ export type PostSummary = {
   hidden?: true;
 };
 export type PostDetail = PostSummary & {
+  /** Included only for authenticated admins. */
+  priority?: number | null;
   body: string;
   images: ImageView[];
   githubUrl: string | null;

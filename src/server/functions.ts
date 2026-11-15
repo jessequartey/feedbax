@@ -143,7 +143,7 @@ export const adminSession = createServerFn({ method: "GET" }).handler(async () =
   result(async () => adminApi.session(await viewer(), undefined), "admin.action"),
 );
 export const adminListPosts = createServerFn({ method: "GET" })
-  .validator(pass<{ filter?: string; page?: number }>)
+  .validator(pass<{ filter?: string; page?: number; sort?: "new" | "priority" }>)
   .handler(async ({ data }) =>
     result(async () => adminApi.listModerationPosts(await viewer(), data), "admin.action"),
   );
@@ -151,6 +151,11 @@ export const adminListComments = createServerFn({ method: "GET" })
   .validator(pass<{ page?: number }>)
   .handler(async ({ data }) =>
     result(async () => adminApi.listModerationComments(await viewer(), data), "admin.action"),
+  );
+export const adminSetPostPriority = createServerFn({ method: "POST" })
+  .validator(pass<{ postId: string; priority: number | null }>)
+  .handler(async ({ data }) =>
+    result(async () => adminApi.setPostPriority(await viewer(), data), "admin.action"),
   );
 export const adminSetPostState = createServerFn({ method: "POST" })
   .validator(pass<{ postId: string; state: string }>)

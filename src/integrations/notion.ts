@@ -13,6 +13,7 @@ import {
   TEMPLATE_ICON,
   TEMPLATE_TITLE,
   TEMPLATE_VIEWS,
+  TEMPLATE_SCHEMA,
   exampleProperties,
   footerBlocks,
   guideBlocks,
@@ -24,6 +25,7 @@ export type NotionText = { plain_text?: string; text?: { content: string } };
 export type NotionPage = {
   id: string;
   url: string;
+  last_edited_time?: string;
   in_trash?: boolean;
   archived?: boolean;
   is_archived?: boolean;
@@ -35,6 +37,7 @@ export type NotionPage = {
       rich_text?: NotionText[];
       select?: { name: string } | null;
       checkbox?: boolean;
+      number?: number | null;
     }
   >;
 };
@@ -119,7 +122,7 @@ export function createNotionSetupClient(
       parent: { type: "page_id", page_id: page.id },
       title: richText("Feedbax"),
       ...(inline ? { is_inline: true } : {}),
-      initial_data_source: { properties: NOTION_SCHEMA },
+      initial_data_source: { properties: inline ? TEMPLATE_SCHEMA : NOTION_SCHEMA },
     });
     const dataSourceId = database.data_sources[0]?.id;
     if (!dataSourceId)

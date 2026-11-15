@@ -15,7 +15,7 @@ import { createDb } from "../db/client.ts";
 import { images, posts, user } from "../db/schema.ts";
 import { DomainError, invalid } from "./errors.ts";
 import { category, listInput, markdownText, text, uuid } from "./validation.ts";
-import { requireWriter } from "./auth.ts";
+import { requireAdmin, requireWriter } from "./auth.ts";
 import { storeImage, validateImage } from "./images.ts";
 import { parseShippedIn, shippedInField } from "./changelog.ts";
 import { effectiveSettings, runtimeConfig } from "./settings.ts";
@@ -79,11 +79,11 @@ export async function createPostForUser(
   );
   // The quota predicate is in the INSERT too, so concurrent requests cannot exceed it.
   // Drizzle lists every `posts` column in schema order: a new column needs a value here
-  // (including moderation state and reason).
+  // (including moderation state, reason, and nullable priority fields).
   const insert = db
     .insert(posts)
     .select(
-      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, ${flagged ? now : null}, 0, ${flagged ? "profanity" : null}, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
+      sql`SELECT ${id}, ${writer.id}, ${title}, ${body}, ${kind}, 'open', ${now}, ${now}, 1, NULL, 0, 0, 0, NULL, NULL, NULL, 0, NULL, ${flagged ? now : null}, 0, ${flagged ? "profanity" : null}, NULL, NULL, NULL, NULL WHERE (SELECT count(*) FROM posts WHERE author_id = ${writer.id} AND created_at > ${since}) < ${LIMITS.postsPerHour}`,
     )
     .onConflictDoNothing()
     .returning({ id: posts.id });
@@ -159,6 +159,7 @@ export async function listPostPage(
 ): Promise<Page<PostSummary>> {
   const data = listInput(input),
     db = createDb(env.DB);
+  if (data.sort === "priority") requireAdmin(viewer);
   if (mine && !viewer)
     return { items: [], page: data.page, limit: data.limit, total: 0, hasMore: false };
   const like = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
@@ -179,7 +180,11 @@ export async function listPostPage(
       ? sql`(SELECT count(*) FROM votes WHERE post_id = ${posts.id})`
       : sql`(SELECT count(*) FROM votes WHERE post_id = ${posts.id} AND created_at >= ${Date.now() - 7 * 86400000})`;
   const order = [
-    ...(data.sort === "new" ? [] : [desc(voteOrder)]),
+    ...(data.sort === "priority"
+      ? [desc(posts.priority)]
+      : data.sort === "new"
+        ? []
+        : [desc(voteOrder)]),
     desc(posts.createdAt),
     desc(posts.id),
   ];
@@ -243,6 +248,9 @@ export async function getPostDetail(id: string, viewer: ViewerUser | null): Prom
   const shippedIn = parseShippedIn(row.shipped);
   return {
     ...summary(row),
+    ...(viewer?.admin && !viewer.banned && viewer.kind !== "anonymous"
+      ? { priority: row.post.priority }
+      : {}),
     body: row.post.body,
     ...(shippedIn.length ? { shippedIn } : {}),
     githubUrl: row.post.githubUrl,

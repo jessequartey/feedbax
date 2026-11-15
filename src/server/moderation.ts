@@ -45,6 +45,7 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
     filter = moderationFilter(data.filter),
     page = pageNumber(data.page),
     db = createDb(env.DB);
+  if (data.sort !== undefined && data.sort !== "new" && data.sort !== "priority") invalid("sort");
   const where =
     filter === "hidden"
       ? and(isNotNull(posts.hiddenAt), eq(posts.spam, 0))
@@ -66,7 +67,11 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
       .from(posts)
       .innerJoin(user, eq(posts.authorId, user.id))
       .where(where)
-      .orderBy(desc(posts.createdAt), desc(posts.id))
+      .orderBy(
+        ...(data.sort === "priority" ? [desc(posts.priority)] : []),
+        desc(posts.createdAt),
+        desc(posts.id),
+      )
       .limit(PAGE_SIZE)
       .offset((page - 1) * PAGE_SIZE),
     db
@@ -77,6 +82,7 @@ export async function listModerationPosts(input: unknown): Promise<ModerationPos
   ]);
   const items = rows.map((row): ModerationPost => {
     return {
+      priority: row.post.priority,
       id: row.post.id,
       title: row.post.title,
       excerpt: excerptOf(row.post.body, 160),
@@ -143,6 +149,33 @@ async function findPost(id: string) {
   const row = await createDb(env.DB).select().from(posts).where(eq(posts.id, id)).get();
   if (!row) throw new DomainError("not_found", "Post not found.");
   return row;
+}
+
+/** One UPDATE (no external I/O); the existing cron outbox retries the Notion mirror. */
+export async function setPostPriority(
+  input: unknown,
+  now = Date.now(),
+): Promise<{ priority: number | null }> {
+  const data = record(input),
+    postId = uuid(data.postId, "postId");
+  const priority = data.priority;
+  if (
+    priority !== null &&
+    (typeof priority !== "number" || !Number.isInteger(priority) || priority < 0 || priority > 100)
+  )
+    invalid("priority");
+  const rows = await createDb(env.DB)
+    .update(posts)
+    .set({
+      priority,
+      priorityUpdatedAt: now,
+      updatedAt: now,
+      revision: sql`${posts.revision} + 1`,
+    })
+    .where(eq(posts.id, postId))
+    .returning({ id: posts.id });
+  if (!rows.length) throw new DomainError("not_found", "Post not found.");
+  return { priority };
 }
 
 /** Hide, mark spam, or restore. Restoring clears both flags. Nothing is deleted. */

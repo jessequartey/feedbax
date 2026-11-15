@@ -1,6 +1,7 @@
-import { richText } from "./notion-schema.ts";
+import { NOTION_SCHEMA, NOTION_PRIORITY, richText } from "./notion-schema.ts";
 
 /** Everything the official Feedbax Notion template contains, kept as data so the layout is testable. */
+export const TEMPLATE_SCHEMA = { ...NOTION_SCHEMA, Priority: NOTION_PRIORITY };
 export const TEMPLATE_TITLE = "Feedbax";
 export const TEMPLATE_ICON = { type: "emoji", emoji: "💬" } as const;
 // Notion's own gradient gallery. Public, no auth, and verified to answer 200 image/png.
@@ -183,6 +184,7 @@ const TEMPLATE_PROPERTIES = [
   "Status",
   "Send to GitHub",
   "Votes",
+  "Priority",
   "Comments",
   "Author",
   "Portal",
@@ -231,6 +233,14 @@ export const TEMPLATE_VIEWS: ViewSpec[] = [
     }),
   },
   { name: "🗂 All feedback", body: null },
+  {
+    name: "By priority",
+    body: (ids) => ({
+      type: "table",
+      sorts: [{ property: "Priority", direction: "descending" }],
+      configuration: { type: "table", properties: visible(ids, ["Status", "Priority", "Votes"]) },
+    }),
+  },
 ];
 
 /** Printed when the Views API step is unavailable or fails. */
@@ -240,5 +250,6 @@ export const MANUAL_VIEW_STEPS = [
   "1. 📋 Board: layout Board, Group by Status. Make it the first tab.",
   "Board: drag the columns into Open, Planned, In progress, Done, Closed.",
   "2. 🗂 All feedback: layout Table (the default view, just renamed).",
+  "3. By priority: layout Table, sort Priority descending.",
   "In each view, use ••• → Properties to hide Feedbax ID and any column you do not need.",
 ].join("\n");

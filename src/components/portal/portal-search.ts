@@ -10,7 +10,7 @@ export const STATUS_VALUES: readonly Status[] = [
   "done",
   "closed",
 ];
-export const SORT_VALUES: readonly Sort[] = ["trending", "top", "new"];
+export const SORT_VALUES: readonly Sort[] = ["trending", "top", "new", "priority"];
 export const DEFAULT_SORT: Sort = "trending";
 export const PAGE_SIZE = 20;
 export const MAX_QUERY_LENGTH = 100;

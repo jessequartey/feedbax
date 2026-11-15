@@ -24,6 +24,8 @@ import { Markdown } from "./markdown";
 import { CategoryBadge, StatusBadge } from "./post-badges";
 import { VoteButton } from "./vote-button";
 
+const PriorityEditor = React.lazy(() => import("@/components/admin/priority-editor"));
+
 const layout = "mx-auto w-full max-w-[1440px] px-4 md:px-6 lg:px-8";
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
@@ -142,6 +144,17 @@ export function PostDetailView({
               </Detail>
             ) : null}
           </dl>
+          {post.priority !== undefined ? (
+            <React.Suspense fallback={<Skeleton className="mt-4 h-20 w-full" />}>
+              <div className="mt-4">
+                <PriorityEditor
+                  key={`${post.id}-${post.priority}`}
+                  postId={post.id}
+                  priority={post.priority}
+                />
+              </div>
+            </React.Suspense>
+          ) : null}
           <ShowcaseSlot />
         </aside>
       </div>

@@ -25,6 +25,7 @@ describe("scripts/package-template.ts", () => {
       "src/contracts/config.ts",
       "src/db/schema.ts",
       "migrations/0000_initial.sql",
+      "migrations/0009_post_priority.sql",
       "public/favicon.svg",
       "vite.config.ts",
       "tsconfig.json",

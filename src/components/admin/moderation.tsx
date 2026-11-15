@@ -43,6 +43,7 @@ import {
   adminSendToGitHub,
   adminSetPostState,
 } from "@/server/functions";
+import PriorityEditor from "./priority-editor";
 import { ConfirmDialog } from "./confirm-dialog";
 import { MergeDialog } from "./merge-dialog";
 import { useAdminAction } from "./use-admin";
@@ -179,71 +180,78 @@ function PostRow({
           </span>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {post.state === "visible" ? (
-          <Button
-            variant="outline"
-            className="h-9 max-md:h-11"
-            onClick={() => set("hidden", "Post hidden.")}
-          >
-            <EyeOffIcon aria-hidden="true" /> Hide
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            className="h-9 max-md:h-11"
-            onClick={() => set("visible", "Post restored.")}
-          >
-            {post.state === "spam" ? (
-              <ShieldCheckIcon aria-hidden="true" />
-            ) : (
-              <EyeIcon aria-hidden="true" />
-            )}
-            {post.state === "spam" ? "Not spam" : "Unhide"}
-          </Button>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={`More actions for ${post.title}`}
-                className="size-9 max-md:size-11"
-              />
-            }
-          >
-            <MoreHorizontalIcon aria-hidden="true" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
-            {post.state !== "spam" ? (
-              <DropdownMenuItem onClick={() => set("spam", "Marked as spam and hidden.")}>
-                <ShieldAlertIcon aria-hidden="true" /> Mark as spam
+      <div className="shrink-0 space-y-3">
+        <PriorityEditor
+          key={`${post.id}-${post.priority}`}
+          postId={post.id}
+          priority={post.priority}
+        />
+        <div className="flex items-center gap-2">
+          {post.state === "visible" ? (
+            <Button
+              variant="outline"
+              className="h-9 max-md:h-11"
+              onClick={() => set("hidden", "Post hidden.")}
+            >
+              <EyeOffIcon aria-hidden="true" /> Hide
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-9 max-md:h-11"
+              onClick={() => set("visible", "Post restored.")}
+            >
+              {post.state === "spam" ? (
+                <ShieldCheckIcon aria-hidden="true" />
+              ) : (
+                <EyeIcon aria-hidden="true" />
+              )}
+              {post.state === "spam" ? "Not spam" : "Unhide"}
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label={`More actions for ${post.title}`}
+                  className="size-9 max-md:size-11"
+                />
+              }
+            >
+              <MoreHorizontalIcon aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              {post.state !== "spam" ? (
+                <DropdownMenuItem onClick={() => set("spam", "Marked as spam and hidden.")}>
+                  <ShieldAlertIcon aria-hidden="true" /> Mark as spam
+                </DropdownMenuItem>
+              ) : null}
+              {!merged && post.state === "visible" ? (
+                <DropdownMenuItem onClick={() => onMerge(post)}>
+                  <GitMergeIcon aria-hidden="true" /> Merge duplicate…
+                </DropdownMenuItem>
+              ) : null}
+              {canSend ? (
+                <DropdownMenuItem
+                  onClick={() =>
+                    void act(
+                      () => adminSendToGitHub({ data: { postId: post.id } }),
+                      "Queued. The GitHub issue will appear shortly.",
+                    )
+                  }
+                >
+                  <CircleDotIcon aria-hidden="true" /> Send to GitHub
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={() => onDelete(post)}>
+                <Trash2Icon aria-hidden="true" /> Delete…
               </DropdownMenuItem>
-            ) : null}
-            {!merged && post.state === "visible" ? (
-              <DropdownMenuItem onClick={() => onMerge(post)}>
-                <GitMergeIcon aria-hidden="true" /> Merge duplicate…
-              </DropdownMenuItem>
-            ) : null}
-            {canSend ? (
-              <DropdownMenuItem
-                onClick={() =>
-                  void act(
-                    () => adminSendToGitHub({ data: { postId: post.id } }),
-                    "Queued. The GitHub issue will appear shortly.",
-                  )
-                }
-              >
-                <CircleDotIcon aria-hidden="true" /> Send to GitHub
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => onDelete(post)}>
-              <Trash2Icon aria-hidden="true" /> Delete…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </li>
   );

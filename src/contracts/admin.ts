@@ -33,6 +33,7 @@ export type AdminSettings = { effective: RuntimeSettings; defaults: RuntimeSetti
 export type ModerationFilter = "all" | "hidden" | "spam";
 export type PostState = "visible" | "hidden" | "spam";
 export type ModerationPost = {
+  priority: number | null;
   id: string;
   title: string;
   excerpt: string;

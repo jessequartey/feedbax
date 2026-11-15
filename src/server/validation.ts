@@ -71,7 +71,10 @@ export function listInput(
             "status",
           ),
         }),
-    sort: v.sort === undefined ? "trending" : choice(v.sort, ["new", "top", "trending"], "sort"),
+    sort:
+      v.sort === undefined
+        ? "trending"
+        : choice(v.sort, ["new", "top", "trending", "priority"], "sort"),
     page: pageNumber(v.page),
     limit: pageNumber(v.limit, 20, 50),
   };
