@@ -391,6 +391,7 @@ export function RichTextEditor({
         <div className="flex flex-wrap items-center gap-1 border-b px-1 py-1">
           <Input
             aria-label="Link URL"
+            aria-describedby={linkError ? `${id}-link-error` : undefined}
             value={linkUrl}
             placeholder="https://…"
             autoFocus
@@ -425,7 +426,11 @@ export function RichTextEditor({
               Remove
             </Button>
           ) : null}
-          {linkError ? <p className="w-full text-xs text-destructive">{linkError}</p> : null}
+          {linkError ? (
+            <p id={`${id}-link-error`} role="alert" className="w-full text-xs text-destructive">
+              {linkError}
+            </p>
+          ) : null}
         </div>
       ) : null}
       <EditorContent editor={editor} />

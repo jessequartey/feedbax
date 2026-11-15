@@ -58,8 +58,8 @@ export async function sendBatch(
   if (response.ok) return;
   const retryAfter = Number(response.headers.get("retry-after"));
   const transient = response.status === 429 || response.status >= 500;
-  // 409: the same key with a different payload (the audience changed between attempts) or
-  // a concurrent attempt. Either way this batch was, or is being, sent: do not retry.
+  // 409 and 422 are permanent for this key. The sender retries a 409 once under a new key,
+  // and splits a 422 batch so one bad address does not drop the others.
   throw new EmailError(
     response.status,
     transient,

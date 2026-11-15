@@ -39,7 +39,7 @@ describe("showcase card", () => {
     const html = await renderPage(<ShowcaseCard />, viewerOf(null, { showcase: true }));
     expect(html).toContain('role="complementary"');
     expect(html).toContain('aria-label="Get your own Feedbax"');
-    expect(html).toContain('aria-label="Dismiss"');
+    expect(html).toContain('aria-label="Dismiss Get your own Feedbax"');
     expect(html).toContain(FEEDBAX_DESCRIPTION);
     const link = html.match(/<a [^>]*>Get it on GitHub →<\/a>/)?.[0] ?? "";
     expect(link).toContain(`href="${FEEDBAX_REPO_URL}"`);

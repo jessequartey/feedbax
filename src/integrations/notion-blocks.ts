@@ -92,15 +92,42 @@ function runs(nodes: Inline[], annotations: Annotations = {}, url?: string): Not
   return merged;
 }
 
-/** At most 100 objects: the tail becomes one plain object, cut to 2000 units. */
+/**
+ * At most 100 objects. Styled runs stay while the rest of the text still fits in the
+ * remaining slots as plain pieces of at most 2000 units. A 5000-unit body needs at most
+ * three of those pieces, so a legal post is never cut here.
+ */
 function fit(list: NotionRichText[]): NotionRichText[] {
   if (list.length <= NOTION_RICH_TEXT_LIMIT) return list;
-  const head = list.slice(0, NOTION_RICH_TEXT_LIMIT - 1);
-  const tail = list
-    .slice(NOTION_RICH_TEXT_LIMIT - 1)
-    .map((run) => run.text.content)
-    .join("");
-  return [...head, { type: "text", text: { content: pieces(tail, NOTION_TEXT_LIMIT - 1)[0]! } }];
+  const lengths = list.map((run) => run.text.content.length);
+  const suffix = Array.from({ length: list.length + 1 }, () => 0);
+  for (let index = list.length - 1; index >= 0; index--)
+    suffix[index] = suffix[index + 1]! + lengths[index]!;
+  // A surrogate pair can leave one unused unit at the end of a piece.
+  const plainSlots = (units: number) =>
+    units === 0 ? 0 : Math.ceil(units / (NOTION_TEXT_LIMIT - 1));
+  let headCount = 0;
+  for (let index = 0; index <= list.length; index++) {
+    if (index + plainSlots(suffix[index]!) <= NOTION_RICH_TEXT_LIMIT) headCount = index;
+    else break;
+  }
+  const tailOf = (count: number) =>
+    pieces(
+      list
+        .slice(count)
+        .map((run) => run.text.content)
+        .join(""),
+    );
+  let tail = tailOf(headCount);
+  while (headCount + tail.length > NOTION_RICH_TEXT_LIMIT && headCount > 0) {
+    headCount -= 1;
+    tail = tailOf(headCount);
+  }
+  const room = NOTION_RICH_TEXT_LIMIT - headCount;
+  return [
+    ...list.slice(0, headCount),
+    ...tail.slice(0, room).map((content) => ({ type: "text" as const, text: { content } })),
+  ];
 }
 
 const block = (type: string, content: Record<string, unknown>): NotionBlock => ({

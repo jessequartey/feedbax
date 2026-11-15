@@ -514,6 +514,10 @@ describe("delivery", () => {
       createHmac("sha256", made.secret).update(`${t}.${request!.body}`).digest("hex"),
     );
     expect(await signWebhook(made.secret, request!.body, Number(t))).toBe(header);
+    // Fixed vector, computed outside signWebhook: HMAC-SHA256("test-webhook-secret", "1700000000.{\"ok\":true}").
+    expect(await signWebhook("test-webhook-secret", '{"ok":true}', 1700000000)).toBe(
+      "t=1700000000,v1=4efc8c8e73c701747f4da1bd54d09c30c39b02a8899287e1489f120e1bb1a5f7",
+    );
     expect(request!.headers.get("content-type")).toBe("application/json");
     expect(request!.headers.get("x-feedbax-event")).toBe("webhook.test");
     const envelope = envelopeOf(request!);
@@ -699,14 +703,20 @@ describe("the delivery log", () => {
         insert.bind(`old-${i}`, a.endpoint.id, 1000 + i, 1000 + i),
       ),
     );
-    await env.DB.batch([insert.bind("b-1", b.endpoint.id, 1, 1)]);
-    // The next delivery for `a` prunes its history; `b` keeps its row.
+    await env.DB.batch([
+      insert.bind("b-1", b.endpoint.id, 1, 1),
+      env.DB.prepare(
+        "INSERT INTO webhook_deliveries (id, endpoint_id, event, payload, status, attempts, created_at, updated_at) VALUES ('pending-old', ?, 'vote.created', '{}', 'pending', 0, 1, 1)",
+      ).bind(a.endpoint.id),
+    ]);
+    // The next delivery for `a` prunes delivered history. Pending rows stay, including an old one.
     await adminApi.webhookTest(who, { id: a.endpoint.id });
     expect(await count("webhook_deliveries", `endpoint_id = '${a.endpoint.id}'`)).toBe(
-      WEBHOOK_LIMITS.historyPerEndpoint,
+      WEBHOOK_LIMITS.historyPerEndpoint + 2,
     );
     expect(await count("webhook_deliveries", "id = 'old-0'")).toBe(0);
     expect(await count("webhook_deliveries", "id = 'old-119'")).toBe(1);
+    expect(await count("webhook_deliveries", "id = 'pending-old'")).toBe(1);
     expect(await count("webhook_deliveries", "id = 'b-1'")).toBe(1);
     const listed = await adminApi.webhooksList(who, undefined);
     expect(listed.deliveries).toHaveLength(WEBHOOK_LIMITS.recentDeliveries);

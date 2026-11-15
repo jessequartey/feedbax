@@ -39,6 +39,45 @@ export const DIGEST_ITEMS = 20;
 type Recipient = { id: string; email: string };
 type Audience = { kind: EmailKind; where: SQL; after?: string };
 
+/**
+ * One Resend batch. A 409 (same idempotency key, different payload) is sent once more under
+ * a new suffix. A 422 on a multi-address batch is resent one recipient at a time so a single
+ * bad address does not drop the rest. Anything else, including a second 409, propagates.
+ */
+async function deliverBatch(key: string, batch: OutgoingEmail[]): Promise<void> {
+  const apiKey = env.RESEND_API_KEY!;
+  try {
+    await sendBatch(apiKey, batch, key);
+  } catch (error) {
+    if (!(error instanceof EmailError)) throw error;
+    if (error.status === 409) {
+      await sendBatch(apiKey, batch, `${key}/conflict`);
+      return;
+    }
+    if (error.status === 422 && batch.length > 1) {
+      for (let index = 0; index < batch.length; index++) {
+        try {
+          await sendBatch(apiKey, [batch[index]!], `${key}/${index}`);
+        } catch (inner) {
+          if (inner instanceof EmailError && inner.status === 422) {
+            console.error({
+              type: "email.failure",
+              operation: "resend.recipient",
+              status: 422,
+              classification: "permanent",
+              correlationId: crypto.randomUUID(),
+            });
+            continue;
+          }
+          throw inner;
+        }
+      }
+      return;
+    }
+    throw error;
+  }
+}
+
 const SITE_SWITCH: Record<EmailMessage["type"], keyof NotificationToggles> = {
   "email.status": "statusChanges",
   "email.reply": "replies",
@@ -102,10 +141,9 @@ async function send(
     });
   }
   for (let start = 0; start < emails.length; start += RESEND_BATCH_MAX)
-    await sendBatch(
-      env.RESEND_API_KEY!,
-      emails.slice(start, start + RESEND_BATCH_MAX),
+    await deliverBatch(
       `feedbax/${message.id}/${audience.after ?? "-"}/${start / RESEND_BATCH_MAX}`,
+      emails.slice(start, start + RESEND_BATCH_MAX),
     );
   if (found.length > EMAIL_SLICE)
     await env.SYNC_QUEUE.send({ ...message, after: slice[slice.length - 1]!.id });

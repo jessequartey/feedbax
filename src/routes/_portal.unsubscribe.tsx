@@ -36,7 +36,12 @@ function UnsubscribePage() {
   const search = Route.useSearch();
   const [state, setState] = React.useState<"idle" | "saving" | "done" | "failed">("idle");
   const [kind, setKind] = React.useState<EmailKind | null>(null);
+  const resultRef = React.useRef<HTMLHeadingElement>(null);
   const label = search.k && search.k in NOUN ? NOUN[search.k as EmailKind] : "these";
+
+  React.useEffect(() => {
+    if (state === "done" || state === "failed") resultRef.current?.focus();
+  }, [state]);
 
   const confirm = async () => {
     setState("saving");
@@ -55,6 +60,7 @@ function UnsubscribePage() {
       <div className="border">
         {state === "done" ? (
           <EmptyState
+            titleRef={resultRef}
             icon={MailIcon}
             title={`You won't get ${kind ? NOUN[kind] : label} emails`}
             description={`${kind ? EMAIL_LABELS[kind].label : "That email"} is off for your account. You can turn it back on any time.`}
@@ -71,6 +77,7 @@ function UnsubscribePage() {
           />
         ) : !search.u || !search.k || !search.t || state === "failed" ? (
           <EmptyState
+            titleRef={state === "failed" ? resultRef : undefined}
             icon={MailIcon}
             title="This unsubscribe link isn't valid"
             description="It may be cut off or edited. Use the link in the email again, or choose what you get in your email preferences."

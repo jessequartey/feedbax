@@ -99,7 +99,7 @@ export function ShowcaseCard({ inline = false }: { inline?: boolean }) {
           <Button
             variant="ghost"
             size="icon-xs"
-            aria-label="Dismiss"
+            aria-label="Dismiss Get your own Feedbax"
             className="absolute top-1.5 right-1.5 text-muted-foreground max-md:size-8"
             onClick={() => {
               dismissShowcase();
