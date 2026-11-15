@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { editorBundleGuard } from "../../scripts/editor-bundle-guard.ts";
+import { editorBundleGuard } from "../../src/lib/editor-bundle-guard.ts";
 
 // Exercise the emitted graph contract, including shared imports and separately loaded CSS.
 function check({
