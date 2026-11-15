@@ -139,11 +139,12 @@ export function CommentSection({
         </span>
       </h2>
       <form onSubmit={onSubmit} noValidate className="mt-4 flex flex-col gap-2">
-        <Label htmlFor={fieldId} className="sr-only">
+        <Label id={`${fieldId}-label`} htmlFor={fieldId} className="sr-only">
           Add a comment
         </Label>
         <RichTextField
           id={fieldId}
+          aria-labelledby={`${fieldId}-label`}
           variant="comment"
           value={body}
           onChange={onChange}

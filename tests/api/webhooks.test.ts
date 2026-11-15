@@ -831,3 +831,22 @@ describe("moderation after webhook serialization", () => {
     expect(sent).toEqual([]);
   });
 });
+
+it("retries the desired endpoint state idempotently", async () => {
+  const who = await admin();
+  const { endpoint } = await add(who);
+  const clock = vi.spyOn(Date, "now").mockReturnValue(10);
+  await adminApi.webhookUpdate(who, { id: endpoint.id, enabled: false });
+  const before = await env.DB.prepare("SELECT * FROM webhook_endpoints WHERE id = ?")
+    .bind(endpoint.id)
+    .first();
+  clock.mockReturnValue(20);
+  await adminApi.webhookUpdate(who, { id: endpoint.id, enabled: false });
+  expect(
+    await env.DB.prepare("SELECT * FROM webhook_endpoints WHERE id = ?").bind(endpoint.id).first(),
+  ).toEqual(before);
+  expect(await adminApi.webhookUpdate(who, { id: endpoint.id, enabled: true })).toMatchObject({
+    enabled: true,
+    url: endpoint.url,
+  });
+});

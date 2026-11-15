@@ -2,7 +2,7 @@ import * as React from "react";
 import { notFound, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import type { ApiResult } from "@/contracts/domain";
+import type { ApiError, ApiResult } from "@/contracts/domain";
 
 /**
  * Loader helper: an admin server function answers a non-admin with `forbidden` or
@@ -27,6 +27,7 @@ export function useAdminAction() {
     async <T>(
       run: () => Promise<ApiResult<T>>,
       success: string | ((data: T) => string),
+      onError?: (error: ApiError) => void,
     ): Promise<T | null> => {
       let result: ApiResult<T>;
       try {
@@ -36,6 +37,7 @@ export function useAdminAction() {
         return null;
       }
       if (!result.ok) {
+        onError?.(result.error);
         toast.error(result.error.message || "Something went wrong. Please try again.");
         return null;
       }

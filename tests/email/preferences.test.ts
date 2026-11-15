@@ -219,3 +219,13 @@ describe("markdownToPlainText", () => {
     expect(markdownToPlainText(input)).toBe(output);
   });
 });
+
+it("retries an explicit email choice without rewriting it or other preferences", async () => {
+  await account("retry");
+  await saveEmailPrefs({ replies: false, changelog: true }, viewer("retry"), 10);
+  const before = await prefsRow("retry");
+  await saveEmailPrefs({ replies: false }, viewer("retry"), 20);
+  expect(await prefsRow("retry")).toEqual(before);
+  await saveEmailPrefs({ replies: true }, viewer("retry"), 30);
+  expect(await prefsRow("retry")).toMatchObject({ replies: 1, changelog: 1, updated_at: 30 });
+});
