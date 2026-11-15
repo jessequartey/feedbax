@@ -53,7 +53,7 @@ Then add what you need, from the project folder. To remove spam or manage users,
 
 ## Add-ons
 
-Each add-on is optional. Run it from the project folder. It prompts, sets Cloudflare secrets, edits `feedbax.config.ts` and offers to redeploy. Secrets come from masked prompts or environment variables, never flags. `--yes` never prompts: set the variables below and pass the flag. `npx feedbax add --help` lists them.
+Each add-on is optional. Run it from the project folder. It validates inputs and checks provider access before changing anything, writes config, sets Cloudflare secrets and offers to redeploy. If a later step fails, it lists changed files and secret names with a recovery command. Secrets come from masked prompts or environment variables, never flags. `--yes` never prompts: set the variables below and pass the flag. `npx feedbax add --help` lists them.
 
 Projects created before 0.3.1 have no local `feedbax` package. Keep using `npx feedbax@latest`.
 
@@ -424,8 +424,9 @@ npx feedbax@latest migrate 0.3.1       # or a specific version
 `migrate` downloads the published `create-feedbax` template for your version and the target, then merges upstream changes into your files. After you confirm, it installs dependencies if they changed, applies new D1 migrations and deploys. `--yes` confirms every step.
 
 - **Clean tree.** It refuses uncommitted changes, and it refuses a folder that is not a Git repository. Commit first, or pass `--force`.
-- **Conflicts.** Where you and upstream edited the same lines, it writes conflict markers, lists the files and stops before install, migrate or deploy. Resolve them, then run `npx feedbax deploy`.
+- **Conflicts.** Where you and upstream edited the same lines, it writes conflict markers, lists the files and stops before install, migrate or deploy. Resolve them, run your checks, then rerun `npx feedbax migrate`.
 - **Protected.** It does not change your `feedbax.config.ts` values, `wrangler.jsonc` resource IDs, names, routes and vars, `.dev.vars`, `.env*`, or Cloudflare secrets. Required structural edits to those files keep your values.
+- **Resume.** Rerun `npx feedbax migrate` after a failure or interruption. Progress is saved in `.feedbax/`; completed steps are skipped, and `--dry-run` lists the remaining steps. The installed version advances only after migrations and deploy succeed.
 - **Baseline.** The installed version is `.feedbax/version`. A 0.3.0 project has no such file. It is detected from `package.json`. Because 0.3.0 does not depend on `feedbax`, run `npx feedbax@latest migrate`. If detection fails, pass `--baseline <version>` with the `create-feedbax` version you started from.
 
 There is no migration from 0.2.x. Start a new project. See [CHANGELOG.md](CHANGELOG.md).

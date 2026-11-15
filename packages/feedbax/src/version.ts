@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CliError } from "../../create-feedbax/src/flags.ts";
 import { exists } from "../../create-feedbax/src/project.ts";
@@ -93,5 +93,6 @@ export async function detectVersion(cwd: string, published: string[]): Promise<D
 
 export async function recordVersion(cwd: string, version: string): Promise<void> {
   await mkdir(join(cwd, ".feedbax"), { recursive: true });
-  await writeFile(join(cwd, VERSION_FILE), `${version}\n`);
+  await writeFile(join(cwd, `${VERSION_FILE}.tmp`), `${version}\n`);
+  await rename(join(cwd, `${VERSION_FILE}.tmp`), join(cwd, VERSION_FILE));
 }

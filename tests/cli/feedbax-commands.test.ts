@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { createGitHubSetupClient } from "../../src/integrations/github.ts";
 import { defineConfig } from "../../src/contracts/config.ts";
 import { verifyAdminToken } from "../../src/server/admin-link.ts";
 import { readVars } from "../../packages/create-feedbax/src/project.ts";
@@ -129,15 +130,15 @@ describe("feedbax add", () => {
 
   it("github: validates the repo, sets GITHUB_TOKEN and integrations.github, redeploys", async () => {
     const cwd = await project();
-    const h = harness(cwd, { GITHUB_TOKEN: "sentinel-github-token" });
+    const h = harness(cwd, { GITHUB_TOKEN: "ghp_ObviouslyFakeSentinelToken1234567890" });
     expect(await main(["add", "github", "--repo", "team/app", "--yes"], h.deps)).toBe(0);
-    expect(h.wrangler.bulk).toEqual([{ GITHUB_TOKEN: "sentinel-github-token" }]);
+    expect(h.wrangler.bulk).toEqual([{ GITHUB_TOKEN: "ghp_ObviouslyFakeSentinelToken1234567890" }]);
     expect(h.wrangler.calls).toEqual([
       expect.stringMatching(/^wrangler secret bulk /),
       ...deployCalls,
     ]);
     expect(await read(cwd, "feedbax.config.ts")).toBe(configSource('{ repo: "team/app" }'));
-    expect((await readVars(cwd)).GITHUB_TOKEN).toBe("sentinel-github-token");
+    expect((await readVars(cwd)).GITHUB_TOKEN).toBe("ghp_ObviouslyFakeSentinelToken1234567890");
     expect(h.output()).not.toContain("sentinel-");
   });
 
@@ -145,8 +146,12 @@ describe("feedbax add", () => {
     it(`${provider}-login: prints the exact callback and sets the OAuth pair only in Cloudflare`, async () => {
       const cwd = await project();
       const upper = provider.toUpperCase();
+      const clientId =
+        provider === "github"
+          ? "0123456789abcdefabcd"
+          : "123456789-fake.apps.googleusercontent.com";
       const h = harness(cwd, {
-        [`${upper}_CLIENT_ID`]: "sentinel-client",
+        [`${upper}_CLIENT_ID`]: clientId,
         [`${upper}_CLIENT_SECRET`]: "sentinel-secret",
       });
       const before = {
@@ -157,7 +162,7 @@ describe("feedbax add", () => {
       expect(h.output()).toContain(`${PORTAL}/api/auth/callback/${provider}`);
       expect(h.wrangler.bulk).toEqual([
         {
-          [`${upper}_CLIENT_ID`]: "sentinel-client",
+          [`${upper}_CLIENT_ID`]: clientId,
           [`${upper}_CLIENT_SECRET`]: "sentinel-secret",
         },
       ]);
@@ -220,12 +225,12 @@ describe("feedbax add", () => {
 
   it("email: sets RESEND_API_KEY and notifications.email.from, which the config contract accepts", async () => {
     const cwd = await project();
-    const h = harness(cwd, { RESEND_API_KEY: "re_sentinel" });
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });
     expect(
       await main(["add", "email", "--from", "Acme Feedback <feedback@acme.dev>", "--yes"], h.deps),
     ).toBe(0);
-    expect(h.wrangler.bulk).toEqual([{ RESEND_API_KEY: "re_sentinel" }]);
-    expect((await readVars(cwd)).RESEND_API_KEY).toBe("re_sentinel");
+    expect(h.wrangler.bulk).toEqual([{ RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" }]);
+    expect((await readVars(cwd)).RESEND_API_KEY).toBe("re_ObviouslyFakeSentinelKey1234567890");
     expect(await read(cwd, "feedbax.config.ts")).toContain(
       '  notifications: { email: { from: "Acme Feedback <feedback@acme.dev>" } },\n  integrations:',
     );
@@ -233,16 +238,241 @@ describe("feedbax add", () => {
       email: { from: "Acme Feedback <feedback@acme.dev>" },
     });
     // Running it again replaces the address in place.
-    const again = harness(cwd, { RESEND_API_KEY: "re_sentinel" });
+    const again = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });
     expect(await main(["add", "email", "--from=feedback@acme.dev", "--yes"], again.deps)).toBe(0);
     expect((await loadConfig(cwd)).notifications.email).toEqual({ from: "feedback@acme.dev" });
   });
 
   it("email: rejects a bad from-address before any change", async () => {
     const cwd = await project();
-    const h = harness(cwd, { RESEND_API_KEY: "re_sentinel" });
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });
     expect(await main(["add", "email", "--from", "not an address", "--yes"], h.deps)).toBe(2);
     expect(h.wrangler.calls).toEqual([]);
+  });
+
+  it.each([
+    ["invalid format", "not-a-resend-key", 200],
+    ["revoked key", "re_ObviouslyFakeRevokedKey1234567890", 401],
+    ["provider failure", "re_ObviouslyFakeValidKey1234567890", 503],
+  ])("email: %s leaves config and secrets untouched", async (_label, key, status) => {
+    const cwd = await project();
+    const before = await read(cwd, "feedbax.config.ts");
+    const vars = await read(cwd, ".dev.vars");
+    const h = harness(cwd, { RESEND_API_KEY: key });
+    h.deps.fetch = async () => Response.json({ name: "invalid_api_key" }, { status });
+    expect(await main(["add", "email", "--from=feedback@acme.dev", "--yes"], h.deps)).toBe(2);
+    expect(h.wrangler.calls).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(before);
+    expect(await read(cwd, ".dev.vars")).toBe(vars);
+    expect(h.output()).not.toContain(key);
+  });
+
+  it("email: validates a sending-only key with a read-only request", async () => {
+    const cwd = await project();
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSendingKey1234567890" });
+    h.deps.fetch = async (input, init) => {
+      expect(input).toBe("https://api.resend.com/domains");
+      expect(init?.method ?? "GET").toBe("GET");
+      expect(init?.headers).toEqual({ Authorization: `Bearer ${h.deps.env.RESEND_API_KEY}` });
+      return Response.json({ name: "restricted_api_key" }, { status: 401 });
+    };
+    expect(await main(["add", "email", "--from=feedback@acme.dev", "--yes"], h.deps)).toBe(0);
+    expect(h.wrangler.bulk).toHaveLength(1);
+  });
+
+  it("email: a network error leaves config and secrets untouched", async () => {
+    const cwd = await project();
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSendingKey1234567890" });
+    h.deps.fetch = async () => {
+      throw new Error(h.deps.env.RESEND_API_KEY);
+    };
+    expect(await main(["add", "email", "--from=feedback@acme.dev", "--yes"], h.deps)).toBe(1);
+    expect(h.wrangler.calls).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(configSource());
+    expect(h.output()).not.toContain(h.deps.env.RESEND_API_KEY);
+  });
+
+  it("preflights unsupported config edits before uploading secrets", async () => {
+    const cwd = await project();
+    const config = configSource().replace("github: false", "github: getGithubConfig()");
+    // A valid computed config can load but cannot be safely edited as a literal.
+    const before = `const getGithubConfig = () => false;\n${config}`;
+    await writeFile(join(cwd, "feedbax.config.ts"), before);
+    const h = harness(cwd, { GITHUB_TOKEN: "ghp_ObviouslyFakeToken1234567890" });
+    expect(await main(["add", "github", "--repo=team/app", "--yes"], h.deps)).toBe(2);
+    expect(h.wrangler.calls).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(before);
+    expect((await readVars(cwd)).GITHUB_TOKEN).toBeUndefined();
+  });
+
+  it.each(["github", "email", "host-login"])(
+    "%s: rejects a valid edit that misses the requested setting",
+    async (integration) => {
+      const cwd = await project();
+      const before =
+        integration === "github"
+          ? `const unused = { github: false };\nconst github = false;\n${configSource("github")}`
+          : integration === "email"
+            ? `const unused = { email: false };\n${configSource()}`
+            : `const unused = { appUrl: "https://old.example.com" };\nconst appUrl = "https://old.example.com";\n${configSource().replace("  name:", "  appUrl,\n  name:")}`;
+      await writeFile(join(cwd, "feedbax.config.ts"), before);
+      const vars = await read(cwd, ".dev.vars");
+      const h = harness(cwd, {
+        GITHUB_TOKEN: "ghp_ObviouslyFakeToken1234567890",
+        RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890",
+      });
+      const flags =
+        integration === "github"
+          ? ["--repo=team/app"]
+          : integration === "email"
+            ? ["--from=feedback@acme.dev"]
+            : ["--app-url=https://app.example.com"];
+      expect(await main(["add", integration, ...flags, "--yes"], h.deps)).toBe(2);
+      expect(h.output()).toContain("Nothing changed");
+      expect(h.wrangler.bulk).toEqual([]);
+      expect(await read(cwd, "feedbax.config.ts")).toBe(before);
+      expect(await read(cwd, ".dev.vars")).toBe(vars);
+    },
+  );
+
+  it("github: rejects a malformed token before checking access or changing files", async () => {
+    const cwd = await project();
+    const h = harness(cwd, { GITHUB_TOKEN: "not-a-github-token" });
+    expect(await main(["add", "github", "--repo=team/app", "--yes"], h.deps)).toBe(2);
+    expect(h.wrangler.calls).toEqual([]);
+    expect(h.fetched).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(configSource());
+    expect((await readVars(cwd)).GITHUB_TOKEN).toBeUndefined();
+  });
+
+  it("rejects a proposed config that cannot preserve the existing sender literal", async () => {
+    const cwd = await project();
+    // A brace inside a valid display name makes the simple object edit ambiguous.
+    const before = configSource().replace(
+      "  integrations:",
+      '  notifications: { email: { from: "Curly } <feedback@acme.dev>" } },\n  integrations:',
+    );
+    await writeFile(join(cwd, "feedbax.config.ts"), before);
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });
+    const vars = await read(cwd, ".dev.vars");
+    expect(await main(["add", "email", "--from=feedback@acme.dev", "--yes"], h.deps)).toBe(2);
+    expect(h.wrangler.calls).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(before);
+    expect(await read(cwd, ".dev.vars")).toBe(vars);
+  });
+
+  it.each(["github", "google"])("%s-login: rejects the wrong client ID shape", async (provider) => {
+    const cwd = await project();
+    const upper = provider.toUpperCase();
+    const h = harness(cwd, {
+      [`${upper}_CLIENT_ID`]: "not-an-oauth-id",
+      [`${upper}_CLIENT_SECRET`]: "obviously-fake-secret",
+    });
+    expect(await main(["add", `${provider}-login`, "--yes"], h.deps)).toBe(2);
+    expect(h.wrangler.calls).toEqual([]);
+  });
+
+  it("host-login: rejects a malformed saved secret before writing config", async () => {
+    const cwd = await project({}, { devVars: { FEEDBAX_HOST_SECRET: "invalid" } });
+    const h = harness(cwd);
+    expect(
+      await main(["add", "host-login", "--app-url=https://app.example.com", "--yes"], h.deps),
+    ).toBe(2);
+    expect(h.wrangler.bulk).toEqual([]);
+    expect(await read(cwd, "feedbax.config.ts")).toBe(configSource());
+  });
+
+  it.each(["invalid", `${Buffer.alloc(32, 1).toString("base64url")}=`])(
+    "host-login: rejects a malformed environment secret without checking Cloudflare",
+    async (secret) => {
+      const cwd = await project({}, { devVars: { FEEDBAX_HOST_SECRET: "" } });
+      const vars = await read(cwd, ".dev.vars");
+      const h = harness(cwd, { FEEDBAX_HOST_SECRET: secret });
+      expect(
+        await main(["add", "host-login", "--app-url=https://app.example.com", "--yes"], h.deps),
+      ).toBe(2);
+      expect(h.output()).toContain("canonical base64url");
+      expect(h.wrangler.calls).toEqual([]);
+      expect(await read(cwd, "feedbax.config.ts")).toBe(configSource());
+      expect(await read(cwd, ".dev.vars")).toBe(vars);
+    },
+  );
+
+  it.each(["/user", "/repos/team/app"])(
+    "github: failed %s check writes no secrets",
+    async (failedPath) => {
+      const cwd = await project();
+      const h = harness(cwd, { GITHUB_TOKEN: "ghp_ObviouslyFakeToken1234567890" });
+      const requests: string[] = [];
+      const fetch: typeof globalThis.fetch = async (input) => {
+        const path = new URL(input instanceof Request ? input.url : input.toString()).pathname;
+        requests.push(path);
+        return path === failedPath
+          ? Response.json({ message: "Bad credentials" }, { status: 401 })
+          : Response.json({ login: "team" });
+      };
+      expect(
+        await main(["add", "github", "--repo=team/app", "--yes"], {
+          ...h.deps,
+          clients: { ...h.deps.clients, github: createGitHubSetupClient },
+          fetch,
+        }),
+      ).toBe(1);
+      expect(requests).toContain(failedPath);
+      expect(h.wrangler.calls).toEqual([]);
+      expect(await read(cwd, "feedbax.config.ts")).toBe(configSource());
+    },
+  );
+
+  it("writes config before secrets and reports changes plus recovery after deploy failure", async () => {
+    const cwd = await project();
+    const key = "re_ObviouslyFakeSentinelKey1234567890";
+    const h = harness(cwd, { RESEND_API_KEY: key });
+    const run: typeof h.deps.run = async (cmd, args, options) => {
+      if (args.includes("bulk")) {
+        expect((await loadConfig(cwd)).notifications.email).toEqual({ from: "feedback@acme.dev" });
+        expect((await readVars(cwd)).RESEND_API_KEY).toBe(key);
+      }
+      const result = await h.wrangler.run(cmd, args, options);
+      return args.includes("deploy") ? { ...result, code: 1, stderr: key } : result;
+    };
+    expect(
+      await main(["add", "email", "--from=feedback@acme.dev", "--yes"], { ...h.deps, run }),
+    ).toBe(1);
+    expect(h.wrangler.bulk).toEqual([{ RESEND_API_KEY: key }]);
+    expect(h.output()).toContain(
+      "Changed: feedbax.config.ts; .dev.vars; Cloudflare secrets: RESEND_API_KEY.",
+    );
+    expect(h.output()).toContain("Recovery: npx feedbax deploy");
+    expect(h.output()).not.toContain(key);
+  });
+
+  it("reports an uncertain secret upload with a command to retry the add", async () => {
+    const cwd = await project();
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });
+    expect(
+      await main(["add", "email", "--from=feedback@acme.dev", "--yes"], {
+        ...h.deps,
+        run: async () => ({ code: 1, stdout: "", stderr: "Upload interrupted" }),
+      }),
+    ).toBe(1);
+    expect(h.output()).toContain("outcome is unknown");
+    expect(h.output()).toContain(
+      "Recovery: npx feedbax add email --from 'feedback@acme.dev' --yes",
+    );
+  });
+
+  it("includes a newly written .gitignore in the recovery report", async () => {
+    const cwd = await project();
+    await rm(join(cwd, ".gitignore"), { force: true });
+    const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });
+    expect(
+      await main(["add", "email", "--from=feedback@acme.dev", "--yes"], {
+        ...h.deps,
+        run: async () => ({ code: 1, stdout: "", stderr: "Upload interrupted" }),
+      }),
+    ).toBe(1);
+    expect(h.output()).toContain("Changed: feedbax.config.ts; .dev.vars; .gitignore.");
   });
 
   it("webhooks: explains /admin/settings and changes nothing", async () => {

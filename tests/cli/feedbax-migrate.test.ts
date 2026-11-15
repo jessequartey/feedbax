@@ -349,7 +349,142 @@ describe("feedbax migrate", () => {
     expect(await read(cwd, "src/server.ts")).toContain("<<<<<<< your project");
     expect(run.prompt.log.join("\n")).toContain("src/server.ts: conflict markers written");
     expect(run.wrangler.calls).toEqual([]);
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+  });
+
+  it.each([
+    ["install", "npm install"],
+    ["migrations", "wrangler d1 migrations apply DB --remote"],
+    ["build", "npm run build"],
+    ["deploy", "wrangler deploy"],
+  ])("resumes an interrupted %s without repeating completed steps", async (step, command) => {
+    const cwd = await project({ ...files, ".feedbax/version": "0.3.0\n" }, { git: true });
+    const failed = deps(cwd);
+    const run: typeof failed.deps.run = async (cmd, args, options) => {
+      // Even during deploy, the installed version must still be the old one.
+      expect(await read(cwd, ".feedbax/version")).toBe("0.3.0\n");
+      const result = await failed.wrangler.run(cmd, args, options);
+      return failed.wrangler.calls.at(-1) === command
+        ? { ...result, code: 1, stderr: "Simulated interruption" }
+        : result;
+    };
+    expect(await main(["migrate", "--yes"], { ...failed.deps, run })).toBe(1);
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.0\n");
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe(step);
+    const source = await read(cwd, "src/server.ts");
+
+    const dry = deps(cwd);
+    const marker = await read(cwd, ".feedbax/migrate.json");
+    expect(await main(["migrate", "--dry-run"], dry.deps)).toBe(0);
+    expect(dry.prompt.log.join("\n")).toContain(`Resume 0.3.0 → 0.3.1 (dry run: nothing changes)`);
+    expect(dry.prompt.log.join("\n")).toContain("Write .feedbax/version = 0.3.1");
+    expect(await read(cwd, ".feedbax/migrate.json")).toBe(marker);
+    expect(dry.registry.requests).toEqual([]);
+    expect(dry.wrangler.calls).toEqual([]);
+
+    // Resume is offline with respect to the registry, and accepts the upgrade's dirty tree.
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    const all = [
+      "npm install",
+      "wrangler d1 migrations apply DB --remote",
+      "npm run build",
+      "wrangler deploy",
+    ];
+    expect(resumed.wrangler.calls).toEqual(all.slice(all.indexOf(command)));
+    expect(resumed.registry.requests).toEqual([]);
+    expect(await read(cwd, "src/server.ts")).toBe(source);
     expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+    await expect(read(cwd, ".feedbax/migrate.json")).rejects.toThrow();
+    await expect(read(cwd, ".feedbax/migrate-source.json")).rejects.toThrow();
+  });
+
+  it("resumes a partially applied source plan without overwriting completed files", async () => {
+    const cwd = await project(files, { git: true });
+    const interrupted = deps(cwd);
+    const sourceNext = { ...next, files: new Map(next.files) };
+    sourceNext.files.set("src/zz.ts", {
+      bytes: Buffer.from("export const added = true;\n"),
+      mode: 0o644,
+    });
+    const registry = fakeRegistry([base, sourceNext]);
+    const prompt = scripted();
+    prompt.confirm = async () => {
+      // Simulate a filesystem failure after planning, late in source application.
+      await mkdir(join(cwd, "src/zz.ts"));
+      return true;
+    };
+    expect(
+      await main(["migrate"], {
+        ...interrupted.deps,
+        fetch: registry.fetch,
+        prompt,
+        interactive: true,
+      }),
+    ).toBe(1);
+    const state = JSON.parse(await read(cwd, ".feedbax/migrate.json"));
+    expect(state.step).toBe("source");
+    expect(state.sourceIndex).toBeGreaterThan(0);
+    expect(await read(cwd, "src/server.ts")).toBe("export const v = 4;\n");
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+    // A user's completed-source edit must survive the retry.
+    await writeFile(join(cwd, "src/server.ts"), "export const v = 44;\n");
+    await rm(join(cwd, "src/zz.ts"), { recursive: true });
+    // A torn structural write must not prevent loading the saved source plan.
+    await writeFile(join(cwd, "wrangler.jsonc"), '{ "assets":');
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(resumed.registry.requests).toEqual([]);
+    expect(await read(cwd, "src/server.ts")).toBe("export const v = 44;\n");
+    expect(await read(cwd, "src/zz.ts")).toBe("export const added = true;\n");
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+  });
+
+  it("resumes a failed version write after deploy without redeploying", async () => {
+    const cwd = await project(files, { git: true });
+    const failed = deps(cwd);
+    const run: typeof failed.deps.run = async (cmd, args, options) => {
+      const result = await failed.wrangler.run(cmd, args, options);
+      if (args.includes("deploy")) await mkdir(join(cwd, ".feedbax/version"));
+      return result;
+    };
+    expect(await main(["migrate", "--yes"], { ...failed.deps, run })).toBe(1);
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe("version");
+    await rm(join(cwd, ".feedbax/version"), { recursive: true });
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(resumed.wrangler.calls).toEqual([]);
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+  });
+
+  it("resumes after resolving conflicts without merging the source again", async () => {
+    const cwd = await project(
+      { ...files, "src/server.ts": "export const v = 33;\n" },
+      { git: true },
+    );
+    const failed = deps(cwd);
+    expect(await main(["migrate", "--yes"], failed.deps)).toBe(1);
+    const unresolved = deps(cwd);
+    expect(await main(["migrate", "--yes"], unresolved.deps)).toBe(2);
+    expect(unresolved.wrangler.calls).toEqual([]);
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+    await writeFile(join(cwd, "src/server.ts"), "export const v = 34;\n");
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(await read(cwd, "src/server.ts")).toBe("export const v = 34;\n");
+    expect(await read(cwd, ".feedbax/version")).toBe("0.3.1\n");
+  });
+
+  it("keeps the version unchanged when deployment is declined, then resumes", async () => {
+    const cwd = await project(files, { git: true });
+    const paused = deps(cwd);
+    const prompt = scripted([true, true, false]);
+    expect(await main(["migrate"], { ...paused.deps, interactive: true, prompt })).toBe(0);
+    await expect(read(cwd, ".feedbax/version")).rejects.toThrow();
+    expect(JSON.parse(await read(cwd, ".feedbax/migrate.json")).step).toBe("build");
+    const resumed = deps(cwd);
+    expect(await main(["migrate", "--yes"], resumed.deps)).toBe(0);
+    expect(resumed.wrangler.calls).toEqual(["npm run build", "wrangler deploy"]);
   });
 
   it("refuses downgrades and unknown targets", async () => {

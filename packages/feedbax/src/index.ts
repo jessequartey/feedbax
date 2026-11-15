@@ -18,8 +18,9 @@ const COMMANDS = {
 Merges each upstream change into your files (3-way, against the template you started
 from), keeps feedbax.config.ts values, wrangler.jsonc IDs/names/routes/vars, .dev.vars and
 secrets, writes conflict markers where both sides changed, then applies new D1 migrations
-and deploys (each after a confirm). Records the version in .feedbax/version.
-  --dry-run              Print the full plan; change nothing
+and deploys (each after a confirm). Records the version in .feedbax/version only after
+deployment succeeds. Rerun migrate after an interruption to resume from .feedbax/.
+  --dry-run              Print the plan or remaining steps; change nothing
   --force                Run on a dirty (or non-Git) working tree
   --yes                  Confirm every step (required without a terminal)
   --baseline <version>   The create-feedbax version this project came from, if detection fails`,
@@ -29,9 +30,9 @@ and deploys (each after a confirm). Records the version in .feedbax/version.
   },
   add: {
     usage: `feedbax add <${INTEGRATIONS.join("|")}> [--yes]`,
-    about: `Add an integration: prompts for what it needs, sets Cloudflare secrets with Wrangler,
-updates feedbax.config.ts and offers to redeploy. Secrets come from masked prompts or the
-environment, never flags.
+    about: `Add an integration: validates inputs and provider access, updates feedbax.config.ts,
+sets Cloudflare secrets with Wrangler and offers to redeploy. Failures list changes and a
+recovery command. Secrets come from masked prompts or the environment, never flags.
   github         GITHUB_TOKEN (Issues read/write) + integrations.github   [--repo owner/repo]
   github-login   GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (prints the exact callback URL)
   google-login   GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET (prints the exact redirect URI)

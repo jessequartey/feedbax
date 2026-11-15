@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (unreleased)
+
+- **Safer CLI changes.** Add-ons validate credentials before changing config or production secrets; interrupted upgrades resume and record the installed version only after deployment succeeds.
+
 ## 0.3.1
 
 - **One-command Notion setup.** `npx create-feedbax@latest` creates the portal with anonymous feedback on. Sign-in and GitHub stay optional.
