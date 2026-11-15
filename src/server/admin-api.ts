@@ -20,6 +20,7 @@ import {
   searchMergeTargets,
   sendToGitHub,
   setPostState,
+  setPostPriority,
 } from "./moderation.ts";
 import { readSettings, resolveSettings, saveSettings } from "./settings.ts";
 import type { SettingsPatch } from "./settings.ts";
@@ -55,6 +56,7 @@ export const adminApi = {
   session: admin(async (who: Admin) => ({ name: who.name })),
   listModerationPosts: admin((_who, input: unknown) => listModerationPosts(input)),
   listModerationComments: admin((_who, input: unknown) => listModerationComments(input)),
+  setPostPriority: admin((_who, input: unknown) => setPostPriority(input)),
   setPostState: admin((_who, input: unknown) => setPostState(input)),
   mergePost: admin((_who, input: unknown) => mergePost(input)),
   searchMergeTargets: admin((_who, input: unknown) => searchMergeTargets(input)),

@@ -13,6 +13,7 @@
 - **Faster post reading.** Formatting tools load only when you start writing; early typing and keyboard focus stay in place.
 - **Profanity filter.** Posts and comments with profanity are held for review by default; admins can block, switch off, or customize the word lists in Settings.
 - **Search everywhere.** Press Cmd/Ctrl+K or use the header search to find feedback and published changelog entries.
+- **Admin priority score.** Set private admin priority scores (0–100), sort posts by priority, and optionally sync scores with Notion.
 
 ## 0.3.1
 

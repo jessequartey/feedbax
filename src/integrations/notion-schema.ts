@@ -47,6 +47,13 @@ export const NOTION_SCHEMA = {
   Created: { date: {} },
 } satisfies NotionProperties;
 
+/** Optional properties never participate in the 13-property required schema. */
+export const NOTION_PRIORITY = { number: { format: "number" } } as const;
+export function hasNotionPriority(properties: NotionProperties): boolean {
+  const property = properties.Priority;
+  return !!property && (property.type ?? Object.keys(property)[0]) === "number";
+}
+
 export function schemaError(message: string): IntegrationError {
   return new IntegrationError("notion", "schema", null, null, message);
 }

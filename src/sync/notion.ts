@@ -4,7 +4,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { CATEGORY_LABELS, STATUS_LABELS } from "../contracts/domain.ts";
 import type { Status } from "../contracts/domain.ts";
 import type { SyncMessage } from "../contracts/sync.ts";
-import { notionSchemaChanges, richText, schemaError } from "../integrations/notion-schema.ts";
+import {
+  hasNotionPriority,
+  notionSchemaChanges,
+  richText,
+  schemaError,
+} from "../integrations/notion-schema.ts";
 import type { NotionProperties } from "../integrations/notion-schema.ts";
 import { markdownToNotionBlocks } from "../integrations/notion-blocks.ts";
 import { notionText } from "../integrations/notion.ts";
@@ -99,7 +104,17 @@ export async function mirrorPost(postId: string): Promise<void> {
   }
   if (post.notionBlocked || (post.notionPageId && post.notionRevision >= post.revision)) return;
   const request = providerRequest("notion");
+  let priorityProperties: { Priority?: { number: number | null } } = {};
+  // Unscored, never-edited posts already have Notion's empty number default.
+  if (post.priority !== null || post.priorityUpdatedAt !== null) {
+    const source = await request<{ properties: NotionProperties }>(
+      `/data_sources/${config.integrations.notion.dataSourceId}`,
+    );
+    if (hasNotionPriority(source.properties))
+      priorityProperties = { Priority: { number: post.priority } };
+  }
   let pageId = post.notionPageId;
+  let mirroredPriority = false;
   const block = async (id: string | null) => {
     await database
       .update(posts)
@@ -107,7 +122,10 @@ export async function mirrorPost(postId: string): Promise<void> {
       .where(eq(posts.id, post.id));
     console.warn({ type: "notion.mirror.blocked", postId: post.id });
   };
-  const patch = async (id: string, body: unknown) => {
+  const patch = async (
+    id: string,
+    body: { in_trash?: boolean; properties: Record<string, unknown> },
+  ) => {
     // A provider lookup may have yielded to moderation. Never send the stale snapshot.
     const current = await database.select().from(posts).where(eq(posts.id, post.id)).get();
     if (!isPublicPost(current)) {
@@ -115,6 +133,19 @@ export async function mirrorPost(postId: string): Promise<void> {
       return false;
     }
     try {
+      if (priorityProperties.Priority) {
+        const row = await request<NotionPage>(`/pages/${id}`);
+        // Compare values too: our own property writes advance the page timestamp.
+        // An unchanged mirror must never supersede a pending admin edit.
+        const edited = Date.parse(row.last_edited_time ?? "");
+        if (
+          row.properties.Priority?.number === post.notionPriority ||
+          edited <= (post.priorityUpdatedAt ?? 0)
+        ) {
+          Object.assign(body.properties, priorityProperties);
+          mirroredPriority = true;
+        }
+      }
       await request(`/pages/${id}`, "PATCH", body);
       return true;
     } catch (error) {
@@ -163,6 +194,7 @@ export async function mirrorPost(postId: string): Promise<void> {
         parent: { type: "data_source_id", data_source_id: config.integrations.notion.dataSourceId },
         properties: {
           ...mirrorProperties(post),
+          ...priorityProperties,
           "Feedbax ID": { rich_text: richText(post.id) },
           Status: { select: { name: "Open" } },
           "Send to GitHub": { checkbox: false },
@@ -171,6 +203,7 @@ export async function mirrorPost(postId: string): Promise<void> {
       });
       pageId = created.id;
       if (!pageId) throw schemaError("Notion did not return the created page ID.");
+      mirroredPriority = !!priorityProperties.Priority;
       // A create already in flight cannot be recalled. Archive its result if the post
       // was moderated/deleted while Notion handled it, rather than orphaning a mirror.
       const afterCreate = await database.select().from(posts).where(eq(posts.id, post.id)).get();
@@ -209,7 +242,11 @@ export async function mirrorPost(postId: string): Promise<void> {
   }
   await database
     .update(posts)
-    .set({ notionPageId: pageId, notionRevision: post.revision })
+    .set({
+      notionPageId: pageId,
+      notionRevision: post.revision,
+      ...(mirroredPriority ? { notionPriority: post.priority } : {}),
+    })
     .where(eq(posts.id, post.id));
 }
 
@@ -299,6 +336,25 @@ export async function pollNotion(
     )?.[0];
     if (!status) console.warn({ type: "notion.status.ignored", postId: post.id, status: null });
     const changes: Partial<typeof posts.$inferInsert> = {};
+    const edited = Date.parse(page.last_edited_time ?? "");
+    const priority = page.properties.Priority;
+    if (
+      hasNotionPriority(source.properties) &&
+      priority &&
+      priority.number !== post.notionPriority &&
+      (!priority.type || priority.type === "number") &&
+      (priority.number === null ||
+        (typeof priority.number === "number" &&
+          Number.isInteger(priority.number) &&
+          priority.number >= 0 &&
+          priority.number <= 100)) &&
+      Number.isFinite(edited) &&
+      edited > (post.priorityUpdatedAt ?? 0)
+    ) {
+      changes.priority = priority.number;
+      changes.notionPriority = priority.number;
+      changes.priorityUpdatedAt = edited;
+    }
     if (post.notionBlocked) changes.notionBlocked = 0;
     if (post.githubClosedAt !== null) {
       if (status !== "done" && post.notionRevision >= post.revision)
@@ -323,7 +379,17 @@ export async function pollNotion(
       // SQL increment preserves concurrent API vote/comment revisions.
       const update = database
         .update(posts)
-        .set({ ...changes, ...(changes.revision ? { revision: sql`${posts.revision} + 1` } : {}) })
+        .set({
+          ...changes,
+          ...(changes.priorityUpdatedAt !== undefined
+            ? {
+                priority: sql`CASE WHEN coalesce(${posts.priorityUpdatedAt}, 0) < ${edited} THEN ${changes.priority ?? null} ELSE ${posts.priority} END`,
+                notionPriority: sql`CASE WHEN coalesce(${posts.priorityUpdatedAt}, 0) < ${edited} THEN ${changes.priority ?? null} ELSE ${posts.notionPriority} END`,
+                priorityUpdatedAt: sql`max(coalesce(${posts.priorityUpdatedAt}, 0), ${edited})`,
+              }
+            : {}),
+          ...(changes.revision ? { revision: sql`${posts.revision} + 1` } : {}),
+        })
         .where(and(eq(posts.id, post.id), publiclyVisible));
       updates.push(update);
     }

@@ -3,7 +3,7 @@ import { createNotionTemplate } from "../../scripts/create-notion-template.ts";
 import { createNotionSetupClient } from "../../src/integrations/notion.ts";
 import { NOTION_SCHEMA, notionSchemaChanges } from "../../src/integrations/notion-schema.ts";
 import type { NotionProperties } from "../../src/integrations/notion-schema.ts";
-import { exampleDate } from "../../src/integrations/notion-template.ts";
+import { exampleDate, TEMPLATE_SCHEMA } from "../../src/integrations/notion-template.ts";
 import type { NotionSetupClient } from "../../src/contracts/integrations.ts";
 import { DATABASE, PARENT, SOURCE, list, text } from "./helpers.ts";
 
@@ -19,7 +19,10 @@ const parentPage = {
 const source = {
   id: SOURCE,
   properties: Object.fromEntries(
-    Object.entries(NOTION_SCHEMA).map(([name, schema]) => [name, { id: `id-${name}`, ...schema }]),
+    Object.entries(TEMPLATE_SCHEMA).map(([name, schema]) => [
+      name,
+      { id: `id-${name}`, ...schema },
+    ]),
   ),
 };
 
@@ -168,6 +171,7 @@ describe("template via --page --examples", () => {
       `GET /views?database_id=${DATABASE}`,
       "POST /views",
       "PATCH /views/default",
+      "POST /views",
     ]);
     const [, , , setPage, guide, database, footer, ...rest] = notion.log.slice(0);
     // Page properties
@@ -216,7 +220,7 @@ describe("template via --page --examples", () => {
       parent: { type: "page_id", page_id: PARENT },
       title: [{ type: "text", text: { content: "Feedbax" } }],
       is_inline: true,
-      initial_data_source: { properties: NOTION_SCHEMA },
+      initial_data_source: { properties: TEMPLATE_SCHEMA },
     });
     // Footer appended after the database existed: divider and a linked grey paragraph.
     expect(footer!.body.children.map((b: any) => b.type)).toEqual(["divider", "paragraph"]);
@@ -253,7 +257,7 @@ describe("template via --page --examples", () => {
     await run(["--page", PARENT], notion.client);
     const views = notion.log.filter((r) => r.path.startsWith("/views") && r.method !== "GET");
     const common = { database_id: DATABASE, data_source_id: SOURCE };
-    expect(views).toHaveLength(2);
+    expect(views).toHaveLength(3);
     expect(views[0]!.body).toMatchObject({
       ...common,
       name: "📋 Board",
@@ -266,7 +270,14 @@ describe("template via --page --examples", () => {
     });
     expect(views[1]).toMatchObject({ method: "PATCH", path: "/views/default" });
     expect(views[1]!.body).toEqual({ name: "🗂 All feedback" });
-    expect(printed()).toContain("its 2 views");
+    expect(views[2]!.body).toMatchObject({
+      name: "By priority",
+      type: "table",
+      sorts: [{ property: "Priority", direction: "descending" }],
+    });
+    expect(Object.keys(NOTION_SCHEMA)).toHaveLength(13);
+    expect(TEMPLATE_SCHEMA.Priority).toEqual({ number: { format: "number" } });
+    expect(printed()).toContain("its 3 views");
     expect(printed()).not.toContain("Views need the browser");
   });
 

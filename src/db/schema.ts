@@ -45,6 +45,9 @@ export const posts = sqliteTable(
     spam: integer("spam").notNull().default(0),
     moderationReason: text("moderation_reason"),
     mergedInto: text("merged_into").references((): AnySQLiteColumn => posts.id),
+    priority: integer("priority"),
+    priorityUpdatedAt: integer("priority_updated_at"),
+    notionPriority: integer("notion_priority"),
   },
   (t) => [
     check("posts_title_len", sql`length(${t.title}) BETWEEN 1 AND 120`),
@@ -52,6 +55,11 @@ export const posts = sqliteTable(
     check("posts_category", sql`${t.category} IN ('feature', 'bug', 'general')`),
     check("posts_status", sql`${t.status} IN ('open', 'planned', 'in_progress', 'done', 'closed')`),
     check("posts_github_requested", sql`${t.githubRequested} IN (0, 1)`),
+    check(
+      "posts_priority",
+      sql`${t.priority} IS NULL OR (typeof(${t.priority}) = 'integer' AND ${t.priority} BETWEEN 0 AND 100)`,
+    ),
+    index("posts_priority_created_idx").on(t.priority, t.createdAt, t.id),
     index("posts_created_idx").on(t.createdAt, t.id),
     index("posts_status_created_idx").on(t.status, t.createdAt, t.id),
     index("posts_category_created_idx").on(t.category, t.createdAt, t.id),

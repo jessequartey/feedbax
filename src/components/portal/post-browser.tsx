@@ -59,7 +59,7 @@ type Props = {
 export function PostBrowser({ title, description, kind, search, page, onChange, onClear }: Props) {
   const filtered = hasActiveFilters(search);
   const activeCount = [search.category, search.status].filter(Boolean).length;
-  const { config } = useViewer();
+  const { config, user } = useViewer();
   const panel = {
     categories: config.categories,
     category: search.category,
@@ -75,6 +75,7 @@ export function PostBrowser({ title, description, kind, search, page, onChange, 
           <PageHeader title={title} description={description} />
           <div className="mt-6 flex flex-col gap-3 md:mt-8 md:flex-row md:items-center md:justify-between">
             <SortControl
+              admin={Boolean(user?.admin)}
               value={search.sort ?? "trending"}
               onChange={(sort) => onChange({ sort })}
             />

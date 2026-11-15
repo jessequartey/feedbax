@@ -23,9 +23,22 @@ import { cn } from "@/lib/utils";
 import { CATEGORY_ICONS, STATUS_ICONS } from "./post-badges";
 import { CATEGORY_VALUES, SORT_VALUES, STATUS_VALUES, MAX_QUERY_LENGTH } from "./portal-search";
 
-const SORT_LABELS: Record<Sort, string> = { trending: "Trending", top: "Top", new: "New" };
+const SORT_LABELS: Record<Sort, string> = {
+  trending: "Trending",
+  top: "Top",
+  new: "New",
+  priority: "Priority",
+};
 
-export function SortControl({ value, onChange }: { value: Sort; onChange: (sort: Sort) => void }) {
+export function SortControl({
+  value,
+  onChange,
+  admin = false,
+}: {
+  value: Sort;
+  onChange: (sort: Sort) => void;
+  admin?: boolean;
+}) {
   return (
     <ToggleGroup
       aria-label="Sort posts"
@@ -39,7 +52,7 @@ export function SortControl({ value, onChange }: { value: Sort; onChange: (sort:
       }}
       className="w-full md:w-fit"
     >
-      {SORT_VALUES.map((sort) => (
+      {SORT_VALUES.filter((sort) => sort !== "priority" || admin).map((sort) => (
         <ToggleGroupItem
           key={sort}
           value={sort}

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { SignInOptions } from "../../src/components/portal/sign-in-options.tsx";
 import { PostList } from "../../src/components/portal/post-row.tsx";
 import { primaryNav, SiteHeader } from "../../src/components/portal/site-header.tsx";
-import { FilterPanel } from "../../src/components/portal/filter-panel.tsx";
+import { FilterPanel, SortControl } from "../../src/components/portal/filter-panel.tsx";
 import { accountUser, anonymousUser, fixtureListPosts, hostUser } from "../fixtures/portal.ts";
 import { baseConfig, renderPage, viewerOf } from "./helpers.tsx";
 
@@ -18,6 +18,19 @@ function mainNavs(html: string): string[] {
     (match) => match[0],
   );
 }
+
+describe("priority sort", () => {
+  it("offers the priority sort only to admins", async () => {
+    for (const admin of [false, true]) {
+      const html = await renderPage(
+        <SortControl value="trending" onChange={() => {}} admin={admin} />,
+        viewerOf(null),
+      );
+      expect(html.includes(">Priority<")).toBe(admin);
+      expect(html).toContain(">Trending<");
+    }
+  });
+});
 
 describe("header", () => {
   const appUrl = "https://app.example.com";
