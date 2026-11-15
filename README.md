@@ -219,6 +219,13 @@ Images live in R2. The portal keeps working if Notion or GitHub is down. Sync ca
 - Keep the database property names and types. Extra properties and views are fine. Feedbax writes the author, counts and links. Your team changes Status and Send to GitHub.
 - Votes update on the portal immediately. Bursts are combined before Notion sync. Each user can change a vote up to 10 times in 10 seconds and 120 times an hour. Repeating the same vote does not count again.
 
+## Browse and submit feedback
+
+1. Click a post on **Feedback** or **Roadmap** to read it in a dialog; on phones it fills the screen.
+2. Press **Back**, **Escape** or **Close** to return to the same filters, page and scroll position.
+3. Copy the post URL, open it in a new tab, reload, or choose **Open full page** to read the full page.
+4. Choose **New post** to write in a dialog, or open `/submit` for the full page; **Open full page** keeps your title, description and post type. Images stay in the current form and must be reattached after switching views.
+
 ## Add the feedback dialog to your app
 
 Signed-in users send feedback, including an annotated screenshot, without a second login. Your app needs React and shadcn/ui (CLI 4.7 or newer). Run [`add host-login`](#add-login-from-your-own-app) first.
@@ -440,6 +447,10 @@ Run `npx feedbax@latest admin` from the project. It prints a sign-in link that w
 - **Moderation** lists recent posts and comments, newest first. Hide or restore a post, mark spam, merge a duplicate (votes move, one per person), send a post to GitHub, or delete a post or comment. Deleting a post removes its images and archives its Notion row.
 - **Users** lists people, with search. Ban or unban them. Grant or revoke admin.
 - **Settings** changes the portal name, anonymous feedback, categories and notification switches without a redeploy. Secrets are not shown.
+
+1. Change an anonymous feedback, notification or changelog switch to save it immediately; webhook and email switches also save immediately.
+2. Use **Save changes** after editing the portal name or categories.
+3. If a switch cannot save, retry after it returns to its last saved value; your latest choice stays visible while saving.
 
 Hidden, spam and merged posts leave the board, roadmap and search. Authors still see them under **My feedback**. A signed-in admin sees **Admin** in the header. Everyone else gets "not found" for `/admin`.
 

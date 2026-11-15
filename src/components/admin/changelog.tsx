@@ -203,12 +203,14 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
   const [body, setBody] = React.useState("");
   const [linked, setLinked] = React.useState<(ChangelogPostLink & { visible?: boolean })[]>([]);
   const [pending, setPending] = React.useState(false);
+  const [errors, setErrors] = React.useState<Partial<Record<"title" | "body", string>>>({});
   const key = editing === "new" ? "new" : (entry?.id ?? "");
 
   React.useEffect(() => {
     if (editing === null) return;
     setTitle(entry?.title ?? "");
     setBody(entry?.body ?? "");
+    setErrors({});
     setLinked(entry?.posts ?? []);
     // Reset only when a different entry (or "new") is opened.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
@@ -217,13 +219,26 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
   const titleProblem = title.trim().length === 0 ? "Enter a title." : null;
 
   async function save() {
-    if (titleProblem) return;
+    if (titleProblem) {
+      setErrors({ title: titleProblem });
+      return;
+    }
+    setErrors({});
     setPending(true);
     try {
       const data = { title: title.trim(), body, postIds: linked.map((post) => post.id) };
-      const done = entry
-        ? await act(() => adminChangelogUpdate({ data: { id: entry.id, ...data } }), "Entry saved.")
-        : await act(() => adminChangelogCreate({ data }), "Draft created.");
+      const done = await act(
+        () =>
+          entry
+            ? adminChangelogUpdate({ data: { id: entry.id, ...data } })
+            : adminChangelogCreate({ data }),
+        entry ? "Entry saved." : "Draft created.",
+        (error) => {
+          if (error.field === "title" || error.field === "body") {
+            setErrors({ [error.field]: error.message });
+          }
+        },
+      );
       if (done) onClose();
     } finally {
       setPending(false);
@@ -258,12 +273,24 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
               value={title}
               maxLength={CHANGELOG_LIMITS.title}
               placeholder="What shipped?"
-              onChange={(event) => setTitle(event.target.value)}
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? `${ids}-title-error` : undefined}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setErrors((prev) => ({ ...prev, title: undefined }));
+              }}
               className="h-9 max-md:h-11 max-md:text-base"
             />
+            {errors.title ? (
+              <p id={`${ids}-title-error`} role="alert" className="text-xs text-destructive">
+                {errors.title}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`${ids}-body`}>Details</Label>
+            <Label id={`${ids}-body-label`} htmlFor={`${ids}-body`}>
+              Details
+            </Label>
             <Tabs defaultValue="write">
               <TabsList aria-label="Editor mode">
                 <TabsTrigger value="write">Write</TabsTrigger>
@@ -272,12 +299,20 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
               <TabsContent value="write">
                 <RichTextField
                   id={`${ids}-body`}
+                  aria-labelledby={`${ids}-body-label`}
                   variant="changelog"
                   value={body}
                   maxLength={CHANGELOG_LIMITS.body}
                   rows={9}
                   placeholder="What changed, and why it matters."
-                  onChange={setBody}
+                  aria-invalid={Boolean(errors.body)}
+                  aria-describedby={[`${ids}-body-hint`, errors.body ? `${ids}-body-error` : null]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onChange={(next) => {
+                    setBody(next);
+                    setErrors((prev) => ({ ...prev, body: undefined }));
+                  }}
                   hideHint
                 />
               </TabsContent>
@@ -291,7 +326,12 @@ function EntryEditor({ editing, onClose }: { editing: Editing; onClose: () => vo
                 </div>
               </TabsContent>
             </Tabs>
-            <p className="text-xs text-muted-foreground">
+            {errors.body ? (
+              <p id={`${ids}-body-error`} role="alert" className="text-xs text-destructive">
+                {errors.body}
+              </p>
+            ) : null}
+            <p id={`${ids}-body-hint`} className="text-xs text-muted-foreground">
               Markdown supported. Raw HTML is shown as text. Links open only for http, https and
               mailto addresses.
             </p>

@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { PostLink } from "./post-link";
 import { EyeOffIcon, MessageSquareIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +19,12 @@ export function PostRow({ post }: { post: PostSummary }) {
       />
       <div className="min-w-0 flex-1">
         <h3 className="text-base leading-snug font-medium md:text-lg">
-          <Link
-            to="/posts/$postId"
-            params={{ postId: post.id }}
+          <PostLink
+            postId={post.id}
             className="break-words outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-ring/60 focus-visible:after:ring-inset"
           >
             {post.title}
-          </Link>
+          </PostLink>
         </h3>
         {post.excerpt ? (
           <p className="mt-1 line-clamp-2 text-sm break-words text-muted-foreground">

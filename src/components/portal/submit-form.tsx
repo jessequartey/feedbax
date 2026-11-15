@@ -34,7 +34,7 @@ export function SubmitForm() {
   }, []);
   const images = useImageAttachments(edited);
 
-  // Restore a draft that survived the trip to /login.
+  // Restore the shared draft after switching views or returning from /login.
   React.useEffect(() => {
     const draft = loadDraft(POST_DRAFT_KEY, parsePostDraft);
     postId.current = draft?.id ?? crypto.randomUUID();
@@ -56,8 +56,8 @@ export function SubmitForm() {
     if (next.title !== undefined) setTitle(next.title);
     if (next.body !== undefined) setBody(next.body);
     if (next.category !== undefined) setCategory(next.category);
-    if (merged.title || merged.body) saveDraft(POST_DRAFT_KEY, { id: postId.current, ...merged });
-    else clearDraft(POST_DRAFT_KEY);
+    // Save even an empty form: selecting a post type is a draft edit too.
+    saveDraft(POST_DRAFT_KEY, { id: postId.current, ...merged });
   }
 
   function validate(): Errors {
@@ -149,9 +149,12 @@ export function SubmitForm() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${ids}-body`}>Description</Label>
+        <Label id={`${ids}-body-label`} htmlFor={`${ids}-body`}>
+          Description
+        </Label>
         <RichTextField
           id={`${ids}-body`}
+          aria-labelledby={`${ids}-body-label`}
           name="body"
           variant="post"
           value={body}

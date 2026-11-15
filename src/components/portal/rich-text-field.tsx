@@ -29,6 +29,7 @@ export type RichTextFieldProps = {
   /** Hide the "Markdown supported" hint (a caller that already explains the syntax). */
   hideHint?: boolean;
   className?: string;
+  "aria-labelledby": string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
 };
@@ -89,6 +90,7 @@ export function RichTextField({
             placeholder={placeholder}
             disabled={disabled}
             className={className}
+            labelledBy={aria["aria-labelledby"]}
             describedBy={describedBy || undefined}
             invalid={invalid}
           />
@@ -105,6 +107,9 @@ export function RichTextField({
           maxLength={maxLength}
           placeholder={placeholder}
           disabled={disabled}
+          aria-labelledby={aria["aria-labelledby"]}
+          role="textbox"
+          aria-multiline="true"
           aria-invalid={invalid}
           aria-describedby={describedBy || undefined}
           onChange={(event) => onChange(event.target.value)}

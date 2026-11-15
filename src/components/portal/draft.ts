@@ -1,4 +1,4 @@
-// Drafts survive the trip to /login. They live in sessionStorage and never hold images.
+// Drafts survive switching dialog/full-page views and the trip to /login. They live in sessionStorage and never hold images.
 import type { Category } from "@/contracts/domain";
 import { CATEGORY_VALUES } from "./portal-search";
 
