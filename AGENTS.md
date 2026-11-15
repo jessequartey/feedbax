@@ -30,7 +30,7 @@ A self-hosted feedback portal: people post ideas and bugs, vote and comment; the
 npm ci && npm ci --prefix packages/create-feedbax   # once
 npm run check && npm run typecheck && npm test        # every change
 npm run build && npm run verify:build
-node scripts/test-worker-entry.ts && node scripts/test-worker-sync.ts
+node scripts/test-worker-entry.ts && node scripts/test-worker-sync.ts && node scripts/test-worker-auth.ts
 npm run cli:build && npm run test:package             # CLI, template or packages/ touched
 npm run registry:build                                # registry/ touched; commit public/r/
 ```
