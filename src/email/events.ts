@@ -1,3 +1,4 @@
+import { notifyQueue } from "../notifications/queue.ts";
 import { env, waitUntil } from "cloudflare:workers";
 import config from "../../feedbax.config.ts";
 import type { Status } from "../contracts/domain.ts";
@@ -44,7 +45,7 @@ export function statusEmails(changes: StatusChange[]): EmailMessage[] {
 export async function queueEmails(messages: EmailMessage[]): Promise<void> {
   if (!messages.length) return;
   try {
-    await env.SYNC_QUEUE.sendBatch(messages.map((body) => ({ body })));
+    await notifyQueue().sendBatch(messages.map((body) => ({ body })));
   } catch {
     console.error({ type: "email.enqueue_failed", count: messages.length });
   }

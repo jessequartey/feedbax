@@ -187,10 +187,11 @@ async function testFeedbaxInProject(options: {
     const commands = (await readFile(options.env.FEEDBAX_TEST_LOG!, "utf8"))
       .trim()
       .split("\n")
-      .slice(-4)
+      .slice(-5)
       .map((line) => (JSON.parse(line) as { argv: string[] }).argv.join(" "));
     assert.deepEqual(commands, [
       "install",
+      "--no-install wrangler queues create my-feedback-notify",
       "--no-install wrangler d1 migrations apply DB --remote",
       "run build",
       "--no-install wrangler deploy",
@@ -346,7 +347,16 @@ export async function testPackage(
     assert.deepEqual(bindings.observability, { enabled: true, redact_query_string: true });
     assert.equal(bindings.d1_databases[0].binding, "DB");
     assert.equal(bindings.r2_buckets[0].binding, "IMAGES");
-    assert.equal(bindings.queues.producers[0].binding, "SYNC_QUEUE");
+    assert.deepEqual(bindings.queues.producers, [
+      { binding: "SYNC_QUEUE", queue: "my-feedback-sync" },
+      { binding: "NOTIFY_QUEUE", queue: "my-feedback-notify" },
+    ]);
+    assert.deepEqual(bindings.queues.consumers[1], {
+      queue: "my-feedback-notify",
+      max_batch_size: 5,
+      max_concurrency: 3,
+      max_retries: 5,
+    });
     assert(
       !(await readdir(project)).some((name) =>
         ["tests", "registry", "scripts", "packages", ".github"].includes(name),
@@ -371,7 +381,7 @@ export async function testPackage(
     );
     const commands = await readFile(log, "utf8");
     assert(!commands.includes("sentinel-"));
-    assert.equal(commands.match(/"create"/g)?.length, 3);
+    assert.equal(commands.match(/"create"/g)?.length, 4);
     console.log(
       "package: packed CLI non-interactive E2E + rerun + private secrets passed (fake providers and PATH binaries)",
     );

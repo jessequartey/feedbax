@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (unreleased)
+
+- Email and webhook deliveries use their own queue so slow deliveries no longer hold up Notion and GitHub sync.
+
 ## 0.3.1
 
 - **One-command Notion setup.** `npx create-feedbax@latest` creates the portal with anonymous feedback on. Sign-in and GitHub stay optional.

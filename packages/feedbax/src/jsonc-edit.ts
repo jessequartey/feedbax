@@ -1,5 +1,7 @@
 // Comment- and format-preserving edits to wrangler.jsonc. The file is the user's: only the
 // exact span that needs a structural change is rewritten; IDs, names, routes and vars stay.
+import { notificationConsumer } from "../../create-feedbax/src/queues.ts";
+import type { Wrangler } from "./context.ts";
 import { CliError } from "../../create-feedbax/src/flags.ts";
 import { parseJsonc, withoutComments } from "../../create-feedbax/src/jsonc.ts";
 
@@ -68,13 +70,19 @@ export function ensureRunWorkerFirst(text: string, route: string): string {
   if (Array.isArray(current) && current.includes(route)) return text;
   const manual = `Add "${route}" to assets.run_worker_first in wrangler.jsonc, then retry.`;
   if (!Array.isArray(current)) throw new CliError(manual, 2);
+  return appendArrayValue(text, ["assets", "run_worker_first"], route);
+}
+
+/** Append without rewriting existing entries or comments. */
+function appendArrayValue(text: string, path: string[], value: unknown): string {
   const clean = withoutComments(text, true);
-  const span = findValueSpan(clean, ["assets", "run_worker_first"]);
-  if (!span || clean[span.start] !== "[") throw new CliError(manual, 2);
+  const span = findValueSpan(clean, path);
+  if (!span || clean[span.start] !== "[")
+    throw new CliError(`Restore ${path.join(".")} as an array in wrangler.jsonc, then retry.`, 2);
   const close = span.end - 1;
   let last = close - 1;
   while (last > span.start && /\s/.test(clean[last]!)) last--;
-  const literal = JSON.stringify(route);
+  const literal = JSON.stringify(value);
   if (last === span.start)
     return `${text.slice(0, span.start + 1)}${literal}${text.slice(span.start + 1)}`;
   const multiline = clean.slice(span.start, close).includes("\n");
@@ -92,4 +100,18 @@ export function ensureRunWorkerFirst(text: string, route: string): string {
       : `, ${literal}`;
   const at = trailingComma ? last + 1 : elementEnd + 1;
   return `${text.slice(0, at)}${insertion}${text.slice(at)}`;
+}
+
+/** Additive: preserve the sync queue and every existing user setting. */
+export function ensureNotifyQueue(text: string): string {
+  const config = parseJsonc(text) as Wrangler;
+  const producer = config.queues?.producers?.find((entry) => entry.binding === "NOTIFY_QUEUE");
+  const queue = producer?.queue ?? (config.name ? `${config.name}-notify` : undefined);
+  if (!queue || !queue.endsWith("-notify"))
+    throw new CliError("NOTIFY_QUEUE needs a queue name ending in -notify in wrangler.jsonc.", 2);
+  if (!producer)
+    text = appendArrayValue(text, ["queues", "producers"], { binding: "NOTIFY_QUEUE", queue });
+  if (!config.queues?.consumers?.some((entry) => entry.queue === queue))
+    text = appendArrayValue(text, ["queues", "consumers"], notificationConsumer(queue));
+  return text;
 }

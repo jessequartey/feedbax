@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { CliError } from "../../create-feedbax/src/flags.ts";
-import { ensureRunWorkerFirst } from "./jsonc-edit.ts";
+import { ensureNotifyQueue, ensureRunWorkerFirst } from "./jsonc-edit.ts";
 import { safeRelativePath, type Template, type TemplateFile } from "./registry.ts";
 import { compareVersions } from "./version.ts";
 
@@ -42,6 +42,12 @@ export const STRUCTURAL_EDITS: {
       'add "/admin/enter" and "/changelog.rss" to assets.run_worker_first (admin sign-in links, RSS feed)',
     apply: (text) =>
       ensureRunWorkerFirst(ensureRunWorkerFirst(text, "/admin/enter"), "/changelog.rss"),
+  },
+  {
+    since: "0.3.2",
+    file: "wrangler.jsonc",
+    description: "add NOTIFY_QUEUE and its delivery consumer (keep the sync queue)",
+    apply: ensureNotifyQueue,
   },
 ];
 
@@ -224,15 +230,23 @@ export async function planUpgrade(options: {
     if (compareVersions(to, edit.since) < 0) continue;
     const local = await readLocal(cwd, edit.file);
     if (!local) continue;
-    const text = local.bytes.toString("utf8");
+    const previous = actions.find(
+      (action) => action.path === edit.file && action.kind === "structural",
+    );
+    const text = (previous && "bytes" in previous ? previous.bytes! : local.bytes).toString("utf8");
     const edited = edit.apply(text);
-    if (edited !== text)
+    if (edited !== text) {
+      if (previous) actions.splice(actions.indexOf(previous), 1);
       actions.push({
         path: edit.file,
         kind: "structural",
         bytes: Buffer.from(edited),
-        reason: edit.description,
+        reason:
+          previous && "reason" in previous
+            ? `${previous.reason}; ${edit.description}`
+            : edit.description,
       });
+    }
   }
   const migrations = [...target.files.keys()]
     .filter((path) => /^migrations\/[^/]+\.sql$/.test(path) && !baseline.files.has(path))

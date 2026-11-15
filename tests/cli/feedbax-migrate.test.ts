@@ -2,8 +2,9 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { main } from "../../packages/feedbax/src/index.ts";
-import { ensureRunWorkerFirst } from "../../packages/feedbax/src/jsonc-edit.ts";
+import { ensureNotifyQueue, ensureRunWorkerFirst } from "../../packages/feedbax/src/jsonc-edit.ts";
 import { applyPlan, planUpgrade } from "../../packages/feedbax/src/merge.ts";
+import { parseJsonc } from "../../packages/create-feedbax/src/jsonc.ts";
 import { extractTemplate } from "../../packages/feedbax/src/registry.ts";
 import { compareVersions, detectVersion } from "../../packages/feedbax/src/version.ts";
 import { scripted } from "./fakes.ts";
@@ -16,6 +17,7 @@ import {
   git,
   project,
   REGISTRY,
+  scaffoldedPackage,
   tarball,
   template,
   wranglerJson,
@@ -362,5 +364,117 @@ describe("feedbax migrate", () => {
     expect(down.prompt.log.join("\n")).toContain("Downgrading");
     const missing = deps(cwd);
     expect(await main(["migrate", "9.9.9", "--yes"], missing.deps)).toBe(2);
+  });
+});
+
+describe("notification queue upgrade", () => {
+  const before = wranglerJson(["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"]);
+  const base = template("0.3.1", { "wrangler.jsonc": before });
+  const next = template("0.3.2", { "wrangler.jsonc": ensureNotifyQueue(before) });
+
+  it("adds both structural edits when upgrading directly from 0.3.0", async () => {
+    const cwd = await project();
+    const plan = await planUpgrade({ cwd, baseline: template("0.3.0", {}), target: next });
+    await applyPlan(cwd, plan);
+    const w = JSON.parse(await read(cwd, "wrangler.jsonc"));
+    expect(w.assets.run_worker_first).toContain("/changelog.rss");
+    expect(w.assets.run_worker_first).toContain("/admin/enter");
+    expect(w.queues.producers).toContainEqual({
+      binding: "NOTIFY_QUEUE",
+      queue: "my-feedback-notify",
+    });
+  });
+
+  it("preserves JSONC comments, sync settings and custom names, idempotently", () => {
+    const text = before
+      .replace('"queues": {', '// keep queues\n  "queues": {')
+      .replace('"my-feedback-sync"', '"custom-sync"');
+    const after = ensureNotifyQueue(text);
+    expect(after).toContain("// keep queues");
+    const original = parseJsonc(text) as any;
+    const changed = parseJsonc(after) as any;
+    expect(changed.queues.producers[0]).toEqual(original.queues.producers[0]);
+    expect(changed.queues.consumers[0]).toEqual(original.queues.consumers[0]);
+    expect(changed.vars).toEqual(original.vars);
+    expect(changed.d1_databases).toEqual(original.d1_databases);
+    expect(changed.queues.consumers[1]).toEqual({
+      queue: "my-feedback-notify",
+      max_batch_size: 5,
+      max_concurrency: 3,
+      max_retries: 5,
+    });
+    expect(ensureNotifyQueue(after)).toBe(after);
+    const producerOnly = parseJsonc(after) as any;
+    producerOnly.queues.consumers.pop();
+    expect(JSON.parse(ensureNotifyQueue(JSON.stringify(producerOnly)))).toEqual(changed);
+  });
+
+  it("plans without remote calls, provisions once, and adopts an existing queue on rerun", async () => {
+    const cwd = await project(
+      { "package.json": scaffoldedPackage("0.3.1"), "wrangler.jsonc": before },
+      { git: true },
+    );
+    const registry = fakeRegistry([base, next]);
+    const fake = fakeWrangler();
+    let exists = false;
+    let created = 0;
+    const deps = {
+      cwd,
+      env: { npm_config_registry: REGISTRY },
+      fetch: registry.fetch,
+      prompt: scripted(),
+      interactive: false,
+      log: () => {},
+      run: async (...args: Parameters<typeof fake.run>) => {
+        const call = args[1].join(" ");
+        if (call.includes("queues create")) {
+          if (exists) return { code: 1, stdout: "", stderr: "Queue already exists" };
+          exists = true;
+          created++;
+        }
+        return fake.run(...args);
+      },
+    };
+    expect(await main(["migrate", "--dry-run"], deps)).toBe(0);
+    expect(fake.calls).toEqual([]);
+    expect(await read(cwd, "wrangler.jsonc")).toBe(before);
+    expect(await main(["migrate", "--yes"], deps)).toBe(0);
+    expect(created).toBe(1);
+    expect(fake.calls.indexOf("wrangler queues create my-feedback-notify")).toBeLessThan(
+      fake.calls.indexOf("wrangler deploy"),
+    );
+    const once = await read(cwd, "wrangler.jsonc");
+    expect(await main(["migrate", "--yes", "--force"], deps)).toBe(0);
+    expect(created).toBe(1);
+    expect(fake.calls).toContain("wrangler queues info my-feedback-notify");
+    expect(await read(cwd, "wrangler.jsonc")).toBe(once);
+  });
+
+  it("stops before deployment on provisioning errors and retries on the recorded version", async () => {
+    const cwd = await project(
+      { "package.json": scaffoldedPackage("0.3.1"), "wrangler.jsonc": before },
+      { git: true },
+    );
+    const registry = fakeRegistry([base, next]);
+    const fake = fakeWrangler();
+    let fail = true;
+    const deps = {
+      cwd,
+      env: { npm_config_registry: REGISTRY },
+      fetch: registry.fetch,
+      prompt: scripted(),
+      interactive: false,
+      log: () => {},
+      run: async (...args: Parameters<typeof fake.run>) => {
+        if (fail && args[1].includes("queues"))
+          return { code: 1, stdout: "", stderr: "Authentication failed" };
+        return fake.run(...args);
+      },
+    };
+    expect(await main(["migrate", "--yes"], deps)).toBe(1);
+    expect(fake.calls).not.toContain("wrangler deploy");
+    fail = false;
+    expect(await main(["migrate", "--yes", "--force"], deps)).toBe(0);
+    expect(fake.calls).toContain("wrangler queues create my-feedback-notify");
   });
 });
