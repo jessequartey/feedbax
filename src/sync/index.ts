@@ -1,34 +1,26 @@
 import { inArray, lt, sql } from "drizzle-orm";
 import { IntegrationError } from "../contracts/integrations.ts";
-import type { SyncErrorState, SyncMessage } from "../contracts/sync.ts";
+import {
+  isNotifyMessage,
+  type NotifyMessage,
+  type SyncErrorState,
+  type SyncMessage,
+} from "../contracts/sync.ts";
 import { syncState, usedTokens } from "../db/schema.ts";
 import { advanceState, config, db, env, providerPaused, watermark, writeState } from "./shared.ts";
 import { archiveNotionPage, mirrorPost, pollNotion } from "./notion.ts";
 import { createIssue, pollGitHub } from "./github.ts";
-import { consumeEmail } from "../email/deliver.ts";
+import { consumeNotification } from "../notifications/consume.ts";
+import { notifyQueue } from "../notifications/queue.ts";
 import { digestDue, emailEnabled } from "../email/events.ts";
-import type { EmailMessage } from "../contracts/sync.ts";
-import { deliverWebhook } from "../server/webhooks.ts";
 
 export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<void> {
   // Keep processing sequential even if a larger batch is delivered accidentally.
   for (const message of batch.messages) {
     const body = message.body;
-    if (body.type.startsWith("email.")) {
-      await consumeEmail(message as Message<EmailMessage>);
-      continue;
-    }
-    if (body.type === "webhook.deliver") {
-      // Webhooks have their own retry schedule and never touch the Notion/GitHub error state.
-      try {
-        const delaySeconds = await deliverWebhook(body.deliveryId);
-        if (delaySeconds === null) message.ack();
-        else message.retry({ delaySeconds });
-      } catch {
-        // D1 failed (the request itself never throws). Try again shortly.
-        console.error({ type: "webhook.deliver_failed", deliveryId: body.deliveryId });
-        message.retry({ delaySeconds: 60 });
-      }
+    if (isNotifyMessage(body)) {
+      // Drain deliveries queued before the notification binding was provisioned.
+      await consumeNotification(message as Message<NotifyMessage>);
       continue;
     }
     if (body.type.startsWith("github.") && !config.integrations.github) {
@@ -119,7 +111,8 @@ const STATE_KEYS = [
 ];
 
 /**
- * Cron: cheap D1 reads and at most one Queue call. External I/O stays in the consumer.
+ * Cron: cheap D1 reads and one sync Queue call, plus one notify call when a digest is due.
+ * External I/O stays in the consumer.
  * An idle tick is 2 D1 statements (4–5 with GitHub) and one `sendBatch` of the polls.
  */
 export async function runScheduled(controller: ScheduledController): Promise<void> {
@@ -183,9 +176,11 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
     ...(github && githubWork
       ? [{ type: "github.poll", since: since("github"), until, page: 1 } as const]
       : []),
-    ...(digest ? [digest] : []),
   ];
-  // One Queue call per tick: every send is a subrequest on Workers Free (50 per invocation).
+  // No extra idle-tick work; only a due digest sends to the notification queue.
   if (messages.length) await env.SYNC_QUEUE.sendBatch(messages.map((body) => ({ body })));
-  if (digest) await writeState("email.digest", digest.until);
+  if (digest) {
+    await notifyQueue().send(digest);
+    await writeState("email.digest", digest.until);
+  }
 }

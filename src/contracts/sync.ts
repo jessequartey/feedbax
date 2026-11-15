@@ -1,7 +1,7 @@
 import type { Status } from "./domain.ts";
 
 /**
- * User-written text as it travels in queue payloads (email now, webhooks in 08): the stored
+ * User-written text as it travels in queue payloads: the stored
  * Markdown source and a plain-text version. `text` comes
  * from `markdownToPlainText` (src/lib/markdown.ts); build both with `richText()`.
  */
@@ -44,16 +44,17 @@ export type EmailMessage =
       after?: string;
     };
 
+export type NotifyMessage = EmailMessage | { type: "webhook.deliver"; deliveryId: string };
+
+/** Includes deliveries for projects still using the pre-0.3.2 single queue. */
 export type SyncMessage =
   | { type: "notion.post"; postId: string }
   /** Moves the Notion row of a deleted post to trash. The post no longer exists in D1. */
   | { type: "notion.archive"; pageId: string }
   | { type: "github.issue"; postId: string }
-  /** One attempt at a stored webhook delivery (src/server/webhooks.ts). Retries re-send it. */
-  | { type: "webhook.deliver"; deliveryId: string }
   | { type: "notion.poll"; since: string; until: string; cursor: string | null }
   | { type: "github.poll"; since: string; until: string; page: number }
-  | EmailMessage;
+  | NotifyMessage;
 export type SyncErrorState = {
   status: number | null;
   code: string;
@@ -62,3 +63,7 @@ export type SyncErrorState = {
   /** The message type that failed; post-write failures survive a successful poll. */
   type?: SyncMessage["type"];
 };
+
+export function isNotifyMessage(message: SyncMessage): message is NotifyMessage {
+  return message.type.startsWith("email.") || message.type === "webhook.deliver";
+}

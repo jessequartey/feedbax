@@ -1,7 +1,8 @@
+import { notifyQueue } from "../notifications/queue.ts";
 import { env } from "cloudflare:workers";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { CommentView, Status } from "../contracts/domain.ts";
-import type { SyncMessage } from "../contracts/sync.ts";
+import type { NotifyMessage } from "../contracts/sync.ts";
 import {
   WEBHOOK_EVENTS,
   WEBHOOK_LIMITS,
@@ -25,8 +26,8 @@ import { publiclyVisible } from "./visibility.ts";
 
 // Webhooks (opt-in): admins add endpoints in /admin/settings → Webhooks; nothing is stored,
 // queued or sent until one exists. Events are written as `webhook_deliveries` rows (the payload
-// is kept so every retry sends the same bytes) and delivered through the existing SYNC_QUEUE
-// as `webhook.deliver` messages. Each request is signed with the endpoint's own secret:
+// is kept so every retry sends the same bytes) and delivered as `webhook.deliver` messages
+// through NOTIFY_QUEUE (SYNC_QUEUE until migrated). Each request is signed with the endpoint's own secret:
 //   X-Feedbax-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">
 // The secret is stored so it can sign; it leaves the server only at creation, rotate and
 // reveal, each an admin-only call.
@@ -171,9 +172,9 @@ async function storeAndEnqueue(rows: NewDelivery[], endpointIds: string[]): Prom
     ...typeof inserts,
   ]);
   try {
-    await env.SYNC_QUEUE.sendBatch(
+    await notifyQueue().sendBatch(
       rows.map((row) => ({
-        body: { type: "webhook.deliver", deliveryId: row.id } satisfies SyncMessage,
+        body: { type: "webhook.deliver", deliveryId: row.id } satisfies NotifyMessage,
       })),
     );
   } catch {
