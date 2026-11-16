@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   appUrlProblem,
@@ -23,12 +23,14 @@ import type { SetupAnswers, Secrets } from "../../create-feedbax/src/types.ts";
 import { emailFromProblem } from "../../../src/contracts/config.ts";
 import type { FeedbaxConfig } from "../../../src/contracts/config.ts";
 import { validateResendKey } from "./resend.ts";
+import { ensurePrivateAssets } from "./jsonc-edit.ts";
 import {
   loadConfig,
   prepareConfigEdit,
   setAppUrl,
   setEmailFrom,
   setGithubRepo,
+  setPrivate,
 } from "./config-edit.ts";
 import {
   confirmStep,
@@ -46,6 +48,7 @@ export const INTEGRATIONS = [
   "github-login",
   "google-login",
   "host-login",
+  "private",
   "email",
   "webhooks",
 ] as const;
@@ -58,6 +61,8 @@ type Change = {
   /** Values also kept in local .dev.vars (never production OAuth pairs). */
   local: Record<string, string>;
   config?: (text: string) => string;
+  /** Edit wrangler.jsonc (comments and formatting preserved). */
+  wrangler?: (text: string) => string;
   checkConfig?: (config: FeedbaxConfig) => boolean;
   done: string;
   retryOptions?: AddOptions;
@@ -88,9 +93,11 @@ export async function add(
       ? await github(ctx, project, options)
       : integration === "host-login"
         ? await hostLogin(ctx, project, options)
-        : integration === "email"
-          ? await email(ctx, project, options)
-          : await oauthLogin(ctx, project, integration === "github-login" ? "github" : "google");
+        : integration === "private"
+          ? await privateBoard(ctx, project)
+          : integration === "email"
+            ? await email(ctx, project, options)
+            : await oauthLogin(ctx, project, integration === "github-login" ? "github" : "google");
   const config = change.config ? await prepareConfigEdit(ctx.cwd, change.config) : undefined;
   if (config && change.checkConfig && !change.checkConfig(config.config))
     throw new CliError(
@@ -99,7 +106,10 @@ export async function add(
     );
   // writeVars can also update .gitignore. Compare files on failure so even a partial
   // local write is included in the recovery report, without ever printing its contents.
-  const files = ["feedbax.config.ts", ".dev.vars", ".gitignore"];
+  const wranglerBefore = change.wrangler ? await readOptional(ctx.cwd, "wrangler.jsonc") : null;
+  const wranglerAfter =
+    change.wrangler && wranglerBefore !== null ? change.wrangler(wranglerBefore) : null;
+  const files = ["feedbax.config.ts", ".dev.vars", ".gitignore", "wrangler.jsonc"];
   const before = await Promise.all(files.map((path) => readOptional(ctx.cwd, path)));
   let secretAttempted = false;
   let secretsSet = false;
@@ -118,6 +128,8 @@ export async function add(
     if (config?.changed) {
       await config.write();
     }
+    if (wranglerAfter !== null && wranglerAfter !== wranglerBefore)
+      await writeFile(join(ctx.cwd, "wrangler.jsonc"), wranglerAfter);
     if (Object.entries(change.local).some(([key, value]) => project.vars[key] !== value)) {
       await writeVars(ctx.cwd, { ...project.vars, ...change.local });
     }
@@ -321,6 +333,28 @@ async function hostLogin(ctx: Context, project: Project, options: AddOptions): P
     config: (text) => setAppUrl(text, appUrl),
     checkConfig: (config) => config.appUrl === appUrl,
     done: `Host login: appUrl = ${appUrl}. Next, in your app: copy FEEDBAX_HOST_SECRET from .dev.vars to its server environment (keep it unchanged and server-side), then add the token endpoint and FeedbaxLink: ${README_URL}`,
+  };
+}
+
+async function privateBoard(ctx: Context, project: Project): Promise<Change> {
+  const current = await loadConfig(ctx.cwd);
+  if (!current.appUrl)
+    throw new CliError(
+      "A private board signs people in through your app. Run npx feedbax add host-login first.",
+      2,
+    );
+  const hostSecret =
+    Boolean(project.vars.FEEDBAX_HOST_SECRET) ||
+    (await tools(ctx, project).secretNames()).includes("FEEDBAX_HOST_SECRET");
+  if (!hostSecret)
+    throw new CliError("FEEDBAX_HOST_SECRET is not set. Run npx feedbax add host-login first.", 2);
+  return {
+    secrets: {},
+    local: {},
+    config: setPrivate,
+    wrangler: ensurePrivateAssets,
+    checkConfig: (config) => config.auth.private === true && !config.auth.anonymous,
+    done: `Private board: every page now needs a signed-in customer from ${current.appUrl}. Anonymous posting is off. Pass visibility="customers" to FeedbaxDialog, then check with npx feedbax doctor. To undo, set auth: { anonymous: false } and restore assets.run_worker_first.`,
   };
 }
 

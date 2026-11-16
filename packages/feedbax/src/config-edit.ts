@@ -43,6 +43,24 @@ export function setGithubRepo(text: string, repo: string): string {
   );
 }
 
+/** auth → { anonymous: false, private: true }. Adds the auth block when it is absent. */
+export function setPrivate(text: string): string {
+  const value = "{ anonymous: false, private: true }";
+  if (has(text, "auth"))
+    return replaceOnce(
+      text,
+      /(["']?\bauth["']?\s*:\s*)\{[^{}]*\}/,
+      (match) => `${match[1]}${value}`,
+      "auth is not a plain object.",
+    );
+  return replaceOnce(
+    text,
+    /defineConfig\(\{/,
+    () => `defineConfig({\n  auth: ${value},`,
+    "Could not find defineConfig({.",
+  );
+}
+
 /** appUrl: replace the literal, or add it at the top of defineConfig({ … }). */
 export function setAppUrl(text: string, appUrl: string): string {
   if (has(text, "appUrl"))

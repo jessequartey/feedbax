@@ -146,7 +146,12 @@ export async function writeAppConfig(cwd: string, answers: SetupAnswers): Promis
   );
   replace(
     /(["']?anonymous["']?\s*:\s*)(?:true|false)/,
-    (match) => `${match[1]}${answers.anonymous}`,
+    (match) =>
+      `${match[1]}${answers.anonymous}${
+        answers.private && !/["']?private["']?\s*:/.test(withoutComments(original))
+          ? ", private: true"
+          : ""
+      }`,
   );
   if (answers.githubRepo)
     replace(
@@ -193,5 +198,6 @@ export async function savedAnswers(cwd: string): Promise<Partial<SetupAnswers>> 
     githubRepo: repo,
     template: repo ? "notion-github" : "notion",
     anonymous: /["']?anonymous["']?\s*:\s*true/.test(config),
+    private: /["']?private["']?\s*:\s*true/.test(config),
   };
 }

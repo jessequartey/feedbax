@@ -4,6 +4,8 @@ export type SetupAnswers = {
   name: string;
   template: "notion" | "notion-github";
   anonymous: boolean;
+  /** Customers-only board: every read needs a signed-in account (host login). */
+  private?: boolean;
   login?: "github" | "google" | "host";
   appUrl?: string;
   packageManager: PackageManager;

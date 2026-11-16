@@ -88,6 +88,7 @@ export type Flags = {
   notionPage?: string;
   githubRepo?: string;
   anonymous?: boolean;
+  private?: boolean;
   packageManager?: PackageManager;
   help: boolean;
   version: boolean;
@@ -103,12 +104,13 @@ export function parseFlags(argv: string[]): Flags {
       result.name = arg;
       continue;
     }
-    if (["--yes", "--help", "--version"].includes(arg)) {
+    if (["--yes", "--help", "--version", "--private"].includes(arg)) {
       if (seen.has(arg)) throw new CliError("Do not repeat flags.", 2);
       seen.add(arg);
       if (arg === "--yes") result.yes = true;
       if (arg === "--help") result.help = true;
       if (arg === "--version") result.version = true;
+      if (arg === "--private") result.private = true;
       continue;
     }
     const [key, ...rest] = arg.split("=");
@@ -175,6 +177,22 @@ export function parseFlags(argv: string[]): Flags {
     check(!repoProblem(values["--github-repo"]), repoProblem(values["--github-repo"])!);
     result.githubRepo = values["--github-repo"];
   }
+  if (result.private) {
+    check(
+      result.anonymous !== true,
+      "--private cannot be combined with --anonymous true: a private board has no anonymous readers.",
+    );
+    check(
+      result.login === undefined || result.login === "host",
+      "--private signs people in through your app: use --login host (or omit --login).",
+    );
+    check(
+      result.appUrl !== undefined,
+      "--private needs --app-url, the app people sign in through.",
+    );
+    result.login = "host";
+    result.anonymous = false;
+  }
   if (result.template === "notion" && result.githubRepo)
     throw new CliError("--github-repo requires --template notion-github.", 2);
   return result;
@@ -192,6 +210,7 @@ Usage: create-feedbax [name] [options]
   --login github|google|host     Optional; default: none (add later: npx feedbax add github-login)
   --app-url <https-url>          Required for host login
   --anonymous true|false         Default: true
+  --private                      Customers-only board; needs --app-url (host login)
   --package-manager npm|pnpm|bun  Default: your package manager
   --help                        Offline help
   --version                     Offline version

@@ -332,10 +332,14 @@ export async function setup(
     compatibility_flags: ["nodejs_compat"],
     assets: {
       ...(ownsResources ? config?.assets : {}),
+      ...(answers.private ? { binding: "ASSETS" } : {}),
       not_found_handling: "single-page-application",
       // Auth callbacks, RPCs, the admin sign-in link and the changelog RSS feed must reach
-      // the Worker even for browser navigation.
-      run_worker_first: ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"],
+      // the Worker even for browser navigation. A private board runs the Worker first for
+      // everything so it can authorize each request before any file is served.
+      run_worker_first: answers.private
+        ? true
+        : ["/api/*", "/_serverFn/*", "/admin/enter", "/changelog.rss"],
     },
     observability: {
       ...(ownsResources ? config?.observability : {}),

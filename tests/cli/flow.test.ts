@@ -533,6 +533,43 @@ describe("minimal default setup", () => {
       "Open the Notion setup links in your browser? [default No]",
     ]);
   });
+  it("--private writes a customers-only config and worker-first assets", async () => {
+    const f = await minimal();
+    expect(
+      await main(["my-feedback", "--yes", "--private", "--app-url=https://app.example.com"], f),
+    ).toBe(0);
+    const dir = join(f.cwd, "my-feedback");
+    expect(await readFile(join(dir, "feedbax.config.ts"), "utf8")).toMatch(
+      /anonymous: false, private: true/,
+    );
+    const wrangler = parseJsonc(await readFile(join(dir, "wrangler.jsonc"), "utf8")) as {
+      assets: { binding: string; run_worker_first: unknown };
+    };
+    expect(wrangler.assets).toMatchObject({ binding: "ASSETS", run_worker_first: true });
+    expect(f.prompt.log.join("\n")).toContain('visibility="customers"');
+  });
+  it("--private needs an app to sign in through and no anonymous posting", async () => {
+    const f = await minimal();
+    expect(await main(["my-feedback", "--yes", "--private"], f)).toBe(2);
+    expect(
+      await main(
+        [
+          "my-feedback",
+          "--yes",
+          "--private",
+          "--anonymous=true",
+          "--app-url=https://a.example.com",
+        ],
+        f,
+      ),
+    ).toBe(2);
+    expect(
+      await main(
+        ["my-feedback", "--yes", "--private", "--login=github", "--app-url=https://a.example.com"],
+        f,
+      ),
+    ).toBe(2);
+  });
   it("warns that nobody can post when anonymous is turned off without a provider", async () => {
     const f = await minimal();
     expect(await main(["my-feedback", "--yes", "--anonymous=false"], f)).toBe(0);
