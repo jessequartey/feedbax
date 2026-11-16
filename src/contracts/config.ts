@@ -2,7 +2,7 @@ import type { Category } from "./domain.ts";
 export type FeedbaxConfigInput = {
   name?: string;
   appUrl?: string;
-  auth?: { anonymous?: boolean };
+  auth?: { anonymous?: boolean; private?: boolean };
   showcase?: boolean;
   /** Opt-in add-ons (`npx feedbax add email`). The Resend key is the RESEND_API_KEY secret. */
   notifications?: { email?: false | { from: string } };
@@ -11,7 +11,7 @@ export type FeedbaxConfigInput = {
 export type FeedbaxConfig = {
   name: string;
   appUrl: string | null;
-  auth: { anonymous: boolean };
+  auth: { anonymous: boolean; private?: boolean };
   showcase: boolean;
   notifications: { email: false | { from: string } };
   integrations: { notion: { dataSourceId: string }; github: false | { repo: string } };
@@ -110,6 +110,18 @@ export function defineConfig(input: FeedbaxConfigInput): FeedbaxConfig {
     }
   }
 
+  const isPrivate = isRecord(root.auth) && root.auth.private === true;
+  if (
+    isRecord(root.auth) &&
+    root.auth.private !== undefined &&
+    typeof root.auth.private !== "boolean"
+  )
+    problems.push("auth.private: must be true or false");
+  // Sign-in for a private board goes through the host app, so it needs somewhere to send people.
+  if (isPrivate && anonymous) problems.push("auth.private: cannot be combined with auth.anonymous");
+  if (isPrivate && !appUrl)
+    problems.push("auth.private: requires appUrl (people sign in through your app)");
+
   let showcase = false;
   if (root.showcase !== undefined) {
     if (typeof root.showcase !== "boolean") {
@@ -171,7 +183,7 @@ export function defineConfig(input: FeedbaxConfigInput): FeedbaxConfig {
   return {
     name,
     appUrl,
-    auth: { anonymous },
+    auth: { anonymous, ...(isPrivate ? { private: true } : {}) },
     showcase,
     notifications: { email },
     integrations: { notion: { dataSourceId }, github },
