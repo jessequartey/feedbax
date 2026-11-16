@@ -54,6 +54,8 @@ Fit it to how we actually work. Do not just accept defaults.
 4. Build exactly the approved plan:
    - `npx create-feedbax@latest --help`, then `npx create-feedbax@latest`
      (pnpm: `pnpm dlx create-feedbax@latest`, bun: `bunx create-feedbax@latest`).
+   - Customers-only board: `npx create-feedbax@latest --private --app-url <our app>`
+     (existing project: `npx feedbax@latest add host-login`, then `add private`).
    - Add only what the plan names: `npx feedbax@latest add host-login | github |
      github-login | google-login | email | webhooks`.
    - Ask me only for what only I can provide, once: Notion page and token (check
