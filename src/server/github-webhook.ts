@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import config from "../../feedbax.config.ts";
+import { integrationConfig as config } from "./integration-config.ts";
 import { boundedBody } from "./request.ts";
 import { readSettings } from "./settings.ts";
 
