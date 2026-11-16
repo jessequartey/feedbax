@@ -30,7 +30,8 @@ from the project folder. See the [Feedbax README](https://github.com/jessequarte
 sync during setup. `--login github|google` (with `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET`
 or `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET`) or `--login host --app-url https://your-app.example`
 configures sign-in during setup. `--anonymous false` turns anonymous feedback off, which
-needs a sign-in provider. With `--login`, setup prints the exact OAuth callback before
+needs a sign-in provider. `--private --app-url https://your-app.example` makes a customers-only
+board: every page, image and feed needs a signed-in account from that app (host login). With `--login`, setup prints the exact OAuth callback before
 creating resources, and `--yes` needs the credentials in the environment or private `.dev.vars`.
 A configured pair does not prove login: complete a real sign-in and first feedback write.
 Host setup always reports the external integration as pending. Half-pairs are rejected
