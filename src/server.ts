@@ -24,9 +24,11 @@ export default {
         );
       }
       // A private board runs the Worker first for every request, so it serves its own static files.
-      const assets = (env as { ASSETS?: Fetcher }).ASSETS;
-      if (config.auth.private && assets && isStaticAsset(new URL(request.url).pathname))
-        return await assets.fetch(request);
+      const staticFiles = (env as { ASSETS?: Fetcher }).ASSETS;
+      if (config.auth.private && staticFiles && isStaticAsset(new URL(request.url).pathname)) {
+        const file = await staticFiles.fetch(request);
+        return file;
+      }
       const denied = await enforceReadAccess(request, config, () => viewerUser(request.headers));
       if (denied) return denied;
       if (new URL(request.url).pathname === "/api/webhooks/github")
