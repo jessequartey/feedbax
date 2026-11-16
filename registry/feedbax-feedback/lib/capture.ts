@@ -36,10 +36,13 @@ function pageBackground(): string {
   return "white";
 }
 
-/** Nodes the snapshot leaves out: anything marked `data-feedbax-ignore`, and the dialog overlay. */
+/** Nodes the snapshot leaves out: anything marked `data-feedbax-ignore`, the dialog overlay, and secret fields. */
 export const isIgnored = (node: Node): boolean =>
   node instanceof Element &&
-  (node.hasAttribute(IGNORE_ATTRIBUTE) || node.getAttribute("data-slot") === "dialog-overlay");
+  (node.hasAttribute(IGNORE_ATTRIBUTE) ||
+    node.getAttribute("data-slot") === "dialog-overlay" ||
+    node.getAttribute("type") === "password" ||
+    node.getAttribute("autocomplete") === "one-time-code");
 
 /**
  * Captures what the user currently sees: the visible viewport of this page, as a PNG.
