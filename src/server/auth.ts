@@ -65,7 +65,7 @@ export function publicConfig(
     },
   };
 }
-function htmlPage(title: string, body: string, status: number, form = false) {
+export function htmlPage(title: string, body: string, status: number, form = false) {
   // no-referrer makes native form posts send Origin: null in Chrome, so a page with a
   // form sends only the origin (never the token's path/query) instead.
   const referrer = form ? "strict-origin" : "no-referrer";

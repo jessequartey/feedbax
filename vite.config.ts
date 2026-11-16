@@ -39,7 +39,7 @@ const GENERATED = [
   "packages/**/template/**",
 ];
 
-const config = defineConfig({
+const config = defineConfig(({ command }) => ({
   // Generated or shadcn-managed files are never reformatted: `shadcn apply` and the
   // generators rewrite them, and hand edits would be lost (spec §14).
   fmt: { ignorePatterns: GENERATED },
@@ -56,12 +56,33 @@ const config = defineConfig({
   plugins: testing
     ? []
     : lazyPlugins(() => [
-        cloudflare({ viteEnvironment: { name: "ssr" } }),
-
-        tanstackStart({
-          spa: { enabled: true, prerender: { outputPath: "/index" } },
-          prerender: { autoStaticPathsDiscovery: false },
+        cloudflare({
+          viteEnvironment: { name: "ssr" },
+          // Production runs the Worker first so a private board authorizes every request. In dev
+          // Vite must serve its own modules (/src, /@id, fonts), so route only the server paths.
+          config: (userConfig) => {
+            // Edit in place: a returned value is merged, and merging two route lists duplicates them.
+            if (feedbax.auth.private && command === "serve" && userConfig.assets)
+              userConfig.assets.run_worker_first = [
+                "/api/*",
+                "/_serverFn/*",
+                "/admin/enter",
+                "/changelog.rss",
+              ];
+            return {};
+          },
         }),
+
+        // A private board cannot prerender: the build fetches pages without a session and gets
+        // 401. It renders on the Worker instead, behind the read gate.
+        tanstackStart(
+          feedbax.auth.private
+            ? {}
+            : {
+                spa: { enabled: true, prerender: { outputPath: "/index" } },
+                prerender: { autoStaticPathsDiscovery: false },
+              },
+        ),
         viteReact(),
         tailwindcss(),
         editorBundleGuard(),
@@ -82,6 +103,6 @@ const config = defineConfig({
     testTimeout: 20_000,
     hookTimeout: 30_000,
   },
-});
+}));
 
 export default config;

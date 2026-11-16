@@ -13,7 +13,7 @@ export type Wrangler = {
   name?: string;
   account_id?: string;
   main?: string;
-  assets?: { run_worker_first?: unknown; not_found_handling?: string };
+  assets?: { run_worker_first?: unknown; not_found_handling?: string; binding?: string };
   vars?: Record<string, unknown>;
   d1_databases?: {
     binding?: string;
