@@ -184,6 +184,26 @@ npx feedbax@latest add host-login --app-url https://app.example.com --yes
 
 Then [add the feedback dialog](#add-the-feedback-dialog-to-your-app). Until the token endpoint works, people can browse but cannot sign in through your app.
 
+### End a host user's board session
+
+Host login creates a separate 7-day board session. Signing out of your app, deleting the account or banning the user does not end it. Do that from your server:
+
+```ts
+import { mintFeedbaxToken } from "@/lib/feedbax/token.server";
+
+const token = await mintFeedbaxToken({
+  secret: process.env.FEEDBAX_HOST_SECRET!,
+  user: { id, name },
+});
+await fetch("https://feedback.example.com/api/host/revoke", {
+  method: "POST",
+  headers: { authorization: `Bearer ${token}` },
+});
+```
+
+- Call it on sign-out, account deletion and ban. It deletes every board session for that user and returns 204, even for a user who never opened the board. The token works once, like the dialog's.
+- It does not ban. To keep someone out for good, also ban them in **Admin → Users**.
+
 ### Add email notifications
 
 People with a known email (GitHub, Google or host login) are emailed when a post they follow (by posting, voting, commenting, or clicking **Follow**) changes status, or someone comments on a followed post or replies to their comment. Anonymous users get none. Every email includes a one-click unfollow link for that post alongside a category unsubscribe. Sending uses [Resend](https://resend.com/api-keys). Verify the domain at [resend.com/domains](https://resend.com/domains). Without a key and a from-address, email stays off.

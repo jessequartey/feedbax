@@ -35,6 +35,7 @@ import { Route as PortalChangelogEntryIdRouteImport } from './routes/_portal.cha
 import { Route as PortalPostsPostIdRouteImport } from './routes/_portal.posts.$postId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiEmailUnsubscribeRouteImport } from './routes/api/email/unsubscribe'
+import { Route as ApiHostRevokeRouteImport } from './routes/api/host/revoke'
 import { Route as ApiMediaIdRouteImport } from './routes/api/media/$id'
 import { Route as ApiSearchSimilarRouteImport } from './routes/api/search_.similar'
 
@@ -167,6 +168,11 @@ const ApiEmailUnsubscribeRoute = ApiEmailUnsubscribeRouteImport.update({
   path: '/api/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHostRevokeRoute = ApiHostRevokeRouteImport.update({
+  id: '/api/host/revoke',
+  path: '/api/host/revoke',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaIdRoute = ApiMediaIdRouteImport.update({
   id: '/api/media/$id',
   path: '/api/media/$id',
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
+  '/api/host/revoke': typeof ApiHostRevokeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/api/search/similar': typeof ApiSearchSimilarRoute
   '/admin/': typeof PortalAdminIndexRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
+  '/api/host/revoke': typeof ApiHostRevokeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/api/search/similar': typeof ApiSearchSimilarRoute
   '/admin': typeof PortalAdminIndexRoute
@@ -261,6 +269,7 @@ export interface FileRoutesById {
   '/_portal/posts/$postId': typeof PortalPostsPostIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/email/unsubscribe': typeof ApiEmailUnsubscribeRoute
+  '/api/host/revoke': typeof ApiHostRevokeRoute
   '/api/media/$id': typeof ApiMediaIdRoute
   '/api/search_/similar': typeof ApiSearchSimilarRoute
   '/_portal/admin/': typeof PortalAdminIndexRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/email/unsubscribe'
+    | '/api/host/revoke'
     | '/api/media/$id'
     | '/api/search/similar'
     | '/admin/'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/posts/$postId'
     | '/api/auth/$'
     | '/api/email/unsubscribe'
+    | '/api/host/revoke'
     | '/api/media/$id'
     | '/api/search/similar'
     | '/admin'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/_portal/posts/$postId'
     | '/api/auth/$'
     | '/api/email/unsubscribe'
+    | '/api/host/revoke'
     | '/api/media/$id'
     | '/api/search_/similar'
     | '/_portal/admin/'
@@ -365,6 +377,7 @@ export interface RootRouteChildren {
   ApiSearchRoute: typeof ApiSearchRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEmailUnsubscribeRoute: typeof ApiEmailUnsubscribeRoute
+  ApiHostRevokeRoute: typeof ApiHostRevokeRoute
   ApiMediaIdRoute: typeof ApiMediaIdRoute
   ApiSearchSimilarRoute: typeof ApiSearchSimilarRoute
 }
@@ -553,6 +566,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/host/revoke': {
+      id: '/api/host/revoke'
+      path: '/api/host/revoke'
+      fullPath: '/api/host/revoke'
+      preLoaderRoute: typeof ApiHostRevokeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/media/$id': {
       id: '/api/media/$id'
       path: '/api/media/$id'
@@ -634,6 +654,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchRoute: ApiSearchRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEmailUnsubscribeRoute: ApiEmailUnsubscribeRoute,
+  ApiHostRevokeRoute: ApiHostRevokeRoute,
   ApiMediaIdRoute: ApiMediaIdRoute,
   ApiSearchSimilarRoute: ApiSearchSimilarRoute,
 }
