@@ -514,6 +514,15 @@ describe("feedbax doctor and deploy", () => {
     expect(h.output()).toContain("All checks passed.");
   });
 
+  it("does not ask for a Notion token when Notion sync is off", async () => {
+    const off = JSON.parse(wrangler);
+    off.vars.FEEDBAX_NOTION_ENABLED = "false";
+    const cwd = await project({ "wrangler.jsonc": JSON.stringify(off) });
+    const h = harness(cwd, {}, ["BETTER_AUTH_SECRET", "FEEDBAX_HOST_SECRET"]);
+    expect(await main(["doctor"], h.deps)).toBe(0);
+    expect(h.output()).not.toContain("NOTION_TOKEN");
+  });
+
   it("fails with a concrete fix per problem", async () => {
     const cwd = await project({
       "feedbax.config.ts": configSource('{ repo: "team/app" }'),
@@ -530,6 +539,21 @@ describe("feedbax doctor and deploy", () => {
     expect(output).toContain("Run npx feedbax add github-login to set both.");
     expect(output).toContain("Notion sync is failing");
     expect(output).toContain("no GITHUB_TOKEN in .dev.vars");
+  });
+
+  it("fails a private board that still serves static files before the Worker", async () => {
+    const privateConfig = configSource().replace(
+      "auth: { anonymous: true },",
+      'appUrl: "https://app.example.com",\n  auth: { anonymous: false, private: true },',
+    );
+    const cwd = await project({
+      "feedbax.config.ts": privateConfig,
+      "wrangler.jsonc": wranglerJson(),
+    });
+    const h = harness(cwd, {}, secrets);
+    expect(await main(["doctor"], h.deps)).toBe(1);
+    expect(h.output()).toContain("auth.private is on but assets.run_worker_first is not true");
+    expect(h.output()).toContain("assets binding is not named ASSETS");
   });
 
   it("asks for /changelog.rss when only the older routes are there", async () => {

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
-import config from "../../feedbax.config.ts";
+import { integrationConfig as config } from "./integration-config.ts";
 import type {
   DeletePostResult,
   MergeCandidate,

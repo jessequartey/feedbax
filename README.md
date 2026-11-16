@@ -215,6 +215,19 @@ RESEND_API_KEY=… npx feedbax@latest add email --from "Feedbax <feedback@exampl
 
 This sets `RESEND_API_KEY` and `notifications.email.from`. Remove `notifications.email` from `feedbax.config.ts` to turn email off. Deliveries retry temporary failures and continue large audiences in small slices. Completed recipients are skipped on redelivery; unsubscribes are checked before each send. If a send remains uncertain for 24 hours, it is recorded as `idempotency_expired` rather than replayed outside Resend’s deduplication window.
 
+### Make the board private
+
+For a customer-only board (every page, image, search and feed needs a signed-in account). **Anonymous off only stops anonymous posting; it does not hide anything.** Private boards sign people in through your app (see [Add login from your own app](#add-login-from-your-own-app)), so set that up first.
+
+1. In `feedbax.config.ts` set `appUrl` and `auth: { anonymous: false, private: true }`.
+2. In `wrangler.jsonc` set `"assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true }`.
+3. Run `npx feedbax@latest doctor`, then `npm run deploy`. The build skips the static prerender and renders on the Worker.
+
+- Signed-out and banned people get 401 (pages redirect to your app). Responses are `private, no-store` and `noindex`. Link previews and RSS readers need a session.
+- Still open: `/api/health`, sign-in routes, `/admin/enter`, `/api/host/revoke` (token-authenticated), the GitHub webhook and static files. The post endpoint checks its own token.
+- Signing out of your app does not end the board session (7 days). Ban the user in **Admin → Users** to cut access now.
+- Sign-in with GitHub or Google only is not supported on a private board yet.
+
 ### Add webhooks
 
 Endpoints are managed in the portal, not in files or secrets. `npx feedbax@latest add webhooks` only prints these steps:
@@ -408,6 +421,18 @@ For OAuth, set both values of a provider. An incomplete pair stops startup. Regi
 For local OAuth, use a separate development app with `http://localhost:3000/api/auth/callback/github` (or `/google`). Put those credentials in `.dev.vars`. Leave the production callback and Cloudflare secrets unchanged. Editing `.dev.vars` does not rotate a production secret.
 
 When resuming `create-feedbax` with `--login`, confirm saved OAuth credentials match the printed production URL. With `--yes`, pass production client id and secret in the environment for every configured provider. Setup will not upload saved development credentials without confirmation.
+
+### Turn integrations off or point them elsewhere
+
+Set these as `vars` in `wrangler.jsonc`, then run `npm run deploy`. No code change, and projects without them behave as before.
+
+| Variable                       | Effect                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `FEEDBAX_NOTION_ENABLED=false` | Skips Notion sync and drains its queued work with no outside calls. Health shows `notion: off`      |
+| `FEEDBAX_GITHUB_ENABLED`       | `true` opens issues for approved posts (needs `FEEDBAX_GITHUB_REPO=owner/repo`); `false` stops them |
+| `FEEDBAX_GITHUB_LABELS`        | Comma-separated labels for new issues, up to 10. Labels do not approve anything                     |
+
+`npx feedbax@latest doctor` skips the Notion checks when Notion is off. The secrets stay `NOTION_TOKEN` and `GITHUB_TOKEN`.
 
 ## Theming
 

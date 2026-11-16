@@ -77,11 +77,34 @@ export function bindingProblems(project: Project): Check["problems"] {
   return problems;
 }
 
-export function requiredSecrets(config: FeedbaxConfig | undefined): string[] {
+/** A private board only stays private if the Worker sees every request before static files. */
+export function privateBoardProblems(project: Project, config: FeedbaxConfig): Check["problems"] {
+  if (!config.auth.private) return [];
+  const problems: Check["problems"] = [];
+  const assets = project.wrangler.assets;
+  if (assets?.run_worker_first !== true)
+    problems.push({
+      problem: "auth.private is on but assets.run_worker_first is not true",
+      fix: 'Set "assets": { "binding": "ASSETS", "run_worker_first": true } in wrangler.jsonc.',
+    });
+  if (assets?.binding !== "ASSETS")
+    problems.push({
+      problem: "auth.private is on but the assets binding is not named ASSETS",
+      fix: 'Add "binding": "ASSETS" to assets in wrangler.jsonc so the Worker can serve static files.',
+    });
+  return problems;
+}
+
+/** `FEEDBAX_NOTION_ENABLED=false` in wrangler vars turns Notion sync off. */
+export function notionEnabled(project: Project): boolean {
+  return project.wrangler.vars?.FEEDBAX_NOTION_ENABLED !== "false";
+}
+
+export function requiredSecrets(config: FeedbaxConfig | undefined, notion = true): string[] {
   return [
     "BETTER_AUTH_SECRET",
     "FEEDBAX_HOST_SECRET",
-    "NOTION_TOKEN",
+    ...(notion ? ["NOTION_TOKEN"] : []),
     ...(config?.integrations.github ? ["GITHUB_TOKEN"] : []),
     ...(config?.notifications.email ? ["RESEND_API_KEY"] : []),
   ];
@@ -110,6 +133,10 @@ export async function doctor(ctx: Context): Promise<number> {
   await check("wrangler.jsonc bindings", (c) => {
     c.problems.push(...bindingProblems(project));
   });
+  await check("private board", (c) => {
+    if (config) c.problems.push(...privateBoardProblems(project, config));
+    else c.skipped = "feedbax.config.ts did not load";
+  });
   await check("Cloudflare secrets", async (c) => {
     let names: string[];
     try {
@@ -121,7 +148,7 @@ export async function doctor(ctx: Context): Promise<number> {
       });
       return;
     }
-    for (const name of requiredSecrets(config))
+    for (const name of requiredSecrets(config, notionEnabled(project)))
       if (!names.includes(name))
         c.problems.push({
           problem: `${name} is not set`,
@@ -180,6 +207,10 @@ export async function doctor(ctx: Context): Promise<number> {
   });
   const factories = ctx.clients ?? (await loadClients());
   await check("Notion access", async (c) => {
+    if (!notionEnabled(project)) {
+      c.skipped = "Notion sync is off (FEEDBAX_NOTION_ENABLED=false)";
+      return;
+    }
     const token = ctx.env.NOTION_TOKEN || project.vars.NOTION_TOKEN;
     if (!token) {
       c.problems.push({

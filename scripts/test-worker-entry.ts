@@ -24,7 +24,9 @@ try {
   await resetEnv();
   const { form, mintToken } = await import("../tests/api/helpers.ts");
   const built = await readFile(entry, "utf8");
-  const frameworkName = /return await ([\w$]+)\.fetch\(request\)/.exec(built)?.[1];
+  // The framework handler is the last request.fetch call; a private board also serves static
+  // files through the assets binding earlier in the same function.
+  const frameworkName = [...built.matchAll(/await ([\w$]+)\.fetch\(request\)/g)].at(-1)?.[1];
   assert(frameworkName, "find the emitted framework handler");
   // Expose the unmodified framework handler to verify its default policy independently
   // of Feedbax's early worker guard. This temporary module is removed below.
