@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { integrationConfig as config } from "./integration-config.ts";
 import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./request.ts";
 import type { ErrorCode } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
-import { syncState } from "../db/schema.ts";
+import { session, syncState, user } from "../db/schema.ts";
 import { emailEnabled } from "../email/events.ts";
 import { createAuth, publicConfig } from "./auth.ts";
 import { runtimeConfig } from "./settings.ts";
@@ -115,6 +115,33 @@ export async function handlePosts(request: Request, settings = config): Promise<
     response.headers.set("Access-Control-Expose-Headers", "Retry-After");
   }
   return response;
+}
+/**
+ * Ends every portal session of one host user. The host server calls it when that user signs
+ * out, is deleted or is banned, with a freshly minted host token for them (the same token the
+ * dialog uses, single use, five minutes). Banning on the board itself stays in Admin → Users.
+ */
+export async function handleHostRevoke(request: Request): Promise<Response> {
+  try {
+    if (request.method !== "POST")
+      return new Response(null, { status: 405, headers: { Allow: "POST" } });
+    const authorization = request.headers.get("authorization");
+    if (!authorization?.startsWith("Bearer "))
+      throw new DomainError("unauthenticated", "A host token is required.");
+    const claims = await verifyHostToken(authorization.slice(7));
+    await consumeHostToken(claims);
+    const db = createDb(env.DB);
+    const row = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.hostSubject, claims.sub))
+      .get();
+    // An unknown subject is not an error: the host cannot tell whether they ever opened the board.
+    if (row) await db.delete(session).where(eq(session.userId, row.id));
+    return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return errorResponse(error, "request");
+  }
 }
 export async function handleAuth(request: Request): Promise<Response> {
   try {
