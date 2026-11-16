@@ -1,3 +1,6 @@
+import config from "../feedbax.config.ts";
+import { htmlPage, viewerUser } from "./server/auth.ts";
+import { enforceReadAccess, isStaticAsset, privateResponse } from "./server/read-access.ts";
 import { env } from "cloudflare:workers";
 import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./server/request.ts";
 import { errorResponse } from "./server/http.ts";
@@ -10,6 +13,22 @@ import type { SyncMessage } from "./contracts/sync.ts";
 export default {
   fetch: async (request: Request) => {
     try {
+      if (new URL(request.url).pathname === "/api/auth/feedbax/required") {
+        const app = new URL(config.appUrl ?? "/", request.url);
+        app.searchParams.set("feedback", "board");
+        const href = app.href.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+        return htmlPage(
+          "Sign in to feedback",
+          `<h1>Customer feedback</h1><p>Sign in through the app to view ideas, updates and screenshots.</p><a href="${href}">Continue to the app</a>`,
+          401,
+        );
+      }
+      // A private board runs the Worker first for every request, so it serves its own static files.
+      const assets = (env as { ASSETS?: Fetcher }).ASSETS;
+      if (config.auth.private && assets && isStaticAsset(new URL(request.url).pathname))
+        return await assets.fetch(request);
+      const denied = await enforceReadAccess(request, config, () => viewerUser(request.headers));
+      if (denied) return denied;
       if (new URL(request.url).pathname === "/api/webhooks/github")
         return await handleGitHubWebhook(request);
       // The bearer route bounds its own stream after origin/auth checks and adds CORS
@@ -31,7 +50,8 @@ export default {
         headers.delete("content-length");
         request = new Request(request, { method: request.method, headers, body });
       }
-      return await handler.fetch(request);
+      const response = await handler.fetch(request);
+      return config.auth.private ? privateResponse(response) : response;
     } catch (error) {
       return errorResponse(error);
     }
