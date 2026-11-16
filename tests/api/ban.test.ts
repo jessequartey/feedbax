@@ -2,7 +2,7 @@ import { beforeEach, expect, it } from "vite-plus/test";
 import { env } from "cloudflare:workers";
 import { resetEnv } from "../fixtures/cloudflare-workers.ts";
 import { requireWriter, viewerUser } from "../../src/server/auth.ts";
-import { handleAuth, handlePosts } from "../../src/server/http.ts";
+import { handleAuth, handleHostRevoke, handlePosts } from "../../src/server/http.ts";
 import { createPostForUser } from "../../src/server/posts.ts";
 import { addCommentForUser } from "../../src/server/comments.ts";
 import { setVoteForUser } from "../../src/server/votes.ts";
@@ -66,4 +66,25 @@ it("blocks a banned host user on the bearer post API", async () => {
   expect(response.status).toBe(403);
   expect(await response.json()).toMatchObject({ error: { code: "forbidden" } });
   expect(await count("posts")).toBe(0);
+});
+
+it("a host token revokes that user's sessions once, and only theirs", async () => {
+  const mine = await signIn("host-a");
+  const other = await signIn("host-b");
+  const token = await mintToken({ sub: "host-a" });
+  const call = () =>
+    handleHostRevoke(
+      new Request(`${env.PORTAL_URL}/api/host/revoke`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      }),
+    );
+  expect((await call()).status).toBe(204);
+  expect(await viewerUser(mine)).toBeNull();
+  expect(await viewerUser(other)).not.toBeNull();
+  expect((await call()).status).toBe(401); // replay
+  expect(
+    (await handleHostRevoke(new Request(`${env.PORTAL_URL}/api/host/revoke`, { method: "POST" })))
+      .status,
+  ).toBe(401);
 });
