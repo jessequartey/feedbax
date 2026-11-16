@@ -8,6 +8,11 @@ declare namespace Cloudflare {
     BETTER_AUTH_SECRET: string;
     FEEDBAX_HOST_SECRET: string;
     NOTION_TOKEN: string;
+    FEEDBAX_GITHUB_ENABLED?: string;
+    FEEDBAX_GITHUB_REPO?: string;
+    FEEDBAX_GITHUB_LABELS?: string;
+    FEEDBAX_NOTION_ENABLED?: string;
+    FEEDBAX_NOTION_DATA_SOURCE_ID?: string;
     GITHUB_TOKEN?: string;
     GITHUB_WEBHOOK_SECRET?: string;
     GITHUB_CLIENT_ID?: string;

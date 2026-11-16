@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import config from "../../feedbax.config.ts";
+import { integrationConfig as config } from "./integration-config.ts";
 import type { AdminSettings } from "../contracts/admin.ts";
 import type { ViewerUser } from "../contracts/domain.ts";
 import { requireAdmin } from "./auth.ts";
