@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { inArray } from "drizzle-orm";
-import config from "../../feedbax.config.ts";
+import { integrationConfig as config } from "./integration-config.ts";
 import { boundedBody, MULTIPART_BYTES, requireSameOrigin } from "./request.ts";
 import type { ErrorCode } from "../contracts/domain.ts";
 import { createDb } from "../db/client.ts";
@@ -207,7 +207,8 @@ export async function handleHealth(settings = config): Promise<Response> {
       {
         ok: true,
         email: emailEnabled(env, settings) ? (failing("email") ? "failing" : "ok") : "off",
-        notion: failing("notion") ? "failing" : "ok",
+        notion:
+          env.FEEDBAX_NOTION_ENABLED === "false" ? "off" : failing("notion") ? "failing" : "ok",
         github: settings.integrations.github ? (failing("github") ? "failing" : "ok") : "off",
       },
       { headers: { "Cache-Control": "no-store" } },

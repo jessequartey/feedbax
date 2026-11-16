@@ -95,11 +95,16 @@ export function privateBoardProblems(project: Project, config: FeedbaxConfig): C
   return problems;
 }
 
-export function requiredSecrets(config: FeedbaxConfig | undefined): string[] {
+/** `FEEDBAX_NOTION_ENABLED=false` in wrangler vars turns Notion sync off. */
+export function notionEnabled(project: Project): boolean {
+  return project.wrangler.vars?.FEEDBAX_NOTION_ENABLED !== "false";
+}
+
+export function requiredSecrets(config: FeedbaxConfig | undefined, notion = true): string[] {
   return [
     "BETTER_AUTH_SECRET",
     "FEEDBAX_HOST_SECRET",
-    "NOTION_TOKEN",
+    ...(notion ? ["NOTION_TOKEN"] : []),
     ...(config?.integrations.github ? ["GITHUB_TOKEN"] : []),
     ...(config?.notifications.email ? ["RESEND_API_KEY"] : []),
   ];
@@ -143,7 +148,7 @@ export async function doctor(ctx: Context): Promise<number> {
       });
       return;
     }
-    for (const name of requiredSecrets(config))
+    for (const name of requiredSecrets(config, notionEnabled(project)))
       if (!names.includes(name))
         c.problems.push({
           problem: `${name} is not set`,
@@ -202,6 +207,10 @@ export async function doctor(ctx: Context): Promise<number> {
   });
   const factories = ctx.clients ?? (await loadClients());
   await check("Notion access", async (c) => {
+    if (!notionEnabled(project)) {
+      c.skipped = "Notion sync is off (FEEDBAX_NOTION_ENABLED=false)";
+      return;
+    }
     const token = ctx.env.NOTION_TOKEN || project.vars.NOTION_TOKEN;
     if (!token) {
       c.problems.push({

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { and, eq, or, sql } from "drizzle-orm";
-import config from "../../feedbax.config.ts";
+import { integrationConfig as config } from "../server/integration-config.ts";
 import { createDb } from "../db/client.ts";
 import { posts, images, user, syncState } from "../db/schema.ts";
 import type { SyncErrorState } from "../contracts/sync.ts";
