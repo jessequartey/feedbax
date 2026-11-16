@@ -55,6 +55,8 @@ export type FeedbaxDialogProps = {
   /** After a successful send, sign the user in to the portal and open their post. Default true. */
   redirectOnSubmit?: boolean;
   onSubmitted?: (result: CreatePostResult) => void;
+  /** Who can read the board, for the notice under the form. Default "public"; use "customers" for a private board. */
+  visibility?: "public" | "customers";
   /** Optional controlled state. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -791,8 +793,10 @@ export function FeedbaxDialog(props: FeedbaxDialogProps) {
                   ) : null}
                   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                     <p className="max-w-md text-[11px] leading-snug text-muted-foreground">
-                      Your title, description and images are public on the feedback portal. Nothing
-                      else about this page is sent.
+                      {props.visibility === "customers"
+                        ? "Your title, description and images are visible to signed-in customers on the feedback board."
+                        : "Your title, description and images are public on the feedback portal."}{" "}
+                      Nothing else about this page is sent.
                     </p>
                     <div className="ml-auto flex items-center gap-2">
                       {sending ? (
