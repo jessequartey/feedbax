@@ -195,6 +195,19 @@ RESEND_API_KEY=… npx feedbax@latest add email --from "Feedbax <feedback@exampl
 
 This sets `RESEND_API_KEY` and `notifications.email.from`. Remove `notifications.email` from `feedbax.config.ts` to turn email off. Deliveries retry temporary failures and continue large audiences in small slices. Completed recipients are skipped on redelivery; unsubscribes are checked before each send. If a send remains uncertain for 24 hours, it is recorded as `idempotency_expired` rather than replayed outside Resend’s deduplication window.
 
+### Make the board private
+
+For a customer-only board (every page, image, search and feed needs a signed-in account). **Anonymous off only stops anonymous posting; it does not hide anything.** Private boards sign people in through your app (see [Add login from your own app](#add-login-from-your-own-app)), so set that up first.
+
+1. In `feedbax.config.ts` set `appUrl` and `auth: { anonymous: false, private: true }`.
+2. In `wrangler.jsonc` set `"assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": true }`.
+3. Run `npx feedbax@latest doctor`, then `npm run deploy`. The build skips the static prerender and renders on the Worker.
+
+- Signed-out and banned people get 401 (pages redirect to your app). Responses are `private, no-store` and `noindex`. Link previews and RSS readers need a session.
+- Still open: `/api/health`, sign-in routes, `/admin/enter`, `/api/host/revoke` (token-authenticated), the GitHub webhook and static files. The post endpoint checks its own token.
+- Signing out of your app does not end the board session (7 days). Ban the user in **Admin → Users** to cut access now.
+- Sign-in with GitHub or Google only is not supported on a private board yet.
+
 ### Add webhooks
 
 Endpoints are managed in the portal, not in files or secrets. `npx feedbax@latest add webhooks` only prints these steps:
