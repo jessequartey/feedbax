@@ -102,6 +102,7 @@ beforeEach(async () => {
 afterEach(() => {
   config.integrations.github = false;
   delete env.GITHUB_TOKEN;
+  delete env.FEEDBAX_GITHUB_LABELS;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -413,32 +414,37 @@ describe("Notion polling", () => {
 });
 
 describe("GitHub", () => {
-  test("approval creates one issue across duplicate deliveries with explicit headers and escaped content", async () => {
-    await seed({ githubRequested: 1 });
-    const fake = mock([], githubIssue());
-    await deliver({ type: "github.issue", postId: ID });
-    await deliver({ type: "github.issue", postId: ID });
-    expect(fake.requests.map((r) => [r.method, r.url])).toEqual([
-      [
-        "GET",
-        `https://api.github.com/search/issues?q=${encodeURIComponent(`repo:acme/app "feedbax:v1:${ID}"`)}&per_page=100&page=1`,
-      ],
-      ["POST", "https://api.github.com/repos/acme/app/issues"],
-    ]);
-    expect(fake.requests[1].body.title).toBe("Feedback title");
-    expect(fake.requests[1].body.body).toContain("Hello **world** &lt;script>!");
-    expect(fake.requests[1].body.body).toContain(signedMarker());
-    expect(fake.requests[1].body).not.toHaveProperty("labels");
-    expect(fake.requests[1].headers.get("X-GitHub-Api-Version")).toBe("2026-03-10");
-    expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.1");
-    expect(fake.requests[1].headers.get("Accept")).toBe("application/vnd.github+json");
-    expect(fake.requests[1].headers.get("Authorization")).toBe("Bearer github_test_only");
-    expect(await post()).toMatchObject({
-      githubNumber: 7,
-      githubUrl: githubIssue().html_url,
-      revision: 2,
-    });
-  });
+  test.each([undefined, "needs-triage,agent-candidate"])(
+    "approval creates one issue across duplicate deliveries with labels %s",
+    async (labels) => {
+      env.FEEDBAX_GITHUB_LABELS = labels;
+      await seed({ githubRequested: 1 });
+      const fake = mock([], githubIssue());
+      await deliver({ type: "github.issue", postId: ID });
+      await deliver({ type: "github.issue", postId: ID });
+      expect(fake.requests.map((r) => [r.method, r.url])).toEqual([
+        [
+          "GET",
+          `https://api.github.com/search/issues?q=${encodeURIComponent(`repo:acme/app "feedbax:v1:${ID}"`)}&per_page=100&page=1`,
+        ],
+        ["POST", "https://api.github.com/repos/acme/app/issues"],
+      ]);
+      expect(fake.requests[1].body.title).toBe("Feedback title");
+      expect(fake.requests[1].body.body).toContain("Hello **world** &lt;script>!");
+      expect(fake.requests[1].body.body).toContain(signedMarker());
+      if (labels) expect(fake.requests[1].body.labels).toEqual(["needs-triage", "agent-candidate"]);
+      else expect(fake.requests[1].body).not.toHaveProperty("labels");
+      expect(fake.requests[1].headers.get("X-GitHub-Api-Version")).toBe("2026-03-10");
+      expect(fake.requests[1].headers.get("User-Agent")).toBe("feedbax/0.3.1");
+      expect(fake.requests[1].headers.get("Accept")).toBe("application/vnd.github+json");
+      expect(fake.requests[1].headers.get("Authorization")).toBe("Bearer github_test_only");
+      expect(await post()).toMatchObject({
+        githubNumber: 7,
+        githubUrl: githubIssue().html_url,
+        revision: 2,
+      });
+    },
+  );
   test("the issue body is sanitized Markdown with the footer, backlink and marker intact", async () => {
     await seed({
       githubRequested: 1,
