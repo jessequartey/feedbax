@@ -38,6 +38,7 @@ recovery command. Secrets come from masked prompts or the environment, never fla
   github-login   GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET (prints the exact callback URL)
   google-login   GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET (prints the exact redirect URI)
   host-login     appUrl + FEEDBAX_HOST_SECRET                              [--app-url <https-url>]
+  private        auth.private + worker-first assets: every read needs a signed-in customer
   email          RESEND_API_KEY + notifications.email.from                [--from "Name <a@b.com>"]
   webhooks       How to manage webhook endpoints in /admin/settings
   --yes          Never prompt; redeploy without asking`,

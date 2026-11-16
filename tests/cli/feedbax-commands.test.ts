@@ -226,6 +226,30 @@ describe("feedbax add", () => {
     expect(h.wrangler.bulk).toEqual([]);
   });
 
+  it("private: needs host login first, then flips config and assets without touching other settings", async () => {
+    const cwd = await project();
+    const early = harness(cwd);
+    expect(await main(["add", "private", "--yes"], early.deps)).toBe(2);
+    expect(early.output()).toContain("npx feedbax add host-login first");
+
+    await main(
+      ["add", "host-login", "--app-url", "https://app.example.com", "--yes"],
+      harness(cwd).deps,
+    );
+    const h = harness(cwd, {}, ["FEEDBAX_HOST_SECRET"]);
+    expect(await main(["add", "private", "--yes"], h.deps)).toBe(0);
+    const config = await loadConfig(cwd);
+    expect(config.auth).toEqual({ anonymous: false, private: true });
+    const wrangler = JSON.parse(await read(cwd, "wrangler.jsonc"));
+    expect(wrangler.assets).toMatchObject({ binding: "ASSETS", run_worker_first: true });
+    expect(wrangler.vars.PORTAL_URL).toBe(PORTAL);
+    // Idempotent, and doctor accepts the result.
+    expect(
+      await main(["add", "private", "--yes"], harness(cwd, {}, ["FEEDBAX_HOST_SECRET"]).deps),
+    ).toBe(0);
+    expect(JSON.parse(await read(cwd, "wrangler.jsonc")).assets.binding).toBe("ASSETS");
+  });
+
   it("email: sets RESEND_API_KEY and notifications.email.from, which the config contract accepts", async () => {
     const cwd = await project();
     const h = harness(cwd, { RESEND_API_KEY: "re_ObviouslyFakeSentinelKey1234567890" });

@@ -73,6 +73,35 @@ export function ensureRunWorkerFirst(text: string, route: string): string {
   return appendArrayValue(text, ["assets", "run_worker_first"], route);
 }
 
+/**
+ * A private board runs the Worker before static files: `assets.run_worker_first: true` and an
+ * `ASSETS` binding the Worker serves its own files through. Idempotent; other settings stay.
+ */
+export function ensurePrivateAssets(text: string): string {
+  let config: { assets?: { run_worker_first?: unknown; binding?: string } };
+  try {
+    config = parseJsonc(text) as typeof config;
+  } catch {
+    throw new CliError("wrangler.jsonc is not valid JSONC. Fix its syntax and retry.", 2);
+  }
+  const manual =
+    'Set "assets": { "binding": "ASSETS", "run_worker_first": true } in wrangler.jsonc, then retry.';
+  const clean = withoutComments(text, true);
+  const assets = findValueSpan(clean, ["assets"]);
+  if (!config.assets || !assets || clean[assets.start] !== "{") throw new CliError(manual, 2);
+  if (config.assets.run_worker_first !== true) {
+    const rule = findValueSpan(clean, ["assets", "run_worker_first"]);
+    text = rule
+      ? `${text.slice(0, rule.start)}true${text.slice(rule.end)}`
+      : `${text.slice(0, assets.start + 1)} "run_worker_first": true,${text.slice(assets.start + 1)}`;
+  }
+  if (config.assets.binding !== "ASSETS") {
+    if (config.assets.binding !== undefined) throw new CliError(manual, 2);
+    text = `${text.slice(0, assets.start + 1)} "binding": "ASSETS",${text.slice(assets.start + 1)}`;
+  }
+  return text;
+}
+
 /** Append without rewriting existing entries or comments. */
 function appendArrayValue(text: string, path: string[], value: unknown): string {
   const clean = withoutComments(text, true);

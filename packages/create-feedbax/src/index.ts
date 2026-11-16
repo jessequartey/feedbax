@@ -96,6 +96,7 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
     if (
       saved.notionDataSourceId &&
       ((flags.anonymous !== undefined && flags.anonymous !== saved.anonymous) ||
+        (flags.private !== undefined && flags.private !== Boolean(saved.private)) ||
         (flags.template !== undefined && flags.template !== saved.template) ||
         (flags.githubRepo !== undefined && flags.githubRepo !== saved.githubRepo))
     )
@@ -279,6 +280,7 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
     }
     // Anonymous feedback is on by default: no sign-in provider is needed to start.
     const anonymous = flags.anonymous ?? saved.anonymous ?? true;
+    const isPrivate = flags.private ?? saved.private ?? false;
     if (flags.yes) await begin();
     const answers: SetupAnswers = {
       name,
@@ -286,6 +288,7 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       appUrl,
       template,
       anonymous,
+      ...(isPrivate ? { private: true } : {}),
       packageManager: pm,
       notionDataSourceId: target.dataSourceId,
       githubRepo,
@@ -308,13 +311,15 @@ export async function main(argv = process.argv.slice(2), overrides: CliDeps = {}
       },
       onSecret: (value) => hidden.push(value),
     });
-    const loginStatus = !login
-      ? anonymous
-        ? "Open the portal and post your first feedback. Anyone can post without an account; add sign-in later with npx feedbax add github-login."
-        : "Anonymous posting is off and no sign-in is configured yet, so nobody can post. Add one with npx feedbax add github-login (or google-login, host-login)."
-      : login === "host"
-        ? `Host login integration pending. Add the same-origin authenticated token endpoint and FeedbaxLink in ${appUrl} using ${README_URL}. Share FEEDBAX_HOST_SECRET server-side only. Users can browse now; signed-in participation is ready after that connection is verified.`
-        : `${login === "github" ? "GitHub" : "Google"} sign-in is configured. Open the portal, choose Continue with ${login === "github" ? "GitHub" : "Google"}, and submit your first feedback. OAuth callback, session and first-write verification remain.`;
+    const loginStatus = isPrivate
+      ? `Private board: every page needs a signed-in customer from ${appUrl}. Add the same-origin token endpoint and FeedbaxLink there using ${README_URL}, and pass visibility="customers" to FeedbaxDialog. Share FEEDBAX_HOST_SECRET server-side only. Run ${pm} run doctor to check the private-board settings.`
+      : !login
+        ? anonymous
+          ? "Open the portal and post your first feedback. Anyone can post without an account; add sign-in later with npx feedbax add github-login."
+          : "Anonymous posting is off and no sign-in is configured yet, so nobody can post. Add one with npx feedbax add github-login (or google-login, host-login)."
+        : login === "host"
+          ? `Host login integration pending. Add the same-origin authenticated token endpoint and FeedbaxLink in ${appUrl} using ${README_URL}. Share FEEDBAX_HOST_SECRET server-side only. Users can browse now; signed-in participation is ready after that connection is verified.`
+          : `${login === "github" ? "GitHub" : "Google"} sign-in is configured. Open the portal, choose Continue with ${login === "github" ? "GitHub" : "Google"}, and submit your first feedback. OAuth callback, session and first-write verification remain.`;
     prompt.note(
       `Portal deployed: ${result.portalUrl}\n${loginStatus}\nNotion database: ${result.notionUrl}\n\ncd ${name}\n${pm} run dev        # http://localhost:3000\n${pm} run deploy     # publish changes\n${pm} run admin      # admin sign-in link (15 min, single use)\n${pm} run doctor     # check config, secrets and health\n\nMore: npx feedbax add github | github-login | google-login | host-login | email | webhooks\n\nSecrets: ${name}/.dev.vars (private, gitignored).${login && login !== "host" ? "\nUse a separate development OAuth App for localhost; keep production callback registration unchanged. Replace local OAuth credentials in .dev.vars for development and update production secrets explicitly; do not deploy localhost credentials over production." : ""}\nLocal posts sync to your real Notion database; delete test rows there.`,
       "Portal deployed",
