@@ -11,40 +11,67 @@ A self-hosted feedback portal: collect ideas, votes and comments, triage in Noti
 
 ## Quick start with an agent
 
-Paste this into Claude Code, T3 Code, Cursor, Codex or a similar agent. Keep tokens in its secret input, not in chat.
+Paste this into Claude Code, T3 Code, Cursor, Codex or a similar agent. Keep tokens in its secret input, not in chat. The agent interviews you first, proposes a setup for your organization, and builds nothing until you approve it.
 
 ```text
-Set up and deploy Feedbax from https://github.com/jessequartey/feedbax#readme.
+Set up Feedbax for my organization from https://github.com/jessequartey/feedbax#readme.
+Fit it to how we actually work. Do not just accept defaults.
 
-1. Run `npx create-feedbax@latest --help`, then `npx create-feedbax@latest` in a
-   terminal (pnpm: `pnpm dlx create-feedbax@latest`, bun: `bunx create-feedbax@latest`).
-   Keep the defaults: Notion template, anonymous feedback on, no sign-in
-   provider. Do not add GitHub, email, webhooks or logins unless I ask. They
-   are add-ons.
+1. Look first. If I give you a repo or app, read it before you ask anything:
+   product name, framework, how users sign in, where a Feedback button fits, brand
+   colours and font, existing GitHub repo and issue labels. Do not ask me what you
+   can read.
 
-2. Ask me only for what only I can provide, once:
-   - Project name and product name.
-   - Notion: duplicate the template, create an API-token connection (read,
-     insert, update) and share the page with it. Check the token can see that
-     page before continuing; a token alone does not grant page access.
-   - Cloudflare: login happens in the browser. Leave login, MFA and payment
-     (R2, paid plans) to me.
-   Use secure secret input. Never put secrets in arguments, chat, logs or Git.
+2. Interview me. Ask only what you could not learn, in one message of at most 8
+   short questions, each with a recommended answer I can accept with "yes":
+   - Who gives feedback: anyone on the internet, only our signed-in customers, or
+     only our own team? (Public product board / customers-only / internal.)
+   - How do they sign in today: our own app (recommended when customers already
+     have accounts), GitHub, Google, or nobody (anonymous)?
+   - Who triages, and where? Notion (default), or a different tool and so no Notion.
+     Who needs access and who may change a post's status?
+   - Do engineers work from GitHub issues? Which repo, which labels, and who
+     decides a post becomes an issue? Never auto-run anything on raw customer text.
+   - Do we publish a changelog or roadmap? From GitHub releases or written by hand?
+   - Email or webhooks (Slack, Linear, our own system)? Which events matter?
+   - Where does the Feedback button go in our app, and which users see it?
+   - Brand: name, colours, domain (workers.dev now, or feedback.<our domain>).
+   - Constraints: free Cloudflare plan, data location, who approves spend.
 
-3. I authorize the Cloudflare resources for this portal and deploying to the
-   account I select. Follow the CLI's R2 and workers.dev prompts. If setup
-   stops, fix the problem and rerun the same command in the same folder. Run
-   `npx feedbax@latest doctor` if something looks wrong. Without a terminal,
-   use --yes with NOTION_TOKEN, CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
-   (plus --notion-page if no unique Feedbax database is visible).
+3. Propose, then wait. Write one short plan: the setup you recommend and why, the
+   exact `feedbax.config.ts` choices (`auth.anonymous`, `auth.private`, `appUrl`),
+   which integrations are on or off, the add-ons you will run, what I must do by
+   hand, and what it costs. Use these as starting points, then adjust:
+   - Public product board: anonymous or GitHub/Google login, Notion, changelog.
+   - Customers-only SaaS: host login, `auth.private: true`, dialog in the app,
+     Notion or GitHub only, no anonymous posting, so no public pages.
+   - Internal tool: host login or Google, private, Notion off if the team lives in
+     GitHub (`FEEDBAX_NOTION_ENABLED=false`).
+   - Open source: GitHub login, GitHub issue sync, changelog from releases.
+   Say plainly that anonymous off does not make a board private. Do not run
+   anything until I say "go".
 
-4. Verify the live URL and /api/health: submit a labeled test post and confirm
-   it reaches Notion. Delete only the test data you created
-   (`npx feedbax@latest admin`, then Moderation).
+4. Build exactly the approved plan:
+   - `npx create-feedbax@latest --help`, then `npx create-feedbax@latest`
+     (pnpm: `pnpm dlx create-feedbax@latest`, bun: `bunx create-feedbax@latest`).
+   - Customers-only board: `npx create-feedbax@latest --private --app-url <our app>`
+     (existing project: `npx feedbax@latest add host-login`, then `add private`).
+   - Add only what the plan names: `npx feedbax@latest add host-login | github |
+     github-login | google-login | email | webhooks`.
+   - Ask me only for what only I can provide, once: Notion page and token (check
+     the token can see the page), and Cloudflare login, MFA and payment. Use
+     secure secret input. Never put secrets in arguments, chat, logs or Git.
+   - If setup stops, fix it and rerun the same command in the same folder. Run
+     `npx feedbax@latest doctor` if something looks wrong. Without a terminal,
+     use --yes with NOTION_TOKEN, CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 
-Finish by printing the portal URL, the `npx feedbax@latest admin` sign-in link,
-the Notion URL, the project folder and any remaining manual steps. Mark
-anything untested.
+5. Verify as each kind of person: submit a labelled test post, confirm it reaches
+   where triage happens, and (if private) confirm a signed-out request gets 401.
+   Delete only the test data you created (`npx feedbax@latest admin`, Moderation).
+
+Finish with: the portal URL, the admin sign-in link, where triage happens, the
+project folder, the choices you made and why, anything untested, and what I should
+revisit in 30 days.
 ```
 
 ## Quick start by hand
@@ -313,15 +340,16 @@ import { FeedbaxLink } from "@/components/feedbax/feedbax-link";
 
 Use your portal URL. `npx feedbax@latest add host-login --app-url <your app URL>` (or `appUrl` in `feedbax.config.ts`, then redeploy) allows that origin and adds **Back to app**. `FeedbaxLink` asks the user to confirm the account. **Continue** signs them in and opens the board. Opening the link does not switch accounts or transfer anonymous feedback. Host identities and portal accounts stay separate. The block requires a signed-in host user.
 
-| `FeedbaxDialog` prop   | Default              | Purpose                                                  |
-| ---------------------- | -------------------- | -------------------------------------------------------- |
-| `portalUrl`            | required             | Your portal's origin                                     |
-| `tokenUrl`             | `/api/feedbax-token` | Your token route                                         |
-| `getToken`             | none                 | Override with `() => Promise<{ token: string }>`         |
-| `trigger`              | Feedback button      | Custom element, or `null` for controlled use             |
-| `redirectOnSubmit`     | `true`               | Open the new post; `false` shows a View your post button |
-| `onSubmitted`          | none                 | Receives `{ postId, postUrl }`                           |
-| `open`, `onOpenChange` | none                 | Controlled state                                         |
+| `FeedbaxDialog` prop   | Default              | Purpose                                                              |
+| ---------------------- | -------------------- | -------------------------------------------------------------------- |
+| `portalUrl`            | required             | Your portal's origin                                                 |
+| `tokenUrl`             | `/api/feedbax-token` | Your token route                                                     |
+| `getToken`             | none                 | Override with `() => Promise<{ token: string }>`                     |
+| `trigger`              | Feedback button      | Custom element, or `null` for controlled use                         |
+| `visibility`           | `"public"`           | `"customers"` for a private board: changes the notice under the form |
+| `redirectOnSubmit`     | `true`               | Open the new post; `false` shows a View your post button             |
+| `onSubmitted`          | none                 | Receives `{ postId, postUrl }`                                       |
+| `open`, `onOpenChange` | none                 | Controlled state                                                     |
 
 `FeedbaxLink` accepts `portalUrl`, `tokenUrl`, `getToken`, `children`, `to` (`/` or `/posts/<id>`) and `target` (`_self` or `_blank`).
 
@@ -340,6 +368,17 @@ npx feedbax@latest admin     # print the admin sign-in link
 ```
 
 Locally, `npm run dev` serves http://localhost:3000. `npm run deploy` does what `deploy` does.
+
+### Run the built Worker locally
+
+Use this to test sign-in, the dialog or a private board against your own app on localhost. `npm run dev` needs none of it.
+
+1. Copy `wrangler.jsonc` to `wrangler.local.jsonc` and delete its `routes`. Wrangler otherwise pretends to be your custom domain and rewrites each POST's `Origin`, so the CSRF check rejects it (correctly).
+2. Set `PORTAL_URL` in that file and in `.dev.vars` to the same `http://localhost:<port>` you serve on. `.dev.vars` wins over `--var`.
+3. Set `appUrl` in `feedbax.config.ts` to your app's local origin (http is fine for localhost), and use the same `FEEDBAX_HOST_SECRET` in both apps.
+4. Run `npm run build && npx wrangler dev -c wrangler.local.jsonc --port <port>`.
+
+Never loosen the origin check to make this work. Do not commit `wrangler.local.jsonc` or `.dev.vars`.
 
 Local data is separate from production, but local posts sync to your real Notion database when `NOTION_TOKEN` is set. Delete test rows afterwards. For a custom domain, update the route in `wrangler.jsonc` and `PORTAL_URL` together, then deploy. Edit `feedbax.config.ts` and redeploy to change options. Conflicting setup flags stop and explain. They do not overwrite your config. Deploy applies additive migrations and keeps existing data. Running create-feedbax again resumes setup. It does not upgrade an existing project.
 
@@ -480,22 +519,23 @@ Run `npx feedbax@latest doctor` first. It checks config, Cloudflare secrets and 
 
 If one post stops syncing because its Notion row was trashed, restore that row. Other posts keep syncing. A later poll reconnects the restored row. Feedbax does not recreate it. Unexpected HTTP errors include `X-Request-ID`. Use it with Workers Logs. Keep secrets out of bug reports.
 
-| Problem                                       | Fix                                                                                                                                                                                                                                            |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| “check you copied the whole secret”           | Copy the full Notion API token, with no spaces or line breaks.                                                                                                                                                                                 |
-| Setup can't see your page/database            | Recheck both access routes in [Notion access](#notion-access), then choose **I just shared one — search again** or paste the page link. Search can lag. If settings still say **No page access**, ask the workspace owner to connect the page. |
-| Public template missing or shows “No results” | Continue with a blank page you own: connect it as in [Notion access](#notion-access) and let setup create the database. Report the template link on [GitHub issues](https://github.com/jessequartey/feedbax/issues).                           |
-| “R2 isn't enabled on this account”            | Follow the CLI link, click **Enable R2**, then press Enter. A payment method is required on the free tier.                                                                                                                                     |
-| workers.dev subdomain fails                   | Pick another name, or follow the CLI's Workers & Pages link and press Enter when ready.                                                                                                                                                        |
-| Resource name already exists                  | Choose another project name. `<name>-db`, `<name>-images`, `<name>-sync` and `<name>-notify` must be unused.                                                                                                                                   |
-| Setup stopped halfway                         | Rerun the same command and accept **Finish setting up …?** Secrets and resources are reused.                                                                                                                                                   |
-| GitHub repo rejected                          | Use `owner/repo`, enable Issues, unarchive the repo, and give the token Issues read/write. Then rerun `npx feedbax@latest add github`.                                                                                                         |
-| GitHub/Google sign-in fails                   | Check both OAuth credentials and the exact deployed callback. An Issues token does not enable login. For Google, also check consent-screen publishing and test users.                                                                          |
-| Sign-in isn't configured                      | Run `npx feedbax@latest add github-login`, `google-login` or `host-login` (host login also needs the token endpoint). Or set `auth.anonymous`. Email/password login is disabled.                                                               |
-| Notion sync fails                             | Check page access and the required property names and types. Restore them and wait for the next sync.                                                                                                                                          |
-| No GitHub issue                               | Tick **Send to GitHub** in Notion and allow 5 minutes. Check `/api/health`.                                                                                                                                                                    |
-| Dialog gets 401 / expired link                | Tokens last 5 minutes and work once. Retry. Confirm the host secrets match and the server clock is correct.                                                                                                                                    |
-| Dialog blocked by CORS                        | Set `appUrl` to your app's exact origin and redeploy.                                                                                                                                                                                          |
+| Problem                                               | Fix                                                                                                                                                                                                                                            |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| “check you copied the whole secret”                   | Copy the full Notion API token, with no spaces or line breaks.                                                                                                                                                                                 |
+| Setup can't see your page/database                    | Recheck both access routes in [Notion access](#notion-access), then choose **I just shared one — search again** or paste the page link. Search can lag. If settings still say **No page access**, ask the workspace owner to connect the page. |
+| Public template missing or shows “No results”         | Continue with a blank page you own: connect it as in [Notion access](#notion-access) and let setup create the database. Report the template link on [GitHub issues](https://github.com/jessequartey/feedbax/issues).                           |
+| “R2 isn't enabled on this account”                    | Follow the CLI link, click **Enable R2**, then press Enter. A payment method is required on the free tier.                                                                                                                                     |
+| workers.dev subdomain fails                           | Pick another name, or follow the CLI's Workers & Pages link and press Enter when ready.                                                                                                                                                        |
+| Resource name already exists                          | Choose another project name. `<name>-db`, `<name>-images`, `<name>-sync` and `<name>-notify` must be unused.                                                                                                                                   |
+| Setup stopped halfway                                 | Rerun the same command and accept **Finish setting up …?** Secrets and resources are reused.                                                                                                                                                   |
+| GitHub repo rejected                                  | Use `owner/repo`, enable Issues, unarchive the repo, and give the token Issues read/write. Then rerun `npx feedbax@latest add github`.                                                                                                         |
+| GitHub/Google sign-in fails                           | Check both OAuth credentials and the exact deployed callback. An Issues token does not enable login. For Google, also check consent-screen publishing and test users.                                                                          |
+| Sign-in isn't configured                              | Run `npx feedbax@latest add github-login`, `google-login` or `host-login` (host login also needs the token endpoint). Or set `auth.anonymous`. Email/password login is disabled.                                                               |
+| Notion sync fails                                     | Check page access and the required property names and types. Restore them and wait for the next sync.                                                                                                                                          |
+| No GitHub issue                                       | Tick **Send to GitHub** in Notion and allow 5 minutes. Check `/api/health`.                                                                                                                                                                    |
+| Dialog gets 401 / expired link                        | Tokens last 5 minutes and work once. Retry. Confirm the host secrets match and the server clock is correct.                                                                                                                                    |
+| `POST` fails with a CSRF or origin error on localhost | Follow [Run the built Worker locally](#run-the-built-worker-locally): `PORTAL_URL` must match the URL you open, and `routes` must be removed locally.                                                                                          |
+| Dialog blocked by CORS                                | Set `appUrl` to your app's exact origin and redeploy.                                                                                                                                                                                          |
 
 ## Community templates
 

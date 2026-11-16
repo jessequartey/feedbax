@@ -125,7 +125,7 @@ describe("DOM snapshot filter", () => {
       return this.attrs[name] ?? null;
     }
   }
-  test("skips the dialog, its overlay and anything the host marks", () => {
+  test("skips the dialog, its overlay, secret fields and anything the host marks", () => {
     vi.stubGlobal("Element", FakeElement);
     expect(isIgnored(new FakeElement({ "data-feedbax-ignore": "" }) as unknown as Node)).toBe(true);
     expect(isIgnored(new FakeElement({ "data-slot": "dialog-overlay" }) as unknown as Node)).toBe(
@@ -133,5 +133,10 @@ describe("DOM snapshot filter", () => {
     );
     expect(isIgnored(new FakeElement({ "data-slot": "button" }) as unknown as Node)).toBe(false);
     expect(isIgnored({ nodeType: 3 } as unknown as Node)).toBe(false);
+    for (const attrs of [{ type: "password" }, { autocomplete: "one-time-code" }] as Record<
+      string,
+      string
+    >[])
+      expect(isIgnored(new FakeElement(attrs) as unknown as Node)).toBe(true);
   });
 });
