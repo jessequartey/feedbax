@@ -333,15 +333,16 @@ import { FeedbaxLink } from "@/components/feedbax/feedbax-link";
 
 Use your portal URL. `npx feedbax@latest add host-login --app-url <your app URL>` (or `appUrl` in `feedbax.config.ts`, then redeploy) allows that origin and adds **Back to app**. `FeedbaxLink` asks the user to confirm the account. **Continue** signs them in and opens the board. Opening the link does not switch accounts or transfer anonymous feedback. Host identities and portal accounts stay separate. The block requires a signed-in host user.
 
-| `FeedbaxDialog` prop   | Default              | Purpose                                                  |
-| ---------------------- | -------------------- | -------------------------------------------------------- |
-| `portalUrl`            | required             | Your portal's origin                                     |
-| `tokenUrl`             | `/api/feedbax-token` | Your token route                                         |
-| `getToken`             | none                 | Override with `() => Promise<{ token: string }>`         |
-| `trigger`              | Feedback button      | Custom element, or `null` for controlled use             |
-| `redirectOnSubmit`     | `true`               | Open the new post; `false` shows a View your post button |
-| `onSubmitted`          | none                 | Receives `{ postId, postUrl }`                           |
-| `open`, `onOpenChange` | none                 | Controlled state                                         |
+| `FeedbaxDialog` prop   | Default              | Purpose                                                              |
+| ---------------------- | -------------------- | -------------------------------------------------------------------- |
+| `portalUrl`            | required             | Your portal's origin                                                 |
+| `tokenUrl`             | `/api/feedbax-token` | Your token route                                                     |
+| `getToken`             | none                 | Override with `() => Promise<{ token: string }>`                     |
+| `trigger`              | Feedback button      | Custom element, or `null` for controlled use                         |
+| `visibility`           | `"public"`           | `"customers"` for a private board: changes the notice under the form |
+| `redirectOnSubmit`     | `true`               | Open the new post; `false` shows a View your post button             |
+| `onSubmitted`          | none                 | Receives `{ postId, postUrl }`                                       |
+| `open`, `onOpenChange` | none                 | Controlled state                                                     |
 
 `FeedbaxLink` accepts `portalUrl`, `tokenUrl`, `getToken`, `children`, `to` (`/` or `/posts/<id>`) and `target` (`_self` or `_blank`).
 
