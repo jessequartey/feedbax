@@ -1,6 +1,6 @@
 {
   "name": "feedbax",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A self-hosted feedback portal: collect ideas, votes and comments, triage in Notion, and turn approved posts into GitHub issues.",
   "license": "Apache-2.0",
   "repository": {
