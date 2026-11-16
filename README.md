@@ -413,6 +413,18 @@ For local OAuth, use a separate development app with `http://localhost:3000/api/
 
 When resuming `create-feedbax` with `--login`, confirm saved OAuth credentials match the printed production URL. With `--yes`, pass production client id and secret in the environment for every configured provider. Setup will not upload saved development credentials without confirmation.
 
+### Turn integrations off or point them elsewhere
+
+Set these as `vars` in `wrangler.jsonc`, then run `npm run deploy`. No code change, and projects without them behave as before.
+
+| Variable                       | Effect                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `FEEDBAX_NOTION_ENABLED=false` | Skips Notion sync and drains its queued work with no outside calls. Health shows `notion: off`      |
+| `FEEDBAX_GITHUB_ENABLED`       | `true` opens issues for approved posts (needs `FEEDBAX_GITHUB_REPO=owner/repo`); `false` stops them |
+| `FEEDBAX_GITHUB_LABELS`        | Comma-separated labels for new issues, up to 10. Labels do not approve anything                     |
+
+`npx feedbax@latest doctor` skips the Notion checks when Notion is off. The secrets stay `NOTION_TOKEN` and `GITHUB_TOKEN`.
+
 ## Theming
 
 Pick a preset at [shadcn Create](https://ui.shadcn.com/create). These commands use Feedbax's default. Replace `buFyyzw` with your code.
