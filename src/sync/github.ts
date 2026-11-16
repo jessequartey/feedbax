@@ -1,3 +1,4 @@
+import { issueLabels } from "../server/integration-config.ts";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { CATEGORY_LABELS } from "../contracts/domain.ts";
 import { IntegrationError } from "../contracts/integrations.ts";
@@ -105,7 +106,7 @@ export async function createIssue(postId: string): Promise<void> {
   }
   // Search can take time: moderation/deletion during it must cancel the outgoing write.
   const current = await database.select().from(posts).where(eq(posts.id, postId)).get();
-  if (!isPublicPost(current)) return;
+  if (!current || !isPublicPost(current) || !current.githubRequested) return;
   if (!issue) {
     const body = [
       // Sanitized Markdown, not escaped text: formatting survives, HTML and mentions do not.
@@ -117,7 +118,12 @@ export async function createIssue(postId: string): Promise<void> {
       ),
       await issueMarker(postId),
     ].join("\n\n");
-    issue = await request<GitHubIssue>(path, "POST", { title: post.title, body });
+    const labels = issueLabels();
+    issue = await request<GitHubIssue>(path, "POST", {
+      title: markdownToGitHub(post.title),
+      body,
+      ...(labels.length ? { labels } : {}),
+    });
   }
   if (!Number.isSafeInteger(issue.user?.id)) throw new Error("Invalid GitHub issue creator");
   const closedAt =

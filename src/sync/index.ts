@@ -26,6 +26,10 @@ export async function consumeQueue(batch: MessageBatch<SyncMessage>): Promise<vo
       await consumeNotification(message as Message<NotifyMessage>);
       continue;
     }
+    if (body.type.startsWith("notion.") && env.FEEDBAX_NOTION_ENABLED === "false") {
+      message.ack();
+      continue;
+    }
     if (body.type.startsWith("github.") && !config.integrations.github) {
       message.ack();
       continue;
@@ -172,7 +176,7 @@ export async function runScheduled(controller: ScheduledController): Promise<voi
   // (e.g. github_number IS NULL) and read every unsynced row.
   const pendingIds = async (query: ReturnType<typeof sql>) =>
     (await database.all<{ id: string }>(query)).map((row) => row.id);
-  const notion = !backedOff("notion");
+  const notion = env.FEEDBAX_NOTION_ENABLED !== "false" && !backedOff("notion");
   const github = !!config.integrations.github && !backedOff("github");
   const sweep: SyncMessage[] = [];
   if (notion && !providerPaused(error("notion"), now))
