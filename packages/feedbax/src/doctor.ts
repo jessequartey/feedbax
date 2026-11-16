@@ -77,6 +77,24 @@ export function bindingProblems(project: Project): Check["problems"] {
   return problems;
 }
 
+/** A private board only stays private if the Worker sees every request before static files. */
+export function privateBoardProblems(project: Project, config: FeedbaxConfig): Check["problems"] {
+  if (!config.auth.private) return [];
+  const problems: Check["problems"] = [];
+  const assets = project.wrangler.assets;
+  if (assets?.run_worker_first !== true)
+    problems.push({
+      problem: "auth.private is on but assets.run_worker_first is not true",
+      fix: 'Set "assets": { "binding": "ASSETS", "run_worker_first": true } in wrangler.jsonc.',
+    });
+  if (assets?.binding !== "ASSETS")
+    problems.push({
+      problem: "auth.private is on but the assets binding is not named ASSETS",
+      fix: 'Add "binding": "ASSETS" to assets in wrangler.jsonc so the Worker can serve static files.',
+    });
+  return problems;
+}
+
 /** `FEEDBAX_NOTION_ENABLED=false` in wrangler vars turns Notion sync off. */
 export function notionEnabled(project: Project): boolean {
   return project.wrangler.vars?.FEEDBAX_NOTION_ENABLED !== "false";
@@ -114,6 +132,10 @@ export async function doctor(ctx: Context): Promise<number> {
   });
   await check("wrangler.jsonc bindings", (c) => {
     c.problems.push(...bindingProblems(project));
+  });
+  await check("private board", (c) => {
+    if (config) c.problems.push(...privateBoardProblems(project, config));
+    else c.skipped = "feedbax.config.ts did not load";
   });
   await check("Cloudflare secrets", async (c) => {
     let names: string[];
