@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3
+
+- **Private boards.** Set `auth.private` so only signed-in customers can read the board. Every page, search, image, RSS and Open Graph response is gated by the Worker and sent `private, no-store`. Set it up with `npx create-feedbax --private` or `npx feedbax add private`; `npx feedbax doctor` checks it.
+- **Integrations on or off at runtime.** Turn Notion and GitHub off, or point GitHub at another repo and labels, with Worker variables. Health reports disabled integrations as off, and `doctor` stops asking for Notion access.
+- **Honest feedback dialog.** The dialog tells people who can see their feedback (`visibility`), and screenshots skip password and one-time-code fields.
+- **End a user's board session.** Host apps call `POST /api/host/revoke` when someone signs out or is deleted.
+- **Better agent prompt.** The quick-start prompt interviews your organization first, then sets up the board that fits it.
+- Docs for running the built Worker locally.
+
 ## 0.3.2
 
 - **Done posts last.** Done and closed posts sit below active feedback on the board and in My feedback.

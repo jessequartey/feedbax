@@ -4,7 +4,7 @@ import { CliError } from "../../create-feedbax/src/flags.ts";
 import { exists } from "../../create-feedbax/src/project.ts";
 
 /** This CLI's version. A unit test keeps it equal to packages/feedbax/package.json. */
-export const VERSION = "0.3.2";
+export const VERSION = "0.3.3";
 /** The oldest generated-project version `feedbax migrate` can start from. */
 export const OLDEST_MIGRATABLE = "0.3.0";
 export const VERSION_FILE = ".feedbax/version";
