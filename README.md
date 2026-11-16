@@ -11,40 +11,65 @@ A self-hosted feedback portal: collect ideas, votes and comments, triage in Noti
 
 ## Quick start with an agent
 
-Paste this into Claude Code, T3 Code, Cursor, Codex or a similar agent. Keep tokens in its secret input, not in chat.
+Paste this into Claude Code, T3 Code, Cursor, Codex or a similar agent. Keep tokens in its secret input, not in chat. The agent interviews you first, proposes a setup for your organization, and builds nothing until you approve it.
 
 ```text
-Set up and deploy Feedbax from https://github.com/jessequartey/feedbax#readme.
+Set up Feedbax for my organization from https://github.com/jessequartey/feedbax#readme.
+Fit it to how we actually work. Do not just accept defaults.
 
-1. Run `npx create-feedbax@latest --help`, then `npx create-feedbax@latest` in a
-   terminal (pnpm: `pnpm dlx create-feedbax@latest`, bun: `bunx create-feedbax@latest`).
-   Keep the defaults: Notion template, anonymous feedback on, no sign-in
-   provider. Do not add GitHub, email, webhooks or logins unless I ask. They
-   are add-ons.
+1. Look first. If I give you a repo or app, read it before you ask anything:
+   product name, framework, how users sign in, where a Feedback button fits, brand
+   colours and font, existing GitHub repo and issue labels. Do not ask me what you
+   can read.
 
-2. Ask me only for what only I can provide, once:
-   - Project name and product name.
-   - Notion: duplicate the template, create an API-token connection (read,
-     insert, update) and share the page with it. Check the token can see that
-     page before continuing; a token alone does not grant page access.
-   - Cloudflare: login happens in the browser. Leave login, MFA and payment
-     (R2, paid plans) to me.
-   Use secure secret input. Never put secrets in arguments, chat, logs or Git.
+2. Interview me. Ask only what you could not learn, in one message of at most 8
+   short questions, each with a recommended answer I can accept with "yes":
+   - Who gives feedback: anyone on the internet, only our signed-in customers, or
+     only our own team? (Public product board / customers-only / internal.)
+   - How do they sign in today: our own app (recommended when customers already
+     have accounts), GitHub, Google, or nobody (anonymous)?
+   - Who triages, and where? Notion (default), or a different tool and so no Notion.
+     Who needs access and who may change a post's status?
+   - Do engineers work from GitHub issues? Which repo, which labels, and who
+     decides a post becomes an issue? Never auto-run anything on raw customer text.
+   - Do we publish a changelog or roadmap? From GitHub releases or written by hand?
+   - Email or webhooks (Slack, Linear, our own system)? Which events matter?
+   - Where does the Feedback button go in our app, and which users see it?
+   - Brand: name, colours, domain (workers.dev now, or feedback.<our domain>).
+   - Constraints: free Cloudflare plan, data location, who approves spend.
 
-3. I authorize the Cloudflare resources for this portal and deploying to the
-   account I select. Follow the CLI's R2 and workers.dev prompts. If setup
-   stops, fix the problem and rerun the same command in the same folder. Run
-   `npx feedbax@latest doctor` if something looks wrong. Without a terminal,
-   use --yes with NOTION_TOKEN, CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
-   (plus --notion-page if no unique Feedbax database is visible).
+3. Propose, then wait. Write one short plan: the setup you recommend and why, the
+   exact `feedbax.config.ts` choices (`auth.anonymous`, `auth.private`, `appUrl`),
+   which integrations are on or off, the add-ons you will run, what I must do by
+   hand, and what it costs. Use these as starting points, then adjust:
+   - Public product board: anonymous or GitHub/Google login, Notion, changelog.
+   - Customers-only SaaS: host login, `auth.private: true`, dialog in the app,
+     Notion or GitHub only, no anonymous posting, so no public pages.
+   - Internal tool: host login or Google, private, Notion off if the team lives in
+     GitHub (`FEEDBAX_NOTION_ENABLED=false`).
+   - Open source: GitHub login, GitHub issue sync, changelog from releases.
+   Say plainly that anonymous off does not make a board private. Do not run
+   anything until I say "go".
 
-4. Verify the live URL and /api/health: submit a labeled test post and confirm
-   it reaches Notion. Delete only the test data you created
-   (`npx feedbax@latest admin`, then Moderation).
+4. Build exactly the approved plan:
+   - `npx create-feedbax@latest --help`, then `npx create-feedbax@latest`
+     (pnpm: `pnpm dlx create-feedbax@latest`, bun: `bunx create-feedbax@latest`).
+   - Add only what the plan names: `npx feedbax@latest add host-login | github |
+     github-login | google-login | email | webhooks`.
+   - Ask me only for what only I can provide, once: Notion page and token (check
+     the token can see the page), and Cloudflare login, MFA and payment. Use
+     secure secret input. Never put secrets in arguments, chat, logs or Git.
+   - If setup stops, fix it and rerun the same command in the same folder. Run
+     `npx feedbax@latest doctor` if something looks wrong. Without a terminal,
+     use --yes with NOTION_TOKEN, CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 
-Finish by printing the portal URL, the `npx feedbax@latest admin` sign-in link,
-the Notion URL, the project folder and any remaining manual steps. Mark
-anything untested.
+5. Verify as each kind of person: submit a labelled test post, confirm it reaches
+   where triage happens, and (if private) confirm a signed-out request gets 401.
+   Delete only the test data you created (`npx feedbax@latest admin`, Moderation).
+
+Finish with: the portal URL, the admin sign-in link, where triage happens, the
+project folder, the choices you made and why, anything untested, and what I should
+revisit in 30 days.
 ```
 
 ## Quick start by hand
